@@ -122,6 +122,10 @@ def _sample_config_sections():
             "video_language": "en-US",
             "upload_post_api_key": "api-key-123",
             "upload_post_username": "my-username",
+            "youtube_client_id": "yt-client-id",
+            "youtube_client_secret": "yt-client-secret",
+            "youtube_refresh_token": "yt-refresh-token",
+            "youtube_privacy_status": "unlisted",
             "volcengine_seedance_api_key": "ark-seedance-key",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
@@ -224,12 +228,16 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
             "cloudflare_gateway_id": "cf-gateway",
             "upload_post_api_key": "api-key-123",
             "upload_post_username": "my-username",
+            "youtube_client_id": "yt-client-id",
+            "youtube_client_secret": "yt-client-secret",
+            "youtube_refresh_token": "yt-refresh-token",
             "volcengine_seedance_api_key": "ark-seedance-key",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key"},
     }
-    assert count_backup_keys(backup) == 11
+    # youtube_privacy_status 不是凭据，属于普通设置，不应进入密钥备份。
+    assert count_backup_keys(backup) == 14
 
 
 def test_key_backup_carries_llm_provider_extra_fields_with_the_key():
@@ -283,6 +291,10 @@ def test_key_backup_round_trip_restores_every_saved_key():
     # Explicit assertion for upload_post credentials restoration requested by reviewer
     assert restored["app"]["upload_post_api_key"] == "api-key-123"
     assert restored["app"]["upload_post_username"] == "my-username"
+    # OAuth2 凭据分三段，只恢复其中一段仍然无法发布到 YouTube。
+    assert restored["app"]["youtube_client_id"] == "yt-client-id"
+    assert restored["app"]["youtube_client_secret"] == "yt-client-secret"
+    assert restored["app"]["youtube_refresh_token"] == "yt-refresh-token"
     assert restored["app"]["volcengine_seedance_api_key"] == "ark-seedance-key"
 
 

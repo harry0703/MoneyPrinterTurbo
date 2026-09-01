@@ -348,6 +348,24 @@
     "Upload-Post Profile Username": "Имя пользователя профиля Upload-Post",
     "Upload-Post Profile Username Help": "Введите имя пользователя со страницы [Manage Users]({manage_users_url}), а не адрес электронной почты аккаунта Upload-Post. Этот пользователь публикации должен быть подключён к выбранным платформам.",
     "Upload-Post Setup Guide": "Перед включением автопубликации:\n1. Создайте API-ключ на странице [API Keys]({api_keys_url}).\n2. Создайте или выберите пользователя публикации на странице [Manage Users]({manage_users_url}) и подключите целевые платформы.\n\nНиже введите его **имя пользователя**, а не адрес электронной почты аккаунта Upload-Post.",
-    "YouTube Privacy Status": "Статус конфиденциальности YouTube"
+    "YouTube Privacy Status": "Статус конфиденциальности YouTube",
+    "YouTube Direct Upload": "Прямая публикация на YouTube",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Публикуйте готовые видео прямо на YouTube через официальный YouTube Data API v3",
+    "YouTube OAuth Setup Guide": "Перед включением автопубликации на YouTube:\n1. Включите [YouTube Data API v3]({console_url}) в проекте Google Cloud.\n2. Создайте клиент OAuth типа **Веб-приложение** и добавьте `https://developers.google.com/oauthplayground` в разрешённые URI перенаправления. Playground принимает только веб-клиенты, поэтому тип Desktop app здесь не подходит.\n3. Получите refresh token для области `youtube.upload` в [OAuth Playground]({playground_url}), включив *Use your own OAuth credentials*.\n4. Переведите статус публикации в **Production**. Пока приложение остаётся в статусе Testing с внешним типом пользователей, Google отзывает refresh token через 7 дней.\n\nRefresh token обновляется автоматически, поэтому публикация никогда не открывает браузер.",
+    "Enable YouTube Integration": "Включить интеграцию с YouTube",
+    "Enable YouTube Auto-Publish": "Включить автопубликацию на YouTube",
+    "YouTube Client ID": "Client ID YouTube",
+    "YouTube Client Secret": "Client Secret YouTube",
+    "YouTube OAuth Credentials Help": "Учётные данные клиента OAuth из вашего проекта Google Cloud. Создайте их в разделе [API и сервисы]({console_url}).",
+    "YouTube Refresh Token": "Refresh token YouTube",
+    "YouTube Refresh Token Help": "Долгоживущий токен для области youtube.upload. Получите его один раз в [OAuth Playground]({playground_url}), используя собственные учётные данные клиента.",
+    "YouTube Category ID": "ID категории YouTube",
+    "YouTube Category ID Help": "Числовая категория видео. 22 = Люди и блоги, 24 = Развлечения, 27 = Образование. См. [список категорий]({categories_url}).",
+    "YouTube Made For Kids": "Контент для детей",
+    "YouTube Made For Kids Help": "Заявление COPPA, отправляемое при каждой загрузке. Включайте, только если видео адресовано детям.",
+    "YouTube Synthetic Media Disclosure": "Указать синтетический или изменённый контент",
+    "YouTube Synthetic Media Disclosure Help": "Сообщает YouTube, что видео содержит контент, созданный ИИ. В роликах используется синтетическая озвучка, поэтому оставьте параметр включённым.",
+    "Upload-Post Cross-Posting": "Кросспостинг через Upload-Post",
+    "Upload-Post Platforms Help": "Площадки, на которые публикует Upload-Post. YouTube теперь обслуживает встроенная интеграция выше."
   }
 }

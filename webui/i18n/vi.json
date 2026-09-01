@@ -348,6 +348,24 @@
     "Upload-Post Profile Username": "Tên người dùng hồ sơ Upload-Post",
     "Upload-Post Profile Username Help": "Nhập tên người dùng hiển thị tại [Manage Users]({manage_users_url}), không phải email tài khoản Upload-Post. Người dùng xuất bản này phải được kết nối với các nền tảng đã chọn.",
     "Upload-Post Setup Guide": "Trước khi bật tự động xuất bản:\n1. Tạo khóa API tại [API Keys]({api_keys_url}).\n2. Tạo hoặc chọn người dùng xuất bản tại [Manage Users]({manage_users_url}), sau đó kết nối các nền tảng đích.\n\nNhập **tên người dùng** xuất bản đó bên dưới, không phải email tài khoản Upload-Post.",
-    "YouTube Privacy Status": "Trạng thái quyền riêng tư của YouTube"
+    "YouTube Privacy Status": "Trạng thái quyền riêng tư của YouTube",
+    "YouTube Direct Upload": "Đăng trực tiếp lên YouTube",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Đăng video đã tạo thẳng lên YouTube bằng YouTube Data API v3 chính thức",
+    "YouTube OAuth Setup Guide": "Trước khi bật đăng tự động lên YouTube:\n1. Bật [YouTube Data API v3]({console_url}) trong một dự án Google Cloud.\n2. Tạo ứng dụng khách OAuth loại **Ứng dụng web** rồi thêm `https://developers.google.com/oauthplayground` vào URI chuyển hướng được ủy quyền. Playground chỉ chấp nhận ứng dụng khách web nên loại Desktop app không dùng được.\n3. Tạo refresh token cho phạm vi `youtube.upload` trên [OAuth Playground]({playground_url}), với *Use your own OAuth credentials* được bật.\n4. Đổi trạng thái phát hành sang **Chính thức**. Khi ứng dụng còn ở trạng thái Thử nghiệm với loại người dùng bên ngoài, Google sẽ thu hồi refresh token sau 7 ngày.\n\nRefresh token tự gia hạn nên quá trình đăng không bao giờ mở trình duyệt.",
+    "Enable YouTube Integration": "Bật tích hợp YouTube",
+    "Enable YouTube Auto-Publish": "Bật đăng tự động lên YouTube",
+    "YouTube Client ID": "Client ID của YouTube",
+    "YouTube Client Secret": "Client Secret của YouTube",
+    "YouTube OAuth Credentials Help": "Thông tin xác thực ứng dụng khách OAuth từ dự án Google Cloud của bạn. Tạo trong mục [API và dịch vụ]({console_url}).",
+    "YouTube Refresh Token": "Refresh token của YouTube",
+    "YouTube Refresh Token Help": "Token dài hạn cho phạm vi youtube.upload. Chỉ cần tạo một lần bằng [OAuth Playground]({playground_url}) với thông tin xác thực ứng dụng khách của bạn.",
+    "YouTube Category ID": "ID danh mục YouTube",
+    "YouTube Category ID Help": "Danh mục dạng số gán cho video. 22 = Con người và blog, 24 = Giải trí, 27 = Giáo dục. Xem [danh sách danh mục]({categories_url}).",
+    "YouTube Made For Kids": "Dành cho trẻ em",
+    "YouTube Made For Kids Help": "Khai báo COPPA gửi kèm mỗi lần tải lên. Chỉ bật khi video hướng đến trẻ em.",
+    "YouTube Synthetic Media Disclosure": "Khai báo nội dung tổng hợp hoặc đã chỉnh sửa",
+    "YouTube Synthetic Media Disclosure Help": "Báo cho YouTube biết video có nội dung do AI tạo. Video dùng lời đọc tổng hợp nên hãy giữ bật.",
+    "Upload-Post Cross-Posting": "Đăng chéo qua Upload-Post",
+    "Upload-Post Platforms Help": "Các nền tảng mà Upload-Post đăng lên. YouTube giờ do tích hợp gốc phía trên đảm nhiệm."
   }
 }

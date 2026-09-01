@@ -447,21 +447,53 @@ own fonts.
 ## Common Questions 🤔
 
 <details>
-<summary>How do I publish to TikTok, Instagram, or YouTube Shorts?</summary>
+<summary>How do I publish to YouTube?</summary>
 
-Create an [Upload-Post](https://upload-post.com/) account and API key, then add the following settings under `[app]` in `config.toml`:
+YouTube uploads go through the official YouTube Data API v3 (`google-api-python-client` + OAuth2), so the video never passes through a third-party service.
+
+One-time setup:
+
+1. Create a project on the [Google Cloud Console](https://console.cloud.google.com/) and enable **YouTube Data API v3**.
+2. Configure the OAuth consent screen, then create an OAuth client of type **Web application** and add `https://developers.google.com/oauthplayground` to its authorized redirect URIs. The playground only accepts web clients, so a Desktop app client will not work. Copy the Client ID and Client Secret.
+3. Get a refresh token for the `https://www.googleapis.com/auth/youtube.upload` scope on the [OAuth Playground](https://developers.google.com/oauthplayground). Enable *Use your own OAuth credentials*, paste the client id/secret from step 2, authorize the scope with the channel account, then exchange the code for tokens.
+4. Set the publishing status to **Production** on the consent screen. While the app stays in *Testing* with an external user type, Google revokes the refresh token seven days after consent.
+
+Add the result under `[app]` in `config.toml`:
+
+```toml
+[app]
+youtube_enabled = true
+youtube_client_id = "your-client-id"
+youtube_client_secret = "your-client-secret"
+youtube_refresh_token = "your-refresh-token"
+youtube_auto_upload = true
+youtube_privacy_status = "public"     # public, unlisted or private
+youtube_category_id = "22"            # 22 = People & Blogs
+youtube_made_for_kids = false
+youtube_contains_synthetic_media = true
+```
+
+Restart the app after saving. Every generated video is then uploaded with a title, description, and tags produced by the LLM. The refresh token renews itself, so publishing never opens a browser — which also makes it work in Docker and on headless servers.
+
+The same settings are available in the WebUI under **Settings → Auto-Publish Settings**.
+
+</details>
+
+<details>
+<summary>How do I publish to TikTok or Instagram?</summary>
+
+Those platforms still go through [Upload-Post](https://upload-post.com/). Create an account and API key, then add the following under `[app]` in `config.toml`:
 
 ```toml
 [app]
 upload_post_enabled = true
 upload_post_api_key = "your-api-key"
 upload_post_username = "your-username"
-upload_post_platforms = ["tiktok", "instagram", "youtube"]
+upload_post_platforms = ["tiktok", "instagram"]
 upload_post_auto_upload = true
-upload_post_youtube_privacy_status = "public"
 ```
 
-Restart the app after saving. Generated videos will then be published automatically to the configured platforms. YouTube privacy can be set to `public`, `unlisted`, or `private`.
+Both integrations are independent and can run at the same time. `youtube` left over in `upload_post_platforms` is ignored, so the same video is never published twice.
 
 </details>
 

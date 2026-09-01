@@ -348,6 +348,24 @@
     "Upload-Post Profile Username": "Upload-Post 게시 사용자 이름",
     "Upload-Post Profile Username Help": "[사용자 관리]({manage_users_url})에 표시된 사용자 이름을 입력하세요. Upload-Post 계정 이메일이 아닙니다. 이 게시 사용자는 선택한 플랫폼에 연결되어 있어야 합니다.",
     "Upload-Post Setup Guide": "자동 게시를 활성화하기 전에:\n1. [API 키]({api_keys_url})에서 API 키를 생성하세요.\n2. [사용자 관리]({manage_users_url})에서 게시 사용자를 생성하거나 선택한 다음 대상 플랫폼을 연결하세요.\n\n아래에 Upload-Post 계정 이메일이 아닌 해당 게시 사용자의 **사용자 이름**을 입력하세요.",
-    "YouTube Privacy Status": "YouTube 공개 상태"
+    "YouTube Privacy Status": "YouTube 공개 상태",
+    "YouTube Direct Upload": "YouTube 직접 업로드",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "공식 YouTube Data API v3로 생성된 영상을 YouTube에 바로 게시합니다",
+    "YouTube OAuth Setup Guide": "YouTube 자동 게시를 사용하기 전에:\n1. Google Cloud 프로젝트에서 [YouTube Data API v3]({console_url})를 사용 설정합니다.\n2. **웹 애플리케이션** 유형의 OAuth 클라이언트를 만들고 승인된 리디렉션 URI에 `https://developers.google.com/oauthplayground`를 추가합니다. Playground는 웹 클라이언트만 허용하므로 데스크톱 앱 유형은 사용할 수 없습니다.\n3. [OAuth Playground]({playground_url})에서 *Use your own OAuth credentials*를 켠 뒤 `youtube.upload` 범위의 리프레시 토큰을 발급합니다.\n4. 게시 상태를 **프로덕션**으로 변경합니다. 외부 사용자 유형으로 테스트 상태에 머무르면 Google이 7일 후 리프레시 토큰을 취소합니다.\n\n리프레시 토큰은 자동으로 갱신되므로 게시 중에 브라우저가 열리지 않습니다.",
+    "Enable YouTube Integration": "YouTube 연동 사용",
+    "Enable YouTube Auto-Publish": "YouTube 자동 게시 사용",
+    "YouTube Client ID": "YouTube Client ID",
+    "YouTube Client Secret": "YouTube Client Secret",
+    "YouTube OAuth Credentials Help": "Google Cloud 프로젝트의 OAuth 클라이언트 자격 증명입니다. [API 및 서비스]({console_url})에서 생성하세요.",
+    "YouTube Refresh Token": "YouTube 리프레시 토큰",
+    "YouTube Refresh Token Help": "youtube.upload 범위에 대한 장기 토큰입니다. 본인의 클라이언트 자격 증명으로 [OAuth Playground]({playground_url})에서 한 번만 발급하면 됩니다.",
+    "YouTube Category ID": "YouTube 카테고리 ID",
+    "YouTube Category ID Help": "영상에 지정되는 숫자 카테고리입니다. 22 = 인물/블로그, 24 = 엔터테인먼트, 27 = 교육. [카테고리 목록]({categories_url})을 참고하세요.",
+    "YouTube Made For Kids": "아동용 콘텐츠",
+    "YouTube Made For Kids Help": "업로드마다 함께 전송되는 COPPA 신고입니다. 영상이 아동을 대상으로 할 때만 사용하세요.",
+    "YouTube Synthetic Media Disclosure": "합성 또는 변경된 콘텐츠 고지",
+    "YouTube Synthetic Media Disclosure Help": "영상에 AI 생성 콘텐츠가 포함되어 있음을 YouTube에 알립니다. 생성 영상은 합성 내레이션을 사용하므로 켜 두세요.",
+    "Upload-Post Cross-Posting": "Upload-Post 교차 게시",
+    "Upload-Post Platforms Help": "Upload-Post가 게시하는 플랫폼입니다. YouTube는 위의 기본 연동이 담당합니다."
   }
 }

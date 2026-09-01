@@ -1,5 +1,8 @@
 """
-Upload-Post API integration for cross-posting videos to TikTok, Instagram and YouTube Shorts.
+Upload-Post API integration for cross-posting videos to TikTok and Instagram.
+
+YouTube is published through the official YouTube Data API v3 instead; see
+``app.services.youtube_upload``.
 
 Docs: https://docs.upload-post.com
 """
@@ -34,10 +37,6 @@ class UploadPostService:
     def auto_upload(self) -> bool:
         return config.app.get("upload_post_auto_upload", False)
 
-    @property
-    def youtube_privacy_status(self) -> str:
-        return config.app.get("upload_post_youtube_privacy_status", "public")
-
     def is_configured(self) -> bool:
         return bool(self.api_key and self.username and self.enabled)
 
@@ -47,7 +46,6 @@ class UploadPostService:
         title: str,
         platforms: Optional[list] = None,
         privacy_level: str = "PUBLIC_TO_EVERYONE",
-        youtube_extra: Optional[dict] = None,
     ) -> dict:
         if not self.is_configured():
             logger.warning("Upload-Post is not configured. Skipping cross-post.")
@@ -74,16 +72,6 @@ class UploadPostService:
 
                 for platform in platforms:
                     data.append(('platform[]', platform))
-
-                if youtube_extra and any(p.startswith("youtube") for p in platforms):
-                    if "youtube_title" in youtube_extra:
-                        data.append(('youtube_title', youtube_extra["youtube_title"][:100]))
-                    if "youtube_description" in youtube_extra:
-                        data.append(('youtube_description', youtube_extra["youtube_description"]))
-                    for tag in youtube_extra.get("tags", []):
-                        data.append(('tags[]', tag))
-                    data.append(('privacyStatus', youtube_extra.get("privacyStatus", "public")))
-                    data.append(('containsSyntheticMedia', "true"))
 
                 headers = {'Authorization': f'Apikey {self.api_key}'}
 
@@ -147,6 +135,5 @@ def cross_post_video(
     video_path: str,
     title: str,
     platforms: Optional[list] = None,
-    youtube_extra: Optional[dict] = None,
 ) -> dict:
-    return upload_post_service.upload_video(video_path, title, platforms, youtube_extra=youtube_extra)
+    return upload_post_service.upload_video(video_path, title, platforms)

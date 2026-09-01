@@ -352,25 +352,63 @@ max_concurrent_tasks = 5
 max_queued_tasks = 100
 
 # -----------------------------------------------------------------------------
-# Cross-platform Publishing / 跨平台发布
+# Video Publishing / 视频发布
 # -----------------------------------------------------------------------------
 
-# Upload-Post can publish generated videos to TikTok, Instagram, and YouTube.
+# YouTube is published directly through the official YouTube Data API v3
+# (google-api-python-client + OAuth2), so uploads keep the full native metadata
+# and no third-party service ever receives the video.
+#
+# One-time setup:
+#   1. Create a project at https://console.cloud.google.com/ and enable
+#      "YouTube Data API v3".
+#   2. Configure the OAuth consent screen, then create an OAuth client of type
+#      "Web application" and add https://developers.google.com/oauthplayground
+#      to its authorized redirect URIs. The playground only accepts web
+#      clients, so a "Desktop app" client cannot be used here. Copy the
+#      Client ID and Client Secret.
+#   3. Obtain a refresh token for the scope
+#      https://www.googleapis.com/auth/youtube.upload with
+#      https://developers.google.com/oauthplayground (enable "Use your own
+#      OAuth credentials" and paste the client id/secret from step 2).
+#   4. Set the app publishing status to "Production". While it stays in
+#      "Testing" with an external user type, Google revokes the refresh token
+#      seven days after consent.
+#
+# The refresh token is renewed automatically, so no browser is needed at
+# runtime. The official client library ships with the project dependencies.
+youtube_enabled = false
+youtube_client_id = ""
+youtube_client_secret = ""
+youtube_refresh_token = ""
+# Automatically publish successful video outputs to YouTube after generation.
+youtube_auto_upload = false
+# YouTube privacy: "public", "unlisted", or "private".
+youtube_privacy_status = "public"
+# Video category id. 22 = People & Blogs, 24 = Entertainment, 27 = Education.
+# Full list: https://developers.google.com/youtube/v3/docs/videoCategories/list
+youtube_category_id = "22"
+# COPPA declaration. Set to true only when the video targets children.
+youtube_made_for_kids = false
+# Discloses that the video contains synthetic or altered media. Generated
+# videos use TTS and stock footage, so this stays enabled by default.
+youtube_contains_synthetic_media = true
+
+# Upload-Post cross-posts generated videos to TikTok and Instagram.
 # Create an account and API key at https://upload-post.com/
 # API documentation: https://docs.upload-post.com/
+# YouTube is no longer routed here; use the native settings above instead.
 upload_post_enabled = false
 upload_post_api_key = ""
 upload_post_username = ""
-# Available values: "tiktok", "instagram", "youtube".
+# Available values: "tiktok", "instagram".
 upload_post_platforms = ["tiktok", "instagram"]
 # Automatically publish successful video outputs after generation.
 upload_post_auto_upload = false
-# YouTube privacy: "public", "unlisted", or "private".
-upload_post_youtube_privacy_status = "public"
-# Maximum number of running and queued cross-post jobs per process. When the
-# limit is reached, video generation still succeeds and only cross-posting is
-# rejected.
-# Cross-post jobs run in the current process and are not resumed after restart.
+# Maximum number of running and queued publishing jobs per process, covering
+# both the native YouTube upload and Upload-Post cross-posting. When the limit
+# is reached, video generation still succeeds and only publishing is rejected.
+# Publishing jobs run in the current process and are not resumed after restart.
 upload_post_max_pending_tasks = 10
 
 # =============================================================================

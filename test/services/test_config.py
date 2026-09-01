@@ -112,21 +112,37 @@ class TestConfigPersistence:
         assert provider is not None
         assert provider.resolve_model_name("") == "kimi-k3"
 
-    def test_upload_post_settings_belong_to_app_section(self):
+    def test_publish_settings_belong_to_app_section(self):
         """发布配置必须位于 app 节点，确保示例文件与运行时读取路径一致。"""
         example_config = self._load_example_config()
-        upload_post_keys = {
+        publish_keys = {
             "upload_post_enabled",
             "upload_post_api_key",
             "upload_post_username",
             "upload_post_platforms",
             "upload_post_auto_upload",
-            "upload_post_youtube_privacy_status",
             "upload_post_max_pending_tasks",
+            "youtube_enabled",
+            "youtube_client_id",
+            "youtube_client_secret",
+            "youtube_refresh_token",
+            "youtube_auto_upload",
+            "youtube_privacy_status",
+            "youtube_category_id",
+            "youtube_made_for_kids",
+            "youtube_contains_synthetic_media",
         }
 
-        assert upload_post_keys <= example_config["app"].keys()
-        assert upload_post_keys.isdisjoint(example_config.get("ui", {}).keys())
+        assert publish_keys <= example_config["app"].keys()
+        assert publish_keys.isdisjoint(example_config.get("ui", {}).keys())
+
+    def test_example_config_no_longer_routes_youtube_through_upload_post(self):
+        """YouTube 改由官方接口发布，示例配置不能再把它列进转发平台。"""
+        example_config = self._load_example_config()
+
+        platforms = example_config["app"]["upload_post_platforms"]
+
+        assert all(not str(platform).startswith("youtube") for platform in platforms)
 
     def test_save_config_uses_parseable_atomic_output(self):
         """

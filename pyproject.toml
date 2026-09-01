@@ -34,6 +34,8 @@ dependencies = [
     "audioop-lts==0.2.2; python_version >= '3.13'",
     "litellm==1.86.2",
     "google-genai==2.11.0",
+    # 官方 YouTube Data API v3 客户端，用于把成片直接发布到 YouTube。
+    "google-api-python-client==2.200.0",
 ]
 
 [project.optional-dependencies]

@@ -348,6 +348,24 @@
     "Upload-Post Profile Username": "Nome utente del profilo Upload-Post",
     "Upload-Post Profile Username Help": "Inserisci il nome utente mostrato in [Manage Users]({manage_users_url}), non l'email del tuo account Upload-Post. Questo utente di pubblicazione deve essere collegato alle piattaforme selezionate.",
     "Upload-Post Setup Guide": "Prima di abilitare la pubblicazione automatica:\n1. Crea una chiave API in [API Keys]({api_keys_url}).\n2. Crea o seleziona un utente di pubblicazione in [Manage Users]({manage_users_url}), quindi collega le piattaforme di destinazione.\n\nInserisci qui sotto il suo **nome utente**, non l'email del tuo account Upload-Post.",
-    "YouTube Privacy Status": "Stato di privacy di YouTube"
+    "YouTube Privacy Status": "Stato di privacy di YouTube",
+    "YouTube Direct Upload": "Pubblicazione diretta su YouTube",
+    "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Pubblica i video generati direttamente su YouTube con l'API ufficiale YouTube Data API v3",
+    "YouTube OAuth Setup Guide": "Prima di abilitare la pubblicazione automatica su YouTube:\n1. Abilita [YouTube Data API v3]({console_url}) in un progetto Google Cloud.\n2. Crea un client OAuth di tipo **Applicazione web** e aggiungi `https://developers.google.com/oauthplayground` agli URI di reindirizzamento autorizzati. Il playground accetta solo client web, quindi il tipo App desktop non funziona.\n3. Genera un refresh token per l'ambito `youtube.upload` sull'[OAuth Playground]({playground_url}), con *Use your own OAuth credentials* attivo.\n4. Imposta lo stato di pubblicazione su **In produzione**. Finché l'app resta in Test con tipo di utente esterno, Google revoca il refresh token dopo 7 giorni.\n\nIl refresh token si rinnova da solo, quindi la pubblicazione non apre mai il browser.",
+    "Enable YouTube Integration": "Abilita l'integrazione con YouTube",
+    "Enable YouTube Auto-Publish": "Abilita la pubblicazione automatica su YouTube",
+    "YouTube Client ID": "Client ID di YouTube",
+    "YouTube Client Secret": "Client Secret di YouTube",
+    "YouTube OAuth Credentials Help": "Credenziali del client OAuth del tuo progetto Google Cloud. Creale in [API e servizi]({console_url}).",
+    "YouTube Refresh Token": "Refresh token di YouTube",
+    "YouTube Refresh Token Help": "Token di lunga durata per l'ambito youtube.upload. Generalo una volta con l'[OAuth Playground]({playground_url}) usando le tue credenziali client.",
+    "YouTube Category ID": "ID categoria YouTube",
+    "YouTube Category ID Help": "Categoria numerica assegnata al video. 22 = Persone e blog, 24 = Intrattenimento, 27 = Istruzione. Vedi l'[elenco delle categorie]({categories_url}).",
+    "YouTube Made For Kids": "Realizzato per bambini",
+    "YouTube Made For Kids Help": "Dichiarazione COPPA inviata a ogni caricamento. Attivala solo se il video è rivolto ai bambini.",
+    "YouTube Synthetic Media Disclosure": "Dichiara contenuti sintetici o modificati",
+    "YouTube Synthetic Media Disclosure Help": "Comunica a YouTube che il video contiene contenuti generati dall'IA. I video usano una narrazione sintetica, quindi conviene tenerla attiva.",
+    "Upload-Post Cross-Posting": "Cross-posting con Upload-Post",
+    "Upload-Post Platforms Help": "Piattaforme su cui pubblica Upload-Post. YouTube ora passa dall'integrazione nativa qui sopra."
   }
 }

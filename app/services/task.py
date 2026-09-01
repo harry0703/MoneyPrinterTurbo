@@ -29,6 +29,7 @@ from app.services import (
     voice,
 )
 from app.services import upload_post
+from app.services import youtube_upload
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -65,6 +66,8 @@ _CROSS_POST_SOCIAL_PLATFORMS = {
     "instagram": "instagram_reels",
     "facebook": "facebook_reels",
 }
+# 结果里区分渠道，任务查询可以直接看出失败发生在官方 YouTube 接口还是转发服务。
+_UPLOAD_POST_RESULT_PLATFORM = "upload-post"
 # 视频配乐服务只需实现 ``is_enabled`` 和 ``generate_bgm``。供应商差异集中在
 # 文件扩展名、领域异常和 WebUI 警告代码；任务编排、0 音量短路及失败降级
 # 全部复用同一路径，避免后续新增供应商时维护多份相似流程。
@@ -1016,6 +1019,23 @@ def recover_interrupted_cross_posts(page_size: int = 100) -> int | None:
     return recovered
 
 
+def _normalize_publish_result(
+    result: object,
+    platform: str,
+    invalid_response_error: str,
+) -> dict:
+    """统一各渠道的发布结果，保证失败原因和目标渠道都能写入任务状态。"""
+    if not isinstance(result, dict):
+        return {
+            "success": False,
+            "platform": platform,
+            "error": invalid_response_error,
+        }
+    if "platform" in result:
+        return result
+    return {**result, "platform": platform}
+
+
 def _run_cross_post(
     task_id: str,
     video_paths: tuple[str, ...],
@@ -1023,6 +1043,7 @@ def _run_cross_post(
     video_script: str,
     video_language: str,
     platforms: tuple[str, ...],
+    publish_youtube: bool,
     youtube_privacy_status: str,
 ) -> None:
     """后台执行跨平台发布，并只补充发布相关的任务字段。"""
@@ -1046,15 +1067,19 @@ def _run_cross_post(
                 )
             return
 
-        logger.info(
-            f"cross-post started, task_id: {task_id}, platforms: {', '.join(platforms)}"
+        targets = ([youtube_upload.PLATFORM] if publish_youtube else []) + list(
+            platforms
         )
-        youtube_extra = None
+        logger.info(
+            f"publishing started, task_id: {task_id}, targets: {', '.join(targets)}"
+        )
+        youtube_metadata: dict = {}
         post_title = video_subject or "Check out this video! #shorts #viral"
-        if platforms:
-            has_youtube = any(platform.startswith("youtube") for platform in platforms)
+        if platforms or publish_youtube:
+            # YouTube 走官方接口，其余平台仍由 Upload-Post 转发。只要目标里有
+            # YouTube 就按 Shorts 规则生成一次文案，避免同一次任务出现两种风格。
             social_platform = "youtube_shorts"
-            if not has_youtube:
+            if not publish_youtube:
                 first = (platforms[0] or "").strip().lower()
                 # llm.py resolves unknown ids to its default platform.
                 social_platform = _CROSS_POST_SOCIAL_PLATFORMS.get(first, first)
@@ -1064,13 +1089,11 @@ def _run_cross_post(
                 language=video_language or "",
                 platform=social_platform,
             )
-            if has_youtube:
-                youtube_extra = {
-                    "youtube_title": metadata.get("title", video_subject),
-                    "youtube_description": metadata.get("caption", ""),
+            if publish_youtube:
+                youtube_metadata = {
+                    "title": metadata.get("title") or video_subject,
+                    "description": metadata.get("caption", ""),
                     "tags": metadata.get("hashtags", []),
-                    "privacyStatus": youtube_privacy_status,
-                    "containsSyntheticMedia": True,
                 }
             post_title = (
                 metadata.get("caption")
@@ -1080,18 +1103,32 @@ def _run_cross_post(
             )
 
         for video_path in video_paths:
-            result = upload_post.cross_post_video(
-                video_path=video_path,
-                title=post_title,
-                platforms=list(platforms),
-                youtube_extra=youtube_extra,
-            )
-            if not isinstance(result, dict):
-                result = {
-                    "success": False,
-                    "error": "Upload-Post returned an invalid response",
-                }
-            results.append(result)
+            if publish_youtube:
+                results.append(
+                    _normalize_publish_result(
+                        youtube_upload.publish_video(
+                            video_path=video_path,
+                            title=youtube_metadata.get("title") or video_subject,
+                            description=youtube_metadata.get("description", ""),
+                            tags=youtube_metadata.get("tags", []),
+                            privacy_status=youtube_privacy_status,
+                        ),
+                        youtube_upload.PLATFORM,
+                        "YouTube returned an invalid response",
+                    )
+                )
+            if platforms:
+                results.append(
+                    _normalize_publish_result(
+                        upload_post.cross_post_video(
+                            video_path=video_path,
+                            title=post_title,
+                            platforms=list(platforms),
+                        ),
+                        _UPLOAD_POST_RESULT_PLATFORM,
+                        "Upload-Post returned an invalid response",
+                    )
+                )
 
         failures = [result for result in results if not result.get("success")]
         if failures:
@@ -1187,12 +1224,53 @@ def _finalize_cross_post_future(task_id: str, future: Future) -> None:
     _ensure_cross_post_terminal_state(task_id)
 
 
+def _resolve_publish_targets(task_id: str) -> tuple[list[str], bool]:
+    """
+    解析本次任务的发布目标。
+
+    YouTube 由官方 Data API v3 直接发布，Upload-Post 只负责其余平台。旧配置
+    里残留的 ``youtube`` 会从转发列表中剔除，避免同一个成片被发布两次。
+    """
+    cross_post_enabled = (
+        upload_post.upload_post_service.is_configured()
+        and upload_post.upload_post_service.auto_upload
+    )
+    configured = (
+        [
+            str(platform or "").strip().lower()
+            for platform in upload_post.upload_post_service.platforms
+        ]
+        if cross_post_enabled
+        else []
+    )
+    platforms = [
+        platform
+        for platform in configured
+        if platform and not platform.startswith("youtube")
+    ]
+    if cross_post_enabled and not configured:
+        logger.warning(
+            f"skip cross-post because no platforms are configured, task_id: {task_id}"
+        )
+    elif len(platforms) != len(configured):
+        logger.info(
+            f"youtube is published through the official API instead of "
+            f"upload-post, task_id: {task_id}"
+        )
+
+    youtube_service = youtube_upload.youtube_upload_service
+    publish_youtube = youtube_service.is_configured() and youtube_service.auto_upload
+
+    return platforms, publish_youtube
+
+
 def _schedule_cross_post(
     task_id: str,
     video_paths: list[str],
     params: VideoParams,
     video_script: str,
     platforms: list[str],
+    publish_youtube: bool,
     youtube_privacy_status: str,
 ) -> str | None:
     """提交后台发布任务；成功返回 None，调度失败返回可查询的错误原因。"""
@@ -1219,6 +1297,7 @@ def _schedule_cross_post(
             video_script,
             params.video_language or "",
             tuple(platforms),
+            publish_youtube,
             youtube_privacy_status,
         )
         _register_cross_post_future(task_id, future)
@@ -1450,18 +1529,8 @@ def _run_pipeline(
 
     # 7. 先完成视频生成任务，再按需提交跨平台发布。第三方上传可能耗时
     # 数分钟，不应阻塞视频结果返回，也不能反向影响已经生成的成片。
-    cross_post_enabled = (
-        upload_post.upload_post_service.is_configured()
-        and upload_post.upload_post_service.auto_upload
-    )
-    platforms = (
-        list(upload_post.upload_post_service.platforms) if cross_post_enabled else []
-    )
-    should_cross_post = cross_post_enabled and bool(platforms)
-    if cross_post_enabled and not platforms:
-        logger.warning(
-            f"skip cross-post because no platforms are configured, task_id: {task_id}"
-        )
+    platforms, publish_youtube = _resolve_publish_targets(task_id)
+    should_cross_post = bool(platforms) or publish_youtube
     cross_post_state = const.CROSS_POST_STATE_PENDING if should_cross_post else None
 
     kwargs = {
@@ -1490,8 +1559,11 @@ def _run_pipeline(
             params=params,
             video_script=video_script,
             platforms=platforms,
+            publish_youtube=publish_youtube,
+            # 发布可能排队数分钟。这里固定使用任务完成时的隐私设置，
+            # 让期间修改设置不会改变已经排队的这次发布结果。
             youtube_privacy_status=(
-                upload_post.upload_post_service.youtube_privacy_status
+                youtube_upload.youtube_upload_service.privacy_status
             ),
         )
         # 队列满或线程池关闭属于同步可知的调度失败。任务状态已经由调度函数

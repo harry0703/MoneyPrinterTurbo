@@ -9,6 +9,7 @@ openai==2.24.0
 faster-whisper==1.1.0
 loguru==0.7.3
 google-genai==2.11.0
+google-api-python-client==2.200.0
 dashscope==1.20.14
 azure-cognitiveservices-speech==1.41.1
 redis==5.2.0
