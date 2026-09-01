@@ -63,11 +63,14 @@ tls_verify = true
 # -----------------------------------------------------------------------------
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
-# "volcengine_seedance", "loomloom", "local".
+# "volcengine_seedance", "loomloom", "openai_image", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
 # "loomloom" is a paid Shengsuan Cloud source and requires explicit
 # confirmation in the WebUI before each generation request.
+# "openai_image" generates one image per script keyword through any
+# OpenAI-compatible /images/generations endpoint (local ComfyUI/SD gateways
+# or cloud relays) and renders it into a video clip.
 video_source = "pexels"
 
 # API key lists support key rotation. Use straight ASCII double quotes and
@@ -114,6 +117,30 @@ volcengine_seedance_max_duration = 12
 volcengine_seedance_poll_interval = 5
 volcengine_seedance_run_timeout = 1800
 volcengine_seedance_watermark = false
+
+# OpenAI-compatible text-to-image material source ("openai_image"). Point the
+# base URL at any endpoint that speaks the OpenAI /images/generations protocol:
+# a local ComfyUI/SD gateway, a self-hosted relay, or a cloud aggregator.
+# Images are generated on demand (one per script keyword, billed per image by
+# your provider) and rendered into short zoom-effect video clips.
+# Example: "https://api.openai.com/v1" or "http://127.0.0.1:8080/v1"
+openai_image_base_url = ""
+# Optional for local gateways that need no auth. Leave empty to send requests
+# without an Authorization header; provide one or more keys for cloud relays.
+openai_image_api_keys = []
+# Any image model id your endpoint accepts, for example a local SD checkpoint
+# alias or a provider model name.
+openai_image_model = ""
+# Optional image size sent to the endpoint. The official OpenAI image API only
+# accepts model-defined sizes (e.g. 1024x1024, 1024x1536, 1536x1024 or "auto"),
+# so the default picks a compatible size per video aspect (portrait 1024x1536,
+# landscape 1536x1024, square 1024x1024). Set a custom value (e.g. "1080x1920")
+# for local gateways that accept arbitrary resolutions.
+openai_image_size = ""
+# Optional prompt template applied to every search term. Use the "{term}"
+# placeholder to inject the keyword; leave empty to send terms as-is.
+# Example: "cinematic photo of {term}, photorealistic, high detail"
+openai_image_prompt_template = ""
 
 # Optional TwelveLabs integration for semantic material ranking and video QA.
 # Install the optional dependency with: uv sync --extra twelvelabs

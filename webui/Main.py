@@ -48,6 +48,7 @@ from app.services import (
     cache_manager,
     llm,
     loomloom,
+    material,
     video,
     volcengine_seedance,
     voice,
@@ -3077,6 +3078,35 @@ def _render_settings_dialog():
                 "app", "volcengine_seedance_base_url", seedance_base_url.strip()
             )
 
+            openai_image_base_url = st.text_input(
+                tr("OpenAI Image Base URL"),
+                value=str(config.app.get("openai_image_base_url", "") or ""),
+                key="openai_image_base_url_input",
+            )
+            _set_runtime_config(
+                "app", "openai_image_base_url", openai_image_base_url.strip()
+            )
+
+            openai_image_api_key = _get_material_api_keys(
+                "openai_image_api_keys"
+            )
+            openai_image_api_key = st.text_input(
+                tr("OpenAI Image API Key"),
+                value=openai_image_api_key,
+                type="password",
+                key="openai_image_api_keys_input",
+            )
+            _save_material_api_keys("openai_image_api_keys", openai_image_api_key)
+
+            openai_image_model = st.text_input(
+                tr("OpenAI Image Model"),
+                value=str(config.app.get("openai_image_model", "") or ""),
+                key="openai_image_model_input",
+            )
+            _set_runtime_config(
+                "app", "openai_image_model", openai_image_model.strip()
+            )
+
     _save_runtime_config()
 
 
@@ -3841,6 +3871,7 @@ def _render_video_settings(panel, params):
                 (tr("WaveSpeed AI Video"), "wavespeed"),
                 (tr("Volcano Engine Seedance"), "volcengine_seedance"),
                 (tr("Shengsuan Cloud AI Video"), "loomloom"),
+                (tr("OpenAI Compatible Text-to-Image"), "openai_image"),
                 (tr("Local file"), "local"),
             ]
 
@@ -3861,6 +3892,8 @@ def _render_video_settings(panel, params):
                 st.caption(tr("WaveSpeed AI Video Help"))
             if params.video_source == "volcengine_seedance":
                 st.caption(tr("Volcano Engine Seedance Help"))
+            if params.video_source == "openai_image":
+                st.caption(tr("OpenAI Compatible Image Help"))
 
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
@@ -5817,6 +5850,7 @@ def _render_generation_controls(
             "wavespeed",
             "volcengine_seedance",
             "loomloom",
+            "openai_image",
             "local",
         ]:
             _remove_active_generation_task(task_id)
@@ -5872,6 +5906,13 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm Volcano Engine Seedance Charge Required"))
+            st.stop()
+
+        if params.video_source == "openai_image" and not material.is_openai_image_enabled(
+            config.snapshot_config_with_pending(config.app)
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Configure the OpenAI Image Source"))
             st.stop()
 
         loomloom_video_request = None
@@ -6030,11 +6071,11 @@ def _render_generation_controls(
         ):
             # 当用户没有重新上传文件时，复用最近一次已经保存到磁盘的本地素材列表。
             params.video_materials = []
-            for material in st.session_state["local_video_materials"]:
+            for material_entry in st.session_state["local_video_materials"]:
                 m = MaterialInfo()
-                m.provider = material.get("provider", "local")
-                m.url = material.get("url", "")
-                m.duration = material.get("duration", 0)
+                m.provider = material_entry.get("provider", "local")
+                m.url = material_entry.get("url", "")
+                m.duration = material_entry.get("duration", 0)
                 if m.url:
                     params.video_materials.append(m)
 

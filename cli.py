@@ -263,7 +263,14 @@ Batch manifests:
     material_group.add_argument(
         "--video-source",
         default="pexels",
-        choices=["pexels", "pixabay", "coverr", "volcengine_seedance", "local"],
+        choices=[
+            "pexels",
+            "pixabay",
+            "coverr",
+            "volcengine_seedance",
+            "openai_image",
+            "local",
+        ],
         help="video material provider; online providers require matching API keys in config.toml",
     )
     material_group.add_argument(

@@ -1262,6 +1262,21 @@ def _run_pipeline(
             "Volcano Engine Seedance requires an Ark API key",
         )
 
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "openai_image"
+        and not material.is_openai_image_enabled(
+            config.snapshot_config_with_pending(config.app)
+        )
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "OpenAI image source requires openai_image_base_url and "
+            "openai_image_model in config.toml (openai_image_api_keys is "
+            "optional for local gateways that need no auth)",
+        )
+
     # 只有完整成片流程需要视频配乐供应商。尽早阻止缺少 Key 的完整任务，避免
     # 先消耗 LLM、TTS 和素材服务额度；中间产物接口仍可独立使用。
     video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
