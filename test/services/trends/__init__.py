@@ -1,0 +1,1 @@
+"""Trend service tests."""
