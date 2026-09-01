@@ -12,6 +12,7 @@ from uuid import uuid4
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services import task as tm
+from app.services import task_cross_post as tm_cross_post
 from app.models.schema import MaterialInfo, VideoParams
 from app.services.state import MemoryState, RedisState
 from app.utils import utils
@@ -1624,7 +1625,7 @@ class TestTaskService(unittest.TestCase):
 
         with (
             patch.object(tm.sm, "state", state),
-            patch.object(tm, "_cross_post_slots", slots),
+            patch.object(tm_cross_post, "_cross_post_slots", slots),
             patch.object(
                 tm._cross_post_executor,
                 "submit",
@@ -1661,10 +1662,10 @@ class TestTaskService(unittest.TestCase):
         )
 
         with (
-            patch.object(tm, "_cross_post_slots", slots),
+            patch.object(tm_cross_post, "_cross_post_slots", slots),
             patch.object(tm.sm, "state", state),
             patch.object(
-                tm,
+                tm_cross_post,
                 "_run_cross_post",
                 side_effect=RuntimeError("worker crashed"),
             ),
@@ -2103,7 +2104,7 @@ class TestTaskService(unittest.TestCase):
 
         with (
             patch.object(tm.os, "name", "nt"),
-            patch.object(tm, "_is_windows_process_alive", return_value=True) as probe,
+            patch.object(tm_cross_post, "_is_windows_process_alive", return_value=True) as probe,
         ):
             self.assertTrue(tm._is_cross_post_owner_alive(f"{hostname}:987654:windows"))
         probe.assert_called_once_with(987654)
@@ -2163,7 +2164,7 @@ class TestTaskService(unittest.TestCase):
 
         with (
             patch.object(tm.sm, "state", state),
-            patch.object(tm, "_cross_post_slots", slots),
+            patch.object(tm_cross_post, "_cross_post_slots", slots),
         ):
             tm._finalize_cross_post_future("cancelled-cross-post", future)
 
