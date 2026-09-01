@@ -38,6 +38,10 @@ hide_config = false
 # independently generated script candidates. The WebUI integration is optional.
 script_generation_backend = "local"
 
+# Optional YouTube Data API v3 key for public most-popular trend evidence.
+# Keep the real key only in config.toml; no key disables this optional source.
+# youtube_data_api_key = ""
+
 # LoomLoom Public API settings. The WebUI supports the public MoneyPrinterTurbo
 # SkillBot below out of the box. Configure the key in the WebUI or a private
 # config.toml, and never commit a real key. The fixed SkillBot accepts subject,

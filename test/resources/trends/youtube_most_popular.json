@@ -1,0 +1,46 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "fixture",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "etag": "ocean-fixture",
+      "id": "ocean123",
+      "snippet": {
+        "publishedAt": "2026-09-01T00:00:00Z",
+        "channelId": "channel-1",
+        "title": "Ocean mystery",
+        "description": "A public fixture.",
+        "thumbnails": {"default": {"url": "https://example.com/ocean.jpg", "width": 120, "height": 90}},
+        "channelTitle": "Fixture Channel",
+        "tags": ["ocean"],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "en",
+        "localized": {"title": "Ocean mystery", "description": "A public fixture."},
+        "defaultAudioLanguage": "en"
+      },
+      "statistics": {"viewCount": "1000", "likeCount": "100", "favoriteCount": "0", "commentCount": "10"}
+    },
+    {
+      "kind": "youtube#video",
+      "etag": "space-fixture",
+      "id": "space456",
+      "snippet": {
+        "publishedAt": "2026-09-01T00:00:00Z",
+        "channelId": "channel-2",
+        "title": "Space exploration",
+        "description": "Another public fixture.",
+        "thumbnails": {"default": {"url": "https://example.com/space.jpg", "width": 120, "height": 90}},
+        "channelTitle": "Fixture Channel",
+        "tags": ["space"],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "en",
+        "localized": {"title": "Space exploration", "description": "Another public fixture."},
+        "defaultAudioLanguage": "en"
+      },
+      "statistics": {"viewCount": "900", "likeCount": "90", "favoriteCount": "0", "commentCount": "9"}
+    }
+  ]
+}
