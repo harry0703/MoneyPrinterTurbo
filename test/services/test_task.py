@@ -31,6 +31,17 @@ class TestTaskService(unittest.TestCase):
         with tm._cross_post_registry_lock:
             tm._cross_post_futures.clear()
 
+        # 两个发布服务都从 config.app 读取运行期配置。开发机上真实配置了
+        # 凭据时，未显式打桩的用例会走进真正的发布分支，甚至向线上发起请求。
+        # 默认关闭发布，需要发布行为的用例在自己的 with 块里再打开。
+        for service in (
+            tm.upload_post.upload_post_service,
+            tm.youtube_upload.youtube_upload_service,
+        ):
+            patcher = patch.object(service, "is_configured", return_value=False)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def tearDown(self):
         with tm._cross_post_registry_lock:
             tm._cross_post_futures.clear()

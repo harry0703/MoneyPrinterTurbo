@@ -6,6 +6,7 @@ client id / client secret / refresh token。刷新令牌可以在服务端离线
 因此容器和无桌面环境也不需要在应用内打开浏览器授权页。
 """
 
+import json
 import os
 import time
 from types import SimpleNamespace
@@ -36,6 +37,29 @@ UPLOAD_CHUNK_SIZE = 4 * 1024 * 1024
 RETRIABLE_STATUS_CODES = frozenset({500, 502, 503, 504})
 MAX_RETRIABLE_ATTEMPTS = 5
 MAX_RETRY_BACKOFF_SECONDS = 32
+# 这些原因每天都会遇到，但排查方向完全不同。把处理建议直接写进任务状态，
+# 调用方不必再去翻 YouTube 的错误码文档。
+ERROR_HINTS = {
+    "youtubeSignupRequired": (
+        "the authorized Google account has no YouTube channel; create one at "
+        "youtube.com, or re-authorize with the account that owns the channel"
+    ),
+    "quotaExceeded": (
+        "the daily API quota is exhausted; each upload costs 1600 units of the "
+        "default 10000 per day"
+    ),
+    "forbidden": (
+        "the account is not allowed to upload; check that the channel is in "
+        "good standing and that uploads are not restricted"
+    ),
+    "uploadLimitExceeded": (
+        "the channel reached its daily upload limit; retry after 24 hours"
+    ),
+    "invalidVideoMetadata": (
+        "the title, description or tags were rejected; check for unsupported "
+        "characters or length limits"
+    ),
+}
 MISSING_DEPENDENCY_ERROR = (
     "YouTube publishing requires the official Google API client. "
     "Install it with `uv sync --extra youtube` or "
@@ -127,15 +151,59 @@ def _http_error_status(error: Exception) -> int | None:
     return getattr(getattr(error, "resp", None), "status", None)
 
 
+def _http_error_reasons(error: Exception) -> tuple[list[str], str]:
+    """
+    从响应体中取出 API 自己的错误原因。
+
+    ``HttpError.reason`` 只给出 HTTP 状态短语，例如 401 会显示 Unauthorized，
+    真正可定位的信息在响应体的 ``error.errors[].reason`` 里。缺少频道时返回
+    ``youtubeSignupRequired``，配额耗尽时返回 ``quotaExceeded``，两者的处理
+    方式完全不同，因此必须原样保留给调用方。
+    """
+    content = getattr(error, "content", None)
+    if isinstance(content, (bytes, bytearray)):
+        content = content.decode("utf-8", "replace")
+    if not isinstance(content, str) or not content.strip():
+        return [], ""
+
+    try:
+        payload = json.loads(content)
+    except ValueError:
+        return [], ""
+    if not isinstance(payload, dict):
+        return [], ""
+
+    error_payload = payload.get("error")
+    if not isinstance(error_payload, dict):
+        return [], ""
+
+    reasons = []
+    for item in error_payload.get("errors") or []:
+        if isinstance(item, dict):
+            reason = str(item.get("reason") or "").strip()
+            if reason and reason not in reasons:
+                reasons.append(reason)
+
+    message = str(error_payload.get("message") or "").strip()
+    return reasons, message
+
+
 def _describe_http_error(error: Exception) -> str:
     """优先使用 API 返回的原因，让配额或权限问题不必翻服务端日志就能定位。"""
     status = _http_error_status(error)
-    detail = ""
-    reason = getattr(error, "reason", None)
-    if isinstance(reason, str) and reason.strip():
-        detail = reason.strip()
+    reasons, message = _http_error_reasons(error)
+
+    detail = ", ".join(reasons)
+    if message and message != detail:
+        detail = f"{detail} ({message})" if detail else message
     if not detail:
-        detail = str(error)
+        reason = getattr(error, "reason", None)
+        detail = reason.strip() if isinstance(reason, str) and reason.strip() else str(error)
+
+    hint = ERROR_HINTS.get(reasons[0]) if reasons else None
+    if hint:
+        detail = f"{detail}. {hint}"
+
     if status:
         return f"YouTube API error {status}: {detail}"
     return f"YouTube API error: {detail}"

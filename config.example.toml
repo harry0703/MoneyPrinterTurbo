@@ -354,11 +354,17 @@ max_queued_tasks = 100
 #   1. Create a project at https://console.cloud.google.com/ and enable
 #      "YouTube Data API v3".
 #   2. Configure the OAuth consent screen, then create an OAuth client of type
-#      "Desktop app" and copy its Client ID and Client Secret.
+#      "Web application" and add https://developers.google.com/oauthplayground
+#      to its authorized redirect URIs. The playground only accepts web
+#      clients, so a "Desktop app" client cannot be used here. Copy the
+#      Client ID and Client Secret.
 #   3. Obtain a refresh token for the scope
-#      https://www.googleapis.com/auth/youtube.upload — for example with
+#      https://www.googleapis.com/auth/youtube.upload with
 #      https://developers.google.com/oauthplayground (enable "Use your own
 #      OAuth credentials" and paste the client id/secret from step 2).
+#   4. Set the app publishing status to "Production". While it stays in
+#      "Testing" with an external user type, Google revokes the refresh token
+#      seven days after consent.
 #
 # The refresh token is renewed automatically, so no browser is needed at
 # runtime. The official client library ships with the project dependencies.

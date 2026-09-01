@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MoneyPrinterTurbo</title>
+<meta name="description" content="Ferramenta de código aberto, executada por você, que gera vídeos curtos e publica no seu próprio canal do YouTube.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfaf8;
+    --fg: #1c1b19;
+    --muted: #5f5c57;
+    --rule: #e3e0da;
+    --link: #8a4b1f;
+    --card: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16151a;
+      --fg: #eceaf0;
+      --muted: #a09daa;
+      --rule: #2b2933;
+      --link: #e0a978;
+      --card: #1e1d24;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 46rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+  h1 { font-size: clamp(2rem, 6vw, 2.75rem); line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.02em; }
+  .lede { font-size: 1.15rem; color: var(--muted); margin: 0 0 2.5rem; }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 .75rem; letter-spacing: -.01em; }
+  p { margin: 0 0 1rem; }
+  ul { margin: 0 0 1rem; padding-left: 1.2rem; }
+  li { margin-bottom: .4rem; }
+  a { color: var(--link); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: .6rem;
+    padding: 1.25rem 1.4rem;
+    margin: 2rem 0;
+  }
+  .card p:last-child { margin-bottom: 0; }
+  footer {
+    border-top: 1px solid var(--rule);
+    margin-top: 3.5rem;
+    padding-top: 1.25rem;
+    color: var(--muted);
+    font-size: .9rem;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .9em;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: .25rem;
+    padding: .1em .35em;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>MoneyPrinterTurbo</h1>
+  <p class="lede">Ferramenta de código aberto que gera vídeos curtos a partir de um tema e publica direto no seu canal do YouTube.</p>
+
+  <p>O MoneyPrinterTurbo monta o roteiro, a narração, as legendas e a trilha, junta tudo em um vídeo vertical e envia para o YouTube pela API oficial. Você roda o programa na sua própria máquina ou em um servidor seu. Não existe serviço hospedado: nada passa por um intermediário.</p>
+
+  <h2>O que ele faz</h2>
+  <ul>
+    <li>Gera roteiro e termos de busca a partir de um tema, usando o provedor de LLM que você configurar.</li>
+    <li>Produz narração por TTS, legendas sincronizadas e trilha sonora.</li>
+    <li>Monta o vídeo final no formato vertical, pronto para Shorts.</li>
+    <li>Publica no seu canal do YouTube com título, descrição, tags, categoria e privacidade definidos por você.</li>
+  </ul>
+
+  <h2>Acesso à sua conta do Google</h2>
+  <p>Para publicar, o aplicativo pede uma única permissão, <code>youtube.upload</code>, que serve só para enviar vídeos ao canal da conta conectada. Ela não permite ler, alterar ou apagar o que já existe no canal, nem ver inscritos, comentários ou métricas.</p>
+  <p>As credenciais ficam no arquivo <code>config.toml</code> da máquina onde você instalou o programa e não são enviadas a ninguém além do próprio Google.</p>
+
+  <div class="card">
+    <p><strong>Política de privacidade:</strong> <a href="privacy.html">leia aqui</a>.</p>
+    <p><strong>Código-fonte:</strong> <a href="https://github.com/FelipePrado0/MoneyPrinterTurbo">github.com/FelipePrado0/MoneyPrinterTurbo</a></p>
+  </div>
+
+  <h2>Suporte</h2>
+  <p>Dúvidas e problemas: <a href="mailto:afentreterimento@gmail.com">afentreterimento@gmail.com</a>, ou abra uma issue no repositório.</p>
+
+  <footer>
+    MoneyPrinterTurbo é software livre sob licença MIT. Não é um produto do Google, do YouTube nem de nenhuma empresa afiliada.
+  </footer>
+</main>
+</body>
+</html>

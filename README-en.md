@@ -454,8 +454,9 @@ YouTube uploads go through the official YouTube Data API v3 (`google-api-python-
 One-time setup:
 
 1. Create a project on the [Google Cloud Console](https://console.cloud.google.com/) and enable **YouTube Data API v3**.
-2. Configure the OAuth consent screen, then create an OAuth client of type **Desktop app** and copy its Client ID and Client Secret.
-3. Get a refresh token for the `https://www.googleapis.com/auth/youtube.upload` scope — the [OAuth Playground](https://developers.google.com/oauthplayground) works well: enable *Use your own OAuth credentials*, paste the client id/secret from step 2, authorize the scope, then exchange the code for tokens.
+2. Configure the OAuth consent screen, then create an OAuth client of type **Web application** and add `https://developers.google.com/oauthplayground` to its authorized redirect URIs. The playground only accepts web clients, so a Desktop app client will not work. Copy the Client ID and Client Secret.
+3. Get a refresh token for the `https://www.googleapis.com/auth/youtube.upload` scope on the [OAuth Playground](https://developers.google.com/oauthplayground). Enable *Use your own OAuth credentials*, paste the client id/secret from step 2, authorize the scope with the channel account, then exchange the code for tokens.
+4. Set the publishing status to **Production** on the consent screen. While the app stays in *Testing* with an external user type, Google revokes the refresh token seven days after consent.
 
 Add the result under `[app]` in `config.toml`:
 

@@ -420,7 +420,7 @@
     "YouTube Privacy Status": "YouTube Privacy Status",
     "YouTube Direct Upload": "YouTube Direct Upload",
     "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Publish generated videos straight to YouTube with the official YouTube Data API v3",
-    "YouTube OAuth Setup Guide": "Before enabling YouTube auto-publish:\n1. Enable [YouTube Data API v3]({console_url}) in a Google Cloud project.\n2. Create an OAuth client of type **Desktop app** and copy its Client ID and Client Secret.\n3. Generate a refresh token for the `youtube.upload` scope, for example with the [OAuth Playground]({playground_url}).\n\nThe refresh token renews itself, so publishing never opens a browser.",
+    "YouTube OAuth Setup Guide": "Before enabling YouTube auto-publish:\n1. Enable [YouTube Data API v3]({console_url}) in a Google Cloud project.\n2. Create an OAuth client of type **Web application** and add `https://developers.google.com/oauthplayground` to its authorized redirect URIs. The playground only accepts web clients, so a Desktop app client will not work.\n3. Generate a refresh token for the `youtube.upload` scope on the [OAuth Playground]({playground_url}), with *Use your own OAuth credentials* enabled.\n4. Set the publishing status to **Production**. While the app stays in Testing with an external user type, Google revokes the refresh token after 7 days.\n\nThe refresh token renews itself, so publishing never opens a browser.",
     "Enable YouTube Integration": "Enable YouTube Integration",
     "Enable YouTube Auto-Publish": "Enable YouTube Auto-Publish",
     "YouTube Client ID": "YouTube Client ID",

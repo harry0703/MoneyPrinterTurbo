@@ -351,7 +351,7 @@
     "YouTube Privacy Status": "YouTube 공개 상태",
     "YouTube Direct Upload": "YouTube 직접 업로드",
     "Publish generated videos straight to YouTube with the official YouTube Data API v3": "공식 YouTube Data API v3로 생성된 영상을 YouTube에 바로 게시합니다",
-    "YouTube OAuth Setup Guide": "YouTube 자동 게시를 사용하기 전에:\n1. Google Cloud 프로젝트에서 [YouTube Data API v3]({console_url})를 사용 설정합니다.\n2. **데스크톱 앱** 유형의 OAuth 클라이언트를 만들고 Client ID와 Client Secret을 복사합니다.\n3. `youtube.upload` 범위의 리프레시 토큰을 발급합니다. 예를 들어 [OAuth Playground]({playground_url})를 사용할 수 있습니다.\n\n리프레시 토큰은 자동으로 갱신되므로 게시 중에 브라우저가 열리지 않습니다.",
+    "YouTube OAuth Setup Guide": "YouTube 자동 게시를 사용하기 전에:\n1. Google Cloud 프로젝트에서 [YouTube Data API v3]({console_url})를 사용 설정합니다.\n2. **웹 애플리케이션** 유형의 OAuth 클라이언트를 만들고 승인된 리디렉션 URI에 `https://developers.google.com/oauthplayground`를 추가합니다. Playground는 웹 클라이언트만 허용하므로 데스크톱 앱 유형은 사용할 수 없습니다.\n3. [OAuth Playground]({playground_url})에서 *Use your own OAuth credentials*를 켠 뒤 `youtube.upload` 범위의 리프레시 토큰을 발급합니다.\n4. 게시 상태를 **프로덕션**으로 변경합니다. 외부 사용자 유형으로 테스트 상태에 머무르면 Google이 7일 후 리프레시 토큰을 취소합니다.\n\n리프레시 토큰은 자동으로 갱신되므로 게시 중에 브라우저가 열리지 않습니다.",
     "Enable YouTube Integration": "YouTube 연동 사용",
     "Enable YouTube Auto-Publish": "YouTube 자동 게시 사용",
     "YouTube Client ID": "YouTube Client ID",

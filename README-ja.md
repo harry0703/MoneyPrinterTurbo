@@ -432,8 +432,9 @@ YouTube への投稿は公式の YouTube Data API v3（`google-api-python-client
 初回のみ必要な設定:
 
 1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成し、**YouTube Data API v3** を有効化します。
-2. OAuth 同意画面を設定し、**デスクトップ アプリ** 型の OAuth クライアントを作成して Client ID と Client Secret を控えます。
-3. `https://www.googleapis.com/auth/youtube.upload` スコープのリフレッシュ トークンを取得します。[OAuth Playground](https://developers.google.com/oauthplayground) が便利です: *Use your own OAuth credentials* を有効にし、手順 2 の資格情報を入力して認可後にトークンと交換します。
+2. OAuth 同意画面を設定し、**ウェブ アプリケーション** 型の OAuth クライアントを作成して、承認済みリダイレクト URI に `https://developers.google.com/oauthplayground` を追加します。Playground はウェブ クライアントのみ受け付けるため、デスクトップ アプリ型は使えません。Client ID と Client Secret を控えます。
+3. [OAuth Playground](https://developers.google.com/oauthplayground) で `https://www.googleapis.com/auth/youtube.upload` スコープのリフレッシュ トークンを取得します。*Use your own OAuth credentials* を有効にし、手順 2 の資格情報を入力し、チャンネルのアカウントで認可してトークンと交換します。
+4. 同意画面の公開ステータスを **本番環境** に変更します。ユーザーの種類が外部のまま *テスト* に留まると、同意から 7 日後に Google がリフレッシュ トークンを失効させます。
 
 取得した値を `config.toml` の `[app]` 以下に追加します:
 

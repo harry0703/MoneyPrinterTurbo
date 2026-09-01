@@ -351,7 +351,7 @@
     "YouTube Privacy Status": "Trạng thái quyền riêng tư của YouTube",
     "YouTube Direct Upload": "Đăng trực tiếp lên YouTube",
     "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Đăng video đã tạo thẳng lên YouTube bằng YouTube Data API v3 chính thức",
-    "YouTube OAuth Setup Guide": "Trước khi bật đăng tự động lên YouTube:\n1. Bật [YouTube Data API v3]({console_url}) trong một dự án Google Cloud.\n2. Tạo ứng dụng khách OAuth loại **Desktop app** rồi sao chép Client ID và Client Secret.\n3. Tạo refresh token cho phạm vi `youtube.upload`, ví dụ bằng [OAuth Playground]({playground_url}).\n\nRefresh token tự gia hạn nên quá trình đăng không bao giờ mở trình duyệt.",
+    "YouTube OAuth Setup Guide": "Trước khi bật đăng tự động lên YouTube:\n1. Bật [YouTube Data API v3]({console_url}) trong một dự án Google Cloud.\n2. Tạo ứng dụng khách OAuth loại **Ứng dụng web** rồi thêm `https://developers.google.com/oauthplayground` vào URI chuyển hướng được ủy quyền. Playground chỉ chấp nhận ứng dụng khách web nên loại Desktop app không dùng được.\n3. Tạo refresh token cho phạm vi `youtube.upload` trên [OAuth Playground]({playground_url}), với *Use your own OAuth credentials* được bật.\n4. Đổi trạng thái phát hành sang **Chính thức**. Khi ứng dụng còn ở trạng thái Thử nghiệm với loại người dùng bên ngoài, Google sẽ thu hồi refresh token sau 7 ngày.\n\nRefresh token tự gia hạn nên quá trình đăng không bao giờ mở trình duyệt.",
     "Enable YouTube Integration": "Bật tích hợp YouTube",
     "Enable YouTube Auto-Publish": "Bật đăng tự động lên YouTube",
     "YouTube Client ID": "Client ID của YouTube",

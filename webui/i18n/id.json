@@ -351,7 +351,7 @@
     "YouTube Privacy Status": "Status Privasi YouTube",
     "YouTube Direct Upload": "Unggah Langsung ke YouTube",
     "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Publikasikan video hasil generasi langsung ke YouTube dengan YouTube Data API v3 resmi",
-    "YouTube OAuth Setup Guide": "Sebelum mengaktifkan publikasi otomatis ke YouTube:\n1. Aktifkan [YouTube Data API v3]({console_url}) pada proyek Google Cloud.\n2. Buat klien OAuth bertipe **Desktop app** lalu salin Client ID dan Client Secret-nya.\n3. Buat refresh token untuk cakupan `youtube.upload`, misalnya lewat [OAuth Playground]({playground_url}).\n\nRefresh token diperbarui otomatis, jadi proses publikasi tidak pernah membuka browser.",
+    "YouTube OAuth Setup Guide": "Sebelum mengaktifkan publikasi otomatis ke YouTube:\n1. Aktifkan [YouTube Data API v3]({console_url}) pada proyek Google Cloud.\n2. Buat klien OAuth bertipe **Aplikasi web** lalu tambahkan `https://developers.google.com/oauthplayground` ke URI pengalihan yang diizinkan. Playground hanya menerima klien web, jadi tipe Desktop app tidak bisa dipakai.\n3. Buat refresh token untuk cakupan `youtube.upload` di [OAuth Playground]({playground_url}), dengan *Use your own OAuth credentials* aktif.\n4. Ubah status publikasi menjadi **Produksi**. Selama aplikasi masih berstatus Pengujian dengan tipe pengguna eksternal, Google mencabut refresh token setelah 7 hari.\n\nRefresh token diperbarui otomatis, jadi proses publikasi tidak pernah membuka browser.",
     "Enable YouTube Integration": "Aktifkan Integrasi YouTube",
     "Enable YouTube Auto-Publish": "Aktifkan Publikasi Otomatis YouTube",
     "YouTube Client ID": "Client ID YouTube",

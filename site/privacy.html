@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Política de privacidade - MoneyPrinterTurbo</title>
+<meta name="description" content="Como o MoneyPrinterTurbo trata os dados da conta do Google conectada.">
+<!-- Espelha PRIVACY.md na raiz do repositório. Ao alterar um, altere o outro. -->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfaf8;
+    --fg: #1c1b19;
+    --muted: #5f5c57;
+    --rule: #e3e0da;
+    --link: #8a4b1f;
+    --card: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16151a;
+      --fg: #eceaf0;
+      --muted: #a09daa;
+      --rule: #2b2933;
+      --link: #e0a978;
+      --card: #1e1d24;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+  h1 { font-size: clamp(1.8rem, 5vw, 2.35rem); line-height: 1.2; margin: 0 0 .35rem; letter-spacing: -.02em; }
+  .meta { color: var(--muted); font-size: .92rem; margin: 0 0 2.5rem; }
+  h2 { font-size: 1.1rem; margin: 2.25rem 0 .65rem; letter-spacing: -.01em; }
+  p { margin: 0 0 1rem; }
+  ul { margin: 0 0 1rem; padding-left: 1.2rem; }
+  li { margin-bottom: .4rem; }
+  a { color: var(--link); }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .9em;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: .25rem;
+    padding: .1em .35em;
+  }
+  footer {
+    border-top: 1px solid var(--rule);
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    color: var(--muted);
+    font-size: .9rem;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Política de privacidade</h1>
+  <p class="meta">MoneyPrinterTurbo · atualizada em 31 de agosto de 2026</p>
+
+  <p>O MoneyPrinterTurbo é software de código aberto que você executa por conta própria, no seu computador ou em um servidor seu. Não existe serviço operado pelo desenvolvedor que receba os seus dados. Esta política descreve o que o aplicativo faz com os dados da conta do Google que você autorizar.</p>
+
+  <h2>A que o aplicativo tem acesso</h2>
+  <p>Ao conectar uma conta do Google, o aplicativo pede um único escopo:</p>
+  <ul>
+    <li><code>https://www.googleapis.com/auth/youtube.upload</code>, permissão para enviar vídeos ao canal do YouTube da conta conectada.</li>
+  </ul>
+  <p>Esse escopo não dá acesso aos seus vídeos já publicados, comentários, inscritos, métricas, playlists ou configurações do canal. Ele não permite ler nem apagar conteúdo existente.</p>
+
+  <h2>O que o aplicativo faz com isso</h2>
+  <p>A permissão é usada para uma coisa só: enviar um vídeo que você gerou, junto com título, descrição, tags, categoria e configuração de privacidade daquele vídeo. Nada além disso é transmitido ao YouTube.</p>
+  <p>Os envios são declarados como contendo mídia sintética ou alterada, porque os vídeos gerados usam narração sintética.</p>
+
+  <h2>Onde ficam as credenciais</h2>
+  <p>O client ID, o client secret e o refresh token são gravados no arquivo <code>config.toml</code> da máquina onde você instalou o aplicativo. Eles não saem dessa máquina, exceto na requisição de autenticação enviada diretamente aos servidores do Google.</p>
+  <p>O desenvolvedor do MoneyPrinterTurbo não tem acesso a essas credenciais, à conta conectada nem aos vídeos enviados.</p>
+
+  <h2>Compartilhamento com terceiros</h2>
+  <p>Nenhum. O aplicativo não coleta métricas de uso, não envia telemetria e não transmite os dados da sua conta do Google ao desenvolvedor nem a qualquer outra parte. O único destinatário dos seus dados do Google é o próprio Google.</p>
+  <p>A geração do vídeo pode envolver outros serviços que você configura à parte, como um provedor de LLM ou um banco de imagens. Esses serviços recebem apenas o texto e as mídias que você enviar a eles, nunca suas credenciais do Google. As políticas de privacidade deles se aplicam a esses dados.</p>
+
+  <h2>Retenção</h2>
+  <p>As credenciais permanecem na sua máquina até você apagá-las. Remover as entradas <code>youtube_client_id</code>, <code>youtube_client_secret</code> e <code>youtube_refresh_token</code> do <code>config.toml</code>, ou apagar o arquivo, elimina os dados por completo.</p>
+
+  <h2>Como revogar o acesso</h2>
+  <p>Você pode revogar o acesso do aplicativo a qualquer momento em <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>, independentemente do que estiver guardado na sua máquina. A revogação vale na hora e invalida o refresh token armazenado.</p>
+
+  <h2>Crianças</h2>
+  <p>O aplicativo não é dirigido a crianças e não se destina ao uso por menores de 13 anos.</p>
+
+  <h2>Alterações</h2>
+  <p>Mudanças nesta política são publicadas nesta página e no repositório do projeto, em <a href="https://github.com/FelipePrado0/MoneyPrinterTurbo">github.com/FelipePrado0/MoneyPrinterTurbo</a>.</p>
+
+  <h2>Contato</h2>
+  <p><a href="mailto:afentreterimento@gmail.com">afentreterimento@gmail.com</a></p>
+
+  <footer>
+    <a href="index.html">Voltar para a página inicial</a>
+  </footer>
+</main>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import builtins
+import json
 import os
 import sys
 import tempfile
@@ -27,10 +28,26 @@ _CONFIG_BASE = {
 
 
 class FakeHttpError(Exception):
-    def __init__(self, status, reason=""):
+    def __init__(self, status, reason="", content=b""):
         super().__init__(reason or f"HTTP {status}")
         self.resp = SimpleNamespace(status=status)
         self.reason = reason
+        self.content = content
+
+
+def _api_error_body(code, message, *reasons):
+    """构造与 YouTube 接口一致的错误响应体。"""
+    return json.dumps(
+        {
+            "error": {
+                "code": code,
+                "message": message,
+                "errors": [
+                    {"message": message, "reason": reason} for reason in reasons
+                ],
+            }
+        }
+    ).encode("utf-8")
 
 
 class FakeGoogleAuthError(Exception):
@@ -293,10 +310,65 @@ class TestYouTubeUploadService(unittest.TestCase):
     @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
     @patch("app.services.youtube_upload.os.path.exists", return_value=True)
     @patch("app.services.youtube_upload.time.sleep")
+    def test_missing_channel_error_explains_how_to_fix_it(self, sleep, _exists):
+        """
+        没有频道的账号上传时只返回 401 Unauthorized，真正的原因藏在响应体的
+        youtubeSignupRequired 里。任务状态必须带上它和处理建议，否则调用方
+        会误以为是凭据失效而反复重新授权。
+        """
+        modules, state = _fake_modules(
+            [
+                FakeHttpError(
+                    401,
+                    "Unauthorized",
+                    _api_error_body(401, "Unauthorized", "youtubeSignupRequired"),
+                )
+            ]
+        )
+
+        with patch(
+            "app.services.youtube_upload._load_google_modules", return_value=modules
+        ):
+            result = YouTubeUploadService().upload_video("/fake/v.mp4", "Title")
+
+        self.assertFalse(result["success"])
+        self.assertIn("youtubeSignupRequired", result["error"])
+        self.assertIn("no YouTube channel", result["error"])
+        self.assertEqual(state.request.calls, 1)
+        sleep.assert_not_called()
+
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    @patch("app.services.youtube_upload.os.path.exists", return_value=True)
+    def test_error_without_a_parseable_body_still_reports_the_status(self, _exists):
+        """响应体缺失或不是 JSON 时也要给出可读信息，不能吞掉整个失败。"""
+        modules, _state = _fake_modules(
+            [FakeHttpError(404, "Not Found", b"<html>gateway error</html>")]
+        )
+
+        with patch(
+            "app.services.youtube_upload._load_google_modules", return_value=modules
+        ):
+            result = YouTubeUploadService().upload_video("/fake/v.mp4", "Title")
+
+        self.assertFalse(result["success"])
+        self.assertIn("404", result["error"])
+        self.assertIn("Not Found", result["error"])
+
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    @patch("app.services.youtube_upload.os.path.exists", return_value=True)
+    @patch("app.services.youtube_upload.time.sleep")
     def test_client_errors_are_not_retried(self, sleep, _exists):
         """403 通常是配额耗尽或权限不足，重试只会更快耗尽当天的额度。"""
         modules, state = _fake_modules(
-            [FakeHttpError(403, "quotaExceeded"), {"id": "vid123"}]
+            [
+                FakeHttpError(
+                    403,
+                    "Forbidden",
+                    _api_error_body(403, "The request cannot be completed because "
+                                    "you have exceeded your quota.", "quotaExceeded"),
+                ),
+                {"id": "vid123"},
+            ]
         )
 
         with patch(

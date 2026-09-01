@@ -351,7 +351,7 @@
     "YouTube Privacy Status": "Статус конфиденциальности YouTube",
     "YouTube Direct Upload": "Прямая публикация на YouTube",
     "Publish generated videos straight to YouTube with the official YouTube Data API v3": "Публикуйте готовые видео прямо на YouTube через официальный YouTube Data API v3",
-    "YouTube OAuth Setup Guide": "Перед включением автопубликации на YouTube:\n1. Включите [YouTube Data API v3]({console_url}) в проекте Google Cloud.\n2. Создайте клиент OAuth типа **Desktop app** и скопируйте его Client ID и Client Secret.\n3. Получите refresh token для области `youtube.upload`, например через [OAuth Playground]({playground_url}).\n\nRefresh token обновляется автоматически, поэтому публикация никогда не открывает браузер.",
+    "YouTube OAuth Setup Guide": "Перед включением автопубликации на YouTube:\n1. Включите [YouTube Data API v3]({console_url}) в проекте Google Cloud.\n2. Создайте клиент OAuth типа **Веб-приложение** и добавьте `https://developers.google.com/oauthplayground` в разрешённые URI перенаправления. Playground принимает только веб-клиенты, поэтому тип Desktop app здесь не подходит.\n3. Получите refresh token для области `youtube.upload` в [OAuth Playground]({playground_url}), включив *Use your own OAuth credentials*.\n4. Переведите статус публикации в **Production**. Пока приложение остаётся в статусе Testing с внешним типом пользователей, Google отзывает refresh token через 7 дней.\n\nRefresh token обновляется автоматически, поэтому публикация никогда не открывает браузер.",
     "Enable YouTube Integration": "Включить интеграцию с YouTube",
     "Enable YouTube Auto-Publish": "Включить автопубликацию на YouTube",
     "YouTube Client ID": "Client ID YouTube",

@@ -420,7 +420,7 @@
     "YouTube Privacy Status": "YouTube 隐私状态",
     "YouTube Direct Upload": "YouTube 直接发布",
     "Publish generated videos straight to YouTube with the official YouTube Data API v3": "使用官方 YouTube Data API v3 把成片直接发布到 YouTube",
-    "YouTube OAuth Setup Guide": "启用 YouTube 自动发布前，请先：\n1. 在 Google Cloud 项目中启用 [YouTube Data API v3]({console_url})。\n2. 创建类型为 **桌面应用** 的 OAuth 客户端，并复制 Client ID 和 Client Secret。\n3. 为 `youtube.upload` 权限换取刷新令牌，例如使用 [OAuth Playground]({playground_url})。\n\n刷新令牌会自动续期，发布过程不需要打开浏览器。",
+    "YouTube OAuth Setup Guide": "启用 YouTube 自动发布前，请先：\n1. 在 Google Cloud 项目中启用 [YouTube Data API v3]({console_url})。\n2. 创建类型为 **Web 应用** 的 OAuth 客户端，并把 `https://developers.google.com/oauthplayground` 添加到已授权的重定向 URI。Playground 只接受 Web 客户端，桌面应用类型无法使用。\n3. 在 [OAuth Playground]({playground_url}) 为 `youtube.upload` 权限换取刷新令牌，记得勾选 *Use your own OAuth credentials*。\n4. 把发布状态改为 **正式版**。停留在测试状态且用户类型为外部时，Google 会在 7 天后吊销刷新令牌。\n\n刷新令牌会自动续期，发布过程不需要打开浏览器。",
     "Enable YouTube Integration": "启用 YouTube 集成",
     "Enable YouTube Auto-Publish": "启用 YouTube 自动发布",
     "YouTube Client ID": "YouTube Client ID",

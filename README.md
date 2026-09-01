@@ -449,8 +449,9 @@ YouTube 使用官方 YouTube Data API v3（`google-api-python-client` + OAuth2�
 一次性配置：
 
 1. 在 [Google Cloud Console](https://console.cloud.google.com/) 创建项目，并启用 **YouTube Data API v3**。
-2. 配置 OAuth 同意屏幕，创建类型为 **桌面应用** 的 OAuth 客户端，复制 Client ID 和 Client Secret。
-3. 为 `https://www.googleapis.com/auth/youtube.upload` 权限换取刷新令牌。推荐使用 [OAuth Playground](https://developers.google.com/oauthplayground)：勾选 *Use your own OAuth credentials*，填入第 2 步的客户端凭据，授权该权限后换取 token。
+2. 配置 OAuth 同意屏幕，创建类型为 **Web 应用** 的 OAuth 客户端，并把 `https://developers.google.com/oauthplayground` 添加到已授权的重定向 URI。Playground 只接受 Web 客户端，桌面应用类型无法使用。复制 Client ID 和 Client Secret。
+3. 在 [OAuth Playground](https://developers.google.com/oauthplayground) 为 `https://www.googleapis.com/auth/youtube.upload` 权限换取刷新令牌：勾选 *Use your own OAuth credentials*，填入第 2 步的客户端凭据，用频道账号授权后换取 token。
+4. 把应用的发布状态改为 **正式版**。停留在 *测试* 状态且用户类型为外部时，Google 会在授权 7 天后吊销刷新令牌。
 
 把结果写入 `config.toml` 的 `[app]` 下：
 
