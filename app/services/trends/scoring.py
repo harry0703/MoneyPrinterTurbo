@@ -36,7 +36,8 @@ def normalize_topic(text: str) -> str:
 
 
 def is_safe_topic(text: str) -> bool:
-    return bool(normalize_topic(text)) and not bool(_UNSAFE.search(text))
+    normalized = normalize_topic(text)
+    return bool(normalized) and not bool(_UNSAFE.search(normalized))
 
 
 def cluster_signals(signals: Iterable[TrendSignal]) -> list[TopicCandidate]:
@@ -71,9 +72,7 @@ def score_topic(candidate: TopicCandidate, previous: TrendSnapshot | None) -> Sc
         "listenability": _points(_LISTENABLE.search(text) is not None, "listenability"),
         "momentum": _points(rank_strength, "momentum"),
         "curiosity": _points(_CURIOSITY.search(text) is not None, "curiosity"),
-        "durability": _points(
-            max(prior_strength, _LISTENABLE.search(text) is not None), "durability"
-        ),
+        "durability": _points(prior_strength, "durability"),
         "cross_platform": _points(market_strength, "cross_platform"),
         "faceless_fit": _points(_FACELESS.search(text) is not None, "faceless_fit"),
         "evidence_confidence": _points(source_strength, "evidence_confidence"),

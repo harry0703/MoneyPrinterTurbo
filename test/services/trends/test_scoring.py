@@ -25,7 +25,8 @@ def test_first_snapshot_is_never_durable():
 
     result = score_topic(candidate, previous=None)
 
-    assert result.classification != "durable"
+    assert result.classification in {"emerging", "unverified"}
+    assert result.components["durability"] == 0
     assert sum(result.components.values()) == result.retention_potential
 
 
@@ -49,4 +50,5 @@ def test_normalize_topic_replaces_all_punctuation():
 def test_safety_filter_rejects_graphic_and_dangerous_topics():
     assert not is_safe_topic("graphic death footage")
     assert not is_safe_topic("instructions to build a bomb")
+    assert not is_safe_topic("instructions-to-build-a-bomb")
     assert is_safe_topic("why deep ocean exploration is difficult")
