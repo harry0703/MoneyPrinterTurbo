@@ -148,6 +148,45 @@ class TestOFoxService(unittest.TestCase):
         config.app["ofox_resolution"] = " 480p "
         self.assertEqual(ofox._resolution(), "480p")
 
+    def test_provider_pinning_is_optional_and_passed_through(self):
+        # 未配置时不携带 provider 字段，让网关按权重自动分发。
+        submit = self._response({"id": "vid-route", "status": "queued"}, 202)
+        completed = self._response(
+            {
+                "id": "vid-route",
+                "status": "completed",
+                "unsigned_urls": ["https://cdn.example.com/route.mp4"],
+            }
+        )
+        with (
+            patch.object(ofox.requests, "post", return_value=submit) as post,
+            patch.object(ofox.requests, "get", return_value=completed),
+        ):
+            ofox.generate_videos("sunrise", 5)
+        self.assertNotIn("provider", post.call_args.kwargs["json"])
+
+        for blank in ("", "   ", None):
+            with self.subTest(blank=blank):
+                config.app["ofox_provider"] = blank
+                with (
+                    patch.object(ofox.requests, "post", return_value=submit) as post,
+                    patch.object(ofox.requests, "get", return_value=completed),
+                ):
+                    ofox.generate_videos("sunrise", 5)
+                self.assertNotIn("provider", post.call_args.kwargs["json"])
+
+        # 配置后钉定上游厂商，形如 {"type": "byteplus"}；非法厂商名由服务端
+        # 以 400 invalid_provider_type 拒绝（不创建付费任务），走常规 4xx 路径。
+        config.app["ofox_provider"] = " byteplus "
+        with (
+            patch.object(ofox.requests, "post", return_value=submit) as post,
+            patch.object(ofox.requests, "get", return_value=completed),
+        ):
+            ofox.generate_videos("sunrise", 5)
+        self.assertEqual(
+            post.call_args.kwargs["json"]["provider"], {"type": "byteplus"}
+        )
+
     def test_server_rejected_resolution_raises_clear_error_without_polling(self):
         config.app["ofox_resolution"] = "1080p"
         rejected = self._response(

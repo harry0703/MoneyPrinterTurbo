@@ -496,7 +496,7 @@ ofox_text_to_video_model = "bytedance/seedance-2.0-fast"
 ofox_base_url = "https://api.ofox.ai/v1"
 ```
 
-When the dedicated config value is empty, the `OFOX_API_KEY` environment variable is used. Select **OFox AI Video** as the video source and explicitly confirm paid generation before starting. CLI users must add `--confirm-ofox-charge`. The model can be any text-to-video model from the OFox catalog (`GET /v1/models`), e.g. `alibaba/wan-2.7`; each model has its own supported duration range and resolutions, and out-of-range values are rejected by the API with a clear error before any task is created.
+When the dedicated config value is empty, the `OFOX_API_KEY` environment variable is used. Select **OFox AI Video** as the video source and explicitly confirm paid generation before starting. CLI users must add `--confirm-ofox-charge`. For predictable routing, `ofox_provider` pins the upstream vendor (for example the Seedance series is served by both `"volcengine"` and `"byteplus"`, each with its own content policies and regional availability; when unset, OFox load-balances across vendors). The model can be any text-to-video model from the OFox catalog (`GET /v1/models`), e.g. `alibaba/wan-2.7`; each model has its own supported duration range and resolutions, and out-of-range values are rejected by the API with a clear error before any task is created.
 
 The first version supports text-to-video only. Each clip creates one asynchronous paid task; the program only polls the same task id, stops submitting new tasks whenever a paid task state is unknown, and generates just enough footage to cover the voiceover duration.
 

@@ -98,6 +98,19 @@ def _resolution() -> str:
     return value or DEFAULT_RESOLUTION
 
 
+def _provider_type() -> str:
+    """
+    读取可选的上游厂商钉定（provider routing）。
+
+    OFox 的部分模型由多个上游厂商供货（如 Seedance 系列的 volcengine 与
+    byteplus），不指定时由网关按权重分发。各厂商有各自的内容政策与区域
+    可用性，钉定厂商可以让路由变得可预期。非法厂商名会被 API 以专属的
+    400 ``invalid_provider_type`` 拒绝且不创建付费任务，因此本地不维护
+    厂商白名单。
+    """
+    return str(config.app.get("ofox_provider", "") or "").strip()
+
+
 def _config_bool(key: str, default: bool) -> bool:
     value = config.app.get(key, default)
     if isinstance(value, str):
@@ -221,6 +234,9 @@ def generate_videos(
         "resolution": _resolution(),
         "aspect_ratio": aspect.value,
     }
+    provider_type = _provider_type()
+    if provider_type:
+        payload["provider"] = {"type": provider_type}
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
