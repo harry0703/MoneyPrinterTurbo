@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -37,8 +38,10 @@ class TrendStore:
         try:
             with (self.base_dir / "shortlist.json").open(encoding="utf-8") as handle:
                 items = json.load(handle)
+            if not isinstance(items, list):
+                raise TypeError("shortlist must be a list")
             return [_topic_from_payload(item) for item in items]
-        except (OSError, TypeError, ValueError, KeyError):
+        except (FileNotFoundError, TypeError, ValueError, KeyError):
             return []
 
     def add_shortlist(self, topic: ScoredTopic) -> None:
@@ -58,7 +61,7 @@ class TrendStore:
         try:
             with (self.base_dir / filename).open(encoding="utf-8") as handle:
                 return _snapshot_from_payload(json.load(handle))
-        except (OSError, TypeError, ValueError, KeyError):
+        except (FileNotFoundError, TypeError, ValueError, KeyError):
             return None
 
     def _atomic_write(self, filename: str, payload: Any) -> None:
@@ -87,13 +90,19 @@ def _snapshot_payload(snapshot: TrendSnapshot) -> dict[str, Any]:
 
 
 def _snapshot_from_payload(payload: Any) -> TrendSnapshot:
-    if not isinstance(payload, dict):
+    if not isinstance(payload, Mapping):
         raise TypeError("snapshot must be an object")
+    topics = payload["topics"]
+    source_status = payload["source_status"]
+    if not isinstance(topics, list):
+        raise TypeError("snapshot topics must be a list")
+    if not isinstance(source_status, Mapping):
+        raise TypeError("snapshot source_status must be an object")
     return TrendSnapshot(
         collected_at=_datetime_from_payload(payload["collected_at"]),
-        topics=tuple(_topic_from_payload(item) for item in payload["topics"]),
+        topics=tuple(_topic_from_payload(item) for item in topics),
         source_status={
-            source: SourceStatus(status) for source, status in payload["source_status"].items()
+            source: SourceStatus(status) for source, status in source_status.items()
         },
     )
 
@@ -111,16 +120,25 @@ def _topic_payload(topic: ScoredTopic) -> dict[str, Any]:
 
 
 def _topic_from_payload(payload: Any) -> ScoredTopic:
-    if not isinstance(payload, dict):
+    if not isinstance(payload, Mapping):
         raise TypeError("topic must be an object")
+    components = payload["components"]
+    evidence = payload["evidence"]
+    angles = payload["angles"]
+    if not isinstance(components, Mapping):
+        raise TypeError("topic components must be an object")
+    if not isinstance(evidence, list):
+        raise TypeError("topic evidence must be a list")
+    if not isinstance(angles, list):
+        raise TypeError("topic angles must be a list")
     return ScoredTopic(
         topic=payload["topic"],
         classification=payload["classification"],
         retention_potential=payload["retention_potential"],
-        components=payload["components"],
+        components=components,
         confidence_label=payload["confidence_label"],
-        evidence=tuple(_signal_from_payload(item) for item in payload["evidence"]),
-        angles=tuple(payload["angles"]),
+        evidence=tuple(_signal_from_payload(item) for item in evidence),
+        angles=tuple(angles),
     )
 
 
@@ -137,7 +155,7 @@ def _signal_payload(signal: TrendSignal) -> dict[str, Any]:
 
 
 def _signal_from_payload(payload: Any) -> TrendSignal:
-    if not isinstance(payload, dict):
+    if not isinstance(payload, Mapping):
         raise TypeError("evidence must be an object")
     return TrendSignal(
         topic=payload["topic"],

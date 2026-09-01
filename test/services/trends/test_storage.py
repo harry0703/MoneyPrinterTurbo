@@ -74,6 +74,31 @@ def test_broken_latest_falls_back_to_last_good(tmp_path, snapshot):
     assert store.load_latest().collected_at == snapshot.collected_at
 
 
+def test_structurally_broken_latest_falls_back_to_last_good(tmp_path, snapshot):
+    store = TrendStore(str(tmp_path))
+    store.save_snapshot(snapshot)
+    (tmp_path / "latest.json").write_text(
+        '{"collected_at": "2026-09-01T00:00:00+00:00", "topics": [], "source_status": []}',
+        encoding="utf-8",
+    )
+
+    assert store.load_latest().collected_at == snapshot.collected_at
+
+
+def test_save_ignores_structurally_broken_prior_latest(tmp_path, snapshots):
+    store = TrendStore(str(tmp_path))
+    store.save_snapshot(snapshots[0])
+    (tmp_path / "latest.json").write_text(
+        '{"collected_at": "2026-09-01T00:00:00+00:00", "topics": [], "source_status": []}',
+        encoding="utf-8",
+    )
+
+    store.save_snapshot(snapshots[1])
+
+    assert store.load_latest().collected_at == snapshots[1].collected_at
+    assert store.load_previous() is None
+
+
 def test_shortlist_round_trip_and_remove(tmp_path, sample_snapshot):
     store = TrendStore(str(tmp_path))
     topic = sample_snapshot.topics[0]
