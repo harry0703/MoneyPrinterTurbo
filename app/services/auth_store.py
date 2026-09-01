@@ -19,7 +19,8 @@ from app.utils import utils
 
 PBKDF2_ITERATIONS = 600_000
 LOCKOUT_THRESHOLD = 5
-LOCKOUT_SECONDS = 30
+LOCKOUT_SECONDS = 30  # base window for the first lockout
+LOCKOUT_MAX_SECONDS = 60  # exponential backoff never grows past this
 _PASSWORD_LENGTH = 20
 _SYMBOLS = "!@#$%^&*()-_=+"
 
@@ -131,17 +132,20 @@ def verify_login(
         email_matches = secrets.compare_digest(
             email.strip().lower().encode("utf-8"), stored_email.encode("utf-8")
         )
+
+        # Hash is computed unconditionally, and the override is hashed the same way
+        # as the generated password, so a wrong email or a config-provided override
+        # never short-circuits response time or gets compared as raw plaintext.
+        candidate_hash = _hash_password(password, bytes.fromhex(salt_hex), iterations)
         if override_password:
-            password_matches = secrets.compare_digest(
-                password.encode("utf-8"), override_password.encode("utf-8")
+            expected_hash = _hash_password(
+                override_password, bytes.fromhex(salt_hex), iterations
             )
         else:
-            # Hash is computed unconditionally so a wrong email doesn't short-circuit
-            # the response time and leak which field was wrong.
-            candidate_hash = _hash_password(password, bytes.fromhex(salt_hex), iterations)
-            password_matches = secrets.compare_digest(
-                candidate_hash.encode("utf-8"), password_hash.encode("utf-8")
-            )
+            expected_hash = password_hash
+        password_matches = secrets.compare_digest(
+            candidate_hash.encode("utf-8"), expected_hash.encode("utf-8")
+        )
 
         if email_matches and password_matches:
             conn.execute(
@@ -150,11 +154,20 @@ def verify_login(
             conn.commit()
             return True
 
+        # Lockout tracks failures against the account's own email only: a wrong
+        # email never burns the real account's attempt budget, so someone probing
+        # random addresses can't lock the admin out by themselves.
+        if not email_matches:
+            conn.commit()
+            return False
+
         failed_attempts += 1
         if failed_attempts >= LOCKOUT_THRESHOLD:
+            excess = failed_attempts - LOCKOUT_THRESHOLD
+            lockout_seconds = min(LOCKOUT_SECONDS * (2**excess), LOCKOUT_MAX_SECONDS)
             conn.execute(
                 "UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = 1",
-                (failed_attempts, now + LOCKOUT_SECONDS),
+                (failed_attempts, now + lockout_seconds),
             )
         else:
             conn.execute(
