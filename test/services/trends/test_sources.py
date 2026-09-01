@@ -70,6 +70,18 @@ def test_google_source_retries_a_transient_failure(fake_session, fixed_time):
     assert len(fake_session.calls) == 2
 
 
+def test_google_source_limits_transient_failures_to_one_retry(fake_session, fixed_time):
+    fake_session.reply_file("test/resources/trends/google_trends_us.xml", status_code=500)
+    fake_session.reply_file("test/resources/trends/google_trends_us.xml", status_code=500)
+    fake_session.reply_file("test/resources/trends/google_trends_us.xml", status_code=500)
+
+    signals, status = GoogleTrendsRssSource(fake_session).fetch(("US",), fixed_time)
+
+    assert signals == []
+    assert status is SourceStatus.UNAVAILABLE
+    assert len(fake_session.calls) == 2
+
+
 def test_youtube_without_key_skips_network(fake_session, fixed_time):
     signals, status = YouTubeMostPopularSource(fake_session, "").fetch(("US",), fixed_time)
 
@@ -94,3 +106,14 @@ def test_youtube_source_maps_public_video_evidence(fake_session, fixed_time):
         "https://www.youtube.com/watch?v=space456",
     ]
     assert status is SourceStatus.AVAILABLE
+
+
+def test_youtube_source_rejects_non_object_json(fake_session, fixed_time):
+    fake_session.responses.append(FakeResponse(b"[]"))
+
+    signals, status = YouTubeMostPopularSource(fake_session, "test-key").fetch(
+        ("US",), fixed_time
+    )
+
+    assert signals == []
+    assert status is SourceStatus.UNAVAILABLE

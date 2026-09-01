@@ -11,7 +11,7 @@ import requests
 from app.services.trends.models import SourceStatus, TrendSignal
 
 _TIMEOUT = (3.05, 10)
-_MAX_ATTEMPTS = 3
+_MAX_ATTEMPTS = 2
 _GOOGLE_TRENDS_URL = "https://trends.google.com/trending/rss?geo={market}"
 _YOUTUBE_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
 
@@ -78,7 +78,8 @@ class YouTubeMostPopularSource:
                         "key": self.api_key,
                     },
                 )
-                items = json.loads(response.content).get("items")
+                payload = json.loads(response.content)
+                items = payload.get("items") if isinstance(payload, dict) else None
                 if not isinstance(items, list):
                     raise ValueError("missing YouTube video items")
             except (json.JSONDecodeError, ValueError, requests.RequestException):
