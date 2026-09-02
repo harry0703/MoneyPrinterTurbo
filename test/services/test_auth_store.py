@@ -196,6 +196,63 @@ def test_sessions_have_no_expiry_and_stay_valid_over_time(db_path, monkeypatch):
     assert auth_store.validate_session(token, db_path) is True
 
 
+def test_lockout_status_reports_full_attempts_before_any_failure(db_path):
+    auth_store.ensure_account(TEST_EMAIL, db_path)
+
+    status = auth_store.get_lockout_status(TEST_EMAIL, db_path)
+
+    assert status["locked"] is False
+    assert status["attempts_remaining"] == auth_store.LOCKOUT_THRESHOLD
+    assert status["seconds_remaining"] == 0
+
+
+def test_lockout_status_counts_down_remaining_attempts(db_path):
+    auth_store.ensure_account(TEST_EMAIL, db_path)
+    auth_store.verify_login(TEST_EMAIL, "wrong-password", db_path)
+    auth_store.verify_login(TEST_EMAIL, "wrong-password", db_path)
+
+    status = auth_store.get_lockout_status(TEST_EMAIL, db_path)
+
+    assert status["locked"] is False
+    assert status["attempts_remaining"] == auth_store.LOCKOUT_THRESHOLD - 2
+
+
+def test_lockout_status_reports_locked_with_seconds_remaining(db_path, monkeypatch):
+    auth_store.ensure_account(TEST_EMAIL, db_path)
+    fake_now = [1_000_000.0]
+    monkeypatch.setattr(auth_store.time, "time", lambda: fake_now[0])
+
+    for _ in range(auth_store.LOCKOUT_THRESHOLD):
+        auth_store.verify_login(TEST_EMAIL, "wrong-password", db_path)
+
+    status = auth_store.get_lockout_status(TEST_EMAIL, db_path)
+
+    assert status["locked"] is True
+    assert status["attempts_remaining"] == 0
+    assert 0 < status["seconds_remaining"] <= auth_store.LOCKOUT_SECONDS
+
+
+def test_lockout_status_does_not_leak_real_account_state_for_wrong_email(db_path):
+    auth_store.ensure_account(TEST_EMAIL, db_path)
+    for _ in range(auth_store.LOCKOUT_THRESHOLD):
+        auth_store.verify_login(TEST_EMAIL, "wrong-password", db_path)
+
+    # A different email must not reveal that the real account is locked.
+    status = auth_store.get_lockout_status("someone-else@example.com", db_path)
+
+    assert status["locked"] is False
+    assert status["attempts_remaining"] == auth_store.LOCKOUT_THRESHOLD
+    assert status["seconds_remaining"] == 0
+
+
+def test_lockout_status_for_missing_account_is_neutral(db_path):
+    status = auth_store.get_lockout_status(TEST_EMAIL, db_path)
+
+    assert status["locked"] is False
+    assert status["attempts_remaining"] == auth_store.LOCKOUT_THRESHOLD
+    assert status["seconds_remaining"] == 0
+
+
 def test_verify_login_still_locks_out_with_override_password(db_path):
     auth_store.ensure_account(TEST_EMAIL, db_path)
 

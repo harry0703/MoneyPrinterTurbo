@@ -140,6 +140,46 @@ def invalidate_session(token: str | None, db_path: str | None = None) -> None:
         conn.commit()
 
 
+def get_lockout_status(email: str, db_path: str | None = None) -> dict:
+    """Read-only lockout state, for a more informative login error message.
+
+    Only reveals real numbers when the email matches the stored account,
+    same anti-enumeration rule verify_login already applies to its own
+    failure counter: a wrong email must never expose whether the real
+    account exists or is locked.
+    """
+    neutral = {
+        "locked": False,
+        "attempts_remaining": LOCKOUT_THRESHOLD,
+        "seconds_remaining": 0,
+    }
+    with closing(_connect(db_path)) as conn:
+        row = conn.execute(
+            "SELECT email, failed_attempts, locked_until FROM users WHERE id = 1"
+        ).fetchone()
+        if row is None:
+            return neutral
+
+        stored_email, failed_attempts, locked_until = row
+        if not secrets.compare_digest(
+            email.strip().lower().encode("utf-8"), stored_email.encode("utf-8")
+        ):
+            return neutral
+
+        now = time.time()
+        if now < locked_until:
+            return {
+                "locked": True,
+                "attempts_remaining": 0,
+                "seconds_remaining": locked_until - now,
+            }
+        return {
+            "locked": False,
+            "attempts_remaining": max(0, LOCKOUT_THRESHOLD - failed_attempts),
+            "seconds_remaining": 0,
+        }
+
+
 def verify_login(
     email: str,
     password: str,
