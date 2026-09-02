@@ -14,6 +14,9 @@ from app.models.schema import MaterialInfo, VideoAspect
 DEFAULT_BASE_URL = "https://api.ofox.ai/v1"
 DEFAULT_MODEL_ID = "bytedance/seedance-2.0-fast"
 DEFAULT_RESOLUTION = "720p"
+# 默认钉定国际厂商通道：面向全球受众时内容政策更一致；显式配置为空则交回
+# 网关按权重在可用厂商间分发。
+DEFAULT_PROVIDER_TYPE = "byteplus"
 # 默认模型 bytedance/seedance-2.0-fast 只接受 4-15 秒（服务端实测校验值）。
 # 其它可选模型区间不同（如 alibaba/wan-2.7 为 2-15 秒），切换模型时应同步
 # 调整配置里的区间；超出区间的请求会被 API 以明确的 400 拒绝，不会计费。
@@ -101,15 +104,19 @@ def _resolution() -> str:
 
 def _provider_type() -> str:
     """
-    读取可选的上游厂商钉定（provider routing）。
+    读取上游厂商钉定（provider routing）。
 
     OFox 的部分模型由多个上游厂商供货（如 Seedance 系列的 volcengine 与
-    byteplus），不指定时由网关按权重分发。各厂商有各自的内容政策与区域
-    可用性，钉定厂商可以让路由变得可预期。非法厂商名会被 API 以专属的
-    400 ``invalid_provider_type`` 拒绝且不创建付费任务，因此本地不维护
-    厂商白名单。
+    byteplus），各厂商有各自的内容政策与区域可用性。默认钉定 byteplus
+    （国际厂商，对全球受众内容政策更一致、路由可预期）；配置为其它厂商名
+    则钉定那一家；显式配置为空字符串则不钉定，由网关按权重分发。非法厂商
+    名会被 API 以专属的 400 ``invalid_provider_type`` 拒绝且不创建付费
+    任务，因此本地不维护厂商白名单。
     """
-    return str(config.app.get("ofox_provider", "") or "").strip()
+    value = config.app.get("ofox_provider", DEFAULT_PROVIDER_TYPE)
+    if value is None:
+        return DEFAULT_PROVIDER_TYPE
+    return str(value).strip()
 
 
 def _config_bool(key: str, default: bool) -> bool:

@@ -386,6 +386,11 @@
     "OFox Billing Notice Without Script": "생성된 각 클립은 OFox에서 과금됩니다. 예상 작업 수를 확인하려면 영상 대본을 입력하거나 생성하세요.",
     "Confirm OFox Charge": "OFox 생성이 유료 OFox 작업을 만든다는 것을 이해했습니다",
     "Confirm OFox Charge Help": "OFox 클립은 하나씩 제출되며 내레이션 길이를 채우면 중단됩니다. Ark는 제출된 각 생성 작업에 요금을 부과합니다.",
-    "Confirm OFox Charge Required": "영상을 생성하기 전에 OFox 생성 요금을 확인해 주세요."
+    "Confirm OFox Charge Required": "영상을 생성하기 전에 OFox 생성 요금을 확인해 주세요.",
+    "OFox Upstream Vendor": "OFox 업스트림 공급사",
+    "OFox Upstream Vendor Help": "OFox 영상 생성에 사용할 업스트림 공급사입니다. BytePlus(국제)가 기본값으로 콘텐츠 정책이 일관됩니다. Volcano Engine은 중국 본토 공급사이며, 자동은 OFox 게이트웨이가 공급사 간 부하를 분산합니다.",
+    "OFox Vendor BytePlus": "BytePlus (국제, 기본값)",
+    "OFox Vendor Volcengine": "Volcano Engine (중국 본토)",
+    "OFox Vendor Auto": "자동 (게이트웨이 부하 분산)"
   }
 }

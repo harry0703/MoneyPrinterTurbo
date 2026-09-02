@@ -386,6 +386,11 @@
     "OFox Billing Notice Without Script": "Mỗi clip được tạo đều bị OFox tính phí. Nhập hoặc tạo kịch bản video để xem số tác vụ ước tính.",
     "Confirm OFox Charge": "Tôi hiểu rằng việc tạo bằng OFox sẽ tạo các tác vụ OFox có tính phí",
     "Confirm OFox Charge Help": "Các clip OFox được gửi lần lượt và dừng khi đã đủ thời lượng lồng tiếng. OFox tính phí cho từng tác vụ tạo được gửi.",
-    "Confirm OFox Charge Required": "Vui lòng xác nhận chi phí tạo OFox trước khi tạo video."
+    "Confirm OFox Charge Required": "Vui lòng xác nhận chi phí tạo OFox trước khi tạo video.",
+    "OFox Upstream Vendor": "Nhà cung cấp thượng nguồn OFox",
+    "OFox Upstream Vendor Help": "Nhà cung cấp thượng nguồn phục vụ việc tạo video OFox. BytePlus (quốc tế) là mặc định với chính sách nội dung nhất quán; Volcano Engine là nhà cung cấp Trung Quốc đại lục; Tự động để gateway OFox cân bằng tải giữa các nhà cung cấp.",
+    "OFox Vendor BytePlus": "BytePlus (quốc tế, mặc định)",
+    "OFox Vendor Volcengine": "Volcano Engine (Trung Quốc đại lục)",
+    "OFox Vendor Auto": "Tự động (gateway cân bằng tải)"
   }
 }

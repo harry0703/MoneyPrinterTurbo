@@ -128,6 +128,7 @@ class TestOFoxService(unittest.TestCase):
                 "duration": 5,
                 "resolution": "720p",
                 "aspect_ratio": "9:16",
+                "provider": {"type": ofox.DEFAULT_PROVIDER_TYPE},
             },
         )
         self.assertEqual(get.call_count, 2)
@@ -148,8 +149,8 @@ class TestOFoxService(unittest.TestCase):
         config.app["ofox_resolution"] = " 480p "
         self.assertEqual(ofox._resolution(), "480p")
 
-    def test_provider_pinning_is_optional_and_passed_through(self):
-        # 未配置时不携带 provider 字段，让网关按权重自动分发。
+    def test_provider_pinning_defaults_to_byteplus_and_stays_configurable(self):
+        # 未配置时默认钉定国际厂商 byteplus（内容政策一致、路由可预期）。
         submit = self._response({"id": "vid-route", "status": "queued"}, 202)
         completed = self._response(
             {
@@ -158,14 +159,29 @@ class TestOFoxService(unittest.TestCase):
                 "unsigned_urls": ["https://cdn.example.com/route.mp4"],
             }
         )
+        config.app.pop("ofox_provider", None)
         with (
             patch.object(ofox.requests, "post", return_value=submit) as post,
             patch.object(ofox.requests, "get", return_value=completed),
         ):
             ofox.generate_videos("sunrise", 5)
-        self.assertNotIn("provider", post.call_args.kwargs["json"])
+        self.assertEqual(
+            post.call_args.kwargs["json"]["provider"], {"type": "byteplus"}
+        )
 
-        for blank in ("", "   ", None):
+        # None 视同未配置（配置解析异常时的兜底），仍走默认。
+        config.app["ofox_provider"] = None
+        with (
+            patch.object(ofox.requests, "post", return_value=submit) as post,
+            patch.object(ofox.requests, "get", return_value=completed),
+        ):
+            ofox.generate_videos("sunrise", 5)
+        self.assertEqual(
+            post.call_args.kwargs["json"]["provider"], {"type": "byteplus"}
+        )
+
+        # 显式配置为空字符串 = 不钉定，交回网关按权重自动分发。
+        for blank in ("", "   "):
             with self.subTest(blank=blank):
                 config.app["ofox_provider"] = blank
                 with (
@@ -175,16 +191,16 @@ class TestOFoxService(unittest.TestCase):
                     ofox.generate_videos("sunrise", 5)
                 self.assertNotIn("provider", post.call_args.kwargs["json"])
 
-        # 配置后钉定上游厂商，形如 {"type": "byteplus"}；非法厂商名由服务端
-        # 以 400 invalid_provider_type 拒绝（不创建付费任务），走常规 4xx 路径。
-        config.app["ofox_provider"] = " byteplus "
+        # 配置其它厂商名则钉定那一家；非法厂商名由服务端以 400
+        # invalid_provider_type 拒绝（不创建付费任务），走常规 4xx 路径。
+        config.app["ofox_provider"] = " volcengine "
         with (
             patch.object(ofox.requests, "post", return_value=submit) as post,
             patch.object(ofox.requests, "get", return_value=completed),
         ):
             ofox.generate_videos("sunrise", 5)
         self.assertEqual(
-            post.call_args.kwargs["json"]["provider"], {"type": "byteplus"}
+            post.call_args.kwargs["json"]["provider"], {"type": "volcengine"}
         )
 
     def test_server_rejected_resolution_raises_clear_error_without_polling(self):

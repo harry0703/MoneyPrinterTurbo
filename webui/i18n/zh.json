@@ -455,6 +455,11 @@
     "OFox Billing Notice Without Script": "每段生成视频都会由 OFox 计费。填写或生成视频文案后可查看预计任务数量。",
     "Confirm OFox Charge": "我已了解 OFox 视频生成会创建付费任务",
     "Confirm OFox Charge Help": "OFox 素材按脚本片段逐段提交，凑够配音所需时长后立即停止。OFox 按实际提交的生成任务计费。",
-    "Confirm OFox Charge Required": "请确认 OFox 生成费用后再生成视频。"
+    "Confirm OFox Charge Required": "请确认 OFox 生成费用后再生成视频。",
+    "OFox Upstream Vendor": "OFox 上游厂商",
+    "OFox Upstream Vendor Help": "OFox 视频生成使用的上游厂商。BytePlus（国际）为默认值，内容政策一致；火山引擎为大陆厂商；自动分发由 OFox 网关按权重在可用厂商间调度。",
+    "OFox Vendor BytePlus": "BytePlus（国际，默认）",
+    "OFox Vendor Volcengine": "火山引擎（中国大陆）",
+    "OFox Vendor Auto": "自动分发（网关调度）"
   }
 }

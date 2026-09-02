@@ -386,6 +386,11 @@
     "OFox Billing Notice Without Script": "OFox cobra cada clip generado. Introduce o genera el guion del vídeo para ver una estimación del número de tareas.",
     "Confirm OFox Charge": "Entiendo que la generación con OFox crea tareas de pago en OFox",
     "Confirm OFox Charge Help": "Los clips de OFox se envían uno a uno y se detienen cuando cubren la duración de la narración. OFox cobra cada tarea de generación enviada.",
-    "Confirm OFox Charge Required": "Confirma el coste de generación de OFox antes de generar el vídeo."
+    "Confirm OFox Charge Required": "Confirma el coste de generación de OFox antes de generar el vídeo.",
+    "OFox Upstream Vendor": "Proveedor upstream de OFox",
+    "OFox Upstream Vendor Help": "Qué proveedor upstream sirve la generación de vídeo de OFox. BytePlus (internacional) es el predeterminado, con una política de contenido consistente; Volcano Engine es el proveedor de China continental; Auto deja que la pasarela de OFox balancee la carga entre proveedores.",
+    "OFox Vendor BytePlus": "BytePlus (internacional, predeterminado)",
+    "OFox Vendor Volcengine": "Volcano Engine (China continental)",
+    "OFox Vendor Auto": "Auto (balanceo de la pasarela)"
   }
 }

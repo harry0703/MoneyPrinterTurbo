@@ -140,13 +140,19 @@ ofox_resolution = "720p"
 # submission (extra footage is trimmed by the editing pipeline).
 ofox_min_duration = 4
 ofox_max_duration = 15
-# Optional upstream vendor pinning. Some models are served by multiple
-# upstream vendors (for example the Seedance series is available from both
-# "volcengine" and "byteplus"); when unset, OFox load-balances across the
-# available vendors. Vendors apply their own content policies and regional
-# availability, so pinning one makes routing predictable. Unknown vendor
-# names are rejected by the API before any task is created.
-# ofox_provider = "byteplus"
+# Upstream vendor pinning. Some models are served by multiple upstream
+# vendors (for example the Seedance series is available from both
+# "volcengine" and "byteplus"). Vendors apply their own content policies and
+# regional availability. The default pins "byteplus" (the international
+# vendor) for a consistent content policy and predictable routing; set
+# "volcengine" for the mainland-China vendor, or set an empty string "" to
+# let OFox load-balance across the available vendors. Unknown vendor names
+# are rejected by the API before any task is created. Note: vendor coverage
+# is per model — the default pinning targets the Seedance series; when
+# switching to a non-Seedance model (e.g. alibaba/wan-2.7), set the matching
+# vendor or an empty string, otherwise the API rejects the request with
+# provider_type_unavailable (no task is created, nothing is billed).
+ofox_provider = "byteplus"
 ofox_poll_interval = 5
 ofox_run_timeout = 1800
 

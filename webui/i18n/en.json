@@ -455,6 +455,11 @@
     "OFox Billing Notice Without Script": "Each generated clip is billed by OFox. Enter or generate the video script to see an estimated task count.",
     "Confirm OFox Charge": "I understand OFox video generation creates paid tasks",
     "Confirm OFox Charge Help": "OFox clips are submitted one at a time and stop once they cover the voiceover duration. OFox bills each submitted generation task.",
-    "Confirm OFox Charge Required": "Please confirm the OFox charge before generating the video."
+    "Confirm OFox Charge Required": "Please confirm the OFox charge before generating the video.",
+    "OFox Upstream Vendor": "OFox Upstream Vendor",
+    "OFox Upstream Vendor Help": "Which upstream vendor serves OFox video generation. BytePlus (international) is the default with a consistent content policy; Volcano Engine is the mainland-China vendor; Auto lets the OFox gateway load-balance across vendors.",
+    "OFox Vendor BytePlus": "BytePlus (International, default)",
+    "OFox Vendor Volcengine": "Volcano Engine (Mainland China)",
+    "OFox Vendor Auto": "Auto (gateway load balancing)"
   }
 }

@@ -3428,6 +3428,34 @@ def _render_settings_dialog():
                     "ofox_base_url",
                     ofox_base_url.strip() or ofox.DEFAULT_BASE_URL,
                 )
+                ofox_vendor_options = [
+                    (tr("OFox Vendor BytePlus"), "byteplus"),
+                    (tr("OFox Vendor Volcengine"), "volcengine"),
+                    (tr("OFox Vendor Auto"), ""),
+                ]
+                configured_ofox_vendor = str(
+                    config.app.get("ofox_provider", ofox.DEFAULT_PROVIDER_TYPE)
+                    or ""
+                ).strip()
+                if configured_ofox_vendor not in {
+                    value for _, value in ofox_vendor_options
+                }:
+                    # 用户在 config.toml 手工钉定了其它厂商名时保留该选择，
+                    # 避免打开设置页就被下拉框覆盖回默认值。
+                    ofox_vendor_options.append(
+                        (configured_ofox_vendor, configured_ofox_vendor)
+                    )
+                selected_ofox_vendor = stable_selectbox(
+                    tr("OFox Upstream Vendor"),
+                    options=[value for _, value in ofox_vendor_options],
+                    default_value=configured_ofox_vendor,
+                    key="ofox_provider_select",
+                    format_func=lambda value: dict(
+                        (v, label) for label, v in ofox_vendor_options
+                    )[value],
+                    help=tr("OFox Upstream Vendor Help"),
+                )
+                _set_runtime_config("app", "ofox_provider", selected_ofox_vendor)
 
             with st.container(border=True):
                 st.markdown(f"#### {tr('AI Image Generation APIs')}")

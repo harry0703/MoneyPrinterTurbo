@@ -491,7 +491,7 @@ ofox_text_to_video_model = "bytedance/seedance-2.0-fast"
 ofox_base_url = "https://api.ofox.ai/v1"
 ```
 
-专用配置为空时，会使用 `OFOX_API_KEY` 环境变量。在视频源中选择"OFox AI 视频"，并在生成前明确确认付费任务；CLI 还需要传入 `--confirm-ofox-charge`。需要可预期的路由时，可用 `ofox_provider` 钉定上游厂商（如 Seedance 系列可选 `"volcengine"` 或 `"byteplus"`，各厂商内容政策与区域可用性不同；不填则由网关按权重分发）。模型可换成 OFox 目录（`GET /v1/models`）中任意文生视频模型（如 `alibaba/wan-2.7`），不同模型支持的时长区间与分辨率不同，超出范围会在创建任务前被 API 明确拒绝。
+专用配置为空时，会使用 `OFOX_API_KEY` 环境变量。在视频源中选择"OFox AI 视频"，并在生成前明确确认付费任务；CLI 还需要传入 `--confirm-ofox-charge`。上游厂商默认钉定 `"byteplus"`（国际厂商，内容政策一致、路由可预期）；可通过 `ofox_provider` 改为 `"volcengine"`（大陆厂商），或显式置空 `""` 交由网关按权重分发。模型可换成 OFox 目录（`GET /v1/models`）中任意文生视频模型（如 `alibaba/wan-2.7`），不同模型支持的时长区间与分辨率不同，超出范围会在创建任务前被 API 明确拒绝。
 
 首版仅支持文生视频。每个片段都会创建一个异步付费任务；程序只轮询同一个任务 ID，状态不明时停止继续下单，并仅生成足够覆盖配音时长的素材。
 

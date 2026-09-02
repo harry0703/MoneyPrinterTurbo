@@ -386,6 +386,11 @@
     "OFox Billing Notice Without Script": "Jeder erzeugte Clip wird von OFox berechnet. Geben Sie ein Videoskript ein oder erzeugen Sie eines, um die geschätzte Anzahl der Aufträge anzuzeigen.",
     "Confirm OFox Charge": "Ich verstehe, dass die OFox-Generierung kostenpflichtige OFox-Aufträge erstellt",
     "Confirm OFox Charge Help": "OFox-Clips werden einzeln übermittelt, bis sie die Dauer der Sprachausgabe abdecken. OFox berechnet jeden eingereichten Generierungsauftrag.",
-    "Confirm OFox Charge Required": "Bitte bestätigen Sie die Kosten der OFox-Generierung, bevor Sie das Video erstellen."
+    "Confirm OFox Charge Required": "Bitte bestätigen Sie die Kosten der OFox-Generierung, bevor Sie das Video erstellen.",
+    "OFox Upstream Vendor": "OFox Upstream-Anbieter",
+    "OFox Upstream Vendor Help": "Welcher Upstream-Anbieter die OFox-Videogenerierung bedient. BytePlus (international) ist der Standard mit einheitlicher Inhaltsrichtlinie; Volcano Engine ist der Festland-China-Anbieter; Auto lässt das OFox-Gateway die Last über die Anbieter verteilen.",
+    "OFox Vendor BytePlus": "BytePlus (international, Standard)",
+    "OFox Vendor Volcengine": "Volcano Engine (Festlandchina)",
+    "OFox Vendor Auto": "Auto (Gateway-Lastverteilung)"
   }
 }

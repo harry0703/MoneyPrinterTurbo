@@ -386,6 +386,11 @@
     "OFox Billing Notice Without Script": "Oluşturulan her klip OFox tarafından ücretlendirilir. Tahmini görev sayısını görmek için video metnini girin veya oluşturun.",
     "Confirm OFox Charge": "OFox üretiminin ücretli OFox görevleri oluşturduğunu anlıyorum",
     "Confirm OFox Charge Help": "OFox klipleri tek tek gönderilir ve seslendirme süresini karşıladığında durur. OFox, gönderilen her üretim görevi için ücret alır.",
-    "Confirm OFox Charge Required": "Videoyu oluşturmadan önce OFox üretim ücretini onaylayın."
+    "Confirm OFox Charge Required": "Videoyu oluşturmadan önce OFox üretim ücretini onaylayın.",
+    "OFox Upstream Vendor": "OFox Üst Akış Sağlayıcısı",
+    "OFox Upstream Vendor Help": "OFox video üretimini hangi üst akış sağlayıcısının sunacağı. BytePlus (uluslararası) tutarlı içerik politikasıyla varsayılandır; Volcano Engine Çin anakarası sağlayıcısıdır; Otomatik, OFox ağ geçidinin yükü sağlayıcılar arasında dengelemesine izin verir.",
+    "OFox Vendor BytePlus": "BytePlus (uluslararası, varsayılan)",
+    "OFox Vendor Volcengine": "Volcano Engine (Çin anakarası)",
+    "OFox Vendor Auto": "Otomatik (ağ geçidi yük dengeleme)"
   }
 }
