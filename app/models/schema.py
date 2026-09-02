@@ -100,7 +100,11 @@ class SceneConfig(BaseModel):
     duration: Optional[float] = Field(
         default=None,
         ge=0.5,
-        description="Target scene duration in seconds. If None, auto-calculated from audio.",
+        description=(
+            "Target scene duration in seconds. Currently accepted but not yet used "
+            "to trim or extend the scene — the actual duration is determined by the "
+            "TTS audio length. Reserved for future use."
+        ),
     )
     transition: Optional[VideoTransitionMode] = Field(
         default=None,

@@ -37,6 +37,7 @@ from app.models.llm_provider import (
 )
 from app.models.schema import (
     MaterialInfo,
+    SceneConfig,
     VideoAspect,
     VideoConcatMode,
     VideoFitMode,
@@ -503,6 +504,10 @@ def _initialize_session_state():
             llm.DEFAULT_SCRIPT_SYSTEM_PROMPT,
             llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
         ),
+        "generation_mode": "whole",
+        "scene_count": 2,
+        "scene_scripts": ["", ""],
+        "scene_keywords": ["", ""],
         "match_materials_to_script": bool(
             config.app.get("match_materials_to_script", False)
         ),
@@ -4037,6 +4042,254 @@ def _render_loomloom_script_generation(params):
     _render_loomloom_candidates()
 
 
+def _sync_scene_blocks(count: int):
+    """Ensure session state scene lists match the requested count.
+
+    Updates ``st.session_state["scene_count"]`` (the non-widget variable read
+    by the slider's ``value=`` parameter and the AI generation functions).
+    Widget keys for the scene text areas are also created / removed so the
+    correct number of blocks renders on the next Streamlit pass.
+    Sets ``scene_scripts_pending`` so the editor pushes values into widget keys
+    on the next render (but only once).
+    """
+    scripts = list(st.session_state.get("scene_scripts") or [])
+    keywords = list(st.session_state.get("scene_keywords") or [])
+    # Extend with empty strings if needed
+    while len(scripts) < count:
+        scripts.append("")
+    while len(keywords) < count:
+        keywords.append("")
+    # Trim from the end if shrinking
+    st.session_state["scene_scripts"] = scripts[:count]
+    st.session_state["scene_keywords"] = keywords[:count]
+    st.session_state["scene_count"] = count
+    st.session_state["scene_scripts_pending"] = True
+    # Clean up stale widget keys for removed scenes so Streamlit doesn't
+    # keep old text values in ghost state.
+    for i in range(count, max(len(scripts), len(keywords))):
+        for prefix in ("scene_script_", "scene_keywords_"):
+            key = f"{prefix}{i}"
+            if key in st.session_state:
+                del st.session_state[key]
+
+
+def _migrate_whole_to_scenes(params):
+    """When switching from whole-video mode to scene mode, split existing
+    script by double-newlines into scene blocks."""
+    existing_script = st.session_state.get("video_script", "").strip()
+    existing_terms = st.session_state.get("video_terms", "").strip()
+    if not existing_script:
+        _sync_scene_blocks(2)
+        return
+    paragraphs = [p.strip() for p in existing_script.split("\n\n") if p.strip()]
+    if not paragraphs:
+        paragraphs = [existing_script]
+    count = max(2, len(paragraphs))
+    scripts = paragraphs + [""] * (count - len(paragraphs))
+    # Distribute existing terms across scenes
+    term_list = [t.strip() for t in existing_terms.split(",") if t.strip()] if existing_terms else []
+    keywords = []
+    for i in range(count):
+        chunk_size = len(term_list) // count + (1 if i < len(term_list) % count else 0)
+        start = sum(len(term_list) // count + (1 if j < len(term_list) % count else 0) for j in range(i))
+        chunk = term_list[start:start + chunk_size]
+        keywords.append(", ".join(chunk))
+    st.session_state["scene_scripts"] = scripts[:count]
+    st.session_state["scene_keywords"] = keywords[:count]
+    st.session_state["scene_count"] = count
+
+
+def _migrate_scenes_to_whole():
+    """When switching from scene mode to whole-video mode, join scene scripts."""
+    scripts = st.session_state.get("scene_scripts") or []
+    keywords = st.session_state.get("scene_keywords") or []
+    combined_script = "\n\n".join(s.strip() for s in scripts if s.strip())
+    all_terms = []
+    for kw in keywords:
+        if kw.strip():
+            all_terms.extend(t.strip() for t in kw.split(",") if t.strip())
+    # Deduplicate while preserving order
+    seen = set()
+    unique_terms = []
+    for t in all_terms:
+        if t not in seen:
+            seen.add(t)
+            unique_terms.append(t)
+    if combined_script:
+        st.session_state["video_script"] = combined_script
+    if unique_terms:
+        st.session_state["video_terms"] = ", ".join(unique_terms)
+
+
+def _render_scene_editor(params):
+    """Render the scene-by-scene editor with script and keyword blocks.
+
+    Values are pushed into widget keys only once — when ``scene_scripts_pending``
+    is set (after AI generation, mode switch, or slider change).  On subsequent
+    normal reruns the widgets keep whatever the user typed; the authoritative
+    lists are read back *from* the widgets, not the other way around.
+    """
+    scripts = list(st.session_state.get("scene_scripts") or [])
+    keywords = list(st.session_state.get("scene_keywords") or [])
+    count = len(scripts)
+    pending = st.session_state.pop("scene_scripts_pending", False)
+
+    st.markdown(f"**{tr('Scenes')}** ({count})")
+
+    for i in range(count):
+        if pending:
+            # One-time push: overwrite widget values with the authoritative
+            # list (populated by AI, mode switch, or slider sync).
+            st.session_state[f"scene_script_{i}"] = scripts[i]
+            st.session_state[f"scene_keywords_{i}"] = keywords[i]
+
+        with st.container(border=True):
+            st.caption(f"{tr('Scene')} {i + 1}")
+            scripts[i] = st.text_area(
+                tr("Video Script"),
+                value=scripts[i] if pending else "",
+                height=100,
+                key=f"scene_script_{i}",
+                label_visibility="collapsed",
+                placeholder=f"{tr('Video Script')} {i + 1}",
+            )
+            keywords[i] = st.text_area(
+                tr("Video Keywords"),
+                value=keywords[i] if pending else "",
+                height=60,
+                key=f"scene_keywords_{i}",
+                label_visibility="collapsed",
+                placeholder=f"{tr('Video Keywords')} {i + 1}",
+            )
+
+    # Always read back the widget values — these are the user's actual input.
+    for i in range(count):
+        scripts[i] = st.session_state.get(f"scene_script_{i}", "")
+        keywords[i] = st.session_state.get(f"scene_keywords_{i}", "")
+    st.session_state["scene_scripts"] = scripts
+    st.session_state["scene_keywords"] = keywords
+
+
+def _render_local_scene_generation(params):
+    """Render AI generation buttons for scene mode."""
+    col_script, col_keywords = st.columns(2)
+    with col_script:
+        generate_scripts_clicked = st.button(
+            tr("Generate Scene Scripts"),
+            key="auto_generate_scene_scripts",
+            use_container_width=True,
+            type="secondary",
+            icon=":material/auto_awesome:",
+        )
+    with col_keywords:
+        generate_keywords_clicked = st.button(
+            tr("Generate Scene Keywords"),
+            key="auto_generate_scene_keywords",
+            use_container_width=True,
+            type="secondary",
+            icon=":material/auto_awesome:",
+        )
+
+    scene_count = llm._normalize_scene_count(st.session_state.get("scene_count", 2))
+    if generate_scripts_clicked:
+        if not params.video_subject:
+            st.toast(tr("Please Enter the Video Subject First"))
+            st.warning(tr("Please Enter the Video Subject First"))
+        else:
+            with st.spinner(tr("Generating Scene Scripts")):
+                result = _run_llm_read_operation(
+                    "generate_scene_scripts",
+                    lambda app_cfg: llm.generate_scene_scripts(
+                        video_subject=params.video_subject,
+                        scene_count=scene_count,
+                        language=params.video_language,
+                        video_script_prompt=params.video_script_prompt,
+                        custom_system_prompt=params.custom_system_prompt,
+                        app_config=app_cfg,
+                    ),
+                )
+                if isinstance(result, list) and result:
+                    actual_count = len(result)
+                    _sync_scene_blocks(actual_count)
+                    for i, scene in enumerate(result):
+                        text = scene.get("script", "").strip()
+                        st.session_state["scene_scripts"][i] = text
+                    if actual_count != scene_count:
+                        st.warning(
+                            f"{tr('Scene count adjusted')}: "
+                            f"{scene_count} → {actual_count}"
+                        )
+                    st.rerun()
+                elif isinstance(result, list):
+                    st.error(tr("Failed to generate scene scripts"))
+                else:
+                    st.error(tr(str(result)))
+
+    if generate_keywords_clicked:
+        scripts = st.session_state.get("scene_scripts") or []
+        non_empty = [s for s in scripts if s.strip()]
+        if not non_empty:
+            st.warning(tr("Please Generate Scene Scripts First"))
+        else:
+            with st.spinner(tr("Generating Scene Keywords")):
+                scene_scripts_data = [
+                    {"scene_id": i + 1, "script": s}
+                    for i, s in enumerate(scripts) if s.strip()
+                ]
+                result = _run_llm_read_operation(
+                    "generate_scene_keywords",
+                    lambda app_cfg: llm.generate_scene_keywords(
+                        video_subject=params.video_subject,
+                        scene_scripts=scene_scripts_data,
+                        scene_count=len(scene_scripts_data),
+                        terms_per_scene=8 if params.match_materials_to_script else 5,
+                        app_config=app_cfg,
+                    ),
+                )
+                if isinstance(result, list) and result:
+                    for scene_data in result:
+                        sid = scene_data.get("scene_id", 0)
+                        idx = sid - 1  # scene_id is 1-based
+                        terms = scene_data.get("terms", [])
+                        if 0 <= idx < len(st.session_state["scene_keywords"]):
+                            st.session_state["scene_keywords"][idx] = ", ".join(terms)
+                    st.session_state["scene_scripts_pending"] = True
+                    if len(result) != len(non_empty):
+                        st.warning(
+                            f"{tr('Scene keyword count adjusted')}: "
+                            f"{len(non_empty)} → {len(result)}"
+                        )
+                    st.rerun()
+                elif isinstance(result, list):
+                    st.error(tr("Failed to generate scene keywords"))
+                else:
+                    st.error(tr(str(result)))
+
+
+def _build_params_scenes(params):
+    """Build params.scenes from the scene editor session state."""
+    scripts = st.session_state.get("scene_scripts") or []
+    keywords = st.session_state.get("scene_keywords") or []
+    scenes = []
+    for i, script in enumerate(scripts):
+        if not script.strip():
+            continue
+        terms_raw = keywords[i] if i < len(keywords) else ""
+        search_terms = [t.strip() for t in terms_raw.split(",") if t.strip()] if terms_raw.strip() else None
+        scene = SceneConfig(
+            scene_id=i + 1,
+            script=script.strip(),
+            search_terms=search_terms,
+        )
+        scenes.append(scene)
+    if len(scenes) >= 2:
+        params.scenes = scenes
+        params.scene_transition = params.video_transition_mode
+        params.clip_transition = params.video_transition_mode
+    else:
+        params.scenes = None
+
+
 def _render_script_settings(panel, params):
     """渲染文案设置并更新生成参数。"""
     with panel:
@@ -4094,137 +4347,193 @@ def _render_script_settings(panel, params):
             params.video_language = selected_language_code
             _set_runtime_config("ui", "video_language", params.video_language)
 
-            # 使用带 key 的局部容器限定折叠入口样式，保持 expander 的原生交互，
-            # 同时避免样式误伤页面顶部的“基础设置”等其他折叠区域。
-            with st.container(key="advanced_settings_script"):
-                with st.expander(tr("Advanced Script Settings"), expanded=False):
-                    script_backend_options = ["local", "loomloom"]
-                    script_backend_labels = {
-                        "local": tr("Local LLM Script Generation"),
-                        "loomloom": tr("Shengsuan Cloud Batch Script Generation"),
-                    }
-                    script_generation_backend = stable_selectbox(
-                        tr("Script Generation Method"),
-                        options=script_backend_options,
-                        default_value=_effective_script_generation_backend(),
-                        key="script_generation_backend_select",
-                        format_func=lambda value: script_backend_labels[value],
-                        help=tr("Script Generation Method Help"),
-                    )
-                    _set_runtime_config(
-                        "app", "script_generation_backend", script_generation_backend
-                    )
-
-                    params.paragraph_number = st.slider(
-                        tr("Script Paragraph Number"),
-                        min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
-                        max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
-                        key="paragraph_number_input",
-                    )
-                    _set_runtime_config(
-                        "ui", "paragraph_number", params.paragraph_number
-                    )
-                    params.video_script_prompt = st.text_area(
-                        tr("Custom Script Requirements"),
-                        height=100,
-                        max_chars=llm.MAX_SCRIPT_PROMPT_LENGTH,
-                        placeholder=tr("Custom Script Requirements Placeholder"),
-                        key="video_script_prompt",
-                    ).strip()
-                    _set_runtime_config(
-                        "ui", "video_script_prompt", params.video_script_prompt
-                    )
-
-                    system_prompt = st.text_area(
-                        tr("Custom System Prompt"),
-                        height=240,
-                        max_chars=llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
-                        key="custom_system_prompt",
-                    ).strip()
-                    # 默认内容由服务层统一维护。界面虽然直接展示默认提示词，但只有
-                    # 用户实际修改后才随任务传递，避免历史任务固化旧版本默认规则。
-                    params.custom_system_prompt = (
-                        ""
-                        if system_prompt == llm.DEFAULT_SCRIPT_SYSTEM_PROMPT.strip()
-                        else system_prompt
-                    )
-                    _set_runtime_config(
-                        "ui", "custom_system_prompt", params.custom_system_prompt
-                    )
-
-                    restore_prompt_col, preview_prompt_col = st.columns(2)
-                    if restore_prompt_col.button(
-                        tr("Restore Default System Prompt"),
-                        key="restore_default_system_prompt",
-                        icon=":material/restart_alt:",
-                        on_click=reset_script_system_prompt,
-                        use_container_width=True,
-                    ):
-                        st.toast(tr("Default System Prompt Restored"))
-                    if preview_prompt_col.button(
-                        tr("Preview Final Prompt"),
-                        key="preview_final_script_prompt",
-                        icon=":material/preview:",
-                        use_container_width=True,
-                    ):
-                        render_script_prompt_preview(
-                            llm.build_script_prompt(
-                                video_subject=params.video_subject,
-                                language=params.video_language,
-                                paragraph_number=params.paragraph_number,
-                                video_script_prompt=params.video_script_prompt,
-                                custom_system_prompt=params.custom_system_prompt,
-                            )
-                        )
-
-            if _effective_script_generation_backend() == "loomloom":
-                _render_loomloom_script_generation(params)
-            else:
-                _render_local_script_generation(params)
-            params.video_script = st.text_area(
-                tr("Video Script"),
-                help=tr("Video Script Help"),
-                height=180,
-                key="video_script",
+            # --- Generation mode toggle: whole video vs scenes ---
+            mode_options = ["whole", "scenes"]
+            mode_labels = {m: tr(f"Generation Mode {m}") for m in mode_options}
+            current_mode = st.session_state.get("generation_mode", "whole")
+            selected_mode = stable_selectbox(
+                tr("Generation Mode"),
+                options=mode_options,
+                default_value=current_mode,
+                key="generation_mode_select",
+                format_func=lambda v: mode_labels[v],
+                help=tr("Generation Mode Help"),
             )
-            using_loomloom_scripts = (
-                _effective_script_generation_backend() == "loomloom"
-            )
-            if using_loomloom_scripts:
-                st.caption(tr("LoomLoom Video Terms Reuse Help"))
-            elif st.button(
-                tr("Generate Video Keywords"),
-                key="auto_generate_terms",
-                use_container_width=True,
-                type="secondary",
-                icon=":material/auto_awesome:",
-            ):
-                if not params.video_script:
-                    # 视频关键词需要基于文案提取，文案为空时提前提示并跳过模型调用。
-                    st.toast(tr("Please Enter the Video Subject"))
-                    st.warning(tr("Please Enter the Video Subject"))
+            if selected_mode != current_mode:
+                if selected_mode == "scenes":
+                    _migrate_whole_to_scenes(params)
                 else:
-                    with st.spinner(tr("Generating Video Keywords")):
-                        terms = _run_llm_read_operation(
-                            "generate_terms",
-                            lambda app_config_snapshot: llm.generate_terms(
-                                params.video_subject,
-                                params.video_script,
-                                amount=8 if params.match_materials_to_script else 5,
-                                match_script_order=params.match_materials_to_script,
-                                app_config=app_config_snapshot,
-                            ),
-                        )
-                        if "Error: " in terms:
-                            st.error(tr(terms))
-                        else:
-                            st.session_state["video_terms"] = ", ".join(terms)
+                    _migrate_scenes_to_whole()
+                st.session_state["generation_mode"] = selected_mode
+                st.rerun()
 
-            params.video_terms = st.text_area(
-                tr("Video Keywords"),
-                help=tr("Video Keywords Help"),
-                key="video_terms",
-            )
+            generation_mode = selected_mode
+
+            if generation_mode == "scenes":
+                # --- Scene count slider + custom requirements ---
+                _target_count = st.session_state.get("scene_count", 2)
+                with st.container(key="advanced_settings_script_scenes"):
+                    with st.expander(tr("Advanced Script Settings"), expanded=False):
+                        selected_count = st.slider(
+                            tr("Number of Scenes"),
+                            min_value=llm.MIN_SCENE_COUNT,
+                            max_value=llm.MAX_SCENE_COUNT,
+                            value=_target_count,
+                            key="scene_count_slider",
+                        )
+                        # Sync only when the slider was actually dragged
+                        # (its returned value differs from the current list).
+                        _actual_count = len(
+                            st.session_state.get("scene_scripts") or []
+                        )
+                        if selected_count != _actual_count:
+                            _sync_scene_blocks(selected_count)
+
+                        params.video_script_prompt = st.text_area(
+                            tr("Custom Script Requirements"),
+                            height=100,
+                            max_chars=llm.MAX_SCRIPT_PROMPT_LENGTH,
+                            placeholder=tr("Custom Script Requirements Placeholder"),
+                            key="video_script_prompt",
+                        ).strip()
+                        _set_runtime_config(
+                            "ui", "video_script_prompt", params.video_script_prompt
+                        )
+
+                _render_local_scene_generation(params)
+                _render_scene_editor(params)
+            else:
+                # 使用带 key 的局部容器限定折叠入口样式，保持 expander 的原生交互，
+                # 同时避免样式误伤页面顶部的"基础设置"等其他折叠区域。
+                with st.container(key="advanced_settings_script"):
+                    with st.expander(tr("Advanced Script Settings"), expanded=False):
+                        script_backend_options = ["local", "loomloom"]
+                        script_backend_labels = {
+                            "local": tr("Local LLM Script Generation"),
+                            "loomloom": tr("Shengsuan Cloud Batch Script Generation"),
+                        }
+                        script_generation_backend = stable_selectbox(
+                            tr("Script Generation Method"),
+                            options=script_backend_options,
+                            default_value=_effective_script_generation_backend(),
+                            key="script_generation_backend_select",
+                            format_func=lambda value: script_backend_labels[value],
+                            help=tr("Script Generation Method Help"),
+                        )
+                        _set_runtime_config(
+                            "app", "script_generation_backend", script_generation_backend
+                        )
+
+                        params.paragraph_number = st.slider(
+                            tr("Script Paragraph Number"),
+                            min_value=llm.MIN_SCRIPT_PARAGRAPH_NUMBER,
+                            max_value=llm.MAX_SCRIPT_PARAGRAPH_NUMBER,
+                            key="paragraph_number_input",
+                        )
+                        _set_runtime_config(
+                            "ui", "paragraph_number", params.paragraph_number
+                        )
+                        params.video_script_prompt = st.text_area(
+                            tr("Custom Script Requirements"),
+                            height=100,
+                            max_chars=llm.MAX_SCRIPT_PROMPT_LENGTH,
+                            placeholder=tr("Custom Script Requirements Placeholder"),
+                            key="video_script_prompt",
+                        ).strip()
+                        _set_runtime_config(
+                            "ui", "video_script_prompt", params.video_script_prompt
+                        )
+
+                        system_prompt = st.text_area(
+                            tr("Custom System Prompt"),
+                            height=240,
+                            max_chars=llm.MAX_SCRIPT_SYSTEM_PROMPT_LENGTH,
+                            key="custom_system_prompt",
+                        ).strip()
+                        # 默认内容由服务层统一维护。界面虽然直接展示默认提示词，但只有
+                        # 用户实际修改后才随任务传递，避免历史任务固化旧版本默认规则。
+                        params.custom_system_prompt = (
+                            ""
+                            if system_prompt == llm.DEFAULT_SCRIPT_SYSTEM_PROMPT.strip()
+                            else system_prompt
+                        )
+                        _set_runtime_config(
+                            "ui", "custom_system_prompt", params.custom_system_prompt
+                        )
+
+                        restore_prompt_col, preview_prompt_col = st.columns(2)
+                        if restore_prompt_col.button(
+                            tr("Restore Default System Prompt"),
+                            key="restore_default_system_prompt",
+                            icon=":material/restart_alt:",
+                            on_click=reset_script_system_prompt,
+                            use_container_width=True,
+                        ):
+                            st.toast(tr("Default System Prompt Restored"))
+                        if preview_prompt_col.button(
+                            tr("Preview Final Prompt"),
+                            key="preview_final_script_prompt",
+                            icon=":material/preview:",
+                            use_container_width=True,
+                        ):
+                            render_script_prompt_preview(
+                                llm.build_script_prompt(
+                                    video_subject=params.video_subject,
+                                    language=params.video_language,
+                                    paragraph_number=params.paragraph_number,
+                                    video_script_prompt=params.video_script_prompt,
+                                    custom_system_prompt=params.custom_system_prompt,
+                                )
+                            )
+
+                # --- Whole-video mode (original UI) ---
+                if _effective_script_generation_backend() == "loomloom":
+                    _render_loomloom_script_generation(params)
+                else:
+                    _render_local_script_generation(params)
+                params.video_script = st.text_area(
+                    tr("Video Script"),
+                    help=tr("Video Script Help"),
+                    height=180,
+                    key="video_script",
+                )
+                using_loomloom_scripts = (
+                    _effective_script_generation_backend() == "loomloom"
+                )
+                if using_loomloom_scripts:
+                    st.caption(tr("LoomLoom Video Terms Reuse Help"))
+                elif st.button(
+                    tr("Generate Video Keywords"),
+                    key="auto_generate_terms",
+                    use_container_width=True,
+                    type="secondary",
+                    icon=":material/auto_awesome:",
+                ):
+                    if not params.video_script:
+                        st.toast(tr("Please Enter the Video Subject"))
+                        st.warning(tr("Please Enter the Video Subject"))
+                    else:
+                        with st.spinner(tr("Generating Video Keywords")):
+                            terms = _run_llm_read_operation(
+                                "generate_terms",
+                                lambda app_config_snapshot: llm.generate_terms(
+                                    params.video_subject,
+                                    params.video_script,
+                                    amount=8 if params.match_materials_to_script else 5,
+                                    match_script_order=params.match_materials_to_script,
+                                    app_config=app_config_snapshot,
+                                ),
+                            )
+                            if "Error: " in terms:
+                                st.error(tr(terms))
+                            else:
+                                st.session_state["video_terms"] = ", ".join(terms)
+
+                params.video_terms = st.text_area(
+                    tr("Video Keywords"),
+                    help=tr("Video Keywords Help"),
+                    key="video_terms",
+                )
 
 
 def _render_video_settings(panel, params):
@@ -6473,6 +6782,10 @@ def _render_generation_controls(
                 f"reuse full voice preview for task: "
                 f"task_id={task_id}, duration={reusable_voice_preview['duration']:.2f}s"
             )
+
+        # Build scenes from UI if in scene mode
+        if st.session_state.get("generation_mode") == "scenes":
+            _build_params_scenes(params)
 
         try:
             st.toast(tr("Generating Video"))

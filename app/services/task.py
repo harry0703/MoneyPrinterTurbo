@@ -546,7 +546,12 @@ def _generate_single_scene(
         clip_speed=params.video_clip_speed,
     )
 
-    # Step 5: Burn audio + subtitles into the scene video
+    # Step 5: Burn audio + subtitles into the scene video.
+    # BGM must NOT be applied here — it is overlaid once on the final
+    # concatenated video in concat_scene_videos_with_transitions().  We
+    # pass an explicit empty override so generate_video skips BGM.
+    #   - None  = "resolve BGM from params.bgm_type" (we do NOT want this)
+    #   - ""    = "explicitly disable BGM for this video"  (correct choice)
     scene_video_path = os.path.join(scene_dir, "scene.mp4")
     logger.info(f"scene {scene.scene_id}: generating final scene video")
     video.generate_video(
@@ -555,6 +560,7 @@ def _generate_single_scene(
         subtitle_path=subtitle_path,
         output_file=scene_video_path,
         params=params,
+        bgm_file_override="",
     )
     logger.success(f"scene {scene.scene_id}: scene video ready at {scene_video_path}")
     return scene_video_path
@@ -1005,54 +1011,6 @@ def _record_loomloom_run_reference(
         return updated
 
     return None
-
-
-def _resolve_bgm_for_final(
-    task_id: str,
-    params: VideoParams,
-) -> str:
-    """Resolve background music file path for the final concatenated video.
-
-    Returns path to the BGM file (generated or custom), or empty string
-    if no BGM should be applied.
-    """
-    if not bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume):
-        return ""
-
-    video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
-    if not video_music_provider:
-        # Built-in or custom BGM
-        if params.bgm_type == "custom" and params.bgm_file:
-            return params.bgm_file
-        return ""
-
-    # AI-generated BGM (sonilo, elevenlabs)
-    service = video_music_provider["service"]
-    display_name = video_music_provider["display_name"]
-    warning_code = video_music_provider["warning_code"]
-
-    if not service.is_enabled():
-        logger.warning(f"{display_name} BGM: no API key configured, skipping")
-        return ""
-
-    generated_bgm_path = path.join(
-        utils.task_dir(task_id),
-        f"{params.bgm_type}-bgm{video_music_provider['suffix']}",
-    )
-    try:
-        service.generate_bgm(
-            video_path=generated_bgm_path,  # placeholder, not used by all providers
-            output_path=generated_bgm_path,
-            video_duration=0,  # will be inferred from the video
-            prompt=_get_video_music_prompt(params),
-        )
-        if os.path.isfile(generated_bgm_path):
-            return generated_bgm_path
-    except video_music_provider["error_type"] as exc:
-        logger.warning(
-            f"{display_name} BGM generation failed: task_id={task_id}, error={exc}"
-        )
-    return ""
 
 
 def generate_final_videos(
@@ -1594,7 +1552,15 @@ def _run_pipeline(
         )
 
     # 1. Generate script
-    video_script = generate_script(task_id, params)
+    # In scene mode each scene carries its own script, so a global script
+    # is unnecessary.  We still need *something* in video_script for task
+    # artifacts; concatenate scene scripts instead of calling the LLM.
+    video_script = ""
+    if params.scenes:
+        scene_scripts = [s.script.strip() for s in params.scenes if s.script.strip()]
+        video_script = "\n\n".join(scene_scripts)
+    if not video_script:
+        video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
         error = (
             video_script.removeprefix("Error: ").strip()
@@ -1624,11 +1590,6 @@ def _run_pipeline(
                 "terms",
                 "failed to process video scenes",
             )
-        # Concatenate scene scripts for backward compatibility (video_script
-        # is saved to task artifacts for external tools that read it).
-        scene_scripts = [s.script for s in processed_scenes if s.script]
-        if scene_scripts:
-            video_script = "\n\n".join(scene_scripts)
         # Collect all search terms from scenes for backward compatibility
         video_terms = []
         for scene in processed_scenes:
@@ -1699,9 +1660,40 @@ def _run_pipeline(
 
         sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=85)
 
-        # Resolve BGM for the final video
-        bgm_file = _resolve_bgm_for_final(task_id, params)
+        # Resolve BGM override for the final video.
+        # - bgm_file_override=None → concat function resolves from bgm_type
+        #   (same as generate_video does for the standard pipeline)
+        # - For AI-generated BGM (sonilo/elevenlabs), generate it now and
+        #   pass the path as override.
+        bgm_file_override = None
+        video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
+        video_music_requested = (
+            video_music_provider is not None
+            and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
+        )
+        if video_music_requested:
+            service = video_music_provider["service"]
+            generated_bgm_path = path.join(
+                utils.task_dir(task_id),
+                f"{params.bgm_type}-bgm{video_music_provider['suffix']}",
+            )
+            try:
+                service.generate_bgm(
+                    video_path=generated_bgm_path,
+                    output_path=generated_bgm_path,
+                    video_duration=0,
+                    prompt=_get_video_music_prompt(params),
+                )
+                bgm_file_override = generated_bgm_path
+            except video_music_provider["error_type"] as exc:
+                logger.warning(
+                    f"{video_music_provider['display_name']} BGM generation failed: "
+                    f"task_id={task_id}, error={exc}"
+                )
+                bgm_file_override = ""
 
+        # Concatenate scene videos and overlay BGM on the final result.
+        # Scene transitions are applied before concatenation.
         final_video_path = path.join(utils.task_dir(task_id), "final-1.mp4")
         logger.info(
             f"\n\n## concatenating {len(scene_video_paths)} scenes + BGM"
@@ -1710,8 +1702,10 @@ def _run_pipeline(
             scene_video_paths=scene_video_paths,
             output_file=final_video_path,
             scene_transitions=scene_transitions,
-            bgm_file=bgm_file,
-            bgm_volume=params.bgm_volume if bgm_file else 0.0,
+            bgm_file_override=bgm_file_override,
+            bgm_type=params.bgm_type,
+            bgm_file=params.bgm_file or "",
+            bgm_volume=params.bgm_volume,
             threads=params.n_threads,
         )
 
