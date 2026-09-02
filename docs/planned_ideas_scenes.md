@@ -114,3 +114,62 @@ Failed to generate scene scripts, Failed to generate scene keywords,
 Please Generate Scene Scripts First,
 Scene count adjusted, Scene keyword count adjusted
 ```
+
+---
+
+## 9. Scene-Mode Transition Dropdowns in Video Settings
+
+**Status:** Idea  
+**Complexity:** Low  
+
+Currently `scene_transition` and `clip_transition` are not exposed as separate controls in
+scene mode. The existing `video_transition_mode` dropdown is used as a fallback. Need two
+dedicated dropdowns visible only in scene mode:
+- "Transition between scenes" → `params.scene_transition`
+- "Transition between clips within a scene" → `params.clip_transition`
+
+**Backend:** Fully ready — `task.py` reads both fields and passes them to the pipeline.
+
+---
+
+## 10. LoomLoom Scene Script Generation
+
+**Status:** Idea  
+**Complexity:** Medium  
+
+Scene mode currently only supports local LLM for script/keyword generation. LoomLoom
+integration (`_render_loomloom_script_generation`) is not connected to scene mode. Need to
+allow LoomLoom to generate per-scene scripts and distribute them into scene blocks.
+
+---
+
+## 11. Task Restore with Scene Data
+
+**Status:** Idea  
+**Complexity:** Low-Medium  
+
+When a historical task is loaded from the task manager, `params.scenes` may not round-trip
+correctly if scenes weren't persisted to `script_data.json`. Need to verify that
+`save_script_data` includes scenes and that `_load_task_restore_payload` reconstructs them.
+
+---
+
+## 12. Settings Presets for Scene Blocks
+
+**Status:** Idea  
+**Complexity:** Low  
+
+The WebUI settings export/import (`_parse_settings_preset`) doesn't include scene blocks.
+Need to persist `scene_scripts`, `scene_keywords`, and `scene_count` in preset files.
+
+---
+
+## 13. Scene Duration Override (Trim/Extend)
+
+**Status:** Idea  
+**Complexity:** High  
+
+`SceneConfig.duration` is accepted but unused — actual duration is determined by TTS audio.
+Future: use `duration` to trim or extend the scene video (speed up/slow down audio, or
+use silence padding). This was separated from idea #6 because it also affects subtitle
+timing and transition calculations.
