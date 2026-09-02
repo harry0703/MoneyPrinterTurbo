@@ -968,6 +968,46 @@ def generate_social_metadata(
     return _fallback_social_metadata(video_subject, video_script, platform)
 
 
+def build_trend_angles_prompt(topic: str, evidence: list[dict]) -> str:
+    context = json.dumps(evidence, ensure_ascii=False, separators=(",", ":"))
+    return f"""
+# Role: Short-Video Angle Writer
+
+Return one JSON object containing exactly one key, "angles". Its value must be
+an array of exactly 3 unique strings, each no longer than 180 characters.
+Do not invent trend evidence. Use only the evidence below. Return no markdown.
+
+Topic: {topic.strip()}
+Evidence: {context}
+""".strip()
+
+
+def generate_trend_angles(
+    topic: str, evidence: list[dict], app_config=None
+) -> list[str]:
+    try:
+        payload = json.loads(
+            _generate_response(
+                build_trend_angles_prompt(topic, evidence), app_config=app_config
+            )
+        )
+        if not isinstance(payload, dict) or set(payload) != {"angles"}:
+            return []
+        angles = payload["angles"]
+        if not isinstance(angles, list) or len(angles) != 3:
+            return []
+        cleaned = [angle.strip() for angle in angles if isinstance(angle, str)]
+        if (
+            len(cleaned) != 3
+            or any(not angle or len(angle) > 180 for angle in cleaned)
+            or len({angle.casefold() for angle in cleaned}) != 3
+        ):
+            return []
+        return cleaned
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+
 if __name__ == "__main__":
     video_subject = "生命的意义是什么"
     script = generate_script(

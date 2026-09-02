@@ -63,6 +63,42 @@ class TrendDiscoveryService:
     def remove_shortlist(self, topic_id):
         return self.store.remove_shortlist(topic_id)
 
+    def add_angles(self, topic_id, app_config=None):
+        from app.services import llm
+
+        cached = self.get_cached()
+        topic = self._find(topic_id)
+        if cached is None or topic is None:
+            return None
+        evidence = [
+            {
+                "source_type": signal.source,
+                "markets": [signal.market],
+                "reference": signal.source_reference,
+                "collected_at": signal.collected_at.isoformat(),
+            }
+            for signal in topic.evidence
+        ]
+        angles = llm.generate_trend_angles(topic.topic, evidence, app_config)
+        if not angles:
+            return topic
+        updated = replace(topic, angles=tuple(angles))
+
+        def update(items):
+            return tuple(updated if item.topic == topic.topic else item for item in items)
+
+        self.store.save_snapshot(
+            replace(
+                cached,
+                topics=update(cached.topics),
+                platforms={
+                    platform: update(items)
+                    for platform, items in cached.platforms.items()
+                },
+            )
+        )
+        return updated
+
     def _score(self, signals, previous, verified):
         topics = []
         for candidate in cluster_signals(signals):

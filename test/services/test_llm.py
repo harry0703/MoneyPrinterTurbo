@@ -32,6 +32,31 @@ RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() 
 
 
 class TestScriptPromptOptions(unittest.TestCase):
+    def test_trend_angle_prompt_forbids_new_evidence(self):
+        prompt = llm.build_trend_angles_prompt(
+            "Ocean mystery",
+            [{"source_type": "google_trends_rss", "markets": ["US", "IN"]}],
+        )
+
+        self.assertIn("Do not invent trend evidence", prompt)
+        self.assertIn("exactly 3", prompt)
+
+    def test_invalid_trend_angle_response_returns_empty(self):
+        with patch.object(llm, "_generate_response", return_value="bad"):
+            self.assertEqual(llm.generate_trend_angles("Ocean mystery", []), [])
+
+    def test_trend_angles_require_exact_unique_bounded_strings(self):
+        valid = '{"angles":["First angle","Second angle","Third angle"]}'
+        with patch.object(llm, "_generate_response", return_value=valid):
+            self.assertEqual(
+                llm.generate_trend_angles("Ocean mystery", []),
+                ["First angle", "Second angle", "Third angle"],
+            )
+
+        invalid = '{"angles":["Same","Same","Third"],"extra":true}'
+        with patch.object(llm, "_generate_response", return_value=invalid):
+            self.assertEqual(llm.generate_trend_angles("Ocean mystery", []), [])
+
     def test_build_script_prompt_sets_requested_duration(self):
         prompt = llm.build_script_prompt("Coffee", video_duration=75)
 
