@@ -6963,16 +6963,16 @@ def _render_login_gate() -> bool:
     with mid_col:
         with st.container(key="login_gate", border=True):
             st.markdown(
-                "<div class='login-gate__title'>MoneyPrinterTurbo</div>"
-                "<div class='login-gate__subtitle'>Entre para continuar</div>",
+                f"<div class='login-gate__title'>MoneyPrinterTurbo</div>"
+                f"<div class='login-gate__subtitle'>{tr('Enter to continue')}</div>",
                 unsafe_allow_html=True,
             )
             with st.form("login_form", border=False):
-                email = st.text_input("Email", key="login_email_input")
+                email = st.text_input(tr("Email"), key="login_email_input")
                 password = st.text_input(
-                    "Senha", type="password", key="login_password_input"
+                    tr("Password"), type="password", key="login_password_input"
                 )
-                submitted = st.form_submit_button("Entrar", width="stretch")
+                submitted = st.form_submit_button(tr("Login"), width="stretch")
 
             if submitted:
                 login_senha = str(config.app.get("login_senha", "")).strip()
@@ -6988,9 +6988,19 @@ def _render_login_gate() -> bool:
                     st.session_state["authenticated"] = True
                     st.rerun()
                 else:
-                    st.error(
-                        "Email ou senha inválidos, ou conta bloqueada temporariamente."
-                    )
+                    lockout_status = auth_store.get_lockout_status(email)
+                    if lockout_status["locked"]:
+                        st.error(
+                            tr("Account Locked Retry In Seconds").format(
+                                seconds=int(lockout_status["seconds_remaining"]) + 1
+                            )
+                        )
+                    else:
+                        st.error(
+                            tr("Invalid Credentials With Attempts Remaining").format(
+                                attempts=lockout_status["attempts_remaining"]
+                            )
+                        )
 
     return False
 

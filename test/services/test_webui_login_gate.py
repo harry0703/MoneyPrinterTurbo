@@ -51,7 +51,9 @@ def test_wrong_password_keeps_gate_closed(login_app):
     email_input, password_input = app.text_input[0], app.text_input[1]
     email_input.input(TEST_EMAIL)
     password_input.input("wrong-password")
-    app.button(key="FormSubmitter:login_form-Entrar").click()
+    # Botão agora é traduzido via tr("Login"); AppTest sem locale de navegador
+    # resolve para "en" (default_language em resolve_ui_language), não pt-BR.
+    app.button(key="FormSubmitter:login_form-Login").click()
     app.run()
 
     assert not app.exception
@@ -65,7 +67,9 @@ def test_correct_password_unlocks_application(login_app):
     email_input, password_input = app.text_input[0], app.text_input[1]
     email_input.input(TEST_EMAIL)
     password_input.input(password)
-    app.button(key="FormSubmitter:login_form-Entrar").click()
+    # Botão agora é traduzido via tr("Login"); AppTest sem locale de navegador
+    # resolve para "en" (default_language em resolve_ui_language), não pt-BR.
+    app.button(key="FormSubmitter:login_form-Login").click()
     app.run()
 
     assert not app.exception
