@@ -276,6 +276,74 @@ class TestOFoxService(unittest.TestCase):
                         ofox.generate_videos("sunrise", 5)
                 self.assertEqual(post.call_count, 1)
 
+    def test_pending_status_is_active_and_polling_continues(self):
+        # 官方成功路径为 pending → queued → in_progress → completed；首次轮询
+        # 拿到 pending 属于正常在途状态，不能当作未知状态终止任务。
+        submit = self._response({"id": "vid-pending", "status": "queued"}, 202)
+        polls = [
+            self._response({"id": "vid-pending", "status": "pending"}),
+            self._response({"id": "vid-pending", "status": "queued"}),
+            self._response({"id": "vid-pending", "status": "in_progress"}),
+            self._response(
+                {
+                    "id": "vid-pending",
+                    "status": "completed",
+                    "unsigned_urls": ["https://cdn.example.com/pending.mp4"],
+                }
+            ),
+        ]
+        with (
+            patch.object(ofox.requests, "post", return_value=submit),
+            patch.object(ofox.requests, "get", side_effect=polls) as get,
+            patch.object(ofox.time, "sleep"),
+        ):
+            result = ofox.generate_videos("sunrise", 5)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(get.call_count, 4)
+
+    def test_mirror_urls_are_preferred_over_unsigned_urls(self):
+        submit = self._response({"id": "vid-mirror", "status": "queued"}, 202)
+        completed = self._response(
+            {
+                "id": "vid-mirror",
+                "status": "completed",
+                "mirror_urls": ["https://cdn.ofox.ai/videos/vid-mirror.mp4?sig=abc"],
+                "unsigned_urls": ["https://upstream.example.com/tmp.mp4"],
+            }
+        )
+        with (
+            patch.object(ofox.requests, "post", return_value=submit),
+            patch.object(ofox.requests, "get", return_value=completed),
+        ):
+            result = ofox.generate_videos("sunrise", 5)
+
+        self.assertEqual(
+            result[0].url, "https://cdn.ofox.ai/videos/vid-mirror.mp4?sig=abc"
+        )
+
+    def test_missing_or_invalid_mirror_urls_fall_back_to_unsigned_urls(self):
+        # mirror_urls 仅在上游开启镜像时返回；缺失、为空或不含合法直链时都
+        # 必须回退到 unsigned_urls，不能让任务失败。
+        for mirror in (None, [], ["not-a-url", 123]):
+            with self.subTest(mirror=mirror):
+                submit = self._response({"id": "vid-fallback", "status": "queued"}, 202)
+                body = {
+                    "id": "vid-fallback",
+                    "status": "completed",
+                    "unsigned_urls": ["https://upstream.example.com/ok.mp4"],
+                }
+                if mirror is not None:
+                    body["mirror_urls"] = mirror
+                completed = self._response(body)
+                with (
+                    patch.object(ofox.requests, "post", return_value=submit),
+                    patch.object(ofox.requests, "get", return_value=completed),
+                ):
+                    result = ofox.generate_videos("sunrise", 5)
+
+                self.assertEqual(result[0].url, "https://upstream.example.com/ok.mp4")
+
     def test_poll_retries_transient_errors_on_same_task(self):
         submit = self._response({"id": "vid-retry", "status": "queued"}, 202)
         rate_limited = self._response({}, status_code=429)

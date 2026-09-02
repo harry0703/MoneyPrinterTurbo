@@ -42,7 +42,8 @@ def test_ofox_source_requires_confirmation_then_submits_without_secret_in_params
         _widget_by_key(app.text_area, "video_terms").set_value(
             "office worker, AI assistant"
         ).run()
-        _widget_by_key(app.selectbox, "video_source_select").select("ofox").run()
+        app.session_state["video_source_select_en"] = "ofox"
+        app.run()
 
         _widget_by_key(app.button, "generate_video_button").click().run()
         assert submit_generation.call_count == 0

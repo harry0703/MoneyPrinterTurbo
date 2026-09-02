@@ -358,7 +358,7 @@ def test_ofox_source_shows_unchecked_paid_task_confirmation():
     ):
         app = _new_app()
 
-    assert _widget_by_key(app.selectbox, "video_source_select").value == "ofox"
+    assert app.session_state["video_source_select_en"] == "ofox"
     assert _widget_by_key(app.checkbox, "ofox_confirm_charge").value is False
 
 

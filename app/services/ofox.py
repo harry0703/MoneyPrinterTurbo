@@ -29,7 +29,8 @@ TERMINAL_SUCCESS_STATUSES = frozenset({"completed", "succeeded"})
 TERMINAL_FAILURE_STATUSES = frozenset(
     {"failed", "error", "cancelled", "canceled", "expired"}
 )
-ACTIVE_STATUSES = frozenset({"queued", "in_progress"})
+# 官方成功路径: pending(收单待上游提交) → queued → in_progress → completed
+ACTIVE_STATUSES = frozenset({"pending", "queued", "in_progress"})
 
 
 class OFoxError(RuntimeError):
@@ -302,13 +303,19 @@ def generate_videos(
     if task is None:
         return []
 
-    # 产物地址在 unsigned_urls 里，是会过期的临时直链，必须整体保留并
-    # 立即用于下载，不能写入长期的 source_info。
-    unsigned_urls = task.get("unsigned_urls")
+    # 官方推荐优先使用 mirror_urls（OFox CDN 持久签名地址，仅在上游开启镜像
+    # 时返回），缺失时回退到 unsigned_urls（上游临时直链，可能 24 小时内过
+    # 期）。两者都必须整体保留并立即用于下载，不写入长期的 source_info。
     video_url = ""
-    for candidate in unsigned_urls if isinstance(unsigned_urls, list) else []:
-        if isinstance(candidate, str) and candidate.startswith(("http://", "https://")):
-            video_url = candidate
+    for field in ("mirror_urls", "unsigned_urls"):
+        urls = task.get(field)
+        for candidate in urls if isinstance(urls, list) else []:
+            if isinstance(candidate, str) and candidate.startswith(
+                ("http://", "https://")
+            ):
+                video_url = candidate
+                break
+        if video_url:
             break
     if not video_url:
         raise OFoxError(
