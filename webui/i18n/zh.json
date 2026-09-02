@@ -444,6 +444,22 @@
     "Upload-Post Profile Username": "Upload-Post 发布用户名称",
     "Upload-Post Profile Username Help": "填写 [Manage Users]({manage_users_url}) 页面显示的 Username，而不是 Upload-Post 登录邮箱；该发布用户需要已经连接所选平台。",
     "Upload-Post Setup Guide": "启用自动发布前，请先：\n1. 在 [API Keys]({api_keys_url}) 页面创建 API Key。\n2. 在 [Manage Users]({manage_users_url}) 页面创建或选择发布用户，并连接目标平台。\n\n下方请填写该发布用户的 **Username**，而不是 Upload-Post 登录邮箱。",
-    "YouTube Privacy Status": "YouTube 隐私状态"
+    "YouTube Privacy Status": "YouTube 隐私状态",
+    "OFox AI Video": "OFox AI 视频",
+    "OFox AI Video Help": "通过 OFox 多模型视频 API（一个 Key 可调 Seedance、Wan 等文生视频模型）按脚本关键词生成全新视频素材。每段素材都会创建一个付费任务。",
+    "OFox API Key": "OFox API Key（[获取 API Key](https://ofox.ai)）",
+    "OFox Text-to-Video Model": "OFox 文生视频模型",
+    "OFox Base URL": "OFox Base URL",
+    "Please Enter the OFox API Key": "请输入 **OFox API Key**",
+    "OFox Billing Notice": "每段生成视频都会由 OFox 计费。根据预计配音时长和片段时长，将提交约 {min}-{max} 个付费任务；凑够所需素材后会立即停止。",
+    "OFox Billing Notice Without Script": "每段生成视频都会由 OFox 计费。填写或生成视频文案后可查看预计任务数量。",
+    "Confirm OFox Charge": "我已了解 OFox 视频生成会创建付费任务",
+    "Confirm OFox Charge Help": "OFox 素材按脚本片段逐段提交，凑够配音所需时长后立即停止。OFox 按实际提交的生成任务计费。",
+    "Confirm OFox Charge Required": "请确认 OFox 生成费用后再生成视频。",
+    "OFox Upstream Vendor": "OFox 上游厂商",
+    "OFox Upstream Vendor Help": "OFox 视频生成使用的上游厂商。BytePlus（国际）为默认值，内容政策一致；火山引擎为大陆厂商；自动分发由 OFox 网关按权重在可用厂商间调度。",
+    "OFox Vendor BytePlus": "BytePlus（国际，默认）",
+    "OFox Vendor Volcengine": "火山引擎（中国大陆）",
+    "OFox Vendor Auto": "自动分发（网关调度）"
   }
 }

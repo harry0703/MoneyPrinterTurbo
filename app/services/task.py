@@ -20,6 +20,7 @@ from app.services import (
     llm,
     loomloom,
     material,
+    ofox,
     sonilo,
     subtitle,
     task_artifacts,
@@ -739,6 +740,20 @@ def get_video_materials(
                 details=details,
             )
             return None
+        except ofox.OFoxError as exc:
+            # 与方舟同一恢复语义：未确认状态和已生成但下载失败都对应一个可在
+            # OFox 控制台恢复的远端任务，统一从异常携带的 task_id 写入失败状态。
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = (
+                {"ofox_task_id": remote_task_id} if remote_task_id else None
+            )
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
         if not downloaded_videos:
             _mark_task_failed(
                 task_id,
@@ -1260,6 +1275,17 @@ def _run_pipeline(
             task_id,
             "preflight",
             "Volcano Engine Seedance requires an Ark API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "ofox"
+        and not ofox.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "OFox video generation requires an OFox API key",
         )
 
     if (

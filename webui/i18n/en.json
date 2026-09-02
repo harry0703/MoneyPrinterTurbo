@@ -444,6 +444,22 @@
     "Upload-Post Profile Username": "Upload-Post Profile Username",
     "Upload-Post Profile Username Help": "Enter the Username shown on [Manage Users]({manage_users_url}), not your Upload-Post account email. This publishing user must be connected to the selected platforms.",
     "Upload-Post Setup Guide": "Before enabling auto-publish:\n1. Create an API key on [API Keys]({api_keys_url}).\n2. Create or select a publishing user on [Manage Users]({manage_users_url}), then connect the target platforms.\n\nEnter that publishing user's **Username** below, not your Upload-Post account email.",
-    "YouTube Privacy Status": "YouTube Privacy Status"
+    "YouTube Privacy Status": "YouTube Privacy Status",
+    "OFox AI Video": "OFox AI Video",
+    "OFox AI Video Help": "Generate brand-new clips through the OFox multi-model video API (Seedance, Wan, and more behind one key). Each submitted clip is a paid task.",
+    "OFox API Key": "OFox API Key ([Get API Key](https://ofox.ai))",
+    "OFox Text-to-Video Model": "OFox Text-to-Video Model",
+    "OFox Base URL": "OFox Base URL",
+    "Please Enter the OFox API Key": "Please enter the **OFox API Key**",
+    "OFox Billing Notice": "Each generated clip is billed by OFox. Based on the estimated voiceover duration and clip duration, roughly {min}-{max} paid task(s) will be submitted. Generation stops as soon as enough footage is collected.",
+    "OFox Billing Notice Without Script": "Each generated clip is billed by OFox. Enter or generate the video script to see an estimated task count.",
+    "Confirm OFox Charge": "I understand OFox video generation creates paid tasks",
+    "Confirm OFox Charge Help": "OFox clips are submitted one at a time and stop once they cover the voiceover duration. OFox bills each submitted generation task.",
+    "Confirm OFox Charge Required": "Please confirm the OFox charge before generating the video.",
+    "OFox Upstream Vendor": "OFox Upstream Vendor",
+    "OFox Upstream Vendor Help": "Which upstream vendor serves OFox video generation. BytePlus (international) is the default with a consistent content policy; Volcano Engine is the mainland-China vendor; Auto lets the OFox gateway load-balance across vendors.",
+    "OFox Vendor BytePlus": "BytePlus (International, default)",
+    "OFox Vendor Volcengine": "Volcano Engine (Mainland China)",
+    "OFox Vendor Auto": "Auto (gateway load balancing)"
   }
 }

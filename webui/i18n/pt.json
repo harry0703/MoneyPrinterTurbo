@@ -375,6 +375,22 @@
     "Upload-Post Profile Username": "Nome de Usuário do Perfil Upload-Post",
     "Upload-Post Profile Username Help": "Informe o nome de usuário exibido em [Manage Users]({manage_users_url}), não o e-mail da sua conta Upload-Post. Esse usuário de publicação deve estar conectado às plataformas selecionadas.",
     "Upload-Post Setup Guide": "Antes de ativar a publicação automática:\n1. Crie uma chave API em [API Keys]({api_keys_url}).\n2. Crie ou selecione um usuário de publicação em [Manage Users]({manage_users_url}) e conecte as plataformas de destino.\n\nInforme abaixo o **nome de usuário** de publicação, não o e-mail da sua conta Upload-Post.",
-    "YouTube Privacy Status": "Status de Privacidade do YouTube"
+    "YouTube Privacy Status": "Status de Privacidade do YouTube",
+    "OFox AI Video": "OFox AI Video",
+    "OFox AI Video Help": "Gere novos clipes pela API oficial OFox. Cada clipe enviado cria uma tarefa OFox paga.",
+    "OFox API Key": "Chave de API do OFox ([Obter chave de API](https://ofox.ai))",
+    "OFox Text-to-Video Model": "Modelo de texto para vídeo OFox",
+    "OFox Base URL": "URL base do OFox",
+    "Please Enter the OFox API Key": "Insira a **chave de API do OFox**",
+    "OFox Billing Notice": "Cada clipe gerado é cobrado pelo OFox. Com base na duração estimada da narração e dos clipes, serão enviadas aproximadamente {min}–{max} tarefas pagas. A geração termina assim que houver material suficiente.",
+    "OFox Billing Notice Without Script": "Cada clipe gerado é cobrado pelo OFox. Insira ou gere o roteiro do vídeo para ver uma estimativa do número de tarefas.",
+    "Confirm OFox Charge": "Entendo que a geração OFox cria tarefas OFox pagas",
+    "Confirm OFox Charge Help": "Os clipes OFox são enviados um por vez até cobrirem a duração da narração. O OFox cobra cada tarefa de geração enviada.",
+    "Confirm OFox Charge Required": "Confirme o custo da geração OFox antes de criar o vídeo.",
+    "OFox Upstream Vendor": "Fornecedor upstream OFox",
+    "OFox Upstream Vendor Help": "Qual fornecedor upstream atende a geração de vídeo do OFox. BytePlus (internacional) é o padrão, com política de conteúdo consistente; Volcano Engine é o fornecedor da China continental; Auto deixa o gateway OFox balancear a carga entre fornecedores.",
+    "OFox Vendor BytePlus": "BytePlus (internacional, padrão)",
+    "OFox Vendor Volcengine": "Volcano Engine (China continental)",
+    "OFox Vendor Auto": "Automático (balanceamento do gateway)"
   }
 }

@@ -375,6 +375,22 @@
     "Upload-Post Profile Username": "Имя пользователя профиля Upload-Post",
     "Upload-Post Profile Username Help": "Введите имя пользователя со страницы [Manage Users]({manage_users_url}), а не адрес электронной почты аккаунта Upload-Post. Этот пользователь публикации должен быть подключён к выбранным платформам.",
     "Upload-Post Setup Guide": "Перед включением автопубликации:\n1. Создайте API-ключ на странице [API Keys]({api_keys_url}).\n2. Создайте или выберите пользователя публикации на странице [Manage Users]({manage_users_url}) и подключите целевые платформы.\n\nНиже введите его **имя пользователя**, а не адрес электронной почты аккаунта Upload-Post.",
-    "YouTube Privacy Status": "Статус конфиденциальности YouTube"
+    "YouTube Privacy Status": "Статус конфиденциальности YouTube",
+    "OFox AI Video": "OFox AI Video",
+    "OFox AI Video Help": "Создавайте новые клипы через официальный API OFox. Каждый отправленный клип является платной задачей OFox.",
+    "OFox API Key": "API-ключ OFox ([Получить API-ключ](https://ofox.ai))",
+    "OFox Text-to-Video Model": "Модель текст-в-видео OFox",
+    "OFox Base URL": "Базовый URL OFox",
+    "Please Enter the OFox API Key": "Введите **API-ключ OFox**",
+    "OFox Billing Notice": "Каждый созданный клип оплачивается в OFox. С учётом предполагаемой длительности озвучки и клипов будет отправлено примерно {min}–{max} платных задач. Генерация остановится, как только материала будет достаточно.",
+    "OFox Billing Notice Without Script": "Каждый созданный клип оплачивается в OFox. Введите или создайте сценарий видео, чтобы увидеть примерное количество задач.",
+    "Confirm OFox Charge": "Я понимаю, что генерация OFox создаёт платные задачи OFox",
+    "Confirm OFox Charge Help": "Клипы OFox отправляются по одному, пока не покроют длительность озвучки. OFox взимает плату за каждую отправленную задачу генерации.",
+    "Confirm OFox Charge Required": "Подтвердите стоимость генерации OFox перед созданием видео.",
+    "OFox Upstream Vendor": "Вышестоящий поставщик OFox",
+    "OFox Upstream Vendor Help": "Какой вышестоящий поставщик обслуживает генерацию видео OFox. BytePlus (международный) — значение по умолчанию с единой контентной политикой; Volcano Engine — поставщик материкового Китая; Авто — шлюз OFox сам распределяет нагрузку между поставщиками.",
+    "OFox Vendor BytePlus": "BytePlus (международный, по умолчанию)",
+    "OFox Vendor Volcengine": "Volcano Engine (материковый Китай)",
+    "OFox Vendor Auto": "Авто (балансировка шлюзом)"
   }
 }

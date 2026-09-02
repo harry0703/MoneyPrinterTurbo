@@ -375,6 +375,22 @@
     "Upload-Post Profile Username": "Nama Pengguna Profil Upload-Post",
     "Upload-Post Profile Username Help": "Masukkan Username yang ditampilkan di [Manage Users]({manage_users_url}), bukan email akun Upload-Post Anda. Pengguna penerbitan ini harus terhubung ke platform yang dipilih.",
     "Upload-Post Setup Guide": "Sebelum mengaktifkan publikasi otomatis:\n1. Buat kunci API di [API Keys]({api_keys_url}).\n2. Buat atau pilih pengguna penerbitan di [Manage Users]({manage_users_url}), lalu hubungkan platform tujuan.\n\nMasukkan **Username** pengguna penerbitan tersebut di bawah, bukan email akun Upload-Post Anda.",
-    "YouTube Privacy Status": "Status Privasi YouTube"
+    "YouTube Privacy Status": "Status Privasi YouTube",
+    "OFox AI Video": "OFox AI Video",
+    "OFox AI Video Help": "Buat klip baru melalui API resmi OFox. Setiap klip yang dikirim merupakan tugas OFox berbayar.",
+    "OFox API Key": "Kunci API OFox ([Dapatkan Kunci API](https://ofox.ai))",
+    "OFox Text-to-Video Model": "Model teks-ke-video OFox",
+    "OFox Base URL": "URL Dasar OFox",
+    "Please Enter the OFox API Key": "Masukkan **Kunci API OFox**",
+    "OFox Billing Notice": "Setiap klip yang dibuat dikenai biaya oleh OFox. Berdasarkan perkiraan durasi narasi dan klip, sekitar {min}–{max} tugas berbayar akan dikirim. Pembuatan berhenti segera setelah materi mencukupi.",
+    "OFox Billing Notice Without Script": "Setiap klip yang dibuat dikenai biaya oleh OFox. Masukkan atau buat naskah video untuk melihat perkiraan jumlah tugas.",
+    "Confirm OFox Charge": "Saya memahami bahwa pembuatan OFox menghasilkan tugas OFox berbayar",
+    "Confirm OFox Charge Help": "Klip OFox dikirim satu per satu dan berhenti setelah mencakup durasi narasi. OFox mengenakan biaya untuk setiap tugas pembuatan yang dikirim.",
+    "Confirm OFox Charge Required": "Konfirmasikan biaya pembuatan OFox sebelum membuat video.",
+    "OFox Upstream Vendor": "Vendor Upstream OFox",
+    "OFox Upstream Vendor Help": "Vendor upstream yang melayani pembuatan video OFox. BytePlus (internasional) adalah bawaan dengan kebijakan konten yang konsisten; Volcano Engine adalah vendor Tiongkok daratan; Auto membiarkan gateway OFox menyeimbangkan beban antar vendor.",
+    "OFox Vendor BytePlus": "BytePlus (internasional, bawaan)",
+    "OFox Vendor Volcengine": "Volcano Engine (Tiongkok daratan)",
+    "OFox Vendor Auto": "Otomatis (penyeimbangan gateway)"
   }
 }

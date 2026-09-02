@@ -268,6 +268,7 @@ Batch manifests:
             "pixabay",
             "coverr",
             "volcengine_seedance",
+            "ofox",
             "openai_image",
             "local",
         ],
@@ -295,6 +296,14 @@ Batch manifests:
         help=(
             "confirm that Volcano Engine Seedance creates paid Ark tasks; required "
             "with --video-source volcengine_seedance for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-ofox-charge",
+        action="store_true",
+        help=(
+            "confirm that OFox video generation creates paid tasks; required "
+            "with --video-source ofox for materials or video output"
         ),
     )
 
@@ -594,6 +603,15 @@ Batch manifests:
         parser.error(
             "--confirm-seedance-charge is required with "
             "--video-source volcengine_seedance"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "ofox"
+        and stage_requires_materials
+        and not args.confirm_ofox_charge
+    ):
+        parser.error(
+            "--confirm-ofox-charge is required with --video-source ofox"
         )
 
     if args.bgm_file:
@@ -971,6 +989,7 @@ def _validate_batch_task_params(
     stop_at: str,
     custom_position_is_explicit: bool,
     seedance_charge_confirmed: bool,
+    ofox_charge_confirmed: bool,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
@@ -980,11 +999,12 @@ def _validate_batch_task_params(
         "pixabay",
         "coverr",
         "volcengine_seedance",
+        "ofox",
         "local",
     }:
         raise ValueError(
             "video_source must be one of: pexels, pixabay, coverr, "
-            "volcengine_seedance, local"
+            "volcengine_seedance, ofox, local"
         )
     for field_name, value in (
         ("video_aspect", params.video_aspect),
@@ -1018,6 +1038,12 @@ def _validate_batch_task_params(
         raise ValueError(
             "--confirm-seedance-charge is required for Volcano Engine Seedance"
         )
+    if (
+        params.video_source == "ofox"
+        and stop_at in {"materials", "video"}
+        and not ofox_charge_confirmed
+    ):
+        raise ValueError("--confirm-ofox-charge is required for OFox video generation")
 
     if stop_at == "subtitle" and not params.subtitle_enabled:
         raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
@@ -1118,6 +1144,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                     or "custom_position" in override_fields
                 ),
                 seedance_charge_confirmed=args.confirm_seedance_charge,
+                ofox_charge_confirmed=args.confirm_ofox_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc
