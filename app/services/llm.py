@@ -64,7 +64,9 @@ def _normalize_text_response(content, llm_provider: str) -> str:
     if not content:
         raise ValueError(f"[{llm_provider}] returned empty text content")
 
-    return content.replace("\n", "")
+    # 前面的 ``strip()`` 已经清理首尾空白。这里必须保留正文中的单换行和
+    # 双换行：脚本生成依赖双换行区分段落，字幕处理也会按行读取用户文案。
+    return content
 
 
 def _sanitize_error_message(error: object) -> str:
@@ -534,9 +536,11 @@ def generate_script(
         response = response.replace("*", "")
         response = response.replace("#", "")
 
-        # Remove markdown syntax
-        response = re.sub(r"\[.*\]", "", response)
-        response = re.sub(r"\(.*\)", "", response)
+        # Remove markdown syntax.  Use non-greedy .*? so each bracket/paren
+        # group is removed independently; the greedy form would eat all text
+        # between the first opener and the last closer on the same line.
+        response = re.sub(r"\[.*?\]", "", response)
+        response = re.sub(r"\(.*?\)", "", response)
 
         # Split the script into paragraphs
         paragraphs = response.split("\n\n")
@@ -567,7 +571,7 @@ def generate_script(
         except Exception as e:
             logger.error(f"failed to generate script: {e}")
 
-        if i < _max_retries:
+        if i < _max_retries - 1:
             logger.warning(f"failed to generate video script, trying again... {i + 1}")
     if "Error: " in final_script:
         logger.error(f"failed to generate video script: {final_script}")
@@ -693,7 +697,7 @@ Please note that you must use English for generating video search terms; Chinese
 
         if search_terms and len(search_terms) > 0:
             break
-        if i < _max_retries:
+        if i < _max_retries - 1:
             logger.warning(f"failed to generate video terms, trying again... {i + 1}")
 
     logger.success(f"completed: \n{search_terms}")

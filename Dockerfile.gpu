@@ -10,7 +10,9 @@ RUN chmod 777 /MoneyPrinterTurbo
 
 ENV PYTHONPATH="/MoneyPrinterTurbo"
 
-# Install Python 3.11 and system dependencies
+# 安装链中的任何前置步骤失败都必须终止构建。只有删除系统自带 blinker
+# 属于可忽略操作，因此把容错限制在该子命令的括号内，避免末尾的
+# `|| true` 把 apt、PPA、Python 或 pip 安装失败一并转换成成功状态。
 RUN apt-get update && apt-get install -y --no-install-recommends \
         software-properties-common \
         git \
@@ -25,7 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
         && ln -sf /usr/bin/python3.11 /usr/bin/python \
         && python3.11 -m pip install --upgrade pip \
-        && apt-get remove -y python3-blinker || true \
+        && (apt-get remove -y python3-blinker || \
+            echo "python3-blinker removal skipped; continuing") \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy only the requirements.txt first to leverage Docker cache

@@ -20,6 +20,28 @@ _terminal_handler_id: int | None = 0
 _terminal_handler_lock = threading.RLock()
 
 
+def _project_relative_path(file_path):
+    """
+    把绝对路径缩短为 ``./`` 开头、始终使用正斜杠的项目相对路径。
+
+    Windows 上项目可能通过映射网络盘或 ``subst`` 盘启动。此时调用栈里的路径
+    仍是 ``X:\\MoneyPrinterTurbo\\...``，而 ``PROJECT_ROOT`` 经 ``realpath``
+    解析后落在 ``C:\\...``，``os.path.relpath`` 会直接抛出 ``ValueError``。
+    格式化函数抛错会被 loguru 捕获并丢弃整条记录，终端和 WebUI 日志面板会
+    同时变空，因此这里必须兜底返回原始路径。项目目录之外的文件同理：把
+    ``./`` 拼到 ``..`` 回溯路径上只会得到更难读的结果。
+    """
+    try:
+        relative_path = os.path.relpath(file_path, PROJECT_ROOT)
+    except ValueError:
+        return file_path
+    if relative_path == os.pardir or relative_path.startswith(os.pardir + os.sep):
+        return file_path
+    # Windows 的 relpath 返回反斜杠分隔的路径，直接拼接会得到 ``./app\\utils``
+    # 这种混合分隔符的输出，与其它平台的日志不一致。
+    return f"./{relative_path.replace(os.sep, '/')}"
+
+
 def format_log_record(record):
     """
     统一格式化终端与 WebUI 日志。
@@ -30,8 +52,7 @@ def format_log_record(record):
     """
     file_path = record["file"].path
     if os.path.isabs(file_path):
-        relative_path = os.path.relpath(file_path, PROJECT_ROOT)
-        record["file"].path = f"./{relative_path}"
+        record["file"].path = _project_relative_path(file_path)
 
     # 日志消息有时会包含任务文件的绝对路径。统一缩短为项目相对路径，可以
     # 避免 WebUI 和终端因初始化入口不同而展示两套内容。

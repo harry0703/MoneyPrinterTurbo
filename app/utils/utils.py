@@ -3,6 +3,7 @@ import math
 import os
 import re
 import shutil
+import subprocess
 from functools import lru_cache
 from pathlib import Path
 import threading
@@ -176,6 +177,62 @@ def get_ffmpeg_binary() -> str:
         logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
 
     return "ffmpeg"
+
+
+_FFMPEG_INSTALL_HINT = (
+    "Install FFmpeg on your system, or set app.ffmpeg_path in config.toml to "
+    "the full path of an ffmpeg executable (e.g. downloaded from "
+    "https://www.gyan.dev/ffmpeg/builds/)."
+)
+
+
+def check_ffmpeg_ready(timeout: int = 10) -> bool:
+    """
+    在真正开始生成视频之前提前探测 FFmpeg 是否可用。
+
+    增加原因：
+    此前 FFmpeg 缺失/不可用只会在视频合成、静音音轨生成等环节里，以
+    ``RuntimeError: No ffmpeg exe could be found`` 或 subprocess 报错的形式
+    出现，用户往往要等到任务跑了大半才第一次看到这个报错，且报错本身
+    不会指向任何解决办法。这里在共享任务流水线（app/services/task.py 的
+    ``_run_pipeline``）里提前做一次探测，尽早给出可操作的英文提示（与项目
+    里其他 logger.warning 的用语习惯保持一致），API、CLI、WebUI 都会经过
+    这条流水线，因此三条路径能统一生效。
+
+    仅做一次轻量的 ``-version`` 调用，不会触发下载或改变主流程；
+    调用方需要把返回值当作硬性前置条件——项目锁定的 imageio-ffmpeg==0.6.0
+    并不会在真正使用时自动补下载一个可用的二进制，因此检测失败必须让
+    需要 FFmpeg 的阶段直接终止，而不是继续跑到视频合成才失败。
+    """
+    ffmpeg_bin = get_ffmpeg_binary()
+    try:
+        completed = subprocess.run(
+            [ffmpeg_bin, "-version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout,
+        )
+    except FileNotFoundError:
+        logger.warning(
+            f"no usable ffmpeg executable found (tried: {ffmpeg_bin}). "
+            f"{_FFMPEG_INSTALL_HINT}"
+        )
+        return False
+    except Exception as exc:
+        logger.warning(
+            f"failed to probe ffmpeg ({ffmpeg_bin}): {exc}. {_FFMPEG_INSTALL_HINT}"
+        )
+        return False
+
+    if completed.returncode != 0:
+        logger.warning(
+            f"ffmpeg ({ffmpeg_bin}) probe exited with status {completed.returncode}; "
+            f"video generation may fail later. {_FFMPEG_INSTALL_HINT}"
+        )
+        return False
+
+    logger.info(f"ffmpeg check passed, using: {ffmpeg_bin}")
+    return True
 
 
 def run_in_background(func, *args, **kwargs):

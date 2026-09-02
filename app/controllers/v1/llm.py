@@ -2,10 +2,11 @@ import os
 from typing import Any
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, Request
+from fastapi import BackgroundTasks, Depends, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from app.controllers import base
 from app.controllers.v1.base import new_router
 from app.config import config
 from app.models.exception import HttpException
@@ -20,9 +21,9 @@ from app.models.schema import (
 from app.services import llm
 from app.utils import utils
 
-# authentication dependency
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+# LLM 接口与视频接口共用同一鉴权规则，避免新增端点时遗漏保护。
+# api_key 为空时 verify_token 直接放行，不改变默认本地使用体验。
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 
 class RuntimeSettingsRequest(BaseModel):

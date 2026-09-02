@@ -8,12 +8,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from fastapi.testclient import TestClient
+
+from app import asgi
 from app.config import config
 from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.v1 import video as video_controller
 from app.models import const
 from app.models.exception import HttpException
-from app.models.schema import TaskListResponse, TaskQueryResponse
+from app.models.schema import TaskDeletionResponse, TaskListResponse, TaskQueryResponse
+from app.services import material_upload
 from app.services import state as sm
 from app.utils import utils
 
@@ -34,20 +38,16 @@ class TestVideoControllerHelpers(unittest.TestCase):
         ):
             with self.subTest(filename=filename):
                 self.assertEqual(
-                    video_controller._sanitize_upload_filename(
-                        filename, "request-123"
-                    ),
+                    video_controller._sanitize_upload_filename(filename, "request-123"),
                     expected,
                 )
 
     def test_fastapi_startup_recovers_interrupted_cross_posts(self):
         """API 进程启动时必须执行一次发布遗留状态恢复。"""
-        from app import asgi
         from app.services import task as task_service
 
-        with patch.object(
-            task_service, "recover_interrupted_cross_posts"
-        ) as recover:
+        with patch.object(task_service, "recover_interrupted_cross_posts") as recover:
+
             async def run_lifespan():
                 async with asgi.application_lifespan(asgi.app):
                     pass
@@ -61,9 +61,7 @@ class TestVideoControllerHelpers(unittest.TestCase):
         for filename in ("", ".", "..", "/"):
             with self.subTest(filename=filename):
                 with self.assertRaises(HttpException) as raised:
-                    video_controller._sanitize_upload_filename(
-                        filename, "request-123"
-                    )
+                    video_controller._sanitize_upload_filename(filename, "request-123")
                 self.assertEqual(raised.exception.status_code, 400)
 
     def test_resolve_path_maps_missing_and_unsafe_files(self):
@@ -96,9 +94,7 @@ class TestVideoControllerHelpers(unittest.TestCase):
         for header, expected in cases:
             with self.subTest(header=header):
                 self.assertEqual(
-                    video_controller._parse_byte_range(
-                        header, 10, "request-123"
-                    ),
+                    video_controller._parse_byte_range(header, 10, "request-123"),
                     expected,
                 )
 
@@ -114,9 +110,7 @@ class TestVideoControllerHelpers(unittest.TestCase):
         for header in invalid_headers:
             with self.subTest(header=header):
                 with self.assertRaises(HttpException) as raised:
-                    video_controller._parse_byte_range(
-                        header, 10, "request-123"
-                    )
+                    video_controller._parse_byte_range(header, 10, "request-123")
                 self.assertEqual(raised.exception.status_code, 416)
 
 
@@ -166,12 +160,32 @@ class TestVideoControllerTasks(unittest.TestCase):
             patch.object(video_controller.sm.state, "delete_task") as delete_task,
         ):
             with self.assertRaises(HttpException) as raised:
-                video_controller.create_task(
-                    self._request(), body, stop_at="video"
-                )
+                video_controller.create_task(self._request(), body, stop_at="video")
 
         self.assertEqual(raised.exception.status_code, 429)
         delete_task.assert_called_once_with("task-123")
+
+    def test_create_task_removes_state_when_scheduler_fails(self):
+        """调度器未能接管任务时，不能留下永远处于 processing 的状态。"""
+        body = MagicMock()
+        body.model_dump.return_value = {"video_subject": "Coffee"}
+        scheduling_error = RuntimeError("can't start new thread")
+        state = sm.MemoryState()
+
+        with (
+            patch.object(video_controller.utils, "get_uuid", return_value="task-123"),
+            patch.object(video_controller.sm, "state", state),
+            patch.object(
+                video_controller.task_manager,
+                "add_task",
+                side_effect=scheduling_error,
+            ),
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                video_controller.create_task(self._request(), body, stop_at="video")
+
+        self.assertIs(raised.exception, scheduling_error)
+        self.assertIsNone(state.get_task("task-123"))
 
     def test_get_all_tasks_preserves_pagination(self):
         """任务列表响应必须包含状态层返回的总数和请求分页参数。"""
@@ -268,6 +282,14 @@ class TestVideoControllerTasks(unittest.TestCase):
         self.assertIn("TaskListData", list_schema["$defs"])
         self.assertIn("TaskStatusData", list_schema["$defs"])
 
+    def test_task_deletion_schema_defines_null_data_contract(self):
+        """TaskDeletionResponse 的 OpenAPI 架构必须将 data 显式声明为 null 类型。"""
+        schema = TaskDeletionResponse.model_json_schema()
+        data_property = schema["properties"]["data"]
+
+        self.assertEqual(data_property.get("type"), "null")
+        self.assertIsNone(data_property.get("default"))
+
     def test_delete_rejects_generation_and_cross_posting_tasks(self):
         """生成中和发布中的任务都在读取目录，删除接口必须返回 409。"""
         busy_tasks = (
@@ -285,11 +307,15 @@ class TestVideoControllerTasks(unittest.TestCase):
         )
 
         for task in busy_tasks:
-            with self.subTest(task_id=task["task_id"]), patch.object(
-                video_controller.sm.state,
-                "get_task",
-                return_value=task,
-            ), patch.object(video_controller.sm.state, "delete_task") as delete_task:
+            with (
+                self.subTest(task_id=task["task_id"]),
+                patch.object(
+                    video_controller.sm.state,
+                    "get_task",
+                    return_value=task,
+                ),
+                patch.object(video_controller.sm.state, "delete_task") as delete_task,
+            ):
                 with self.assertRaises(HttpException) as raised:
                     video_controller.delete_video(
                         self._request(), task_id=task["task_id"]
@@ -307,17 +333,20 @@ class TestVideoControllerTasks(unittest.TestCase):
             "cross_post_state": const.CROSS_POST_STATE_COMPLETE,
         }
 
-        with patch.object(
-            video_controller.sm.state,
-            "get_task",
-            return_value=completed_task,
-        ), patch.object(
-            video_controller.utils,
-            "task_dir",
-            return_value="/tmp/mpt-completed-task-test",
-        ), patch.object(
-            video_controller.os.path, "exists", return_value=False
-        ), patch.object(video_controller.sm.state, "delete_task") as delete_task:
+        with (
+            patch.object(
+                video_controller.sm.state,
+                "get_task",
+                return_value=completed_task,
+            ),
+            patch.object(
+                video_controller.utils,
+                "task_dir",
+                return_value="/tmp/mpt-completed-task-test",
+            ),
+            patch.object(video_controller.os.path, "exists", return_value=False),
+            patch.object(video_controller.sm.state, "delete_task") as delete_task,
+        ):
             response = video_controller.delete_video(
                 self._request(), task_id="completed-task"
             )
@@ -342,6 +371,72 @@ class TestVideoControllerTasks(unittest.TestCase):
                     self.assertEqual(raised.exception.status_code, 404)
 
 
+class TestVideoControllerDeleteHTTP(unittest.TestCase):
+    """DELETE /api/v1/tasks/{task_id} 的真实 HTTP 级回归测试。"""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        # 这些用例只验证任务删除协议；鉴权行为由独立测试覆盖。
+        config.app["api_key"] = ""
+        self.client = TestClient(asgi.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    def _seed_completed_task(self, task_id: str) -> str:
+        """创建一个已完成的任务，返回其存储目录路径。"""
+
+        task_dir = utils.task_dir(task_id)
+        video_path = os.path.join(task_dir, "final-1.mp4")
+        Path(video_path).write_bytes(b"fake-video")
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=[video_path],
+            combined_videos=[video_path],
+            cross_post_state=const.CROSS_POST_STATE_COMPLETE,
+        )
+        return task_dir
+
+    def test_delete_completed_task_returns_success_response(self):
+        """成功删除应返回 200, 且响应体必须是控制器的真实输出 (status/message/data)"""
+
+        task_id = "http-delete-success-task"
+        task_dir = self._seed_completed_task(task_id)
+
+        try:
+            response = self.client.delete(f"/api/v1/tasks/{task_id}")
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+            sm.state.delete_task(task_id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"status": 200, "message": "success", "data": None},
+        )
+
+    def test_deleted_task_lookup_returns_404(self):
+        """删除后再次查询必须返回 404，确认任务确实从状态存储中移除，
+        而不只是删除接口本身的响应格式正确。"""
+
+        task_id = "http-delete-lookup-task"
+        task_dir = self._seed_completed_task(task_id)
+
+        try:
+            delete_response = self.client.delete(f"/api/v1/tasks/{task_id}")
+            self.assertEqual(delete_response.status_code, 200)
+
+            lookup_response = self.client.get(f"/api/v1/tasks/{task_id}")
+        finally:
+            # 任务此时应已被删除；只清理可能残留的目录。
+            shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertEqual(lookup_response.status_code, 404)
+
+
 class TestVideoControllerFiles(unittest.TestCase):
     @staticmethod
     def _request(range_header=None):
@@ -352,32 +447,54 @@ class TestVideoControllerFiles(unittest.TestCase):
 
     def test_upload_video_material_validates_complete_extension(self):
         """大写合法扩展名应接受，无点号伪扩展名应拒绝。"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            upload = SimpleNamespace(
-                filename=r"C:\videos\clip.MOV",
-                file=BytesIO(b"video"),
+        upload = SimpleNamespace(
+            filename=r"C:\videos\clip.MOV",
+            file=BytesIO(b"video"),
+        )
+        with patch.object(
+            material_upload,
+            "save_material_upload",
+            return_value="4fca18fce7344f3aa824777a40d45c8c.mov",
+        ) as save_material:
+            response = video_controller.upload_video_material_file(
+                self._request(), upload
             )
-            with patch.object(
-                video_controller.utils,
-                "storage_dir",
-                return_value=temp_dir,
-            ):
-                response = video_controller.upload_video_material_file(
-                    self._request(), upload
-                )
 
-            self.assertEqual(response["data"]["file"], "clip.MOV")
-            self.assertEqual(Path(temp_dir, "clip.MOV").read_bytes(), b"video")
+        self.assertEqual(
+            response["data"]["file"],
+            "4fca18fce7344f3aa824777a40d45c8c.mov",
+        )
+        save_material.assert_called_once_with("clip.MOV", upload.file)
 
-            invalid_upload = SimpleNamespace(
-                filename="photojpg",
-                file=BytesIO(b"not-an-image"),
-            )
+        invalid_upload = SimpleNamespace(
+            filename="photojpg",
+            file=BytesIO(b"not-an-image"),
+        )
+        with patch.object(
+            material_upload,
+            "save_material_upload",
+            side_effect=material_upload.MaterialUploadError("unsupported format"),
+        ):
             with self.assertRaises(HttpException) as raised:
                 video_controller.upload_video_material_file(
                     self._request(), invalid_upload
                 )
-            self.assertEqual(raised.exception.status_code, 400)
+        self.assertEqual(raised.exception.status_code, 400)
+
+    def test_upload_video_material_maps_service_failure_to_stable_500(self):
+        upload = SimpleNamespace(filename="clip.mp4", file=BytesIO(b"video"))
+        with patch.object(
+            material_upload,
+            "save_material_upload",
+            side_effect=material_upload.MaterialServiceError(
+                "C:\\sensitive\\storage is unavailable"
+            ),
+        ):
+            with self.assertRaises(HttpException) as raised:
+                video_controller.upload_video_material_file(self._request(), upload)
+
+        self.assertEqual(raised.exception.status_code, 500)
+        self.assertNotIn("sensitive", raised.exception.message)
 
     def test_stream_video_returns_requested_bytes(self):
         """Range 响应的正文和 Content-Range 必须与计算出的区间一致。"""
@@ -415,15 +532,76 @@ class TestVideoControllerFiles(unittest.TestCase):
                 return_value=temp_dir,
             ):
                 response = asyncio.run(
-                    video_controller.download_video(
-                        self._request(), "final-1.mp4"
-                    )
+                    video_controller.download_video(self._request(), "final-1.mp4")
                 )
 
         # macOS 的 /var 是 /private/var 符号链接，安全解析会返回真实路径。
         self.assertEqual(response.path, os.path.realpath(video_path))
         self.assertEqual(response.filename, "final-1.mp4")
         self.assertEqual(response.media_type, "video/mp4")
+
+    def test_download_video_encodes_content_disposition_filename(self):
+        """
+        下载文件名必须按 HTTP 标准编码。
+
+        普通 ASCII 文件名继续使用兼容性更好的 filename 参数；只要名称包含
+        空格、中文或响应头敏感符号，就应改用 UTF-8 filename*，避免浏览器下载
+        失败、文件名乱码，或特殊字符破坏 Content-Disposition 响应头结构。
+        """
+        cases = (
+            ("final-1.mp4", 'attachment; filename="final-1.mp4"'),
+            ("video name.mp4", "attachment; filename*=utf-8''video%20name.mp4"),
+            (
+                "中文 视频.mp4",
+                "attachment; filename*=utf-8''%E4%B8%AD%E6%96%87%20"
+                "%E8%A7%86%E9%A2%91.mp4",
+            ),
+            (
+                "name=draft;v1(test).mp4",
+                "attachment; filename*=utf-8''name%3Ddraft%3Bv1%28test%29.mp4",
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                video_controller.utils,
+                "task_dir",
+                return_value=temp_dir,
+            ):
+                for filename, expected_header in cases:
+                    with self.subTest(filename=filename):
+                        Path(temp_dir, filename).write_bytes(b"video")
+                        response = asyncio.run(
+                            video_controller.download_video(self._request(), filename)
+                        )
+
+                        self.assertEqual(
+                            response.headers["content-disposition"],
+                            expected_header,
+                        )
+
+
+class TestBuildRedisUrl(unittest.TestCase):
+    def test_no_password_omits_auth_segment(self):
+        """None and empty-string passwords must not embed a literal 'None' or ':@'."""
+        from app.controllers.v1.video import _build_redis_url
+
+        self.assertEqual(
+            _build_redis_url("localhost", 6379, 0, None),
+            "redis://localhost:6379/0",
+        )
+        self.assertEqual(
+            _build_redis_url("localhost", 6379, 0, ""),
+            "redis://localhost:6379/0",
+        )
+
+    def test_password_is_included_in_url(self):
+        from app.controllers.v1.video import _build_redis_url
+
+        self.assertEqual(
+            _build_redis_url("redis-host", 6380, 1, "s3cr3t"),
+            "redis://:s3cr3t@redis-host:6380/1",
+        )
 
 
 if __name__ == "__main__":

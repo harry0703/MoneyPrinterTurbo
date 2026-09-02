@@ -5,6 +5,7 @@ import tempfile
 import tomllib
 import types
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -31,6 +32,18 @@ RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() 
 
 
 class TestScriptPromptOptions(unittest.TestCase):
+    def test_normalize_text_response_preserves_internal_newlines(self):
+        """
+        归一化只清理首尾空白，不能删除正文内部的换行。双换行用于区分脚本
+        段落，单换行也可能是模型按语义返回的字幕行。
+        """
+        result = llm._normalize_text_response(
+            "\n  第一行\n第二行\n\n第三段  \n",
+            "openai",
+        )
+
+        self.assertEqual(result, "第一行\n第二行\n\n第三段")
+
     def test_normalize_text_response_removes_think_blocks(self):
         """
         reasoning 模型可能返回 `<think>...</think>`。脚本生成链路必须只保留
@@ -142,6 +155,41 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIs(captured["app_config"], app_config)
         self.assertEqual(captured["app_config"]["openai_api_key"], "snapshot-key")
 
+    def test_generate_script_strips_each_bracket_group_independently(self):
+        """
+        format_response must remove each [bracket] and (paren) group in
+        isolation.  The greedy form [.*] matches from the first opener to
+        the *last* closer on the line, silently deleting all text in between.
+
+        Example – greedy bug:
+            "[Intro] Great content [end]"  →  "."     (all inner text lost)
+        Expected with non-greedy fix:
+            "[Intro] Great content [end]"  →  " Great content "
+        """
+
+        def fake_generate_response(prompt):
+            # Two bracket groups and two paren groups on the same line.
+            return (
+                "[Scene: Beach] A beautiful day at the [location: ocean].\n\n"
+                "Save (at least) 10% of your income (monthly)."
+            )
+
+        with patch.object(
+            llm, "_generate_response", side_effect=fake_generate_response
+        ):
+            result = llm.generate_script(
+                video_subject="savings tips", language="en-US"
+            )
+
+        # Each bracket / paren group should be gone, but the surrounding words
+        # must survive.
+        self.assertNotIn("[", result)
+        self.assertNotIn("]", result)
+        self.assertNotIn("(", result)
+        self.assertNotIn(")", result)
+        self.assertIn("A beautiful day at the", result)
+        self.assertIn("10% of your income", result)
+
     def test_generate_terms_can_request_script_ordered_keywords(self):
         """
         按文案顺序匹配素材依赖 LLM 返回有序关键词。这里不调用真实模型，
@@ -251,6 +299,11 @@ class TestLiteLLMProvider(unittest.TestCase):
     def test_current_default_model_names(self):
         """WebUI 与服务层必须共享同一组默认模型，避免展示值和请求值漂移。"""
         self.assertEqual(get_llm_provider("openai").default_model, "gpt-5.5")
+        anthropic = get_llm_provider("anthropic")
+        self.assertEqual(anthropic.default_model, "claude-sonnet-5")
+        self.assertEqual(anthropic.default_base_url, "https://api.anthropic.com/v1/")
+        self.assertEqual(anthropic.adapter, "openai_compatible")
+        self.assertTrue(anthropic.requires_api_key)
         self.assertEqual(get_llm_provider("aimlapi").default_model, "openai/gpt-5-5")
         self.assertEqual(get_llm_provider("deepseek").default_model, "deepseek-v4-pro")
         self.assertEqual(
@@ -259,6 +312,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             get_llm_provider("gemini").default_model, "gemini-3.1-pro-preview"
         )
+        openrouter = get_llm_provider("openrouter")
+        self.assertEqual(openrouter.default_model, "minimax/minimax-m3:free")
+        self.assertEqual(openrouter.default_base_url, "https://openrouter.ai/api/v1")
+        self.assertEqual(openrouter.adapter, "openai_compatible")
+        self.assertTrue(openrouter.requires_api_key)
         pollinations = get_llm_provider("pollinations")
         self.assertEqual(pollinations.default_model, "openai-fast")
         self.assertEqual(
@@ -298,6 +356,7 @@ class TestLiteLLMProvider(unittest.TestCase):
             [
                 "moonshot",
                 "openai",
+                "anthropic",
                 "gemini",
                 "deepseek",
                 "qwen",
@@ -306,11 +365,14 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "grok",
                 "minimax",
                 "mimo",
+                "shengsuanyun",
+                "apimart",
                 "cloudflare",
                 "modelscope",
                 "aihubmix",
                 "aimlapi",
                 "evolink",
+                "openrouter",
                 "ollama",
                 "oneapi",
                 "litellm",
@@ -326,6 +388,29 @@ class TestLiteLLMProvider(unittest.TestCase):
             get_llm_provider("azure").default_label,
             "Microsoft Azure OpenAI",
         )
+        shengsuanyun = get_llm_provider("shengsuanyun")
+        self.assertEqual(
+            shengsuanyun.api_key_url,
+            "https://www.shengsuanyun.com/?from=CH_XUQ4OTSK",
+        )
+        self.assertEqual(
+            shengsuanyun.default_model,
+            "deepseek/deepseek-v4-flash",
+        )
+        apimart = get_llm_provider("apimart")
+        self.assertEqual(
+            apimart.api_key_url,
+            "https://go.apimart.ai/gh-moneyprinterturbo",
+        )
+        self.assertEqual(apimart.default_model, "gpt-5.6-terra")
+        self.assertEqual(apimart.default_base_url, "https://api.apimart.ai/v1")
+        openrouter = get_llm_provider("openrouter")
+        self.assertEqual(
+            openrouter.api_key_url,
+            "https://openrouter.ai/settings/keys",
+        )
+        self.assertEqual(openrouter.default_model, "minimax/minimax-m3:free")
+        self.assertEqual(openrouter.default_base_url, "https://openrouter.ai/api/v1")
 
     def test_provider_registry_uses_conventional_locale_and_config_keys(self):
         """统一命名规则可避免 WebUI 为每个 Provider 增加硬编码映射。"""
@@ -386,10 +471,16 @@ class TestLiteLLMProvider(unittest.TestCase):
                 tips = translations.get(provider.tips_key, "")
                 if not tips:
                     continue
+                default_endpoint = provider.default_service_endpoint
                 rendered = tips.format(
-                    api_key_url=provider.api_key_url,
+                    api_key_url=provider.effective_api_key_url(),
                     default_model=provider.default_model,
-                    default_base_url=provider.default_base_url,
+                    default_base_url=provider.effective_default_base_url,
+                    model_docs_url=(
+                        default_endpoint.model_docs_url
+                        if default_endpoint
+                        else ""
+                    ),
                     docker_hint="",
                     **{
                         f"default_{field.config_suffix}": field.default_value
@@ -431,19 +522,26 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         for provider in LLM_PROVIDER_REGISTRY:
             if provider.requires_api_key:
-                self.assertTrue(provider.api_key_url, provider.provider_id)
+                api_key_url = provider.effective_api_key_url()
+                self.assertTrue(api_key_url, provider.provider_id)
                 self.assertTrue(
-                    provider.api_key_url.startswith("https://"),
+                    api_key_url.startswith("https://"),
                     provider.provider_id,
                 )
                 for language, translations in locale_translations.items():
                     tips_template = translations.get(provider.tips_key, "")
                     if not tips_template:
                         continue
+                    default_endpoint = provider.default_service_endpoint
                     tips = tips_template.format(
-                        api_key_url=provider.api_key_url,
+                        api_key_url=api_key_url,
                         default_model=provider.default_model,
-                        default_base_url=provider.default_base_url,
+                        default_base_url=provider.effective_default_base_url,
+                        model_docs_url=(
+                            default_endpoint.model_docs_url
+                            if default_endpoint
+                            else ""
+                        ),
                         docker_hint="",
                         **{
                             f"default_{field.config_suffix}": field.default_value
@@ -455,10 +553,98 @@ class TestLiteLLMProvider(unittest.TestCase):
                     )
                     self.assertIn("](", api_key_line, provider.provider_id)
                     self.assertIn(
-                        f"]({provider.api_key_url})",
+                        f"]({api_key_url})",
                         api_key_line,
                         f"{language}: {provider.provider_id}",
                     )
+
+    def test_service_endpoint_registry_references_valid_stable_ids(self):
+        """服务区域必须通过唯一稳定 ID 关联，不能依赖链接或展示文案。"""
+        for provider in LLM_PROVIDER_REGISTRY:
+            endpoint_ids = [
+                endpoint.endpoint_id for endpoint in provider.service_endpoints
+            ]
+            self.assertEqual(
+                len(endpoint_ids),
+                len(set(endpoint_ids)),
+                provider.provider_id,
+            )
+            if not endpoint_ids:
+                self.assertFalse(provider.default_service_endpoint_id)
+                self.assertFalse(provider.international_service_endpoint_id)
+                continue
+
+            self.assertIn(provider.default_service_endpoint_id, endpoint_ids)
+            if provider.international_service_endpoint_id:
+                self.assertIn(provider.international_service_endpoint_id, endpoint_ids)
+
+    def test_kimi_service_endpoint_selection_preserves_existing_configs(self):
+        """已有 Kimi 配置不能因界面语言变化而被静默切换到另一套账号体系。"""
+        provider = get_llm_provider("moonshot")
+
+        china = provider.select_service_endpoint(
+            "",
+            has_api_key=True,
+            prefer_international=True,
+        )
+        global_endpoint = provider.select_service_endpoint(
+            "https://api.moonshot.ai/v1/",
+            has_api_key=True,
+            prefer_international=False,
+        )
+
+        self.assertEqual(china.endpoint_id, "china")
+        self.assertEqual(global_endpoint.endpoint_id, "global")
+        self.assertIsNone(
+            provider.select_service_endpoint(
+                "https://gateway.example.com/v1",
+                has_api_key=True,
+                prefer_international=True,
+            )
+        )
+
+    def test_kimi_fresh_config_uses_interface_region(self):
+        """新配置按界面语言推荐站点，但仍由用户在 WebUI 中明确选择。"""
+        provider = get_llm_provider("moonshot")
+
+        china = provider.select_service_endpoint(
+            "",
+            has_api_key=False,
+            prefer_international=False,
+        )
+        global_endpoint = provider.select_service_endpoint(
+            "",
+            has_api_key=False,
+            prefer_international=True,
+        )
+
+        self.assertEqual(china.base_url, "https://api.moonshot.cn/v1")
+        self.assertEqual(global_endpoint.base_url, "https://api.moonshot.ai/v1")
+        self.assertIn("platform.kimi.ai", global_endpoint.api_key_url)
+
+    def test_kimi_endpoint_selection_does_not_depend_on_marketing_url(self):
+        """更新推广参数不能改变国际站的业务选择结果。"""
+        provider = get_llm_provider("moonshot")
+        global_endpoint = replace(
+            provider.international_service_endpoint,
+            api_key_url="https://platform.kimi.ai/?new-tracking=1",
+        )
+        updated_provider = replace(
+            provider,
+            service_endpoints=tuple(
+                global_endpoint if endpoint.endpoint_id == "global" else endpoint
+                for endpoint in provider.service_endpoints
+            ),
+        )
+
+        selected = updated_provider.select_service_endpoint(
+            "",
+            has_api_key=False,
+            prefer_international=True,
+        )
+
+        self.assertEqual(selected.endpoint_id, "global")
+        self.assertEqual(selected.api_key_url, global_endpoint.api_key_url)
 
     def test_example_config_does_not_duplicate_registry_defaults(self):
         """示例配置只保存用户覆盖值，默认模型和地址由 Registry 唯一维护。"""
@@ -472,7 +658,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                     "",
                     provider.provider_id,
                 )
-            if provider.default_base_url:
+            if provider.effective_default_base_url:
                 self.assertEqual(
                     app_config.get(provider.config_key("base_url"), ""),
                     "",
@@ -553,7 +739,49 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "hellopollinations")
+        self.assertEqual(result, "hello\npollinations")
+
+    def test_anthropic_uses_openai_compatible_chat_completions(self):
+        """Claude 走 Anthropic 的 OpenAI 兼容端点，不需要额外适配器分支。"""
+        config.app.update(
+            {
+                "llm_provider": "anthropic",
+                "anthropic_api_key": "anthropic-test-key",
+                "anthropic_base_url": "",
+                "anthropic_model_name": "",
+            }
+        )
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nclaude")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="anthropic-test-key",
+            base_url="https://api.anthropic.com/v1/",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "claude-sonnet-5",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nclaude")
 
     def test_gemini_uses_google_genai_client(self):
         """Gemini 适配器应通过新版 SDK 的统一 Client 发起内容生成请求。"""
@@ -586,7 +814,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         with patch("google.genai.Client", FakeClient):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "hellogemini")
+        self.assertEqual(result, "hello\ngemini")
         self.assertEqual(
             captured["client_kwargs"],
             {"api_key": "gemini-test-key", "http_options": None},
@@ -663,7 +891,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "gatewayresponse")
+        self.assertEqual(result, "gateway\nresponse")
 
     def _use_litellm_provider(self, model_name="openai/gpt-4o-mini"):
         config.app["llm_provider"] = "litellm"
@@ -696,7 +924,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         with patch.dict(sys.modules, {"litellm": fake_litellm}):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "helloworld")
+        self.assertEqual(result, "hello\nworld")
 
     def test_litellm_provider_uses_registry_default_model(self):
         self._use_litellm_provider(model_name="")
@@ -859,7 +1087,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         with self._patch_dashscope_generation(response):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "你好世界")
+        self.assertEqual(result, "你好\n世界")
 
     def test_qwen_provider_falls_back_to_output_text(self):
         """保留旧 DashScope completion 响应结构的兼容路径。"""
@@ -869,7 +1097,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         with self._patch_dashscope_generation(response):
             result = llm._generate_response("Say hello")
 
-        self.assertEqual(result, "旧格式响应")
+        self.assertEqual(result, "旧格式\n响应")
 
     def test_qwen_provider_reports_empty_text(self):
         """Qwen 空响应应返回可诊断错误，而不是底层 AttributeError。"""
@@ -896,6 +1124,48 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("Error:", result)
         self.assertIn("returned empty choices", result)
         self.assertNotIn("NoneType", result)
+
+    def test_apimart_provider_uses_unwrapped_openai_compatible_endpoint(self):
+        """
+        APIMart 文档同时展示 `/api/v1` 和 `/v1` 两组入口。前者的示例响应
+        带有 code/data 外层包装，OpenAI SDK 无法直接从顶层读取 choices；
+        LLM Provider 必须使用标准 `/v1` 地址，才能复用现有响应解析链路。
+        """
+        config.app["llm_provider"] = "apimart"
+        config.app["apimart_api_key"] = "apimart-key"
+        config.app["apimart_base_url"] = ""
+        config.app["apimart_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\napimart")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="apimart-key",
+            base_url="https://api.apimart.ai/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "gpt-5.6-terra",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\napimart")
 
     def test_aihubmix_provider_uses_openai_compatible_client(self):
         """
@@ -937,7 +1207,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloaihubmix")
+        self.assertEqual(result, "hello\naihubmix")
 
     def test_aimlapi_provider_uses_openai_compatible_client(self):
         config.app["llm_provider"] = "aimlapi"
@@ -974,7 +1244,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloaimlapi")
+        self.assertEqual(result, "hello\naimlapi")
 
     def test_evolink_provider_uses_openai_compatible_client(self):
         """
@@ -1016,7 +1286,49 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloevolink")
+        self.assertEqual(result, "hello\nevolink")
+
+    def test_openrouter_provider_uses_openai_compatible_client(self):
+        """
+        OpenRouter exposes OpenAI-compatible Chat Completions through one
+        unified endpoint. The default model stays on a currently free text model
+        suitable for script and keyword generation.
+        """
+        config.app["llm_provider"] = "openrouter"
+        config.app["openrouter_api_key"] = "openrouter-key"
+        config.app["openrouter_base_url"] = ""
+        config.app["openrouter_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nopenrouter")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="openrouter-key",
+            base_url="https://openrouter.ai/api/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "minimax/minimax-m3:free",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nopenrouter")
 
     def test_volcengine_provider_uses_openai_compatible_client(self):
         """
@@ -1058,7 +1370,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "hellovolcengine")
+        self.assertEqual(result, "hello\nvolcengine")
 
     def test_grok_provider_still_uses_existing_path(self):
         config.app["llm_provider"] = "grok"
@@ -1113,7 +1425,7 @@ class TestLiteLLMProvider(unittest.TestCase):
             api_key="groq-test-key",
             base_url="https://api.groq.com/openai/v1",
         )
-        self.assertEqual(result, "hellogroq")
+        self.assertEqual(result, "hello\ngroq")
 
     def _use_ollama_provider(self, base_url=""):
         config.app["llm_provider"] = "ollama"
@@ -1151,7 +1463,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloollama")
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_default_base_url_uses_localhost_outside_container(self):
         """
@@ -1240,7 +1552,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "hellomimo")
+        self.assertEqual(result, "hello\nmimo")
 
     def test_azure_provider_uses_azure_client_directly(self):
         """
@@ -1286,7 +1598,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "messages": [{"role": "user", "content": "Say hello"}],
             },
         )
-        self.assertEqual(result, "helloazure")
+        self.assertEqual(result, "hello\nazure")
 
     def test_unsupported_provider_returns_clear_error(self):
         config.app["llm_provider"] = "g" + "4f"
@@ -1562,6 +1874,56 @@ class TestLiteLLMLiveIntegration(unittest.TestCase):
 
         self.assertNotIn("Error:", result)
         self.assertIn("4", result)
+
+
+class TestRetryWarningBoundary(unittest.TestCase):
+    """'trying again' must not be logged on the last retry attempt."""
+
+    def _trying_again_count(self, mock_logger: object, fragment: str) -> int:
+        return sum(
+            1
+            for call in mock_logger.warning.call_args_list
+            if fragment in str(call)
+        )
+
+    def test_generate_script_no_spurious_warning_on_last_attempt(self):
+        with (
+            patch.object(
+                llm,
+                "_generate_response",
+                side_effect=RuntimeError("provider unavailable"),
+            ),
+            patch.object(llm, "logger") as mock_logger,
+        ):
+            llm.generate_script(video_subject="test subject")
+
+        count = self._trying_again_count(mock_logger, "trying again")
+        self.assertEqual(
+            count,
+            llm._max_retries - 1,
+            "Warning must not fire on the final attempt — no further retry will occur",
+        )
+
+    def test_generate_terms_no_spurious_warning_on_last_attempt(self):
+        with (
+            patch.object(
+                llm,
+                "_generate_response",
+                side_effect=RuntimeError("provider unavailable"),
+            ),
+            patch.object(llm, "logger") as mock_logger,
+        ):
+            llm.generate_terms(
+                video_subject="test subject",
+                video_script="some script text",
+            )
+
+        count = self._trying_again_count(mock_logger, "trying again")
+        self.assertEqual(
+            count,
+            llm._max_retries - 1,
+            "Warning must not fire on the final attempt — no further retry will occur",
+        )
 
 
 if __name__ == "__main__":

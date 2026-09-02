@@ -255,9 +255,13 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
     def test_zero_volume_does_not_require_sonilo_key(self):
         """Sonilo 音量为 0 时，WebUI 不应继续显示 API Key 必填警告。"""
         test_config = dict(config.app, sonilo_api_key="")
+        # BGM 音量现在是可持久化的用户偏好。显式给定本测试的
+        # 非零初始条件，避免其他 AppTest 会话保存的默认值影响前置断言。
+        test_ui = dict(config.ui, bgm_volume=0.2)
         required_warning = self._translation("en", "Sonilo API Key Required")
         with (
             patch.object(config, "app", test_config),
+            patch.object(config, "ui", test_ui),
             patch.object(config, "save_config"),
             patch.object(sonilo, "is_enabled", return_value=False),
         ):

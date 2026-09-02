@@ -39,6 +39,38 @@ MINIMAX_TTS_MODELS = (
     "speech-2.8-hd", "speech-2.8-turbo", "speech-2.6-hd", "speech-2.6-turbo",
     "speech-02-hd", "speech-02-turbo", "speech-01-hd", "speech-01-turbo",
 )
+GEMINI_TTS_VOICES = (
+    ("Zephyr", "Bright"),
+    ("Puck", "Upbeat"),
+    ("Charon", "Informative"),
+    ("Kore", "Firm"),
+    ("Fenrir", "Excitable"),
+    ("Leda", "Youthful"),
+    ("Orus", "Firm"),
+    ("Aoede", "Breezy"),
+    ("Callirrhoe", "Easy-going"),
+    ("Autonoe", "Bright"),
+    ("Enceladus", "Breathy"),
+    ("Iapetus", "Clear"),
+    ("Umbriel", "Easy-going"),
+    ("Algieba", "Smooth"),
+    ("Despina", "Smooth"),
+    ("Erinome", "Clear"),
+    ("Algenib", "Gravelly"),
+    ("Rasalgethi", "Informative"),
+    ("Laomedeia", "Upbeat"),
+    ("Achernar", "Soft"),
+    ("Alnilam", "Firm"),
+    ("Schedar", "Even"),
+    ("Gacrux", "Mature"),
+    ("Pulcherrima", "Forward"),
+    ("Achird", "Friendly"),
+    ("Zubenelgenubi", "Casual"),
+    ("Vindemiatrix", "Gentle"),
+    ("Sadachbia", "Lively"),
+    ("Sadaltager", "Knowledgeable"),
+    ("Sulafat", "Warm"),
+)
 _MINIMAX_TTS_MAX_AUDIO_HEX_CHARS = 100 * 1024 * 1024
 NO_VOICE_NAME = "no-voice"
 # `none` 是 PR #981 里曾使用过的无配音标识。这里短期兼容这个值，避免
@@ -95,35 +127,16 @@ def get_siliconflow_voices() -> list[str]:
 
 def get_gemini_voices() -> list[str]:
     """
-    获取Gemini TTS的声音列表
-    
+    获取 Gemini TTS 官方预置音色列表。
+
+    Google 没有为这些音色发布性别元数据，因此下拉框使用官方风格描述，
+    避免把推测的性别写进持久化 voice id。音色目录来源：
+    https://ai.google.dev/gemini-api/docs/speech-generation#voice-options
+
     Returns:
-        声音列表，格式为 ["gemini:Zephyr-Female", "gemini:Puck-Male", ...]
+        声音列表，格式为 ["gemini:Zephyr-Bright", "gemini:Puck-Upbeat", ...]
     """
-    # Gemini TTS支持的语音列表
-    voices_with_gender = [
-        ("Zephyr", "Female"),
-        ("Puck", "Male"), 
-        ("Charon", "Male"),
-        ("Kore", "Female"),
-        ("Fenrir", "Male"),
-        ("Aoede", "Female"),
-        ("Thalia", "Female"),
-        ("Sage", "Male"),
-        ("Echo", "Female"),
-        ("Harmony", "Female"),
-        ("Lux", "Female"),
-        ("Nova", "Female"),
-        ("Vale", "Male"),
-        ("Orion", "Male"),
-        ("Atlas", "Male"),
-    ]
-    
-    # 添加gemini:前缀，并格式化为显示名称
-    return [
-        f"gemini:{voice}-{gender}"
-        for voice, gender in voices_with_gender
-    ]
+    return [f"gemini:{voice}-{style}" for voice, style in GEMINI_TTS_VOICES]
 
 
 def get_mimo_voices() -> list[str]:
@@ -208,6 +221,38 @@ def get_chatterbox_voices() -> list[str]:
     return result
 
 
+def get_fish_audio_voices() -> list[str]:
+    """Return configured Fish Audio voices.
+
+    Each entry follows the format ``fish_audio:<reference_id>:<display_name>``.
+    When ``reference_id`` is "default", Fish Audio's built-in default voice is
+    used (no ``reference_id`` is sent in the API request).  Operators can list
+    additional public or cloned voices via ``[fish_audio] voices`` in the
+    config file.
+    """
+    result = [
+        "fish_audio:2324c907b9a94c64ab4afb941e5b3408:Clear Female-Female",
+        "fish_audio:7b6131ba75ba47c98a46c847db729ab6:Clear Male-Male",
+        "fish_audio:default:Default Voice",
+    ]
+    voices = config.fish_audio.get("voices", []) or []
+    if isinstance(voices, str):
+        voices = [v.strip() for v in voices.split(",") if v.strip()]
+    for entry in voices:
+        entry = str(entry).strip()
+        if not entry:
+            continue
+        if entry.startswith("fish_audio:"):
+            result.append(entry)
+        elif ":" in entry:
+            # "<reference_id>:<display_name>"
+            result.append(f"fish_audio:{entry}")
+        else:
+            # bare reference_id
+            result.append(f"fish_audio:{entry}:{entry}")
+    return result
+
+
 _AZURE_VOICES_DATA_FILE = os.path.join(
     os.path.dirname(__file__), "data", "azure_voices.json"
 )
@@ -264,6 +309,13 @@ def is_gemini_voice(voice_name: str):
     return voice_name.startswith("gemini:")
 
 
+def parse_gemini_voice_name(voice_name: str | None) -> str:
+    """从新旧 Gemini 下拉框值中提取 Google API 使用的预置音色名称。"""
+    if not is_gemini_voice(voice_name or ""):
+        return ""
+    return (voice_name or "").split(":", 1)[1].split("-", 1)[0].strip()
+
+
 def is_mimo_voice(voice_name: str):
     """检查是否是 Xiaomi MiMo TTS 的声音"""
     return voice_name.startswith("mimo:")
@@ -291,6 +343,15 @@ def get_elevenlabs_api_key() -> str:
 
 def is_chatterbox_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("chatterbox:")
+
+
+def is_fish_audio_voice(voice_name: str) -> bool:
+    return (voice_name or "").startswith("fish_audio:")
+
+
+def get_fish_audio_api_key() -> str:
+    configured_key = str(config.fish_audio.get("api_key", "") if hasattr(config, "fish_audio") and isinstance(config.fish_audio, dict) else "").strip()
+    return configured_key or os.getenv("FISH_API_KEY", "").strip()
 
 
 def is_no_voice(voice_name: str | None) -> bool:
@@ -436,12 +497,9 @@ def tts(
             return None
     elif is_gemini_voice(voice_name):
         # 从voice_name中提取声音名称
-        # 格式: gemini:voice-Gender
-        parts = voice_name.split(":")
-        if len(parts) >= 2:
-            # 移除性别后缀，例如 "Zephyr-Female" -> "Zephyr"
-            voice_with_gender = parts[1]
-            voice = voice_with_gender.split("-")[0]
+        # 格式: gemini:voice-Style；也继续兼容旧的 gemini:voice-Gender。
+        voice = parse_gemini_voice_name(voice_name)
+        if voice:
             return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
@@ -486,6 +544,12 @@ def tts(
         else:
             logger.error(f"Invalid chatterbox voice name format: {voice_name}")
             return None
+    elif is_fish_audio_voice(voice_name):
+        parts = voice_name.split(":")
+        reference_id = parts[1] if len(parts) >= 2 else "default"
+        if reference_id == "default":
+            reference_id = None
+        return fish_audio_tts(text, voice_file, voice_rate, voice_volume, reference_id=reference_id)
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
@@ -884,74 +948,24 @@ def siliconflow_tts(
                 with open(voice_file, "wb") as f:
                     f.write(response.content)
 
-                # 这里仍然沿用项目原有的字幕结构，因此需要补齐旧字段。
                 sub_maker = ensure_legacy_submaker_fields(SubMaker())
 
-                # 获取音频文件的实际长度
                 try:
-                    # 尝试使用moviepy获取音频长度
-                    from moviepy import AudioFileClip
-
                     audio_clip = AudioFileClip(voice_file)
-                    audio_duration = audio_clip.duration
-                    audio_clip.close()
-
-                    # 将音频长度转换为100纳秒单位（与edge_tts兼容）
-                    audio_duration_100ns = int(audio_duration * 10000000)
-
-                    # 使用文本分割来创建更准确的字幕
-                    # 将文本按标点符号分割成句子
-                    sentences = utils.split_string_by_punctuations(text)
-
-                    if sentences:
-                        # 计算每个句子的大致时长（按字符数比例分配）
-                        total_chars = sum(len(s) for s in sentences)
-                        char_duration = (
-                            audio_duration_100ns / total_chars if total_chars > 0 else 0
-                        )
-
-                        current_offset = 0
-                        for sentence in sentences:
-                            if not sentence.strip():
-                                continue
-
-                            # 计算当前句子的时长
-                            sentence_chars = len(sentence)
-                            sentence_duration = int(sentence_chars * char_duration)
-
-                            # 添加到SubMaker
-                            sub_maker.subs.append(sentence)
-                            sub_maker.offset.append(
-                                (current_offset, current_offset + sentence_duration)
-                            )
-
-                            # 更新偏移量
-                            current_offset += sentence_duration
-                    else:
-                        # 如果无法分割，则使用整个文本作为一个字幕
-                        sub_maker.subs = [text]
-                        sub_maker.offset = [(0, audio_duration_100ns)]
-
+                    try:
+                        audio_duration = audio_clip.duration
+                    finally:
+                        audio_clip.close()
                 except Exception as e:
-                    logger.warning(f"Failed to create accurate subtitles: {str(e)}")
-                    # 回退到简单的字幕
-                    sub_maker.subs = [text]
-                    # 使用音频文件的实际长度，如果无法获取，则假设为10秒
-                    sub_maker.offset = [
-                        (
-                            0,
-                            audio_duration_100ns
-                            if "audio_duration_100ns" in locals()
-                            else 10000000,
-                        )
-                    ]
+                    logger.warning(f"Failed to read audio duration: {str(e)}")
+                    audio_duration = 10.0
 
                 logger.success(f"siliconflow tts succeeded: {voice_file}")
-                logger.debug(
-                    "siliconflow subtitle timeline generated, "
-                    f"subs: {len(sub_maker.subs)}, offsets: {len(sub_maker.offset)}"
+                return populate_legacy_submaker_with_full_text(
+                    sub_maker=sub_maker,
+                    text=text,
+                    audio_duration_seconds=audio_duration,
                 )
-                return sub_maker
             else:
                 logger.error(
                     f"siliconflow tts failed with status code {response.status_code}: {response.text}"
@@ -1622,8 +1636,10 @@ def elevenlabs_tts(
                 f.write(response.content)
 
             audio_clip = AudioFileClip(voice_file)
-            audio_duration = audio_clip.duration
-            audio_clip.close()
+            try:
+                audio_duration = audio_clip.duration
+            finally:
+                audio_clip.close()
 
             sub_maker = ensure_legacy_submaker_fields(SubMaker())
             logger.success(f"elevenlabs tts succeeded: {voice_file}")
@@ -1709,8 +1725,10 @@ def chatterbox_tts(
                 f.write(response.content)
 
             audio_clip = AudioFileClip(voice_file)
-            audio_duration = audio_clip.duration
-            audio_clip.close()
+            try:
+                audio_duration = audio_clip.duration
+            finally:
+                audio_clip.close()
 
             sub_maker = ensure_legacy_submaker_fields(SubMaker())
             logger.success(f"chatterbox tts succeeded: {voice_file}")
@@ -1721,6 +1739,150 @@ def chatterbox_tts(
             )
         except Exception as e:
             logger.error(f"chatterbox tts failed: {str(e)}")
+
+    return None
+
+
+# Fish Audio supported models.
+FISH_AUDIO_MODELS = ("s2.1-pro-free", "s2.1-pro", "s2-pro")
+FISH_AUDIO_DEFAULT_MODEL = "s2.1-pro-free"
+
+
+def fish_audio_tts(
+    text: str,
+    voice_file: str,
+    voice_rate: float = 1.0,
+    voice_volume: float = 1.0,
+    reference_id: str | None = None,
+) -> Union[SubMaker, None]:
+    """Generate speech using Fish Audio TTS API.
+
+    The model is read from ``config.fish_audio["model"]`` (single source of
+    truth).  ``reference_id`` selects a public or cloned voice; when *None*
+    Fish Audio's built-in default voice is used.
+
+    ``voice_rate`` is mapped to the ``prosody.speed`` field (0.5–2.0) and
+    ``voice_volume`` is converted from a linear multiplier to dB for the
+    ``prosody.volume`` field (-20.0–20.0 dB).
+    """
+    text = (text or "").strip()
+    if not text:
+        logger.error("Fish Audio TTS text is empty")
+        return None
+
+    api_key = get_fish_audio_api_key()
+    if not api_key:
+        logger.error(
+            "Fish Audio API key is not set. Please set it in config.toml "
+            "[fish_audio] or FISH_API_KEY environment variable."
+        )
+        return None
+
+    model_name = str(
+        config.fish_audio.get("model", FISH_AUDIO_DEFAULT_MODEL)
+        or FISH_AUDIO_DEFAULT_MODEL
+    ).strip()
+    if model_name not in FISH_AUDIO_MODELS:
+        logger.warning(
+            f"Unknown Fish Audio model '{model_name}', falling back to "
+            f"'{FISH_AUDIO_DEFAULT_MODEL}'"
+        )
+        model_name = FISH_AUDIO_DEFAULT_MODEL
+
+    # Map voice_rate → prosody.speed (0.5–2.0)
+    try:
+        speed = max(0.5, min(2.0, float(voice_rate or 1.0)))
+    except (TypeError, ValueError):
+        speed = 1.0
+
+    # Map voice_volume (linear multiplier) → prosody.volume (dB, -20–20).
+    # A multiplier of 1.0 → 0 dB; 0.1 → -20 dB; 2.0 → +6 dB.
+    import math
+    try:
+        vol = float(voice_volume or 1.0)
+        if vol <= 0:
+            volume_db = -20.0
+        else:
+            volume_db = max(-20.0, min(20.0, 20.0 * math.log10(vol)))
+    except (TypeError, ValueError):
+        volume_db = 0.0
+
+    url = "https://api.fish.audio/v1/tts"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "model": model_name,
+    }
+    payload: dict = {
+        "text": text,
+        "format": "mp3",
+        "prosody": {
+            "speed": speed,
+            "volume": volume_db,
+        },
+    }
+    if reference_id:
+        payload["reference_id"] = reference_id
+
+    for i in range(3):
+        try:
+            logger.info(
+                f"start fish audio tts, model: {model_name}, "
+                f"ref: {reference_id or 'default'}, try: {i + 1}"
+            )
+            ensure_file_path_exists(voice_file)
+
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            if response.status_code == 401:
+                logger.error(
+                    "Fish Audio TTS failed: Invalid API key (401). "
+                    "Check config.toml [fish_audio] api_key or FISH_API_KEY."
+                )
+                return None
+            if response.status_code == 402:
+                logger.error(
+                    "Fish Audio TTS failed: Insufficient API credit (402). "
+                    "Please check your account balance at "
+                    "https://fish.audio/app/developers or verify your model and billing tier."
+                )
+                return None
+            if response.status_code == 429:
+                logger.warning(
+                    "Fish Audio TTS rate limited (429), retrying..."
+                )
+                continue
+            if response.status_code != 200:
+                logger.error(
+                    f"fish audio tts failed with status "
+                    f"{response.status_code}: {response.text[:200]}"
+                )
+                continue
+
+            # Validate response contains audio data
+            if not response.content or len(response.content) < 100:
+                logger.error(
+                    "Fish Audio TTS returned empty or invalid audio data"
+                )
+                continue
+
+            with open(voice_file, "wb") as f:
+                f.write(response.content)
+
+            audio_clip = AudioFileClip(voice_file)
+            try:
+                audio_duration = audio_clip.duration
+            finally:
+                audio_clip.close()
+
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            logger.success(f"fish audio tts succeeded: {voice_file}")
+            return populate_legacy_submaker_with_full_text(
+                sub_maker=sub_maker,
+                text=text,
+                audio_duration_seconds=audio_duration,
+            )
+        except Exception as e:
+            logger.error(f"fish audio tts failed: {str(e)}")
 
     return None
 

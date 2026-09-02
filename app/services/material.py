@@ -1,6 +1,11 @@
+import base64
+import io
+import math
 import os
 import random
 import threading
+import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable, List
 from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
@@ -8,15 +13,26 @@ from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
 import requests
 from loguru import logger
 from moviepy.video.io.VideoFileClip import VideoFileClip
+from PIL import Image, UnidentifiedImageError
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
-from app.services import material_cache, task_artifacts
+from app.services import (
+    material_cache,
+    ofox,
+    task_artifacts,
+    video,
+    volcengine_seedance,
+)
 from app.utils import utils
 
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
+
+
+class _OpenAIImageDecodeError(ValueError):
+    """表示兼容接口返回的字节无法解码为图片，不包含本地文件写入故障。"""
 
 
 def _safe_public_url(value: Any) -> str | None:
@@ -603,6 +619,390 @@ def search_videos_coverr(
     return []
 
 
+# WaveSpeed AI (https://wavespeed.ai) 通过文生视频模型按脚本关键词直接生成素材，
+# 与三个库存素材源共用 MaterialInfo 结果结构和后续下载、剪辑流程。
+WAVESPEED_API_BASE_URL = "https://api.wavespeed.ai/api/v3"
+WAVESPEED_DEFAULT_T2V_MODEL = "bytedance/seedance-2.0-fast/text-to-video"
+WAVESPEED_POLL_INTERVAL_SECONDS = 2.0
+WAVESPEED_RUN_TIMEOUT_SECONDS = 600.0
+# 默认模型 bytedance/seedance-2.0-fast/text-to-video 只接受 4-15 秒；超出
+# 范围的请求会被 API 直接拒绝。WebUI 默认片段时长是 3 秒，因此必须在提交
+# 前收敛到模型支持区间，多出的时长由现有剪辑流程按片段时长裁掉。
+WAVESPEED_MIN_DURATION_SECONDS = 4
+WAVESPEED_MAX_DURATION_SECONDS = 15
+# 三个失败态语义不同（模型报错 / 用户取消 / 平台超时），但对素材流程都意味着
+# 本关键词没有产物，统一按空结果处理，交给上层跳过该片段继续生成。
+WAVESPEED_FAILURE_STATUSES = frozenset({"failed", "cancelled", "timeout"})
+# 与 WaveSpeed 官方 Python SDK / n8n 节点保持同一口径：429 与 5xx 属于临时
+# 故障，值得有限次退避重试；4xx 是明确的客户端错误，快速失败。
+WAVESPEED_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+# 单次轮询允许的连续临时失败次数。一次不走运的 GET 不能让已经计费的任务失联。
+WAVESPEED_MAX_POLL_RETRIES = 5
+# 线性退避基数，第 n 次重试等待 base * n 秒。
+WAVESPEED_RETRY_BASE_SECONDS = 1.0
+# 产物下载失败时对同一个签名地址的重试次数。素材已经付费生成，优先重试原
+# 地址，不能因为一次下载抖动就重新提交一次付费生成任务。
+WAVESPEED_MAX_DOWNLOAD_RETRIES = 2
+
+
+class WaveSpeedUnconfirmedTaskError(RuntimeError):
+    """
+    付费生成任务已提交，但最终状态无法在本地确认。
+
+    这类异常绝不等价于“该任务失败、可以重来”：远端任务可能仍在运行或已经
+    完成并计费。素材流程必须就此停止，不再为后续关键词提交新的付费任务，
+    并把已提交的 prediction id 留在日志中供人工找回。
+    """
+
+    def __init__(self, message: str, prediction_id: str = ""):
+        super().__init__(message)
+        self.prediction_id = prediction_id
+
+
+def _wavespeed_status_code(response: Any) -> int:
+    """读取响应状态码；测试替身或异常对象缺少该字段时按 200 处理。"""
+    try:
+        return int(getattr(response, "status_code", 200))
+    except (TypeError, ValueError):
+        return 200
+
+
+def _is_wavespeed_retryable_error(error: Exception) -> bool:
+    """
+    判断轮询异常是否值得重试。
+
+    连接、超时一类网络异常没有状态码，按临时故障处理；带状态码的响应只在
+    429 和 5xx 时重试，与官方 SDK 的重试集合保持一致。
+    """
+    if isinstance(
+        error,
+        (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+        ),
+    ):
+        return True
+    response = getattr(error, "response", None)
+    if response is not None:
+        return _wavespeed_status_code(response) in WAVESPEED_RETRYABLE_STATUS_CODES
+    return False
+
+
+def _wavespeed_duration_bounds() -> tuple[int, int]:
+    """
+    返回当前模型支持的生成时长区间（秒）。
+
+    默认区间对应默认 Seedance 模型；用户切换到其它文生视频模型时，可以在
+    配置中同步调整区间。任何异常配置都退回默认值，并保证 min <= max，
+    避免把用户输入变成必然失败的远端请求。
+    """
+
+    def read_bound(key: str, fallback: int) -> int:
+        try:
+            value = int(config.app.get(key, fallback))
+        except (TypeError, ValueError):
+            return fallback
+        return value if value >= 1 else fallback
+
+    min_duration = read_bound("wavespeed_min_duration", WAVESPEED_MIN_DURATION_SECONDS)
+    max_duration = read_bound("wavespeed_max_duration", WAVESPEED_MAX_DURATION_SECONDS)
+    return min_duration, max(max_duration, min_duration)
+
+
+def generate_videos_wavespeed(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
+    """
+    用 WaveSpeed 文生视频模型为一个脚本关键词生成一段素材。
+
+    与库存素材源的 search_videos_* 保持同一签名和空列表失败约定，
+    使其可以直接接入 ``download_videos`` 的通用下载与时长核算流程。
+    ``minimum_duration`` 在生成语境下就是目标片段时长（秒）。
+    """
+    aspect = VideoAspect(video_aspect)
+    video_width, video_height = aspect.to_resolution()
+    api_key = get_api_key("wavespeed_api_keys")
+    model_id = (
+        str(
+            config.app.get("wavespeed_text_to_video_model", "")
+            or WAVESPEED_DEFAULT_T2V_MODEL
+        )
+        .strip()
+        .strip("/")
+    )
+    headers = {"Authorization": f"Bearer {api_key}"}
+    requested_duration = max(int(minimum_duration), 1)
+    min_duration, max_duration = _wavespeed_duration_bounds()
+    duration = min(max(requested_duration, min_duration), max_duration)
+    if duration != requested_duration:
+        # 生成比请求更长不会影响成片：剪辑流程仍按片段时长裁剪；生成比请求
+        # 更短的情况只发生在请求超过模型上限时，此时也只能收敛到上限。
+        logger.info(
+            f"wavespeed clip duration clamped to model-supported range: "
+            f"requested={requested_duration}s, using={duration}s "
+            f"(supported {min_duration}-{max_duration}s)"
+        )
+    payload = {
+        "prompt": search_term,
+        "aspect_ratio": aspect.value,
+        "duration": duration,
+    }
+    logger.info(
+        f"generating video on wavespeed: model={model_id}, "
+        f"term={search_term!r}, duration={duration}s"
+    )
+
+    # 提交 POST 绝不自动重试：请求可能已经在远端创建了付费任务，重发会造成
+    # 重复生成和重复扣费（与官方 SDK 的 submission 策略一致）。
+    try:
+        submit_response = requests.post(
+            f"{WAVESPEED_API_BASE_URL}/{model_id}",
+            json=payload,
+            headers=headers,
+            proxies=config.proxy,
+            verify=_get_tls_verify(),
+            timeout=(30, 60),
+        )
+    except Exception as e:
+        # 没有收到响应并不代表任务没有创建。此时状态不明，必须终止整个生成
+        # 流程，而不是继续为下一个关键词提交新的付费任务。
+        raise WaveSpeedUnconfirmedTaskError(
+            "wavespeed submission did not return a response, the task may "
+            "already exist remotely: "
+            f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+        ) from e
+
+    submit_status = _wavespeed_status_code(submit_response)
+    if submit_status >= 500:
+        # 5xx 可能发生在任务创建之后，无法判断是否已经计费。
+        raise WaveSpeedUnconfirmedTaskError(
+            f"wavespeed submission failed with HTTP {submit_status}, "
+            "the task may already exist remotely"
+        )
+    try:
+        submit_body = submit_response.json()
+    except Exception as e:
+        raise WaveSpeedUnconfirmedTaskError(
+            "wavespeed submission returned an unreadable response, the task "
+            f"may already exist remotely: error={type(e).__name__}"
+        ) from e
+
+    submit_data = submit_body.get("data") if isinstance(submit_body, dict) else None
+    if not isinstance(submit_body, dict) or submit_body.get("code") != 200:
+        # 4xx 与业务错误码是明确的拒绝，远端没有创建任务，也就不存在重复
+        # 计费风险，按现有素材源约定返回空结果并继续。
+        logger.error(
+            "wavespeed video generation request rejected: "
+            f"http_status={submit_status}, "
+            f"code={submit_body.get('code') if isinstance(submit_body, dict) else None}, "
+            f"detail={_redact_secret(str((submit_body or {}).get('message') or ''), api_key)}"
+        )
+        return []
+    prediction_id = (
+        str(submit_data.get("id") or "") if isinstance(submit_data, dict) else ""
+    )
+    if not prediction_id:
+        # 提交被接受但没拿到 ID：任务可能已经存在却无法追踪，不能继续下单。
+        raise WaveSpeedUnconfirmedTaskError(
+            "wavespeed accepted the submission without returning a prediction id"
+        )
+    # 生成任务提交成功即产生远端计费副作用，先落日志记录任务 ID，
+    # 即使后续轮询失败，用户仍能凭 ID 在 WaveSpeed 控制台找回产物。
+    logger.info(f"wavespeed prediction created: id={prediction_id}")
+
+    result_data = _wait_for_wavespeed_prediction(
+        prediction_id=prediction_id,
+        headers=headers,
+        api_key=api_key,
+    )
+    if result_data is None:
+        return []
+
+    try:
+        video_items = []
+        outputs = result_data.get("outputs")
+        for output in outputs if isinstance(outputs, list) else []:
+            # 产物 URL 是带签名的临时下载地址，必须整体保留（不能剥离查询参
+            # 数），因此不写入 source_info，只用于随后的立即下载。
+            if not isinstance(output, str) or not output.startswith(
+                ("http://", "https://")
+            ):
+                continue
+            item = MaterialInfo()
+            item.provider = "wavespeed"
+            item.url = output
+            item.duration = duration
+            item.source_info = {
+                "provider": "wavespeed",
+                "search_term": search_term,
+                "asset_id": prediction_id,
+                "rendition": {
+                    "id": None,
+                    "width": video_width,
+                    "height": video_height,
+                },
+            }
+            video_items.append(item)
+        if not video_items:
+            logger.error(
+                "wavespeed prediction completed without downloadable outputs: "
+                f"id={prediction_id}"
+            )
+        return video_items
+    except Exception as e:
+        # 产物已经生成并计费，这里的异常只可能来自本地解析。记录后按空结果
+        # 返回，让上层跳过该片段，但任务状态本身是确定的，可以继续后续片段。
+        logger.error(
+            "wavespeed output parsing failed: "
+            f"id={prediction_id}, error={type(e).__name__}, "
+            f"detail={_redact_request_error(e, api_key)}"
+        )
+
+    return []
+
+
+def _wait_for_wavespeed_prediction(
+    *,
+    prediction_id: str,
+    headers: dict,
+    api_key: str,
+) -> dict | None:
+    """
+    轮询同一个 prediction id 直到出现确定结果。
+
+    返回 ``completed`` 的 data；远端明确失败（failed / cancelled / timeout）
+    时返回 None，表示该任务已经结束、可以安全地继续后续片段。临时故障按
+    线性退避重试同一个 ID，绝不重新提交任务；状态始终无法确认时抛出
+    :class:`WaveSpeedUnconfirmedTaskError`，由调用方终止整个生成流程。
+    """
+    deadline = time.monotonic() + WAVESPEED_RUN_TIMEOUT_SECONDS
+    consecutive_failures = 0
+    while True:
+        try:
+            response = requests.get(
+                f"{WAVESPEED_API_BASE_URL}/predictions/{prediction_id}/result",
+                headers=headers,
+                proxies=config.proxy,
+                verify=_get_tls_verify(),
+                timeout=(30, 60),
+            )
+            status_code = _wavespeed_status_code(response)
+            if status_code in WAVESPEED_RETRYABLE_STATUS_CODES:
+                raise requests.exceptions.HTTPError(
+                    f"HTTP {status_code}", response=response
+                )
+            result_body = response.json()
+            result_data = (
+                result_body.get("data") if isinstance(result_body, dict) else None
+            )
+            if not isinstance(result_body, dict) or result_body.get("code") != 200:
+                # 轮询被明确拒绝（如 4xx）时任务状态仍然未知：任务已经提交，
+                # 只是本地查不到结果，同样不能继续提交新的付费任务。
+                raise WaveSpeedUnconfirmedTaskError(
+                    "wavespeed prediction status is unknown: "
+                    f"http_status={status_code}, "
+                    f"code={result_body.get('code') if isinstance(result_body, dict) else None}, "
+                    f"detail={_redact_secret(str((result_body or {}).get('message') or ''), api_key)}",
+                    prediction_id=prediction_id,
+                )
+            if not isinstance(result_data, dict):
+                raise WaveSpeedUnconfirmedTaskError(
+                    "wavespeed prediction result payload is malformed",
+                    prediction_id=prediction_id,
+                )
+        except WaveSpeedUnconfirmedTaskError:
+            raise
+        except Exception as e:
+            if not _is_wavespeed_retryable_error(e):
+                raise WaveSpeedUnconfirmedTaskError(
+                    "wavespeed prediction polling failed and the task state is "
+                    f"unknown: error={type(e).__name__}, "
+                    f"detail={_redact_request_error(e, api_key)}",
+                    prediction_id=prediction_id,
+                ) from e
+            consecutive_failures += 1
+            if consecutive_failures > WAVESPEED_MAX_POLL_RETRIES:
+                raise WaveSpeedUnconfirmedTaskError(
+                    "wavespeed prediction polling failed after "
+                    f"{WAVESPEED_MAX_POLL_RETRIES + 1} attempts, the task may "
+                    "still be running remotely: "
+                    f"error={type(e).__name__}, "
+                    f"detail={_redact_request_error(e, api_key)}",
+                    prediction_id=prediction_id,
+                ) from e
+            delay = WAVESPEED_RETRY_BASE_SECONDS * consecutive_failures
+            logger.warning(
+                "wavespeed prediction polling hit a transient error, retry the "
+                f"same task: id={prediction_id}, "
+                f"attempt={consecutive_failures}/{WAVESPEED_MAX_POLL_RETRIES}, "
+                f"error={type(e).__name__}, retry_in={delay:.1f}s"
+            )
+            time.sleep(delay)
+            continue
+
+        # 拿到一次有效响应就重置计数，只有连续失败才消耗重试额度。
+        consecutive_failures = 0
+        status = str(result_data.get("status") or "")
+        if status == "completed":
+            return result_data
+        if status in WAVESPEED_FAILURE_STATUSES:
+            logger.error(
+                "wavespeed prediction did not produce a video: "
+                f"id={prediction_id}, status={status}, "
+                f"detail={_redact_secret(str(result_data.get('error') or ''), api_key)}"
+            )
+            return None
+        if time.monotonic() > deadline:
+            # 远端任务仍在执行，本地无法确认最终状态，必须停止继续下单。
+            raise WaveSpeedUnconfirmedTaskError(
+                f"wavespeed prediction is still {status or 'pending'} after "
+                f"{WAVESPEED_RUN_TIMEOUT_SECONDS:.0f}s of local waiting",
+                prediction_id=prediction_id,
+            )
+        time.sleep(WAVESPEED_POLL_INTERVAL_SECONDS)
+
+
+def _save_generated_video_with_retry(
+    video_url: str, save_dir: str, provider: str
+) -> str:
+    """
+    下载已经付费生成的产物，失败时优先重试同一个地址。
+
+    重新生成一次远端任务的代价是再付一次费，所以下载抖动必须先在原地址上
+    做有限次退避重试，重试耗尽才放弃该片段。
+    """
+    for attempt in range(WAVESPEED_MAX_DOWNLOAD_RETRIES + 1):
+        try:
+            saved_video_path = save_video(video_url=video_url, save_dir=save_dir)
+            if saved_video_path:
+                return saved_video_path
+            failure_detail = "empty result"
+        except Exception as e:
+            failure_detail = (
+                f"error={type(e).__name__}, "
+                f"detail={_redact_request_error(e, video_url)}"
+            )
+        if attempt >= WAVESPEED_MAX_DOWNLOAD_RETRIES:
+            break
+        delay = WAVESPEED_RETRY_BASE_SECONDS * (attempt + 1)
+        logger.warning(
+            "failed to download generated video, retry the same url: "
+            f"provider={provider}, "
+            f"attempt={attempt + 1}/{WAVESPEED_MAX_DOWNLOAD_RETRIES}, "
+            f"{failure_detail}, retry_in={delay:.1f}s"
+        )
+        time.sleep(delay)
+    logger.error(
+        "failed to download generated video after "
+        f"{WAVESPEED_MAX_DOWNLOAD_RETRIES + 1} attempts: "
+        f"provider={provider}, {failure_detail}"
+    )
+    return ""
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -661,6 +1061,504 @@ def save_video(video_url: str, save_dir: str = "") -> str:
                         f"failed to close video clip: {video_path}, error: {str(close_error)}"
                     )
     return ""
+
+
+# OpenAI 兼容文生图（Issue #1274）通过 /images/generations 协议为脚本关键词
+# 生成图片素材，既可指向本地 ComfyUI/SD 网关，也可用于各类 OpenAI 协议中转
+# 服务。生成的图片立即渲染成与 local 素材同款"缓慢放大"mp4 片段，对下游
+# 剪辑流程完全透明。
+OPENAI_IMAGE_ENDPOINT_PATH = "images/generations"
+# OpenAI 官方图片接口只接受模型规定的尺寸，不能直接传视频分辨率（如 1080x1920）。
+# 留空 openai_image_size 时按画幅取以下兼容默认值；本地网关可显式配置覆盖。
+OPENAI_IMAGE_DEFAULT_SIZES = {
+    VideoAspect.portrait: "1024x1536",
+    VideoAspect.landscape: "1536x1024",
+    VideoAspect.square: "1024x1024",
+}
+# 与 WaveSpeed 保持同一重试口径：429 与 5xx 属于临时故障，做有限次退避重试。
+OPENAI_IMAGE_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+# 401/403 是当前 key 被明确拒绝。get_api_key 每次调用轮换 key，配置了多个
+# key 时重试会自动换 key；只有一个 key 时快速失败，不做无意义重试。
+OPENAI_IMAGE_KEY_ERROR_STATUS_CODES = frozenset({401, 403})
+OPENAI_IMAGE_MAX_ATTEMPTS = 3
+# 串行出图 + 线性退避，兼容中转服务普遍的限流恢复窗口。
+OPENAI_IMAGE_RETRY_BACKOFF_SECONDS = (5, 15, 30)
+# 同步生成接口可能需要数十秒才返回图片，读超时给足余量。
+OPENAI_IMAGE_REQUEST_TIMEOUT = (30, 300)
+# 图片已按张计费后的下载重试：优先重试原地址，而不是重新生成同一张图。
+OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS = 3
+OPENAI_IMAGE_DOWNLOAD_BACKOFF_SECONDS = 2
+
+
+def is_openai_image_enabled(app_config: dict | None = None) -> bool:
+    """
+    判断 OpenAI 兼容文生图素材源是否已完成最小配置。
+
+    API Key 允许为空：完全本地的 ComfyUI/SD 网关通常不需要鉴权，为空时
+    请求不带 Authorization 头。供任务预检和 WebUI 在消耗 LLM、TTS 额度
+    前拦截缺失配置的任务。
+    """
+    app_config = config.app if app_config is None else app_config
+    return bool(
+        str(app_config.get("openai_image_base_url", "") or "").strip()
+        and str(app_config.get("openai_image_model", "") or "").strip()
+    )
+
+
+def _openai_image_endpoint() -> tuple[str, str]:
+    """
+    读取文生图端点与模型名，缺失时抛出带配置指引的错误。
+    """
+    base_url = (
+        str(config.app.get("openai_image_base_url", "") or "").strip().rstrip("/")
+    )
+    model = str(config.app.get("openai_image_model", "") or "").strip()
+    if not base_url:
+        raise ValueError(
+            "\n\n##### openai_image_base_url is not set #####\n\n"
+            f"Please set it in the config.toml file: {config.config_file}\n"
+        )
+    if not model:
+        raise ValueError(
+            "\n\n##### openai_image_model is not set #####\n\n"
+            f"Please set it in the config.toml file: {config.config_file}\n"
+        )
+    return f"{base_url}/{OPENAI_IMAGE_ENDPOINT_PATH}", model
+
+
+def _openai_image_size(video_aspect: VideoAspect) -> str:
+    """
+    解析请求的图片 size。
+
+    OpenAI 官方接口只接受模型规定的尺寸（如 1024x1536），直接传视频分辨率
+    （如 1080x1920）会返回 400。默认按画幅取兼容尺寸；``openai_image_size``
+    可显式配置覆盖，供支持任意分辨率的本地网关（如 SD WebUI）使用。
+    """
+    configured = str(config.app.get("openai_image_size", "") or "").strip()
+    if configured:
+        return configured
+    return OPENAI_IMAGE_DEFAULT_SIZES.get(VideoAspect(video_aspect), "1024x1024")
+
+
+def _openai_image_prompt(search_term: str) -> str:
+    """
+    把脚本关键词包装成最终提示词。
+
+    可选配置 ``openai_image_prompt_template`` 支持 ``{term}`` 占位符，
+    用于统一附加风格修饰（如画质、构图、镜头语言），提升图文匹配度：
+
+    .. code-block:: toml
+
+        openai_image_prompt_template = "cinematic photo of {term}, photorealistic"
+
+    留空或不含占位符时退回关键词原文，行为与旧版本完全一致。占位符
+    替换失败（如模板误写了格式化语法）也回退原文，不让配置错误中断
+    整个生成任务。
+    """
+    template = str(config.app.get("openai_image_prompt_template", "") or "").strip()
+    if not template or "{term}" not in template:
+        return search_term
+    try:
+        return template.replace("{term}", search_term)
+    except Exception:
+        return search_term
+
+
+def _response_json_safely(response: Any) -> Any:
+    """读取响应 JSON；测试替身或异常响应解析失败时返回 None。"""
+    try:
+        return response.json()
+    except Exception:
+        return None
+
+
+def _openai_image_response_message(body: Any) -> str:
+    """
+    从 OpenAI 兼容响应中提取可读错误描述。
+
+    标准格式是 ``{"error": {"message": ...}}``，中转服务常退化为
+    ``{"message": ...}`` 或直接给一个字符串。都取不到时返回空串，由调用方
+    决定是否回退到响应正文。
+    """
+    if not isinstance(body, dict):
+        return str(body or "")[:300]
+    error = body.get("error")
+    if isinstance(error, dict):
+        return str(error.get("message") or "")[:300]
+    if error is not None:
+        return str(error)[:300]
+    return str(body.get("message") or "")[:300]
+
+
+def _openai_image_http_failure(response: Any, status: int, api_key: str) -> str:
+    """把 HTTP 错误响应整理成一条脱敏后的日志可读描述。"""
+    message = _openai_image_response_message(_response_json_safely(response))
+    if not message:
+        message = str(getattr(response, "text", "") or "")[:300]
+    return f"HTTP {status}: {_redact_secret(message, api_key)}"
+
+
+def _openai_image_download_bytes(
+    image_url: str,
+    api_key: str,
+) -> tuple[bytes | None, str]:
+    """
+    下载已生成图片的临时 URL。
+
+    图片已经按张计费，下载失败时优先重试原地址，而不是回退到重新生成，
+    避免为同一张图重复付费。
+    """
+    failure_detail = "no download attempt was made"
+    for attempt in range(1, OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS + 1):
+        try:
+            response = requests.get(
+                image_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/115.0.0.0 Safari/537.36"
+                },
+                proxies=config.proxy,
+                verify=_get_tls_verify(),
+                timeout=(30, 120),
+            )
+            if response.status_code == 200 and response.content:
+                return response.content, ""
+            failure_detail = f"HTTP {response.status_code} while downloading image"
+        except Exception as e:
+            failure_detail = (
+                f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+            )
+        if attempt < OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS:
+            logger.warning(
+                "generated image download failed, retrying the same url: "
+                f"attempt={attempt}/{OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS}, "
+                f"{failure_detail}"
+            )
+            time.sleep(OPENAI_IMAGE_DOWNLOAD_BACKOFF_SECONDS)
+    return None, failure_detail
+
+
+def _parse_openai_image_response(
+    response: Any,
+    api_key: str,
+) -> tuple[bytes | None, str]:
+    """
+    解析 /images/generations 响应，取回 url 或 b64_json 图片数据。
+
+    解析失败属于明确的业务拒绝（如内容策略）或异常响应格式，直接返回
+    错误描述，不做退避重试——重发同样的请求只会得到同样的结果。
+    """
+    body = _response_json_safely(response)
+    data = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(data, list) or not data:
+        return None, _redact_secret(_openai_image_response_message(body), api_key)
+
+    entry = data[0]
+    if not isinstance(entry, dict):
+        return None, "invalid image data entry"
+
+    b64_payload = entry.get("b64_json")
+    if b64_payload:
+        try:
+            return base64.b64decode(b64_payload), ""
+        except Exception as e:
+            return None, f"invalid b64_json payload: {type(e).__name__}"
+
+    image_url = entry.get("url")
+    if isinstance(image_url, str) and image_url.startswith(("http://", "https://")):
+        return _openai_image_download_bytes(image_url, api_key)
+
+    return None, "image response has neither url nor b64_json"
+
+
+def _request_openai_image(endpoint: str, payload: dict) -> tuple[bytes | None, str]:
+    """
+    调用 OpenAI 兼容 /images/generations 接口，带退避重试与 key 轮换。
+
+    429/5xx 按临时故障退避重试；401/403 只有在配置了多个 key 时才重试
+    （借助 get_api_key 的轮换机制换 key）；其余 4xx 是明确拒绝，快速失败
+    交给上层跳过该关键词。
+
+    计费安全：POST 的读超时与连接中断视为"未确认"状态——服务端可能已经
+    生成并扣费，只是响应没有返回，自动重新提交可能造成重复生成和重复
+    计费，因此不做重试。只有连接阶段超时（ConnectTimeout，请求确定没有
+    送达服务端）才确认没有创建生成任务，可以安全重试。
+
+    API Key 允许为空：完全本地的 ComfyUI/SD 网关通常不需要鉴权，为空时
+    不发送 Authorization 头。
+    """
+    api_keys = config.app.get("openai_image_api_keys")
+    if isinstance(api_keys, (list, tuple)):
+        configured_keys = [k for k in api_keys if str(k or "").strip()]
+    elif str(api_keys or "").strip():
+        configured_keys = [api_keys]
+    else:
+        configured_keys = []
+
+    failure_detail = "no request attempt was made"
+    for attempt in range(1, OPENAI_IMAGE_MAX_ATTEMPTS + 1):
+        api_key = get_api_key("openai_image_api_keys") if configured_keys else ""
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        retryable = False
+        try:
+            response = requests.post(
+                endpoint,
+                json=payload,
+                headers=headers,
+                proxies=config.proxy,
+                verify=_get_tls_verify(),
+                timeout=OPENAI_IMAGE_REQUEST_TIMEOUT,
+            )
+        except requests.exceptions.ConnectTimeout as e:
+            # 连接阶段超时：请求确定没有送达服务端，没有创建生成任务，
+            # 可以安全重试。
+            failure_detail = (
+                f"connect timeout: detail={_redact_request_error(e, api_key)}"
+            )
+            retryable = True
+        except Exception as e:
+            # 读超时/连接中断等属于"未确认"状态：服务端可能已经受理并扣费，
+            # 自动重新提交可能重复生成、重复计费，交由上层跳过该关键词。
+            failure_detail = (
+                f"unconfirmed request error (no retry to avoid double billing): "
+                f"{type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+            )
+        else:
+            status = int(getattr(response, "status_code", 200) or 200)
+            if status in OPENAI_IMAGE_KEY_ERROR_STATUS_CODES:
+                failure_detail = _openai_image_http_failure(response, status, api_key)
+                # 只有多 key 配置下，重试才可能轮换到可用 key。
+                retryable = len(configured_keys) > 1
+            elif status in OPENAI_IMAGE_RETRYABLE_STATUS_CODES:
+                failure_detail = _openai_image_http_failure(response, status, api_key)
+                retryable = True
+            elif status >= 400:
+                return None, _openai_image_http_failure(response, status, api_key)
+            else:
+                image_bytes, parse_error = _parse_openai_image_response(
+                    response, api_key
+                )
+                if image_bytes is not None:
+                    return image_bytes, ""
+                failure_detail = parse_error
+
+        if retryable and attempt < OPENAI_IMAGE_MAX_ATTEMPTS:
+            backoff_seconds = OPENAI_IMAGE_RETRY_BACKOFF_SECONDS[
+                min(attempt - 1, len(OPENAI_IMAGE_RETRY_BACKOFF_SECONDS) - 1)
+            ]
+            logger.warning(
+                "openai image request failed, retrying: "
+                f"attempt={attempt}/{OPENAI_IMAGE_MAX_ATTEMPTS}, "
+                f"next_retry_in={backoff_seconds}s, detail={failure_detail}"
+            )
+            time.sleep(backoff_seconds)
+            continue
+        return None, failure_detail
+
+    return None, failure_detail
+
+
+def _save_openai_image_file(
+    image_bytes: bytes,
+    save_dir: str,
+) -> tuple[str, int, int]:
+    """
+    把生成结果规范成 PNG 落盘，返回 (路径, 宽, 高)。
+
+    统一转成 PNG 可以规避两类问题：中转服务返回 WebP/JPEG 却没有可靠
+    扩展名，以及携带异常元数据的图片让 MoviePy 解析失败（与 local 素材
+    的净化逻辑呼应，这里在落盘阶段就完成规范化）。
+    """
+    if not save_dir:
+        save_dir = utils.storage_dir("cache_images", create=True)
+    elif not os.path.isdir(save_dir):
+        os.makedirs(save_dir, exist_ok=True)
+
+    image_path = os.path.join(save_dir, f"openai-image-{uuid.uuid4().hex[:12]}.png")
+
+    # 图片解码失败可以降级为“跳过当前关键词”，但目录权限、磁盘空间和文件
+    # 写入失败必须继续抛出，否则按需生成循环会在本地无法保存文件时继续创建
+    # 后续付费任务。Image.open 只读取内存字节，因此这里的 OSError 属于格式
+    # 识别失败；image.load 的 OSError 则对应截断或损坏的图片数据。
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
+        raise _OpenAIImageDecodeError(f"{type(exc).__name__}: {exc}") from exc
+
+    with image:
+        try:
+            image.load()
+        except (OSError, SyntaxError, ValueError) as exc:
+            raise _OpenAIImageDecodeError(f"{type(exc).__name__}: {exc}") from exc
+        if image.mode not in ("RGB", "RGBA", "L", "LA", "P"):
+            image = image.convert("RGB")
+        # save 不放进解码异常保护区：写入错误表示运行环境持续不可用，应立即
+        # 终止整个任务，避免后续关键词继续产生无法落盘的付费图片。
+        image.save(image_path, format="PNG")
+        width, height = image.size
+    return image_path, width, height
+
+
+def generate_images_openai(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+    save_dir: str = "",
+) -> List[MaterialInfo]:
+    """
+    用 OpenAI 兼容文生图接口为一个脚本关键词生成一张图片并保存到本地。
+
+    与 generate_videos_wavespeed 保持同一签名和空列表失败约定。图片没有
+    原生时长，``duration`` 记录目标片段时长（秒），供按需下载流程核算
+    是否已经凑够配音时长。API 返回的实际尺寸可能与请求不一致，这里以
+    图片真实尺寸写入 rendition，不依赖请求参数。
+    """
+    aspect = VideoAspect(video_aspect)
+    clip_duration = max(int(minimum_duration), 1)
+    endpoint, model = _openai_image_endpoint()
+    image_size = _openai_image_size(aspect)
+    payload = {
+        "model": model,
+        "prompt": _openai_image_prompt(search_term),
+        "n": 1,
+        "size": image_size,
+    }
+    logger.info(
+        f"generating image via openai-compatible endpoint: model={model}, "
+        f"term={search_term!r}, size={image_size}"
+    )
+    image_bytes, failure_detail = _request_openai_image(endpoint, payload)
+    if image_bytes is None:
+        logger.error(
+            f"openai image generation failed: term={search_term!r}, "
+            f"detail={failure_detail}"
+        )
+        return []
+
+    try:
+        image_path, width, height = _save_openai_image_file(image_bytes, save_dir)
+    except _OpenAIImageDecodeError as e:
+        # 兼容层可能返回 200 但 body 不是图片（如伪装成 JSON 的 HTML 错误页、
+        # 网关的降级提示页）。图片无法解码属于"该次生成已失败"，按素材源
+        # 约定返回空列表让上层跳过该关键词继续，而不是让异常中断整个任务。
+        logger.error(
+            "openai image response is not a decodable image, skipping term: "
+            f"term={search_term!r}, error={type(e).__name__}, detail={e}"
+        )
+        return []
+    item = MaterialInfo()
+    item.provider = "openai_image"
+    item.url = image_path
+    item.duration = clip_duration
+    item.source_info = {
+        "provider": "openai_image",
+        "search_term": search_term,
+        "rendition": {
+            "id": None,
+            "width": width,
+            "height": height,
+        },
+    }
+    return [item]
+
+
+def _render_openai_image_video(image_path: str, clip_duration: int) -> str:
+    """
+    把生成的图片渲染成 mp4 片段，复用 local 素材的"图片 → 动态片段"管线。
+
+    渲染失败按素材源约定返回空字符串，由调用方跳过该图片继续。
+    """
+    try:
+        return video.render_image_zoom_video(image_path, clip_duration)
+    except Exception as e:
+        logger.error(
+            "failed to render generated image as a video clip: "
+            f"image={image_path}, error={type(e).__name__}, detail={e}"
+        )
+        return ""
+
+
+def _download_videos_openai_image_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """
+    按脚本片段顺序逐张生成 OpenAI 兼容文生图素材，凑够所需总时长立即停止。
+
+    与 WaveSpeed 按需生成同一付费安全语义：文生图按张计费，先全量生成再
+    挑选会为用不到的画面付费。每张图片生成后立即渲染成 mp4 片段并累计
+    有效时长（与库存流程一致，按片段时长封顶），累计达到所需配音时长后
+    不再发起新的付费请求。单张失败按素材源约定跳过并继续下一个关键词。
+    """
+    if not material_directory:
+        # 生成图片按任务计费且不可复用，默认落在任务目录便于追溯。
+        material_directory = utils.task_dir(task_id)
+
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+    total_duration = 0.0
+
+    # 非正数配音时长会让"累计达到所需时长"的判断失去意义，直接空手返回，
+    # 避免为不可能凑够的任务持续按张付费（与 Seedance 预检语义一致）。
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError):
+        required_duration = 0.0
+    if required_duration <= 0:
+        logger.warning(
+            "skip openai image generation because required audio duration is "
+            f"not positive: duration={audio_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    for search_term in search_terms:
+        items = generate_images_openai(
+            search_term=search_term,
+            minimum_duration=max_clip_duration,
+            video_aspect=video_aspect,
+            save_dir=material_directory,
+        )
+        for item in items:
+            video_file = _render_openai_image_video(item.url, max_clip_duration)
+            if not video_file:
+                continue
+            logger.info(f"image material rendered: {video_file}")
+            video_paths.append(video_file)
+            try:
+                material_sources.append(_material_source_record(item, video_file))
+            except Exception as source_error:
+                # 与库存源一致：来源记录异常不能把已经付费生成并成功渲染的
+                # 素材当作失败，更不能阻断视频生成。
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=openai_image, "
+                    f"error={type(source_error).__name__}, detail={source_error}"
+                )
+            total_duration += min(max_clip_duration, item.duration)
+            # 与 WaveSpeed 相同用 >= 判断：恰好凑够时再生成一张就多付一次费。
+            # 内外两处判断必须保持同一语义。
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated image materials cover the required duration, stop "
+                f"generating more images: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(f"generated and rendered {len(video_paths)} image materials")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
 
 
 def _search_videos_with_cache(
@@ -794,6 +1692,55 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
+    if source == "wavespeed":
+        # AI 生成按条计费，不能沿用库存源"先为全部关键词取回候选、再挑选"
+        # 的流程，否则会为用不到的片段付费。生成源改为逐段按需生成，凑够
+        # 所需时长立即停止；也不参与 24 小时搜索缓存——产物 URL 是会过期
+        # 的签名地址，且复用缓存会让不同任务反复得到同一段生成视频。
+        return _download_videos_wavespeed_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
+    if source == "volcengine_seedance":
+        # 与 WaveSpeed 相同，方舟官方接口会创建异步付费任务。必须按需逐段
+        # 生成，只购买当前配音时长真正需要的素材。
+        return _download_videos_seedance_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
+    if source == "ofox":
+        # 与 WaveSpeed/方舟相同的按需付费语义：OFox 网关的 /v1/videos 会创建
+        # 异步付费任务，必须逐段生成、凑够所需时长立即停止；产物地址是会过
+        # 期的临时直链，也不参与 24 小时搜索缓存。
+        return _download_videos_ofox_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
+    if source == "openai_image":
+        # 与 WaveSpeed 相同的按需付费语义：文生图按张计费，逐段生成、凑够
+        # 所需时长立即停止。生成结果是一次性的本地图片文件，也不参与 24
+        # 小时搜索缓存——缓存会让不同任务反复拿到同一张图。
+        return _download_videos_openai_image_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
+
     if match_script_order:
         return _download_videos_by_script_order(
             task_id=task_id,
@@ -872,6 +1819,296 @@ def download_videos(
                 f"detail={_redact_request_error(e, item.url)}"
             )
     logger.success(f"downloaded {len(video_paths)} videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_wavespeed_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """
+    按脚本片段顺序逐段生成 WaveSpeed 素材，凑够所需总时长立即停止。
+
+    每个关键词天然对应一个脚本片段，生成即付费：先全量生成再挑选会为
+    用不到的片段付费。这里每生成一段就立刻下载并累计有效时长（与库存
+    流程一致，按片段时长封顶），累计超过所需配音时长后不再触发新的生成
+    请求。单段失败按现有素材源约定跳过并继续下一段。
+    """
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = generate_videos_wavespeed(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+        except WaveSpeedUnconfirmedTaskError as e:
+            # 已提交的付费任务状态不明：远端可能仍在运行或已经完成并计费。
+            # 继续为后续关键词下单会造成重复生成和重复扣费，因此就地停止，
+            # 并把 prediction id 留在日志里供人工在控制台找回产物。
+            logger.error(
+                "stop submitting new wavespeed tasks, the last submitted task "
+                f"is unconfirmed: prediction_id={e.prediction_id or 'unknown'}, "
+                f"detail={e}"
+            )
+            break
+        for item in video_items:
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "wavespeed"
+            )
+            if not saved_video_path:
+                continue
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                # 与库存源一致：来源记录异常不能把已经付费生成并成功下载的
+                # 素材当作失败，更不能阻断视频生成。
+                logger.warning(
+                    "failed to prepare material source record: "
+                    f"provider={item.provider}, "
+                    f"error={type(source_error).__name__}, detail={source_error}"
+                )
+            total_duration += min(max_clip_duration, item.duration)
+            # 用 >= 判断:累计时长恰好等于所需时长时已经够用,再生成会
+            # 多付一次费用。内外两处判断必须保持同一语义。
+            if total_duration >= audio_duration:
+                break
+        if total_duration >= audio_duration:
+            logger.info(
+                "generated materials cover the required duration, stop "
+                f"generating more clips: generated={total_duration:.1f}s, "
+                f"required={audio_duration:.1f}s"
+            )
+            break
+    logger.success(f"generated and downloaded {len(video_paths)} videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_seedance_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """顺序生成方舟 Seedance 素材，覆盖配音时长后立即停止付费下单。"""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+
+    # 付费生成循环必须先验证控制循环次数的两个时长。NaN/Infinity 会让
+    # ``total_duration >= audio_duration`` 永远不成立，而非正片段时长会让
+    # 累计值无法增长，两者都可能为全部关键词创建无用的付费任务。
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError) as exc:
+        raise volcengine_seedance.VolcEngineSeedanceError(
+            "Seedance audio duration must be a finite number"
+        ) from exc
+    if not math.isfinite(required_duration):
+        raise volcengine_seedance.VolcEngineSeedanceError(
+            "Seedance audio duration must be a finite number"
+        )
+    if required_duration <= 0:
+        logger.warning(
+            "skip Seedance paid generation because required audio duration is "
+            f"not positive: duration={required_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    try:
+        clip_duration = int(max_clip_duration)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise volcengine_seedance.VolcEngineSeedanceError(
+            "Seedance clip duration must be a positive integer"
+        ) from exc
+    if clip_duration <= 0:
+        raise volcengine_seedance.VolcEngineSeedanceError(
+            "Seedance clip duration must be a positive integer"
+        )
+
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = volcengine_seedance.generate_videos(
+                search_term=search_term,
+                minimum_duration=clip_duration,
+                video_aspect=video_aspect,
+            )
+        except volcengine_seedance.VolcEngineSeedanceUnconfirmedTaskError as exc:
+            # 远端付费任务仍可能成功。立即停止继续下单，并保留任务 ID，方便
+            # 用户随后在方舟控制台确认或找回结果。
+            logger.error(
+                "stop submitting new Seedance tasks because the last paid task "
+                f"is unconfirmed: task_id={exc.task_id or 'unknown'}, detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except volcengine_seedance.VolcEngineSeedanceError as exc:
+            logger.error(f"Seedance generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        for item in video_items:
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "volcengine_seedance"
+            )
+            if not saved_video_path:
+                # 远端任务已完成并产生费用，本地下载失败时必须把远端任务 ID
+                # 带回任务状态，便于用户去方舟控制台找回结果。这里直接抛出
+                # 专用错误，同时阻止后续关键词继续创建新的付费任务。
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise volcengine_seedance.VolcEngineSeedanceDownloadError(
+                    "Seedance generated a paid video but the result could not be "
+                    f"downloaded: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                )
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=volcengine_seedance, "
+                    f"error={type(source_error).__name__}, detail={source_error}"
+                )
+            total_duration += min(clip_duration, item.duration)
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated Seedance materials cover the required duration; stop "
+                f"submitting paid tasks: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(
+        f"generated and downloaded {len(video_paths)} Volcano Engine Seedance videos"
+    )
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_ofox_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """顺序生成 OFox 素材，覆盖配音时长后立即停止付费下单。"""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+
+    # 付费生成循环必须先验证控制循环次数的两个时长。NaN/Infinity 会让
+    # ``total_duration >= audio_duration`` 永远不成立，而非正片段时长会让
+    # 累计值无法增长，两者都可能为全部关键词创建无用的付费任务。
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError) as exc:
+        raise ofox.OFoxError("OFox audio duration must be a finite number") from exc
+    if not math.isfinite(required_duration):
+        raise ofox.OFoxError("OFox audio duration must be a finite number")
+    if required_duration <= 0:
+        logger.warning(
+            "skip OFox paid generation because required audio duration is "
+            f"not positive: duration={required_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    try:
+        clip_duration = int(max_clip_duration)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ofox.OFoxError("OFox clip duration must be a positive integer") from exc
+    if clip_duration <= 0:
+        raise ofox.OFoxError("OFox clip duration must be a positive integer")
+
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = ofox.generate_videos(
+                search_term=search_term,
+                minimum_duration=clip_duration,
+                video_aspect=video_aspect,
+            )
+        except ofox.OFoxUnconfirmedTaskError as exc:
+            # 远端付费任务仍可能成功。立即停止继续下单，并保留任务 ID，方便
+            # 用户随后在 OFox 控制台确认或找回结果。
+            logger.error(
+                "stop submitting new OFox tasks because the last paid task "
+                f"is unconfirmed: task_id={exc.task_id or 'unknown'}, detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except ofox.OFoxError as exc:
+            logger.error(f"OFox generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        # 单个关键词被远端明确判失败（如触发内容审核）时返回空列表：任务已
+        # 结束、无计费悬念，跳过该片段继续生成后续关键词。
+        for item in video_items:
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "ofox"
+            )
+            if not saved_video_path:
+                # 远端任务已完成并产生费用，本地下载失败时必须把远端任务 ID
+                # 带回任务状态，便于用户去 OFox 控制台找回结果。这里直接抛出
+                # 专用错误，同时阻止后续关键词继续创建新的付费任务。
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise ofox.OFoxDownloadError(
+                    "OFox generated a paid video but the result could not be "
+                    f"downloaded: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                )
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=ofox, "
+                    f"error={type(source_error).__name__}, detail={source_error}"
+                )
+            total_duration += min(clip_duration, item.duration)
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated OFox materials cover the required duration; stop "
+                f"submitting paid tasks: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(f"generated and downloaded {len(video_paths)} OFox videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
 

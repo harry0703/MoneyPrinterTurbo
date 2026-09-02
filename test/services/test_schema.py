@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.models.schema import VideoAspect, VideoParams
+from app.models.schema import VideoAspect, VideoFitMode, VideoParams
 
 
 class TestVideoAspect(unittest.TestCase):
@@ -21,6 +21,20 @@ class TestVideoAspect(unittest.TestCase):
 
 
 class TestVideoParams(unittest.TestCase):
+    def test_video_fit_mode_defaults_to_cover_and_validates_values(self):
+        self.assertEqual(
+            VideoParams(video_subject="Coffee").video_fit_mode,
+            VideoFitMode.cover,
+        )
+        self.assertEqual(
+            VideoParams(
+                video_subject="Coffee", video_fit_mode="contain"
+            ).video_fit_mode,
+            VideoFitMode.contain,
+        )
+        with self.assertRaises(ValidationError):
+            VideoParams(video_subject="Coffee", video_fit_mode="stretch")
+
     def test_rejects_non_positive_generation_counts(self):
         for field_name in ("video_clip_duration", "video_count"):
             for value in (0, -1, None):

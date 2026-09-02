@@ -33,14 +33,15 @@ from app.models.schema import (
     VideoMaterialRetrieveResponse
 )
 from app.services import bgm as bgm_service
+from app.services import material_upload as material_upload_service
 from app.services import state as sm
 from app.services import task as tm
 from app.services import voice as voice_service
 from app.utils import file_security, utils
 
-# 认证依赖项
-# router = new_router(dependencies=[Depends(base.verify_token)])
-router = new_router()
+# 统一在 V1 视频路由入口执行鉴权。verify_token 会在 api_key 为空时
+# 保留现有免认证行为，只有管理员显式配置后才会影响客户端。
+router = new_router(dependencies=[Depends(base.verify_token)])
 
 _CUSTOM_AUDIO_SUFFIXES = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 
@@ -52,7 +53,13 @@ _redis_password = config.app.get("redis_password", None)
 _max_concurrent_tasks = config.app.get("max_concurrent_tasks", 5)
 _max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
-redis_url = f"redis://:{_redis_password}@{_redis_host}:{_redis_port}/{_redis_db}"
+
+def _build_redis_url(host: str, port: int, db: int, password: str | None) -> str:
+    auth = f":{password}@" if password else ""
+    return f"redis://{auth}{host}:{port}/{db}"
+
+
+redis_url = _build_redis_url(_redis_host, _redis_port, _redis_db, _redis_password)
 # 根据配置选择合适的任务管理器
 if _enable_redis:
     task_manager = RedisTaskManager(
@@ -313,11 +320,19 @@ def create_task(
         }
         sm.state.update_task(task_id)
         tm.append_task_event(task_id, "Generation queued", "queue", 0)
-        task_manager.add_task(tm.start, task_id=task_id, params=body, stop_at=stop_at)
+        try:
+            task_manager.add_task(
+                tm.start, task_id=task_id, params=body, stop_at=stop_at
+            )
+        except Exception:
+            # 状态记录在调度前创建，默认标记为 processing。如果调度器没能
+            # 接管任务（例如线程启动失败或 Redis 队列不可用），必须回滚该
+            # 记录，否则 API 和 WebUI 会永久展示一个实际从未运行的任务。
+            sm.state.delete_task(task_id)
+            raise
         logger.success(f"Task created: {utils.to_json(task)}")
         return utils.get_response(200, task)
     except TaskQueueFullError as e:
-        sm.state.delete_task(task_id)
         logger.warning(
             f"reject task because queue is full, request_id: {request_id}, task_id: {task_id}"
         )
@@ -481,7 +496,10 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="Retrieve local video materials"
 )
 def get_video_materials_list(request: Request):
-    allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
+    allowed_suffixes = tuple(
+        extension.removeprefix(".")
+        for extension in material_upload_service.SUPPORTED_MATERIAL_EXTENSIONS
+    )
     local_videos_dir = utils.storage_dir("local_videos", create=True)
     files = []
     for suffix in allowed_suffixes:
@@ -512,26 +530,36 @@ def get_video_materials_list(request: Request):
 )
 def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
-    safe_filename = _sanitize_upload_filename(file.filename, request_id)
-    # check file ext
-    allowed_suffixes = ("mp4", "mov", "avi", "flv", "mkv", "jpg", "jpeg", "png")
-    suffix = pathlib.Path(safe_filename).suffix.lower().lstrip(".")
-    # 按完整扩展名校验，既兼容 .MOV 这类大写后缀，也避免 photojpg 这种没有
-    # 点号的文件名因为 endswith("jpg") 被误当成合法图片。
-    if suffix in allowed_suffixes:
-        local_videos_dir = utils.storage_dir("local_videos", create=True)
-        save_path = os.path.join(local_videos_dir, safe_filename)
-        # save file
-        with open(save_path, "wb+") as buffer:
-            # If the file already exists, it will be overwritten
-            file.file.seek(0)
-            buffer.write(file.file.read())
-        response = {"file": safe_filename}
-        return utils.get_response(200, response)
+    try:
+        # Keep accepting browser-supplied client paths, but persist an immutable
+        # UUID storage key so repeated names cannot overwrite queued task inputs.
+        safe_filename = _sanitize_upload_filename(file.filename, request_id)
+        stored_filename = material_upload_service.save_material_upload(
+            safe_filename, file.file
+        )
+    except material_upload_service.MaterialUploadError as exc:
+        logger.warning(
+            f"local material upload rejected: request_id={request_id}, "
+            f"error={str(exc)}"
+        )
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message=f"{request_id}: {str(exc)}",
+        )
+    except material_upload_service.MaterialServiceError as exc:
+        logger.error(
+            f"local material upload failed: request_id={request_id}, "
+            f"error={str(exc)}"
+        )
+        raise HttpException(
+            task_id=request_id,
+            status_code=500,
+            message=f"{request_id}: local material validation is unavailable",
+        )
 
-    raise HttpException(
-        "", status_code=400, message=f"{request_id}: Only files with extensions {', '.join(allowed_suffixes)} can be uploaded"
-    )
+    response = {"file": stored_filename}
+    return utils.get_response(200, response)
 
 @router.get("/stream/{file_path:path}")
 async def stream_video(request: Request, file_path: str):
@@ -578,12 +606,10 @@ async def download_video(request: Request, file_path: str):
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     file_path = pathlib.Path(video_path)
-    filename = file_path.stem
+    filename = file_path.name
     extension = file_path.suffix
-    headers = {"Content-Disposition": f"attachment; filename={filename}{extension}"}
     return FileResponse(
         path=video_path,
-        headers=headers,
-        filename=f"{filename}{extension}",
+        filename=filename,
         media_type=f"video/{extension[1:]}",
     )

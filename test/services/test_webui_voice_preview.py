@@ -156,6 +156,46 @@ def test_script_shows_estimate_and_enables_full_voiceover_preview():
     assert [str(item.value) for item in app.exception] == []
 
 
+def test_short_preview_autoplays_only_after_explicit_click_and_reuses_cache():
+    """短试听应立即播放；普通 rerun 不重播，重复点击也不重复调用 TTS。"""
+    test_ui = dict(
+        config.ui,
+        voice_mode="tts",
+        tts_server="azure-tts-v1",
+        voice_name="zh-CN-XiaoxiaoNeural-Female",
+    )
+
+    def fake_tts(**kwargs):
+        Path(kwargs["voice_file"]).write_bytes(
+            b"RIFF\x24\x00\x00\x00WAVEfmt " + b"\x00" * 32
+        )
+        return object()
+
+    with (
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "save_config"),
+        patch.object(voice, "tts", side_effect=fake_tts) as synthesize,
+        patch.object(voice, "get_audio_duration", return_value=3.0),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "zh"
+        app.run()
+
+        _button_by_key(app, "play_voice_button").click().run()
+        assert len(app.get("audio")) == 1
+        assert app.get("audio")[0].proto.autoplay
+
+        app.run()
+        assert len(app.get("audio")) == 1
+        assert not app.get("audio")[0].proto.autoplay
+
+        _button_by_key(app, "play_voice_button").click().run()
+
+    synthesize.assert_called_once()
+    assert app.get("audio")[0].proto.autoplay
+    assert [str(item.value) for item in app.exception] == []
+
+
 def test_full_preview_uses_script_and_reuses_identical_cached_audio():
     """完整试听使用当前文案，相同参数重复点击时不得再次调用 TTS。"""
     script = "这是一段用于验证完整配音预览缓存的测试文案。"
@@ -197,6 +237,7 @@ def test_full_preview_uses_script_and_reuses_identical_cached_audio():
     synthesize.assert_called_once()
     assert synthesize.call_args.kwargs["text"] == script
     assert len(app.get("audio")) == 1
+    assert not app.get("audio")[0].proto.autoplay
     assert any("实际配音时长：12.3 秒" in item.value for item in app.caption)
     assert [str(item.value) for item in app.exception] == []
 

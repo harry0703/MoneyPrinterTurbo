@@ -1,5 +1,6 @@
 import itertools
 import io
+import math
 import os
 import random
 import gc
@@ -31,6 +32,7 @@ from app.models.schema import (
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
+    VideoFitMode,
     VideoParams,
     VideoTransitionMode,
 )
@@ -535,6 +537,67 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     return ""
 
 
+def _fit_clip_to_canvas(
+    clip,
+    *,
+    target_width: int,
+    target_height: int,
+    fit_mode: VideoFitMode | str = VideoFitMode.cover,
+):
+    """Resize a clip to an exact canvas using cover/crop or contain/letterbox."""
+    source_width, source_height = (int(value) for value in clip.size)
+    target_width = int(target_width)
+    target_height = int(target_height)
+    if min(source_width, source_height, target_width, target_height) <= 0:
+        raise ValueError(
+            "video dimensions must be positive: "
+            f"source={source_width}x{source_height}, "
+            f"target={target_width}x{target_height}"
+        )
+
+    mode = VideoFitMode(fit_mode)
+    if (source_width, source_height) == (target_width, target_height):
+        return clip
+
+    # Exact aspect-ratio matches do not need either a crop or a background.
+    if source_width * target_height == source_height * target_width:
+        return clip.resized(new_size=(target_width, target_height))
+
+    width_scale = target_width / source_width
+    height_scale = target_height / source_height
+
+    if mode == VideoFitMode.cover:
+        # ceil guarantees the resized clip covers the complete canvas despite
+        # floating-point rounding. Any excess is removed symmetrically.
+        scale_factor = max(width_scale, height_scale)
+        resized_width = max(target_width, math.ceil(source_width * scale_factor))
+        resized_height = max(target_height, math.ceil(source_height * scale_factor))
+        resized_clip = clip.resized(new_size=(resized_width, resized_height))
+        crop_x = max(0, (resized_width - target_width) // 2)
+        crop_y = max(0, (resized_height - target_height) // 2)
+        return resized_clip.cropped(
+            x1=crop_x,
+            y1=crop_y,
+            width=target_width,
+            height=target_height,
+        )
+
+    # contain preserves the legacy behavior: show the complete source frame,
+    # centered over a black canvas when the aspect ratios differ.
+    scale_factor = min(width_scale, height_scale)
+    resized_width = max(1, min(target_width, int(source_width * scale_factor)))
+    resized_height = max(1, min(target_height, int(source_height * scale_factor)))
+    background = ColorClip(
+        size=(target_width, target_height), color=(0, 0, 0)
+    ).with_duration(clip.duration)
+    resized_clip = clip.resized(
+        new_size=(resized_width, resized_height)
+    ).with_position("center")
+    return CompositeVideoClip(
+        [background, resized_clip], size=(target_width, target_height)
+    ).with_duration(clip.duration)
+
+
 def combine_videos(
     combined_video_path: str,
     video_paths: List[str],
@@ -545,6 +608,7 @@ def combine_videos(
     max_clip_duration: int = 5,
     threads: int = 2,
     clip_speed: float = 1.0,
+    video_fit_mode: VideoFitMode = VideoFitMode.cover,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -577,6 +641,7 @@ def combine_videos(
     output_dir = os.path.dirname(combined_video_path)
 
     aspect = VideoAspect(video_aspect)
+    fit_mode = VideoFitMode(video_fit_mode)
     video_width, video_height = aspect.to_resolution()
 
     processed_clips = []
@@ -640,29 +705,26 @@ def combine_videos(
             # 浮点误差或异常素材时长的安全兜底，保证最终片段不突破配置上限。
             if normalized_clip_speed != 1.0:
                 clip = clip.with_speed_scaled(normalized_clip_speed)
-            clip_duration = clip.duration
-            # Not all videos are same size, so we need to resize them
+            # Normalize every source clip before transitions are applied. In cover mode
+            # the clip fills the canvas and the excess edges are cropped; contain keeps
+            # the complete source frame and uses black bars for the unused area.
             clip_w, clip_h = clip.size
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
-                
-                if clip_ratio == video_ratio:
-                    clip = clip.resized(new_size=(video_width, video_height))
-                else:
-                    if clip_ratio > video_ratio:
-                        scale_factor = video_width / clip_w
-                    else:
-                        scale_factor = video_height / clip_h
+                logger.debug(
+                    "resizing clip, "
+                    f"source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, "
+                    f"target: {video_width}x{video_height}, ratio: {video_ratio:.2f}, "
+                    f"fit_mode: {fit_mode.value}"
+                )
+                clip = _fit_clip_to_canvas(
+                    clip,
+                    target_width=video_width,
+                    target_height=video_height,
+                    fit_mode=fit_mode,
+                )
 
-                    new_width = int(clip_w * scale_factor)
-                    new_height = int(clip_h * scale_factor)
-
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
-                    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
-                    clip = CompositeVideoClip([background, clip_resized])
-                    
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip
@@ -769,16 +831,34 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
+    # getbbox() 返回的是“当前字形的可见墨迹高度”，并不是字体行高。例如只含
+    # A、m、n 等无下伸部字符的英文会缺少 descent，多行时这个误差会逐行累积，
+    # 最终让 TextClip 的最后一行被画布裁掉。ascent + descent 来自字体自身，
+    # 不受具体语种和字符组合影响，也与 MoviePy 的 baseline 绘制模型一致。
+    ascent, descent = font.getmetrics()
+    line_height = int(ascent + descent)
+    if line_height <= 0:
+        # 正常 TrueType/OpenType 字体不会进入这里；保留可诊断日志和字号兜底，
+        # 避免损坏或非常规字体返回异常 metrics 后生成零高度字幕。
+        logger.warning(
+            "invalid subtitle font metrics, fallback to font size: "
+            f"ascent={ascent}, descent={descent}, fontsize={fontsize}"
+        )
+        line_height = max(1, int(fontsize))
+
     def get_text_size(inner_text):
         inner_text = inner_text.strip()
         if not inner_text:
-            return 0, fontsize
+            return 0, line_height
         left, top, right, bottom = font.getbbox(inner_text)
-        return right - left, bottom - top
+        # bbox 仍适合测量换行所需的实际宽度；高度必须始终使用稳定字体行高。
+        return right - left, line_height
 
     width, height = get_text_size(text)
     if width <= max_width:
-        return text, height
+        # SRT 条目允许作者手工换行。即使整段文本在宽度上不需要再次折行，
+        # 画布高度仍必须按现有行数计算，否则第二行及后续行会被裁掉。
+        return text, (text.count("\n") + 1) * line_height
 
     def split_long_token(token):
         # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
@@ -839,7 +919,9 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
             lines[index - 1] = lines[index - 1][:-1]
 
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
-    height = len(lines) * height
+    # 高度以最终结果为准。原文本中的显式换行可能保留在某个 token 内，
+    # 此时临时 lines 列表的长度不等于 MoviePy 实际渲染的行数。
+    height = (result.count("\n") + 1) * line_height
     return result, height
 
 
@@ -1043,6 +1125,11 @@ def generate_video(
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
         vertical_padding = int(params.font_size * 0.35)
+        # Pillow/MoviePy 会把描边向字形上下两侧扩张，并把这部分计入每一行
+        # 的行进高度。若只在整个字幕块外增加一次描边留白，粗描边多行文本
+        # 仍会逐行累积误差。这里按实际行数计入双侧描边空间，默认细描边只
+        # 增加少量高度，而“小字号 + 粗描边 + 多行”也能完整显示。
+        stroke_padding = int(params.stroke_width * 2 * line_count)
         text_clip_margin_y = max(
             int(params.font_size * 0.3), int(params.stroke_width * 2)
         )
@@ -1050,7 +1137,12 @@ def generate_video(
         # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
         # 一个更保守的高度，把行间距和额外上下留白一并算进去，保证字幕
         # 背景框与文字本身都能完整渲染出来。
-        clip_h = int(txt_height + vertical_padding + (interline * line_count))
+        clip_h = int(
+            txt_height
+            + vertical_padding
+            + (interline * line_count)
+            + stroke_padding
+        )
 
         if rounded_bg_enabled:
             # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
@@ -1267,6 +1359,40 @@ def generate_video(
         return bgm_mix_succeeded
 
 
+def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
+    """
+    将单张本地图片渲染为带缓慢放大效果的 mp4 片段，返回输出文件路径。
+
+    local 素材预处理和 OpenAI 兼容文生图素材共用这段"图片 → 片段"渲染
+    逻辑：ImageClip 按 clip_duration 固定时长播放，并叠加每秒约 3% 的
+    动态放大，避免静态画面在成片中显得呆板。渲染异常由调用方按各自
+    素材源的失败约定处理。
+    """
+    clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
+    try:
+        # Apply a zoom effect using the resize method.
+        # A lambda function is used to make the zoom effect dynamic over time.
+        # The zoom effect starts from the original size and gradually scales up to 120%.
+        # t represents the current time, and clip.duration is the total duration of the clip.
+        # Note: 1 represents 100% size, so 1.2 represents 120%.
+        zoom_clip = clip.resized(
+            lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+        )
+
+        # Optionally, create a composite video clip containing the zoomed clip.
+        # This is useful if you want to add other elements to the video.
+        final_clip = CompositeVideoClip([zoom_clip])
+        try:
+            # Output the video to a file.
+            video_file = f"{image_path}.mp4"
+            final_clip.write_videofile(video_file, fps=30, logger=None)
+            return video_file
+        finally:
+            close_clip(final_clip)
+    finally:
+        close_clip(clip)
+
+
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
     # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
     if not materials:
@@ -1329,32 +1455,12 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
 
             if ext in const.FILE_TYPE_IMAGES:
                 logger.info(f"processing image: {material_source_path}")
-                # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
+                # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再渲染
+                # 用于导出的图片片段。
                 close_clip(clip)
-                # Create an image clip and set its duration to 3 seconds
-                clip = (
-                    ImageClip(material_source_path)
-                    .with_duration(clip_duration)
-                    .with_position("center")
+                video_file = render_image_zoom_video(
+                    material_source_path, clip_duration
                 )
-                # Apply a zoom effect using the resize method.
-                # A lambda function is used to make the zoom effect dynamic over time.
-                # The zoom effect starts from the original size and gradually scales up to 120%.
-                # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-                # Note: 1 represents 100% size, so 1.2 represents 120% size.
-                zoom_clip = clip.resized(
-                    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-                )
-
-                # Optionally, create a composite video clip containing the zoomed clip.
-                # This is useful when you want to add other elements to the video.
-                final_clip = CompositeVideoClip([zoom_clip])
-
-                # Output the video to a file.
-                video_file = f"{material_source_path}.mp4"
-                final_clip.write_videofile(video_file, fps=30, logger=None)
-                close_clip(clip)
-                close_clip(final_clip)
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
             else:

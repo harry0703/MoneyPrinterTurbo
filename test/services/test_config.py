@@ -6,6 +6,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+import toml
+
 from app.config import config
 from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
 
@@ -35,8 +37,28 @@ class TestConfigPersistence:
         assert example_config["listen_host"] == "0.0.0.0"
         assert example_config["listen_port"] == 8080
         assert example_config["log_level"] == "DEBUG"
-        assert app_config["video_source"] in {"pexels", "pixabay", "coverr", "local"}
+        assert app_config["video_source"] in {
+            "pexels",
+            "pixabay",
+            "coverr",
+            "volcengine_seedance",
+            "ofox",
+            "loomloom",
+            "local",
+        }
         assert "match_materials_to_script" in app_config
+        assert app_config["script_generation_backend"] == "local"
+        assert app_config["loomloom_api_token"] == ""
+        assert app_config["loomloom_video_run_timeout_seconds"] == 1800
+        assert app_config["volcengine_seedance_api_key"] == ""
+        assert app_config["volcengine_seedance_base_url"].startswith("https://")
+        assert app_config["volcengine_seedance_model"]
+        assert app_config["ofox_api_key"] == ""
+        assert app_config["ofox_base_url"].startswith("https://")
+        assert app_config["ofox_text_to_video_model"]
+        assert "loomloom_market_listing_id" not in app_config
+        assert "loomloom_video_market_listing_id" not in app_config
+        assert app_config["shengsuanyun_api_key"] == ""
         assert example_config["whisper"]["device"] == "cpu"
 
     def test_example_config_covers_llm_provider_registry(self):
@@ -52,6 +74,40 @@ class TestConfigPersistence:
                 assert provider.config_key("model_name") in app_config
             for field in provider.extra_fields:
                 assert provider.config_key(field.config_suffix) in app_config
+
+    def test_load_config_accepts_repeated_utf8_bom_without_rewriting_file(self):
+        """重复 BOM 不应阻止 Windows 用户启动，也不能改写已有配置。"""
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            original_content = b"\xef\xbb\xbf\xef\xbb\xbf[app]\nvideo_source = \"pexels\"\n"
+            config_path.write_bytes(original_content)
+
+            with patch.object(config, "config_file", str(config_path)):
+                loaded_config = config.load_config()
+
+            assert loaded_config["app"]["video_source"] == "pexels"
+            assert config_path.read_bytes() == original_content
+
+    def test_load_config_still_rejects_invalid_toml_after_bom_normalization(self):
+        """BOM 兼容不能掩盖真实语法错误，失败时应保留明确诊断日志。"""
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text("[app\nvideo_source = \"pexels\"\n", encoding="utf-8")
+
+            with (
+                patch.object(config, "config_file", str(config_path)),
+                patch.object(config.logger, "error") as error_mock,
+            ):
+                try:
+                    config.load_config()
+                except toml.TomlDecodeError:
+                    pass
+                else:
+                    raise AssertionError("expected invalid TOML to be rejected")
+
+            error_message = str(error_mock.call_args.args[0])
+            assert str(config_path) in error_message
+            assert "TomlDecodeError" in error_message
 
     def test_kimi_uses_current_default_model(self):
         """Kimi 未配置模型覆盖值时，应使用当前发布版本的默认模型。"""
@@ -438,9 +494,7 @@ class TestConfigPersistence:
             "pending-provider_api_key": "pending-key",
             "pending-provider_model_name": "pending-model",
         }
-        original_values = {
-            key: config.app.get(key, config._MISSING) for key in keys
-        }
+        original_values = {key: config.app.get(key, config._MISSING) for key in keys}
         updates_finished = threading.Event()
 
         def queue_updates():

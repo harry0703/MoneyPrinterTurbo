@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "name": "MoneyPrinterTurbo 批量文案候选",
+    "description": "根据视频主题批量生成可直接用于 MoneyPrinterTurbo 的文案与素材搜索词。",
+    "scenario": "short-video-script",
+    "inputSummary": "视频主题、生成要求和候选编号",
+    "primaryOutputType": "text",
+    "tags": ["MoneyPrinterTurbo", "短视频", "批量文案"]
+  },
+  "steps": [
+    {
+      "stepId": "stp_script01",
+      "displayName": "生成短视频文案与素材词",
+      "executionUnit": "text-generate",
+      "instruction": "你是短视频文案策划。根据输入生成一份适合目标时长的完整口播文案，并给出 5 到 10 个用于搜索视频素材的简短英文关键词。不同候选编号应采用不同的切入角度。只输出一个合法 JSON 对象，不要输出 Markdown、代码围栏、解释或 JSON 以外的文字。JSON 必须严格使用这个结构：{\"script\":\"完整文案\",\"videoTerms\":[\"keyword one\",\"keyword two\"]}。script 和 videoTerms 均不能为空。",
+      "defaultModelRef": {
+        "modelKey": "google/gemini-2.5-flash"
+      }
+    }
+  ],
+  "inputSchema": {
+    "instructions": [
+      "每一行生成一个独立文案候选。",
+      "candidateIndex 用于让同一主题的多个候选保持差异。"
+    ],
+    "fields": [
+      {
+        "key": "subject",
+        "label": "视频主题",
+        "description": "视频需要讲述的主题或核心观点",
+        "valueType": "string",
+        "required": true,
+        "order": 1,
+        "presentation": {
+          "widget": "textarea",
+          "placeholder": "例如：普通人如何用 AI 提高工作效率"
+        }
+      },
+      {
+        "key": "requirements",
+        "label": "生成要求",
+        "description": "输出语言、目标时长、风格以及其他附加要求",
+        "valueType": "string",
+        "required": true,
+        "order": 2,
+        "presentation": {
+          "widget": "textarea",
+          "placeholder": "输出语言：zh-CN\n目标时长（秒）：60\n风格或附加要求：开头制造反差"
+        }
+      },
+      {
+        "key": "candidateIndex",
+        "label": "候选编号",
+        "description": "同一批次中从 1 开始的候选序号",
+        "valueType": "string",
+        "required": true,
+        "order": 3
+      }
+    ],
+    "sampleRows": [
+      {
+        "values": {
+          "subject": "普通人如何用 AI 提高工作效率",
+          "requirements": "输出语言：zh-CN\n目标时长（秒）：60\n风格或附加要求：开头制造反差，结尾给出行动建议",
+          "candidateIndex": "1"
+        }
+      }
+    ]
+  },
+  "paramBindings": [
+    {
+      "stepId": "stp_script01",
+      "paramKey": "prompt",
+      "bindMode": "shared",
+      "separator": "\n",
+      "sources": [
+        {"kind": "literal", "literal": "视频主题："},
+        {"kind": "field_ref", "fieldKey": "subject"},
+        {"kind": "literal", "literal": "生成要求："},
+        {"kind": "field_ref", "fieldKey": "requirements"},
+        {"kind": "literal", "literal": "候选编号："},
+        {"kind": "field_ref", "fieldKey": "candidateIndex"}
+      ]
+    }
+  ]
+}

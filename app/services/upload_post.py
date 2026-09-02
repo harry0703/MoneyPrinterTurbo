@@ -14,13 +14,29 @@ from app.config import config
 class UploadPostService:
     API_BASE = "https://api.upload-post.com"
 
-    def __init__(self):
-        self.api_key = config.app.get("upload_post_api_key", "")
-        self.username = config.app.get("upload_post_username", "")
-        self.enabled = config.app.get("upload_post_enabled", False)
-        self.platforms = config.app.get("upload_post_platforms", ["tiktok", "instagram"])
-        self.auto_upload = config.app.get("upload_post_auto_upload", False)
-        self.youtube_privacy_status = config.app.get("upload_post_youtube_privacy_status", "public")
+    @property
+    def api_key(self) -> str:
+        return config.app.get("upload_post_api_key", "")
+
+    @property
+    def username(self) -> str:
+        return config.app.get("upload_post_username", "")
+
+    @property
+    def enabled(self) -> bool:
+        return config.app.get("upload_post_enabled", False)
+
+    @property
+    def platforms(self) -> list:
+        return config.app.get("upload_post_platforms", ["tiktok", "instagram"])
+
+    @property
+    def auto_upload(self) -> bool:
+        return config.app.get("upload_post_auto_upload", False)
+
+    @property
+    def youtube_privacy_status(self) -> str:
+        return config.app.get("upload_post_youtube_privacy_status", "public")
 
     def is_configured(self) -> bool:
         return bool(self.api_key and self.username and self.enabled)
@@ -114,7 +130,7 @@ class UploadPostService:
                 headers=headers,
                 timeout=30
             )
-            
+
             response.raise_for_status()
             return response.json()
 

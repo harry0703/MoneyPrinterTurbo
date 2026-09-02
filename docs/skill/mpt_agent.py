@@ -25,7 +25,18 @@ PROJECT_ARCHIVE_URL = (
 DEFAULT_ROOT = Path.home() / "MoneyPrinterTurbo"
 DEFAULT_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
 NEEDS_INPUT_EXIT_CODE = 10
-SUPPORTED_SOURCES = {"pexels", "pixabay", "coverr", "local"}
+SUPPORTED_SOURCES = {
+    "pexels",
+    "pixabay",
+    "coverr",
+    "volcengine_seedance",
+    "ofox",
+    "local",
+}
+VOLCENGINE_ARK_API_KEY_URL = (
+    "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey"
+)
+OFOX_API_KEY_URL = "https://ofox.ai"
 PEXELS_API_KEY_URL = "https://www.pexels.com/api/"
 PEXELS_VALIDATION_URL = "https://api.pexels.com/v1/collections?per_page=1"
 PEXELS_API_KEY_HELP_URL = (
@@ -206,7 +217,11 @@ def apply_environment_config(config_path: Path) -> None:
     base_url = os.environ.get("MPT_LLM_BASE_URL", "").strip()
     model_name = os.environ.get("MPT_LLM_MODEL_NAME", "").strip()
     pexels_key = os.environ.get("MPT_PEXELS_API_KEY", "").strip()
-    if not any((provider, llm_key, base_url, model_name, pexels_key)):
+    seedance_key = os.environ.get("MPT_VOLCENGINE_ARK_API_KEY", "").strip()
+    ofox_key = os.environ.get("MPT_OFOX_API_KEY", "").strip()
+    if not any(
+        (provider, llm_key, base_url, model_name, pexels_key, seedance_key, ofox_key)
+    ):
         return
 
     text = config_path.read_text(encoding="utf-8")
@@ -228,6 +243,14 @@ def apply_environment_config(config_path: Path) -> None:
     if pexels_key:
         text = _replace_config_value(text, "pexels_api_keys", [pexels_key])
         changes.append("pexels_api_keys")
+    if seedance_key:
+        text = _replace_config_value(
+            text, "volcengine_seedance_api_key", seedance_key
+        )
+        changes.append("volcengine_seedance_api_key")
+    if ofox_key:
+        text = _replace_config_value(text, "ofox_api_key", ofox_key)
+        changes.append("ofox_api_key")
     config_path.write_text(text, encoding="utf-8")
     log("updated configuration fields: " + ", ".join(changes))
 
@@ -307,7 +330,30 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
     source = selected_video_source(cli_args)
     if source not in SUPPORTED_SOURCES:
         raise SkillError(f"unsupported video source: {source}")
-    if source != "local":
+    if source == "volcengine_seedance":
+        # 与运行时 Provider 保持完全一致的凭据优先级，避免 Skill 预检通过后
+        # 主程序却读取了另一把 Key。ARK_API_KEY 语义过于宽泛，明确不再兼容。
+        value = (
+            _plain_config_value(text, "volcengine_seedance_api_key")
+            or os.environ.get("VOLCENGINE_ARK_API_KEY", "").strip()
+            or _plain_config_value(text, "volcengine_api_key")
+        )
+        if not _has_configured_value(value):
+            missing.append("volcengine_seedance_api_key")
+        if not has_cli_option(cli_args, "--confirm-seedance-charge"):
+            missing.append("confirm_seedance_charge")
+    elif source == "ofox":
+        # 与运行时 Provider 保持完全一致的凭据优先级：配置键优先，其次是
+        # 语义明确的 OFOX_API_KEY 环境变量。
+        value = (
+            _plain_config_value(text, "ofox_api_key")
+            or os.environ.get("OFOX_API_KEY", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("ofox_api_key")
+        if not has_cli_option(cli_args, "--confirm-ofox-charge"):
+            missing.append("confirm_ofox_charge")
+    elif source != "local":
         value = _plain_config_value(text, f"{source}_api_keys")
         if not _has_configured_value(value):
             missing.append(f"{source}_api_keys")
@@ -320,7 +366,11 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
     print(f"LLM_PROVIDER={provider}")
     for field in missing:
         print(f"MISSING={field}")
-    if any(field.endswith("_api_key") for field in missing):
+    if any(
+        field.endswith("_api_key")
+        and field not in {"volcengine_seedance_api_key", "ofox_api_key"}
+        for field in missing
+    ):
         print("LLM_PROVIDER_OPTIONS_BEGIN")
         for provider_id, (label, url) in RECOMMENDED_LLM_PROVIDERS.items():
             print(f"LLM_PROVIDER_OPTION={provider_id}|{label}|{url}")
@@ -337,6 +387,16 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
     if "pexels_api_keys" in missing:
         print(f"PEXELS_API_KEY_URL={PEXELS_API_KEY_URL}")
         print(f"PEXELS_API_KEY_HELP_URL={PEXELS_API_KEY_HELP_URL}")
+    if "volcengine_seedance_api_key" in missing:
+        print(f"VOLCENGINE_ARK_API_KEY_URL={VOLCENGINE_ARK_API_KEY_URL}")
+        print("VOLCENGINE_ARK_API_KEY_ENV=MPT_VOLCENGINE_ARK_API_KEY")
+    if "confirm_seedance_charge" in missing:
+        print("SEEDANCE_CHARGE_CONFIRMATION_REQUIRED=--confirm-seedance-charge")
+    if "ofox_api_key" in missing:
+        print(f"OFOX_API_KEY_URL={OFOX_API_KEY_URL}")
+        print("OFOX_API_KEY_ENV=MPT_OFOX_API_KEY")
+    if "confirm_ofox_charge" in missing:
+        print("OFOX_CHARGE_CONFIRMATION_REQUIRED=--confirm-ofox-charge")
     print("Request only the listed values, set the environment variables, and rerun the same command.")
     return NEEDS_INPUT_EXIT_CODE
 
