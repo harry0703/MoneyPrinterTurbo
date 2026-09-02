@@ -70,6 +70,17 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://metaso.cn/minimax-h3/?s=MPT"><img src="docs/sponsors/metaso-logo.png" alt="秘塔科技" width="100"></a><br>
+      <a href="https://metaso.cn/minimax-h3/?s=MPT"><strong>秘塔科技</strong></a>
+    </td>
+    <td align="left">
+      <strong>MiniMax H3 视频生成 API｜秘塔科技</strong><br>
+      秘塔科技提供高性价比的 MiniMax H3 视频生成服务：<strong>768P 仅 0.09 元/秒，2K 仅 0.15 元/秒</strong>。支持原生 2K、音画同步，API 兼容 <strong>OpenAI 协议</strong>，同时支持 <strong>ComfyUI</strong>，无需自行部署 GPU。<br>
+      🎁 通过 <a href="https://metaso.cn/minimax-h3/?s=MPT">MoneyPrinterTurbo专属链接注册</a>，即可领取赠送额度及专属优惠。
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai 无限星河" height="56"></a><br>
       <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai 无限星河</strong></a>
     </td>
@@ -137,24 +148,37 @@
 
 ## 功能特性 🎯
 
-- [x] 提供 **AI Agent**、**WebUI**、**API** 和 **CLI** 四种使用方式，代码按控制器、服务和模型等职责分层
-- [x] 支持 **AI 自动生成视频脚本**，也可以使用自定义脚本
-- [x] 支持多种 **高清视频** 尺寸
-  - [x] 竖屏 9:16，`1080x1920`
-  - [x] 横屏 16:9，`1920x1080`
-- [x] 支持 **批量视频生成**，可以一次生成多个视频，然后选择一个最满意的
-- [x] 支持 **视频片段时长** 设置，方便调节素材切换频率
-- [x] 支持 **多语言视频脚本** 生成
-- [x] 支持 **Edge TTS**、**Azure Speech**、**SiliconFlow**、**Google Gemini**、**小米 MiMo**、**ElevenLabs**、**Chatterbox** 和 **Fish Audio** 语音合成，可实时试听
-- [x] 支持 **字幕生成**，可调整字体、位置、颜色、大小、描边和背景样式
-- [x] 支持 **背景音乐**，可随机选择或使用指定音乐，并调整音量
-- [x] 支持使用自己的 **本地素材**，也可从 **Pexels**、**Pixabay** 和 **Coverr** 获取可免费使用的高清素材
-- [x] 支持 **AI 生成素材**：接入 [WaveSpeed AI](https://wavespeed.ai) 文生视频模型（默认 Seedance），按脚本关键词直接生成全新画面，不再受限于库存素材
-- [x] 原生支持 **火山引擎方舟 Seedance** 文生视频，可配置模型或推理接入点 ID，并提供有限轮询与付费任务确认
-- [x] 原生支持 **OFox** 多模型文生视频（一个 Key 可调 Seedance、Wan 等模型），同样提供有限轮询与付费任务确认
-- [x] 支持 **Kimi / Moonshot AI**、**OpenAI**、**Anthropic Claude**、**Google Gemini**、**DeepSeek**、**阿里云通义千问**、**Microsoft Azure OpenAI**、**火山引擎方舟**、**xAI Grok**、**MiniMax**、**小米 MiMo** 等主流模型服务，并兼容 **Cloudflare AI Gateway**、**魔搭 ModelScope**、**AIHubMix**、**AIML API**、**EvoLink**、**Ollama**、**OneAPI**、**LiteLLM**、**Groq**、**Pollinations AI** 等统一网关、聚合平台和本地运行环境
-- [x] 支持一键 **跨平台发布**，生成完成后可自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**
-- [x] 支持将生成设置**导出和导入**为预设文件，并在设置弹窗中备份和恢复所有 **API Key**
+### 创作入口与工作流
+
+- [x] 提供 **AI Agent、WebUI、API 和 CLI** 四种使用方式，既能快速上手，也能接入自动化流程
+- [x] 从主题自动完成脚本、配音、素材、字幕、配乐和剪辑，也支持在每个环节使用自定义内容
+- [x] 支持 **批量生成多条成片**、任务历史记录，以及生成设置与 API Key 的导入、导出和恢复
+
+### 脚本与模型服务
+
+- [x] 支持 AI 自动生成或改写 **多语言视频脚本**，也可以直接使用自定义脚本
+- [x] 支持 [Kimi / Moonshot AI](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo)、[OpenAI](https://platform.openai.com/api-keys)、[Anthropic Claude](https://platform.claude.com/settings/keys)、[Google Gemini](https://aistudio.google.com/app/apikey)、[DeepSeek](https://platform.deepseek.com/api_keys)、[阿里云通义千问](https://dashscope.console.aliyun.com/apiKey)、[Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)、[火山引擎方舟](https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo)、[xAI Grok](https://console.x.ai/)、[MiniMax](https://platform.minimaxi.com/) 和 [小米 MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call) 等主流模型服务
+- [x] 兼容 [胜算云](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[魔搭 ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[Ollama](https://ollama.com/)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys) 和 [Pollinations AI](https://enter.pollinations.ai/) 等统一网关、聚合平台和本地运行环境
+
+### 视频与图片素材
+
+- [x] 支持上传自己的 **本地图片和视频**，也可从 [Pexels](https://www.pexels.com/api/)、[Pixabay](https://pixabay.com/api/docs/) 和 [Coverr](https://coverr.co/developers?ctx=header_navigation) 获取可免费使用的高清库存素材
+- [x] 支持 [WaveSpeed AI](https://wavespeed.ai) 文生视频，以及原生 [火山引擎方舟 Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey) 接入，可按脚本片段生成全新画面
+- [x] 支持 [OFox](https://ofox.ai) 多模型文生视频，一个 API Key 可调用 Seedance、Wan 等模型，并提供付费确认和安全轮询
+- [x] 支持 [秘塔 MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT) 文生视频：提供 `768P`/`2K` 原始素材、4～15 秒片段、三种画幅、付费确认和安全轮询
+- [x] 支持 [胜算云 AI 视频](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)和 [OpenAI 兼容文生图](https://platform.openai.com/docs/guides/image-generation)两类素材源，兼顾云端聚合服务和自定义图片网关
+- [x] 支持调整片段时长、画面适配方式和素材匹配顺序；付费生成源会按需创建任务，凑够成片时长后停止
+
+### 配音、字幕与音乐
+
+- [x] 支持自动配音、上传配音和无配音模式；集成 **Edge TTS、Azure Speech、SiliconFlow、Google Gemini、小米 MiMo、MiniMax、ElevenLabs、Chatterbox、Fish Audio**，并支持实时试听
+- [x] 支持自动生成字幕，可调整字体、位置、颜色、大小、描边和背景样式
+- [x] 支持随机、本地和 AI 生成背景音乐，并可独立控制音量
+
+### 成片与发布
+
+- [x] 支持竖屏 `9:16（1080×1920）`、横屏 `16:9（1920×1080）` 和方形 `1:1（1080×1080）`
+- [x] 支持一键 **跨平台发布**，生成完成后可自动上传至 **TikTok、Instagram 和 YouTube Shorts**
 
 ## 作品展示 🎬
 
@@ -494,6 +518,30 @@ ofox_base_url = "https://api.ofox.ai/v1"
 专用配置为空时，会使用 `OFOX_API_KEY` 环境变量。在视频源中选择"OFox AI 视频"，并在生成前明确确认付费任务；CLI 还需要传入 `--confirm-ofox-charge`。上游厂商默认钉定 `"byteplus"`（国际厂商，内容政策一致、路由可预期）；可通过 `ofox_provider` 改为 `"volcengine"`（大陆厂商），或显式置空 `""` 交由网关按权重分发。模型可换成 OFox 目录（`GET /v1/models`）中任意文生视频模型（如 `alibaba/wan-2.7`），不同模型支持的时长区间与分辨率不同，超出范围会在创建任务前被 API 明确拒绝。
 
 首版仅支持文生视频。每个片段都会创建一个异步付费任务；程序只轮询同一个任务 ID，状态不明时停止继续下单，并仅生成足够覆盖配音时长的素材。
+
+</details>
+
+<details>
+<summary>如何使用秘塔 MiniMax H3 视频素材源？</summary>
+
+通过 [MoneyPrinterTurbo 专属链接](https://metaso.cn/minimax-h3/?s=MPT) 注册并获取
+秘塔独立 API Key，然后在 `[app]` 下配置：
+
+```toml
+[app]
+metaso_minimax_api_key = "your-metaso-api-key"
+metaso_minimax_base_url = "https://metaso.cn/api/minimax"
+metaso_minimax_resolution = "2K"
+```
+
+也可以通过 `METASO_MINIMAX_API_KEY` 环境变量提供密钥。该密钥与 MiniMax
+大模型 API Key 不属于同一账户体系，不能混用。在视频源中选择“秘塔 · MiniMax
+H3”并确认付费提示；CLI 还需要传入 `--confirm-metaso-minimax-charge`。
+
+当前支持文生视频，片段时长为 4～15 秒，分辨率支持 `768P` 和 `2K`。程序会
+逐段创建异步任务，只轮询同一个任务 ID；任务状态不明时停止继续下单，并在
+凑够配音所需素材后立即停止生成。这里的分辨率控制秘塔生成的原始素材规格；
+MPT 最终成片仍按项目当前的固定画布导出（例如 16:9 为 1920×1080）。
 
 </details>
 

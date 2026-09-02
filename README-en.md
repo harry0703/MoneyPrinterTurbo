@@ -70,6 +70,17 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://metaso.cn/minimax-h3/?s=MPT"><img src="docs/sponsors/metaso-logo.png" alt="Metaso" width="100"></a><br>
+      <a href="https://metaso.cn/minimax-h3/?s=MPT"><strong>Metaso</strong></a>
+    </td>
+    <td align="left">
+      <strong>MiniMax H3 Video Generation API by Metaso</strong><br>
+      Metaso offers a cost-effective MiniMax H3 video generation service: <strong>768p for just CNY 0.09 per second and 2K for CNY 0.15 per second</strong>. It supports native 2K output, synchronized audio and video, an OpenAI-compatible API, and ComfyUI—all without requiring you to deploy or manage GPUs.<br>
+      🎁 Sign up through the <a href="https://metaso.cn/minimax-h3/?s=MPT">exclusive MoneyPrinterTurbo link</a> to receive bonus credits and special offers.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai" height="56"></a><br>
       <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai</strong></a>
     </td>
@@ -126,25 +137,37 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 
 ## Features 🎯
 
-- [x] Provides **AI Agent**, **WebUI**, **API**, and **CLI** workflows, with code organized by controller, service, and model responsibilities
-- [x] Supports **AI-generated video scripts** and custom scripts
-- [x] Supports various **high-definition video** sizes
-  - [x] Portrait 9:16, `1080x1920`
-  - [x] Landscape 16:9, `1920x1080`
-- [x] Supports **batch video generation**, allowing the creation of multiple videos at once, then selecting the most
-      satisfactory one
-- [x] Supports setting the **duration of video clips**, facilitating adjustments to material switching frequency
-- [x] Supports **multilingual video script** generation
-- [x] Supports **Edge TTS**, **Azure Speech**, **SiliconFlow**, **Google Gemini**, **Xiaomi MiMo**, **ElevenLabs**, **Chatterbox**, and **Fish Audio** speech synthesis with real-time previews
-- [x] Supports **subtitle generation** with configurable fonts, position, color, size, outline, and background styles
-- [x] Supports random or custom **background music** with adjustable volume
-- [x] Supports your own **local assets** and free-to-use HD footage from **Pexels**, **Pixabay**, and **Coverr**
-- [x] Supports **AI-generated footage**: [WaveSpeed AI](https://wavespeed.ai) text-to-video models (Seedance by default) create brand-new visuals from your script keywords instead of relying on stock libraries
-- [x] Supports native **Volcano Engine Ark Seedance** text-to-video generation with configurable model/Endpoint ID, bounded polling, and paid-task confirmation
-- [x] Supports native **OFox** multi-model text-to-video generation (Seedance, Wan, and more behind one API key) with bounded polling and paid-task confirmation
-- [x] Supports leading model providers including **Kimi / Moonshot AI**, **OpenAI**, **Anthropic Claude**, **Google Gemini**, **DeepSeek**, **Alibaba Cloud Qwen**, **Microsoft Azure OpenAI**, **ByteDance VolcEngine Ark**, **xAI Grok**, **MiniMax**, and **Xiaomi MiMo**, plus unified gateways, aggregators, and local runtimes such as **Cloudflare AI Gateway**, **Alibaba ModelScope**, **AIHubMix**, **AIML API**, **EvoLink**, **Ollama**, **OneAPI**, **LiteLLM**, **Groq**, and **Pollinations AI**
-- [x] Supports one-click **cross-platform publishing** to **TikTok**, **Instagram**, and **YouTube Shorts** after video generation
-- [x] Supports **exporting and importing generation settings** as a preset file, and backing up and restoring every **API key** from the settings dialog
+### Creation Workflows
+
+- [x] Use **AI Agent, WebUI, API, or CLI** workflows for quick creation or automated production
+- [x] Go from a topic to script, voiceover, footage, subtitles, music, and editing automatically, while retaining control over every stage
+- [x] Generate multiple output variants in batches, review task history, and import or export generation settings and API keys
+
+### Scripts and Model Providers
+
+- [x] Generate or rewrite **multilingual video scripts** with AI, or supply a complete custom script
+- [x] Use leading providers including [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247242a1058c&aff=moneyprinterturbo), [OpenAI](https://platform.openai.com/api-keys), [Anthropic Claude](https://platform.claude.com/settings/keys), [Google Gemini](https://aistudio.google.com/app/apikey), [DeepSeek](https://platform.deepseek.com/api_keys), [Alibaba Cloud Qwen](https://qwen.ai/apiplatform), [Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI), [ByteDance VolcEngine Ark](https://console.volcengine.com/ark), [xAI Grok](https://console.x.ai/), [MiniMax](https://platform.minimax.io/), and [Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
+- [x] Connect through [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [Ollama](https://ollama.com/), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
+
+### Video and Image Footage
+
+- [x] Upload your own **local images and videos**, or use free-to-use HD stock footage from [Pexels](https://www.pexels.com/api/), [Pixabay](https://pixabay.com/api/docs/), and [Coverr](https://coverr.co/developers?ctx=header_navigation)
+- [x] Generate original footage with [WaveSpeed AI](https://wavespeed.ai) text-to-video models or the native [Volcano Engine Ark Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey) integration
+- [x] Generate video with [OFox](https://ofox.ai) multi-model routing, using one API key for Seedance, Wan, and other models with charge confirmation and bounded polling
+- [x] Generate video with [Metaso MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT), including `768P`/`2K` source material, 4–15 second clips, three aspect ratios, charge confirmation, and bounded polling
+- [x] Use [Shengsuan Cloud AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK) and [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) sources for aggregated cloud services or custom image gateways
+- [x] Control clip duration, fitting, and material order; paid providers submit clips only as needed and stop once enough footage has been collected
+
+### Voiceover, Subtitles, and Music
+
+- [x] Choose automatic voiceover, uploaded audio, or no voiceover; integrations include **Edge TTS, Azure Speech, SiliconFlow, Google Gemini, Xiaomi MiMo, MiniMax, ElevenLabs, Chatterbox, and Fish Audio**, with real-time previews
+- [x] Generate subtitles and configure their font, position, color, size, outline, and background style
+- [x] Use random, local, or AI-generated background music with independent volume control
+
+### Output and Publishing
+
+- [x] Export portrait `9:16 (1080×1920)`, landscape `16:9 (1920×1080)`, or square `1:1 (1080×1080)` videos
+- [x] Publish completed videos directly to **TikTok, Instagram, and YouTube Shorts**
 
 ## Gallery 🎬
 
@@ -499,6 +522,33 @@ ofox_base_url = "https://api.ofox.ai/v1"
 When the dedicated config value is empty, the `OFOX_API_KEY` environment variable is used. Select **OFox AI Video** as the video source and explicitly confirm paid generation before starting. CLI users must add `--confirm-ofox-charge`. The upstream vendor defaults to `"byteplus"` (the international vendor, for a consistent content policy and predictable routing); set `ofox_provider` to `"volcengine"` for the mainland-China vendor, or to an empty string `""` to let OFox load-balance across vendors. The model can be any text-to-video model from the OFox catalog (`GET /v1/models`), e.g. `alibaba/wan-2.7`; each model has its own supported duration range and resolutions, and out-of-range values are rejected by the API with a clear error before any task is created.
 
 The first version supports text-to-video only. Each clip creates one asynchronous paid task; the program only polls the same task id, stops submitting new tasks whenever a paid task state is unknown, and generates just enough footage to cover the voiceover duration.
+
+</details>
+
+<details>
+<summary>How do I use the Metaso MiniMax H3 video provider?</summary>
+
+Register through the [MoneyPrinterTurbo referral link](https://metaso.cn/minimax-h3/?s=MPT),
+obtain an independent API key from Metaso, then configure it under `[app]`:
+
+```toml
+[app]
+metaso_minimax_api_key = "your-metaso-api-key"
+metaso_minimax_base_url = "https://metaso.cn/api/minimax"
+metaso_minimax_resolution = "2K"
+```
+
+The key can also be supplied through `METASO_MINIMAX_API_KEY`. It belongs to a
+different credential system from the MiniMax LLM API key and cannot be shared.
+Select **Metaso · MiniMax H3** and confirm the paid-generation notice. CLI users
+must also pass `--confirm-metaso-minimax-charge`.
+
+The current integration supports text-to-video with 4–15 second clips at `768P`
+or `2K`. The app submits clips one at a time, polls only the returned task ID,
+stops after an unknown remote state, and stops generating as soon as the clips
+cover the voiceover duration. This resolution controls the generated source
+material; MPT still exports on its current fixed canvas (for example,
+1920×1080 for 16:9).
 
 </details>
 
