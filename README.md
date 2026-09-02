@@ -129,6 +129,12 @@
 
 ## 功能特性 🎯
 
+### 趋势发现
+
+WebUI 的“趋势发现”页面按 YouTube Shorts、TikTok 和 Instagram Reels 分开展示选题。默认手动刷新美国、印度、英国、加拿大和澳大利亚的公开 Google Trends RSS；配置 `youtube_data_api_key` 后，YouTube 结果还会使用官方 YouTube Data API 证据。
+
+“留存潜力”是可解释的预测评分，不是实测观众留存率。TikTok 和 Instagram Reels 结果由公开 Google 证据推断，并非平台原生趋势数据。结果带来源、市场、时间戳和置信度；刷新失败时保留最近成功缓存。“使用主题”只填写创作工坊，不会自动生成或发布视频。
+
 - [x] 提供 **AI Agent**、**WebUI**、**API** 和 **CLI** 四种使用方式，代码按控制器、服务和模型等职责分层
 - [x] 支持 **AI 自动生成视频脚本**，也可以使用自定义脚本
 - [x] 支持多种 **高清视频** 尺寸
