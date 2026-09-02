@@ -86,6 +86,11 @@ def _snapshot_payload(snapshot: TrendSnapshot) -> dict[str, Any]:
             source: getattr(status, "value", str(status))
             for source, status in snapshot.source_status.items()
         },
+        "platforms": {
+            platform: [_topic_payload(topic) for topic in topics]
+            for platform, topics in snapshot.platforms.items()
+        },
+        "stale": snapshot.stale,
     }
 
 
@@ -104,6 +109,11 @@ def _snapshot_from_payload(payload: Any) -> TrendSnapshot:
         source_status={
             source: SourceStatus(status) for source, status in source_status.items()
         },
+        platforms={
+            platform: tuple(_topic_from_payload(item) for item in items)
+            for platform, items in payload.get("platforms", {}).items()
+        },
+        stale=bool(payload.get("stale", False)),
     )
 
 

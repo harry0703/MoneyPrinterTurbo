@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Mapping
@@ -47,4 +47,5 @@ class TrendSnapshot:
     collected_at: datetime
     topics: tuple[ScoredTopic, ...]
     source_status: Mapping[str, SourceStatus]
-
+    platforms: Mapping[str, tuple[ScoredTopic, ...]] = field(default_factory=dict)
+    stale: bool = False

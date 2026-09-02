@@ -108,3 +108,19 @@ def test_shortlist_round_trip_and_remove(tmp_path, sample_snapshot):
     assert store.remove_shortlist("ocean mystery") is True
     assert store.list_shortlist() == []
     assert store.remove_shortlist("ocean mystery") is False
+
+
+def test_snapshot_round_trip_keeps_platform_projection(tmp_path, sample_snapshot):
+    snapshot = TrendSnapshot(
+        collected_at=sample_snapshot.collected_at,
+        topics=sample_snapshot.topics,
+        source_status=sample_snapshot.source_status,
+        platforms={"youtube_shorts": sample_snapshot.topics},
+        stale=True,
+    )
+
+    store = TrendStore(str(tmp_path))
+    store.save_snapshot(snapshot)
+
+    assert store.load_latest().platforms == snapshot.platforms
+    assert store.load_latest().stale is True
