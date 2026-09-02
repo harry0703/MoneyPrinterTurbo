@@ -339,6 +339,29 @@ def test_invalid_saved_generation_settings_fall_back_without_breaking_webui():
     assert app.session_state["loomloom_video_scene_count"] == 1
 
 
+def test_ofox_source_shows_unchecked_paid_task_confirmation():
+    test_app_config = dict(
+        config.app,
+        video_source="ofox",
+        ofox_api_key="",
+    )
+    test_ui_config = dict(
+        config.ui,
+        language="en",
+        voice_mode="none",
+    )
+
+    with (
+        patch.object(config, "app", test_app_config),
+        patch.object(config, "ui", test_ui_config),
+        patch.object(config, "save_config"),
+    ):
+        app = _new_app()
+
+    assert app.session_state["video_source_select_en"] == "ofox"
+    assert _widget_by_key(app.checkbox, "ofox_confirm_charge").value is False
+
+
 def test_seedance_source_shows_unchecked_paid_task_confirmation():
     test_app_config = dict(
         config.app,

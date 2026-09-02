@@ -375,6 +375,22 @@
     "Upload-Post Profile Username": "Upload-Post Profil-Benutzername",
     "Upload-Post Profile Username Help": "Geben Sie den unter [Manage Users]({manage_users_url}) angezeigten Benutzernamen ein, nicht die E-Mail-Adresse Ihres Upload-Post-Kontos. Dieser Veröffentlichungsbenutzer muss mit den ausgewählten Plattformen verbunden sein.",
     "Upload-Post Setup Guide": "Bevor Sie die automatische Veröffentlichung aktivieren:\n1. Erstellen Sie unter [API Keys]({api_keys_url}) einen API-Schlüssel.\n2. Erstellen oder wählen Sie unter [Manage Users]({manage_users_url}) einen Veröffentlichungsbenutzer und verbinden Sie die Zielplattformen.\n\nGeben Sie unten dessen **Benutzernamen** ein, nicht die E-Mail-Adresse Ihres Upload-Post-Kontos.",
-    "YouTube Privacy Status": "YouTube-Datenschutzstatus"
+    "YouTube Privacy Status": "YouTube-Datenschutzstatus",
+    "OFox AI Video": "OFox AI Video",
+    "OFox AI Video Help": "Erzeugen Sie neue Clips über die offizielle OFox API. Jeder eingereichte Clip ist ein kostenpflichtiger OFox-Auftrag.",
+    "OFox API Key": "OFox API-Schlüssel ([API-Schlüssel abrufen](https://ofox.ai))",
+    "OFox Text-to-Video Model": "OFox Text-zu-Video-Modell",
+    "OFox Base URL": "OFox Base-URL",
+    "Please Enter the OFox API Key": "Bitte geben Sie den **OFox API-Schlüssel** ein",
+    "OFox Billing Notice": "Jeder erzeugte Clip wird von OFox berechnet. Auf Grundlage der geschätzten Sprecher- und Clipdauer werden ungefähr {min}–{max} kostenpflichtige Aufträge übermittelt. Die Generierung endet, sobald genügend Material vorhanden ist.",
+    "OFox Billing Notice Without Script": "Jeder erzeugte Clip wird von OFox berechnet. Geben Sie ein Videoskript ein oder erzeugen Sie eines, um die geschätzte Anzahl der Aufträge anzuzeigen.",
+    "Confirm OFox Charge": "Ich verstehe, dass die OFox-Generierung kostenpflichtige OFox-Aufträge erstellt",
+    "Confirm OFox Charge Help": "OFox-Clips werden einzeln übermittelt, bis sie die Dauer der Sprachausgabe abdecken. OFox berechnet jeden eingereichten Generierungsauftrag.",
+    "Confirm OFox Charge Required": "Bitte bestätigen Sie die Kosten der OFox-Generierung, bevor Sie das Video erstellen.",
+    "OFox Upstream Vendor": "OFox Upstream-Anbieter",
+    "OFox Upstream Vendor Help": "Welcher Upstream-Anbieter die OFox-Videogenerierung bedient. BytePlus (international) ist der Standard mit einheitlicher Inhaltsrichtlinie; Volcano Engine ist der Festland-China-Anbieter; Auto lässt das OFox-Gateway die Last über die Anbieter verteilen.",
+    "OFox Vendor BytePlus": "BytePlus (international, Standard)",
+    "OFox Vendor Volcengine": "Volcano Engine (Festlandchina)",
+    "OFox Vendor Auto": "Auto (Gateway-Lastverteilung)"
   }
 }

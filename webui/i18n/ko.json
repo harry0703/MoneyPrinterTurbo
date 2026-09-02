@@ -375,6 +375,22 @@
     "Upload-Post Profile Username": "Upload-Post 게시 사용자 이름",
     "Upload-Post Profile Username Help": "[사용자 관리]({manage_users_url})에 표시된 사용자 이름을 입력하세요. Upload-Post 계정 이메일이 아닙니다. 이 게시 사용자는 선택한 플랫폼에 연결되어 있어야 합니다.",
     "Upload-Post Setup Guide": "자동 게시를 활성화하기 전에:\n1. [API 키]({api_keys_url})에서 API 키를 생성하세요.\n2. [사용자 관리]({manage_users_url})에서 게시 사용자를 생성하거나 선택한 다음 대상 플랫폼을 연결하세요.\n\n아래에 Upload-Post 계정 이메일이 아닌 해당 게시 사용자의 **사용자 이름**을 입력하세요.",
-    "YouTube Privacy Status": "YouTube 공개 상태"
+    "YouTube Privacy Status": "YouTube 공개 상태",
+    "OFox AI Video": "OFox AI Video",
+    "OFox AI Video Help": "공식 OFox API로 새로운 클립을 생성합니다. 제출하는 각 클립은 유료 OFox 작업입니다.",
+    "OFox API Key": "OFox API 키 ([API 키 발급](https://ofox.ai))",
+    "OFox Text-to-Video Model": "OFox 텍스트-비디오 모델",
+    "OFox Base URL": "OFox 기본 URL",
+    "Please Enter the OFox API Key": "**OFox API 키**를 입력하세요",
+    "OFox Billing Notice": "생성된 각 클립은 OFox에서 과금됩니다. 예상 내레이션 길이와 클립 길이에 따라 약 {min}~{max}개의 유료 작업이 제출됩니다. 필요한 영상이 확보되면 즉시 생성을 중단합니다.",
+    "OFox Billing Notice Without Script": "생성된 각 클립은 OFox에서 과금됩니다. 예상 작업 수를 확인하려면 영상 대본을 입력하거나 생성하세요.",
+    "Confirm OFox Charge": "OFox 생성이 유료 OFox 작업을 만든다는 것을 이해했습니다",
+    "Confirm OFox Charge Help": "OFox 클립은 하나씩 제출되며 내레이션 길이를 채우면 중단됩니다. Ark는 제출된 각 생성 작업에 요금을 부과합니다.",
+    "Confirm OFox Charge Required": "영상을 생성하기 전에 OFox 생성 요금을 확인해 주세요.",
+    "OFox Upstream Vendor": "OFox 업스트림 공급사",
+    "OFox Upstream Vendor Help": "OFox 영상 생성에 사용할 업스트림 공급사입니다. BytePlus(국제)가 기본값으로 콘텐츠 정책이 일관됩니다. Volcano Engine은 중국 본토 공급사이며, 자동은 OFox 게이트웨이가 공급사 간 부하를 분산합니다.",
+    "OFox Vendor BytePlus": "BytePlus (국제, 기본값)",
+    "OFox Vendor Volcengine": "Volcano Engine (중국 본토)",
+    "OFox Vendor Auto": "자동 (게이트웨이 부하 분산)"
   }
 }

@@ -29,6 +29,8 @@ pexels_api_keys = []
 pixabay_api_keys = []
 coverr_api_keys = []
 volcengine_seedance_api_key = ""
+ofox_api_key = ""
+metaso_minimax_api_key = ""
 oneapi_api_key = ""
 oneapi_base_url = ""
 oneapi_model_name = ""
@@ -100,6 +102,7 @@ class TestMptAgentSkill(unittest.TestCase):
             llm_key = "secret-llm-key"
             pexels_key = "secret-pexels-key"
             seedance_key = "secret-ark-key"
+            metaso_key = "secret-metaso-key"
 
             with patch.dict(
                 os.environ,
@@ -108,6 +111,7 @@ class TestMptAgentSkill(unittest.TestCase):
                     "MPT_LLM_API_KEY": llm_key,
                     "MPT_PEXELS_API_KEY": pexels_key,
                     "MPT_VOLCENGINE_ARK_API_KEY": seedance_key,
+                    "MPT_METASO_MINIMAX_API_KEY": metaso_key,
                 },
                 clear=True,
             ), redirect_stdout(output):
@@ -120,9 +124,11 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertIn(
                 f'volcengine_seedance_api_key = "{seedance_key}"', config
             )
+            self.assertIn(f'metaso_minimax_api_key = "{metaso_key}"', config)
             self.assertNotIn(llm_key, output.getvalue())
             self.assertNotIn(pexels_key, output.getvalue())
             self.assertNotIn(seedance_key, output.getvalue())
+            self.assertNotIn(metaso_key, output.getvalue())
 
     def test_material_key_check_matches_selected_source(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -141,6 +147,91 @@ class TestMptAgentSkill(unittest.TestCase):
 
             self.assertEqual(default_missing, ["pexels_api_keys"])
             self.assertEqual(pixabay_missing, [])
+
+    def test_ofox_source_requires_key_and_explicit_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "ofox"]
+                )
+            self.assertEqual(missing, ["ofox_api_key", "confirm_ofox_charge"])
+
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'ofox_api_key = ""', 'ofox_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "ofox", "--confirm-ofox-charge"],
+                )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_ofox_source_accepts_the_provider_specific_environment_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ,
+                {"OFOX_API_KEY": "environment-ofox-key"},
+                clear=True,
+            ):
+                _, missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "ofox", "--confirm-ofox-charge"],
+                )
+
+            self.assertEqual(missing, [])
+
+    def test_ofox_environment_key_is_written_without_leaking_to_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(MINIMAL_CONFIG, encoding="utf-8")
+            ofox_key = "secret-ofox-key"
+            output = io.StringIO()
+
+            with patch.dict(
+                os.environ,
+                {"MPT_OFOX_API_KEY": ofox_key},
+                clear=True,
+            ), redirect_stdout(output):
+                mpt_agent.apply_environment_config(config_path)
+
+            config = config_path.read_text(encoding="utf-8")
+            self.assertIn(f'ofox_api_key = "{ofox_key}"', config)
+            self.assertNotIn(ofox_key, output.getvalue())
+
+    def test_missing_ofox_inputs_report_signup_and_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "deepseek",
+                ["ofox_api_key", "confirm_ofox_charge"],
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(f"OFOX_API_KEY_URL={mpt_agent.OFOX_API_KEY_URL}", text)
+        self.assertIn(
+            "OFOX_CHARGE_CONFIRMATION_REQUIRED=--confirm-ofox-charge", text
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
 
     def test_seedance_source_requires_key_and_explicit_charge_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -203,6 +294,39 @@ class TestMptAgentSkill(unittest.TestCase):
 
             self.assertEqual(missing, [])
 
+    def test_metaso_source_requires_its_own_key_and_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            _, missing = mpt_agent.missing_config(
+                config_path, ["--video-source", "metaso_minimax"]
+            )
+            self.assertEqual(
+                missing,
+                ["metaso_minimax_api_key", "confirm_metaso_minimax_charge"],
+            )
+
+            with patch.dict(
+                os.environ,
+                {"METASO_MINIMAX_API_KEY": "environment-metaso-key"},
+                clear=True,
+            ):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    [
+                        "--video-source",
+                        "metaso_minimax",
+                        "--confirm-metaso-minimax-charge",
+                    ],
+                )
+            self.assertEqual(confirmed_missing, [])
+
     def test_existing_provider_key_is_reused_without_asking_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
@@ -256,6 +380,26 @@ class TestMptAgentSkill(unittest.TestCase):
         )
         self.assertIn(
             "SEEDANCE_CHARGE_CONFIRMATION_REQUIRED=--confirm-seedance-charge",
+            text,
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_missing_metaso_inputs_report_key_environment_and_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "deepseek",
+                ["metaso_minimax_api_key", "confirm_metaso_minimax_charge"],
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(
+            "METASO_MINIMAX_API_KEY_ENV=MPT_METASO_MINIMAX_API_KEY", text
+        )
+        self.assertIn(
+            "METASO_MINIMAX_CHARGE_CONFIRMATION_REQUIRED="
+            "--confirm-metaso-minimax-charge",
             text,
         )
         self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)

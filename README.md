@@ -48,7 +48,7 @@
       <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>火山引擎</strong></a>
     </td>
     <td align="left">
-      感谢字节火山引擎赞助本项目！火山方舟 Agent/Coding Plan 国模套餐<strong>首购 9.9</strong>，支持 GLM-5.3、Kimi-K3、DeepSeek、MiniMax、Doubao 等，注册免费领 <strong>2500w Token</strong>，统一 API，适配编码与智能体开发。--&gt; <a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">立即前往</a>
+      感谢字节火山引擎赞助本项目！火山方舟 Agent/Coding Plan 国模套餐<strong>首购 9.9</strong>，支持 GLM-5.3、Kimi-K3、DeepSeek、MiniMax、Doubao 等，注册免费领 <strong>2500w Token</strong>，统一 API，适配编码与智能体开发。<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">立即前往</a>
     </td>
   </tr>
   <tr>
@@ -66,6 +66,17 @@
     </td>
     <td align="left">
       感谢 <a href="https://go.apimart.ai/gh-moneyprinterturbo">APIMart</a> 赞助了本项目！APIMart 是专注 AI 图片/视频生成的低价 API 平台，<strong>GPT-Image-2 低至 &#36;0.006/张，1 美元可出图 160+ 张</strong>。<strong>图片、视频一套异步 API 通吃，换模型不改代码</strong>；提交任务拿 ID，通过轮询或回调获取结果，支持万张级批量生成。按量付费、无月费，通过<a href="https://go.apimart.ai/gh-moneyprinterturbo">此注册链接</a>注册即可开用。
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://metaso.cn/minimax-h3/?s=MPT"><img src="docs/sponsors/metaso-logo.png" alt="秘塔科技" width="100"></a><br>
+      <a href="https://metaso.cn/minimax-h3/?s=MPT"><strong>秘塔科技</strong></a>
+    </td>
+    <td align="left">
+      <strong>MiniMax H3 视频生成 API｜秘塔科技</strong><br>
+      秘塔科技提供高性价比的 MiniMax H3 视频生成服务：<strong>768P 仅 0.09 元/秒，2K 仅 0.15 元/秒</strong>。支持原生 2K、音画同步，API 兼容 <strong>OpenAI 协议</strong>，同时支持 <strong>ComfyUI</strong>，无需自行部署 GPU。<br>
+      🎁 通过 <a href="https://metaso.cn/minimax-h3/?s=MPT">MoneyPrinterTurbo专属链接注册</a>，即可领取赠送额度及专属优惠。
     </td>
   </tr>
   <tr>
@@ -137,23 +148,40 @@
 
 ## 功能特性 🎯
 
-- [x] 提供 **AI Agent**、**WebUI**、**API** 和 **CLI** 四种使用方式，代码按控制器、服务和模型等职责分层
-- [x] 支持 **AI 自动生成视频脚本**，也可以使用自定义脚本
-- [x] 支持多种 **高清视频** 尺寸
-  - [x] 竖屏 9:16，`1080x1920`
-  - [x] 横屏 16:9，`1920x1080`
-- [x] 支持 **批量视频生成**，可以一次生成多个视频，然后选择一个最满意的
-- [x] 支持 **视频片段时长** 设置，方便调节素材切换频率
-- [x] 支持 **多语言视频脚本** 生成
-- [x] 支持 **Edge TTS**、**Azure Speech**、**SiliconFlow**、**Google Gemini**、**小米 MiMo**、**ElevenLabs**、**Chatterbox** 和 **Fish Audio** 语音合成，可实时试听
-- [x] 支持 **字幕生成**，可调整字体、位置、颜色、大小、描边和背景样式
-- [x] 支持 **背景音乐**，可随机选择或使用指定音乐，并调整音量
-- [x] 支持使用自己的 **本地素材**，也可从 **Pexels**、**Pixabay** 和 **Coverr** 获取可免费使用的高清素材
-- [x] 支持 **AI 生成素材**：接入 [WaveSpeed AI](https://wavespeed.ai) 文生视频模型（默认 Seedance），按脚本关键词直接生成全新画面，不再受限于库存素材
-- [x] 原生支持 **火山引擎方舟 Seedance** 文生视频，可配置模型或推理接入点 ID，并提供有限轮询与付费任务确认
-- [x] 支持 **Kimi / Moonshot AI**、**OpenAI**、**Anthropic Claude**、**Google Gemini**、**DeepSeek**、**阿里云通义千问**、**Microsoft Azure OpenAI**、**火山引擎方舟**、**xAI Grok**、**MiniMax**、**小米 MiMo** 等主流模型服务，并兼容 **Cloudflare AI Gateway**、**魔搭 ModelScope**、**AIHubMix**、**AIML API**、**EvoLink**、**Ollama**、**OneAPI**、**LiteLLM**、**Groq**、**Pollinations AI** 等统一网关、聚合平台和本地运行环境
-- [x] 支持一键 **跨平台发布**，生成完成后可自动上传至 **TikTok**、**Instagram** 和 **YouTube Shorts**
-- [x] 支持将生成设置**导出和导入**为预设文件，并在设置弹窗中备份和恢复所有 **API Key**
+### 创作入口与工作流
+
+- [x] 提供 **AI Agent、WebUI、API 和 CLI** 四种使用方式，既能快速上手，也能接入自动化流程
+- [x] 从主题自动完成脚本、配音、素材、字幕、配乐和剪辑，也支持在每个环节使用自定义内容
+- [x] 支持 **批量生成多条成片**、任务历史记录，以及生成设置与 API Key 的导入、导出和恢复
+
+### 脚本与模型服务
+
+- [x] 支持 AI 自动生成或改写 **多语言视频脚本**，也可以直接使用自定义脚本
+- [x] 支持 [Kimi / Moonshot AI](https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo)、[OpenAI](https://platform.openai.com/api-keys)、[Anthropic Claude](https://platform.claude.com/settings/keys)、[Google Gemini](https://aistudio.google.com/app/apikey)、[DeepSeek](https://platform.deepseek.com/api_keys)、[阿里云通义千问](https://dashscope.console.aliyun.com/apiKey)、[Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)、[火山引擎方舟](https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo)、[xAI Grok](https://console.x.ai/)、[MiniMax](https://platform.minimaxi.com/) 和 [小米 MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call) 等主流模型服务
+- [x] 兼容 [胜算云](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[魔搭 ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[Ollama](https://ollama.com/)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys) 和 [Pollinations AI](https://enter.pollinations.ai/) 等统一网关、聚合平台和本地运行环境
+
+### 视频与图片素材
+
+- [x] 支持上传自己的 **本地图片和视频**，也可从 [Pexels（免费）](https://www.pexels.com/api/)、[Pixabay（免费）](https://pixabay.com/api/docs/) 和 [Coverr](https://coverr.co/developers?ctx=header_navigation) 获取高清库存素材
+- [x] 支持 [秘塔 MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT) 文生视频，可生成 `768P`/`2K`、4～15 秒的原始素材，并适配 `9:16`、`16:9` 和 `1:1` 三种画幅
+- [x] 支持 [胜算云 AI 视频](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)，可生成多段 AI 视频素材，并沿用项目的配音、字幕和剪辑流程合成成片
+- [x] 原生接入 [火山引擎方舟 Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey)，可根据脚本片段生成连贯的视频画面
+- [x] 支持 [WaveSpeed AI](https://wavespeed.ai) 文生视频，可根据脚本关键词快速生成原创素材
+- [x] 支持 [OFox](https://ofox.ai) 多模型文生视频，一个 API Key 即可调用 Seedance、Wan 等模型
+- [x] 支持 [OpenAI 兼容文生图](https://platform.openai.com/docs/guides/image-generation)，可连接云端服务或自定义图片网关，并将生成图片转换为动态视频片段
+- [x] 支持调整片段时长、画面适配方式和素材匹配顺序，以适配不同画幅和叙事节奏
+
+### 配音、字幕与配乐
+
+- [x] 支持自动配音、上传配音和无配音三种方式，并提供音色试听与完整配音预览
+- [x] 集成 **Edge TTS（免费、无需 API Key）**、Azure Speech、SiliconFlow、Google Gemini、小米 MiMo、MiniMax、ElevenLabs、Chatterbox 和 Fish Audio 等配音服务
+- [x] 支持自动生成字幕，可调整字体、位置、颜色、大小、描边和背景样式
+- [x] 支持随机、本地及 AI 生成背景音乐，并可独立控制音量
+
+### 成片与发布
+
+- [x] 支持竖屏 `9:16（1080×1920）`、横屏 `16:9（1920×1080）` 和方形 `1:1（1080×1080）`
+- [x] 支持一键 **跨平台发布**，生成完成后可自动上传至 **TikTok、Instagram 和 YouTube Shorts**
 
 ## 作品展示 🎬
 
@@ -236,7 +264,7 @@
 
 下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
 
-- GitHub Releases：https://github.com/harry0703/MoneyPrinterTurbo/releases/latest
+- [下载最新 Windows 一键启动包](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 
 下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
 
@@ -255,20 +283,20 @@
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 ```
 
-#### ② 配置项目（可选）
+#### ② 首次配置
 
-首次启动时，项目会根据 `config.example.toml` 自动创建 `config.toml`。大模型 Provider、素材来源和相关 API Key 可以直接在 WebUI 的基础设置中配置。
+首次启动时，项目会根据 `config.example.toml` 自动创建 `config.toml`，无需手动创建配置文件。使用云端大模型、在线素材或 AI 视频等服务前，请在 WebUI 的基础设置中填写对应的 API Key。
 
 ### Docker 部署 🐳
 
 #### ① 启动 Docker
 
-如果未安装 Docker，请先安装 https://www.docker.com/products/docker-desktop/
+如果尚未安装 Docker，请先[下载并安装 Docker Desktop](https://www.docker.com/products/docker-desktop/)。
 
 Windows 用户可以参考微软的文档：
 
-1. https://learn.microsoft.com/zh-cn/windows/wsl/install
-2. https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers
+1. [安装 WSL](https://learn.microsoft.com/zh-cn/windows/wsl/install)
+2. [在 WSL 中使用 Docker 容器](https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers)
 
 ```shell
 cd MoneyPrinterTurbo
@@ -293,8 +321,8 @@ docker compose -f docker-compose.release.yml up
 
 > 视频教程
 
-- 完整的使用演示：https://v.douyin.com/iFhnwsKY/
-- 如何在 Windows 上部署：https://v.douyin.com/iFyjoW3M
+- [完整的使用演示](https://v.douyin.com/iFhnwsKY/)
+- [如何在 Windows 上部署](https://v.douyin.com/iFyjoW3M)
 
 #### ① 创建虚拟环境
 
@@ -391,13 +419,15 @@ uv run python cli.py --batch-file ./tasks.json --stop-at video
 参数与本地文件预检；单个任务运行失败不会阻止后续条目，结束后会输出统一的
 JSON 汇总。清单中的相对自定义音频与本地素材路径以清单目录为基准。
 
-## 语音合成 🗣
+## 配音、字幕与配乐 🎙️
 
-默认使用免费的 **Edge TTS**，在 WebUI 中显示为 **Azure TTS V1**。项目同时支持 **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**小米 MiMo TTS**、**ElevenLabs TTS**、自托管 **Chatterbox TTS**、**Fish Audio TTS**，以及无配音模式。
+### 语音合成
+
+WebUI 中的 **Azure TTS V1** 基于 **Edge TTS**，免费且无需 API Key。项目同时支持 **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**小米 MiMo TTS**、**ElevenLabs TTS**、自托管 **Chatterbox TTS**、**Fish Audio TTS**，以及无配音模式。
 
 可直接在 WebUI 中选择 Provider 和音色，并按照界面提示填写所需凭据。Edge TTS 不需要 API Key；[Azure TTS V2](https://portal.azure.com/) 及其他云端服务需要对应平台的凭据。Edge TTS 音色可查看：[音色列表](./docs/voice-list.txt)。
 
-## 字幕生成 📜
+### 字幕生成
 
 当前支持两种字幕生成方式：
 
@@ -429,54 +459,17 @@ MoneyPrinterTurbo
   │          vocabulary.json
 ```
 
-## 背景音乐 🎵
+### 背景音乐
 
 用于视频的背景音乐，位于项目的 `resource/songs` 目录下。
 
 > 当前项目里面放了一些默认的音乐，来自于 YouTube 视频，如有侵权，请删除。
 
-## 字幕字体 🅰
+### 字幕字体
 
 用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
 
 ## 常见问题 🤔
-
-<details>
-<summary>如何发布到 TikTok、Instagram 或 YouTube Shorts？</summary>
-
-注册 [Upload-Post](https://upload-post.com/) 账号并获取 API Key，然后在 `config.toml` 的 `[app]` 下添加以下配置：
-
-```toml
-[app]
-upload_post_enabled = true
-upload_post_api_key = "your-api-key"
-upload_post_username = "your-username"
-upload_post_platforms = ["tiktok", "instagram", "youtube"]
-upload_post_auto_upload = true
-upload_post_youtube_privacy_status = "public"
-```
-
-保存配置并重启项目。视频生成完成后，程序会自动发布到已配置的平台。YouTube 可见性可设置为 `public`、`unlisted` 或 `private`。
-
-</details>
-
-<details>
-<summary>如何使用火山引擎方舟官方 Seedance 素材源？</summary>
-
-创建[火山方舟 API Key](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey)，然后在 `[app]` 下配置：
-
-```toml
-[app]
-volcengine_seedance_api_key = "your-ark-api-key"
-volcengine_seedance_model = "doubao-seedance-1-0-pro-250528"
-volcengine_seedance_base_url = "https://ark.cn-beijing.volces.com/api/v3"
-```
-
-Seedance 专用配置为空时，会依次使用 `VOLCENGINE_ARK_API_KEY` 环境变量和已有的 `volcengine_api_key` 大模型配置。在视频源中选择“火山引擎 Seedance”，并在生成前明确确认付费任务；CLI 还需要传入 `--confirm-seedance-charge`。
-
-首版仅支持文生视频。每个片段都会创建一个异步付费方舟任务；程序只轮询同一个任务 ID，状态不明时停止继续下单，并仅生成足够覆盖配音时长的素材。
-
-</details>
 
 <details>
 <summary>RuntimeError: No ffmpeg exe could be found</summary>
@@ -489,7 +482,7 @@ RuntimeError: No ffmpeg exe could be found.
 Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
 ```
 
-此时你可以从 https://www.gyan.dev/ffmpeg/builds/ 下载ffmpeg，解压后，设置 `ffmpeg_path` 为你的实际安装路径即可。
+此时可以从 [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) 下载 FFmpeg。解压后，将 `ffmpeg_path` 设置为实际安装路径即可。
 
 ```toml
 [app]
@@ -536,7 +529,7 @@ specified revision on the local disk. Please check your internet connection and 
 Trying to load the model directly from the local cache, if it exists.
 ```
 
-解决方法：[查看如何从 Hugging Face 手动下载模型](#%E5%AD%97%E5%B9%95%E7%94%9F%E6%88%90-)
+解决方法：[查看如何从 Hugging Face 手动下载模型](#字幕生成)
 
 </details>
 
@@ -547,13 +540,3 @@ Trying to load the model directly from the local cache, if it exists.
 ## 许可证 📝
 
 点击查看 [`LICENSE`](LICENSE) 文件
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=harry0703%2FMoneyPrinterTurbo&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=harry0703/MoneyPrinterTurbo&type=date&theme=dark&legend=top-left&sealed_token=AtOR8By6GcNKd46eJLixrnucHF_99GOSBBKfc60pAm2xsDylemaYxDMcvTlPRz-G_onzDrs-hDrM0xdKkn0L6PgDin3fv02ViVtsZvgRYgk0YOzkX2KgLG8wro66VGphii-u6GNpzD8JocrqGGKvsFSpmbRqo5g-2mEDaN7-ESdtF48ZH0rDOCpoc1Mh" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=harry0703/MoneyPrinterTurbo&type=date&legend=top-left&sealed_token=AtOR8By6GcNKd46eJLixrnucHF_99GOSBBKfc60pAm2xsDylemaYxDMcvTlPRz-G_onzDrs-hDrM0xdKkn0L6PgDin3fv02ViVtsZvgRYgk0YOzkX2KgLG8wro66VGphii-u6GNpzD8JocrqGGKvsFSpmbRqo5g-2mEDaN7-ESdtF48ZH0rDOCpoc1Mh" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=harry0703/MoneyPrinterTurbo&type=date&legend=top-left&sealed_token=AtOR8By6GcNKd46eJLixrnucHF_99GOSBBKfc60pAm2xsDylemaYxDMcvTlPRz-G_onzDrs-hDrM0xdKkn0L6PgDin3fv02ViVtsZvgRYgk0YOzkX2KgLG8wro66VGphii-u6GNpzD8JocrqGGKvsFSpmbRqo5g-2mEDaN7-ESdtF48ZH0rDOCpoc1Mh" />
- </picture>
-</a>

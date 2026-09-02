@@ -209,6 +209,79 @@ class TestCli(unittest.TestCase):
             cli.build_video_params(args).video_source, "volcengine_seedance"
         )
 
+    def test_ofox_video_source_requires_explicit_charge_confirmation(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(
+                ["--video-subject", "test", "--video-source", "ofox"]
+            )
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "ofox",
+                "--confirm-ofox-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "ofox")
+
+    def test_ofox_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "ofox",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "ofox")
+
+    def test_batch_ofox_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "OFox batch task",
+                            "video_source": "ofox",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-ofox"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-ofox-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
     def test_seedance_confirmation_is_not_required_before_material_stage(self):
         args = cli.parse_args(
             [
@@ -221,6 +294,42 @@ class TestCli(unittest.TestCase):
             ]
         )
         self.assertEqual(args.video_source, "volcengine_seedance")
+
+    def test_metaso_minimax_video_source_requires_charge_confirmation(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--video-source",
+                    "metaso_minimax",
+                ]
+            )
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "metaso_minimax",
+                "--confirm-metaso-minimax-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "metaso_minimax")
+
+    def test_metaso_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "metaso_minimax",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "metaso_minimax")
 
     def test_batch_seedance_source_uses_global_charge_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -258,6 +367,48 @@ class TestCli(unittest.TestCase):
                         "--stop-at",
                         "materials",
                         "--confirm-seedance-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
+    def test_batch_metaso_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "Metaso batch task",
+                            "video_source": "metaso_minimax",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-metaso"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-metaso-minimax-charge",
                     ]
                 )
 
@@ -795,6 +946,30 @@ class TestCli(unittest.TestCase):
             set(summary["tasks"][0]),
             {"index", "task_id", "status", "result", "failed_stage", "error"},
         )
+
+    def test_batch_accepts_openai_image_source(self):
+        """批量入口必须接受单任务 CLI 已支持的 OpenAI 文生图素材源。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "batch image source",
+                            "video_source": "openai_image",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            args = cli.parse_args(
+                ["--batch-file", str(manifest), "--stop-at", "script"]
+            )
+
+            tasks = cli._build_batch_tasks(args)
+
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0].video_source, "openai_image")
 
     def test_batch_jsonl_continues_after_runtime_and_structured_failures(self):
         with tempfile.TemporaryDirectory() as temp_dir:

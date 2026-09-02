@@ -375,6 +375,22 @@
     "Upload-Post Profile Username": "Tên người dùng hồ sơ Upload-Post",
     "Upload-Post Profile Username Help": "Nhập tên người dùng hiển thị tại [Manage Users]({manage_users_url}), không phải email tài khoản Upload-Post. Người dùng xuất bản này phải được kết nối với các nền tảng đã chọn.",
     "Upload-Post Setup Guide": "Trước khi bật tự động xuất bản:\n1. Tạo khóa API tại [API Keys]({api_keys_url}).\n2. Tạo hoặc chọn người dùng xuất bản tại [Manage Users]({manage_users_url}), sau đó kết nối các nền tảng đích.\n\nNhập **tên người dùng** xuất bản đó bên dưới, không phải email tài khoản Upload-Post.",
-    "YouTube Privacy Status": "Trạng thái quyền riêng tư của YouTube"
+    "YouTube Privacy Status": "Trạng thái quyền riêng tư của YouTube",
+    "OFox AI Video": "OFox AI Video",
+    "OFox AI Video Help": "Tạo clip mới qua API OFox chính thức. Mỗi clip được gửi là một tác vụ OFox có tính phí.",
+    "OFox API Key": "Khóa API OFox ([Lấy khóa API](https://ofox.ai))",
+    "OFox Text-to-Video Model": "Mô hình chuyển văn bản thành video OFox",
+    "OFox Base URL": "URL cơ sở OFox",
+    "Please Enter the OFox API Key": "Vui lòng nhập **Khóa API OFox**",
+    "OFox Billing Notice": "Mỗi clip được tạo đều bị OFox tính phí. Dựa trên thời lượng lồng tiếng và thời lượng clip ước tính, khoảng {min}–{max} tác vụ có tính phí sẽ được gửi. Quá trình tạo dừng ngay khi đã có đủ cảnh quay.",
+    "OFox Billing Notice Without Script": "Mỗi clip được tạo đều bị OFox tính phí. Nhập hoặc tạo kịch bản video để xem số tác vụ ước tính.",
+    "Confirm OFox Charge": "Tôi hiểu rằng việc tạo bằng OFox sẽ tạo các tác vụ OFox có tính phí",
+    "Confirm OFox Charge Help": "Các clip OFox được gửi lần lượt và dừng khi đã đủ thời lượng lồng tiếng. OFox tính phí cho từng tác vụ tạo được gửi.",
+    "Confirm OFox Charge Required": "Vui lòng xác nhận chi phí tạo OFox trước khi tạo video.",
+    "OFox Upstream Vendor": "Nhà cung cấp thượng nguồn OFox",
+    "OFox Upstream Vendor Help": "Nhà cung cấp thượng nguồn phục vụ việc tạo video OFox. BytePlus (quốc tế) là mặc định với chính sách nội dung nhất quán; Volcano Engine là nhà cung cấp Trung Quốc đại lục; Tự động để gateway OFox cân bằng tải giữa các nhà cung cấp.",
+    "OFox Vendor BytePlus": "BytePlus (quốc tế, mặc định)",
+    "OFox Vendor Volcengine": "Volcano Engine (Trung Quốc đại lục)",
+    "OFox Vendor Auto": "Tự động (gateway cân bằng tải)"
   }
 }

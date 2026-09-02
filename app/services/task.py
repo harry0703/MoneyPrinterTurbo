@@ -21,12 +21,15 @@ from app.services import (
     llm,
     loomloom,
     material,
+    metaso_minimax,
+    ofox,
     sonilo,
     subtitle,
     task_artifacts,
     twelvelabs,
     video,
     voice,
+    volcengine_seedance,
 )
 from app.services import upload_post
 from app.services import state as sm
@@ -946,20 +949,67 @@ def get_video_materials(
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
         # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
-        downloaded_videos = material.download_videos(
-            task_id=task_id,
-            search_terms=video_terms,
-            source=params.video_source,
-            video_aspect=params.video_aspect,
-            video_concat_mode=(
-                VideoConcatMode.sequential
-                if params.match_materials_to_script
-                else params.video_concat_mode
-            ),
-            audio_duration=audio_duration * params.video_count,
-            max_clip_duration=params.video_clip_duration,
-            match_script_order=params.match_materials_to_script,
-        )
+        try:
+            downloaded_videos = material.download_videos(
+                task_id=task_id,
+                search_terms=video_terms,
+                source=params.video_source,
+                video_aspect=params.video_aspect,
+                video_concat_mode=(
+                    VideoConcatMode.sequential
+                    if params.match_materials_to_script
+                    else params.video_concat_mode
+                ),
+                audio_duration=audio_duration * params.video_count,
+                max_clip_duration=params.video_clip_duration,
+                match_script_order=params.match_materials_to_script,
+            )
+        except volcengine_seedance.VolcEngineSeedanceError as exc:
+            # 未确认状态和已生成但下载失败都对应一个可在方舟控制台恢复的远端
+            # 任务。统一从异常携带的 task_id 写入失败状态，避免不同异常分支
+            # 各自维护恢复信息并在后续扩展时再次遗漏。
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = (
+                {"volcengine_seedance_task_id": remote_task_id}
+                if remote_task_id
+                else None
+            )
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
+        except ofox.OFoxError as exc:
+            # 与方舟同一恢复语义：未确认状态和已生成但下载失败都对应一个可在
+            # OFox 控制台恢复的远端任务，统一从异常携带的 task_id 写入失败状态。
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = (
+                {"ofox_task_id": remote_task_id} if remote_task_id else None
+            )
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
+        except metaso_minimax.MetasoMiniMaxError as exc:
+            # 秘塔任务与方舟任务使用不同的恢复入口和字段名，不能合并成一个
+            # 模糊的 remote_task_id。保留明确 Provider 前缀便于 API、WebUI
+            # 和运维日志直接定位对应平台。
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = (
+                {"metaso_minimax_task_id": remote_task_id} if remote_task_id else None
+            )
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
         if not downloaded_videos:
             _mark_task_failed(
                 task_id,
@@ -1483,6 +1533,28 @@ def _run_pipeline(
             task_id,
             "preflight",
             "Volcano Engine Seedance requires an Ark API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "ofox"
+        and not ofox.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "OFox video generation requires an OFox API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "metaso_minimax"
+        and not metaso_minimax.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "Metaso MiniMax requires an API key",
         )
 
     if (

@@ -118,9 +118,11 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
             "pexels",
             "pixabay",
             "coverr",
-            "wavespeed",
-            "volcengine_seedance",
+            "metaso_minimax",
             "loomloom",
+            "volcengine_seedance",
+            "wavespeed",
+            "ofox",
             "openai_image",
             "local",
         ]

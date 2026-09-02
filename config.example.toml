@@ -63,11 +63,15 @@ tls_verify = true
 # -----------------------------------------------------------------------------
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
-# "volcengine_seedance", "loomloom", "openai_image", "local".
+# "volcengine_seedance", "ofox", "metaso_minimax", "loomloom",
+# "openai_image", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
 # "loomloom" is a paid Shengsuan Cloud source and requires explicit
 # confirmation in the WebUI before each generation request.
+# "ofox" generates brand-new clips through the OFox multi-model video API
+# (Seedance / Wan and other text-to-video models behind one key); generation
+# is billed per submitted clip.
 # "openai_image" generates one image per script keyword through any
 # OpenAI-compatible /images/generations endpoint (local ComfyUI/SD gateways
 # or cloud relays) and renders it into a video clip.
@@ -117,6 +121,52 @@ volcengine_seedance_max_duration = 12
 volcengine_seedance_poll_interval = 5
 volcengine_seedance_run_timeout = 1800
 volcengine_seedance_watermark = false
+
+# OFox (https://ofox.ai) exposes multiple text-to-video models (Seedance, Wan,
+# and more) behind one API key using an asynchronous /v1/videos API.
+# Create an API key at https://ofox.ai
+# When empty, the OFOX_API_KEY environment variable is used.
+# Generation is billed per submitted clip.
+ofox_api_key = ""
+ofox_base_url = "https://api.ofox.ai/v1"
+# Any text-to-video model id from the OFox catalog (GET /v1/models) works here.
+ofox_text_to_video_model = "bytedance/seedance-2.0-fast"
+# Supported resolutions depend on the chosen model (the default model accepts
+# "480p" and "720p"); invalid values are rejected by the API with a clear
+# error before any task is created.
+ofox_resolution = "720p"
+# The default model only accepts durations of 4-15 seconds; other models have
+# different ranges (for example alibaba/wan-2.7 accepts 2-15 seconds).
+# Requested clip durations outside the range are clamped automatically before
+# submission (extra footage is trimmed by the editing pipeline).
+ofox_min_duration = 4
+ofox_max_duration = 15
+# Upstream vendor pinning. Some models are served by multiple upstream
+# vendors (for example the Seedance series is available from both
+# "volcengine" and "byteplus"). Vendors apply their own content policies and
+# regional availability. The default pins "byteplus" (the international
+# vendor) for a consistent content policy and predictable routing; set
+# "volcengine" for the mainland-China vendor, or set an empty string "" to
+# let OFox load-balance across the available vendors. Unknown vendor names
+# are rejected by the API before any task is created. Note: vendor coverage
+# is per model — the default pinning targets the Seedance series; when
+# switching to a non-Seedance model (e.g. alibaba/wan-2.7), set the matching
+# vendor or an empty string, otherwise the API rejects the request with
+# provider_type_unavailable (no task is created, nothing is billed).
+ofox_provider = "byteplus"
+ofox_poll_interval = 5
+ofox_run_timeout = 1800
+
+# Metaso proxies the MiniMax H3 V2 asynchronous video API. Register and obtain
+# an independent API key through https://metaso.cn/minimax-h3/?s=MPT. Its mk-*
+# key belongs to a separate credential system and must not reuse the MiniMax LLM key.
+# When this value is empty, METASO_MINIMAX_API_KEY is used. Generation is billed
+# per submitted clip; the WebUI and CLI require explicit charge confirmation.
+metaso_minimax_api_key = ""
+metaso_minimax_base_url = "https://metaso.cn/api/minimax"
+metaso_minimax_resolution = "2K" # "768P" or "2K"
+metaso_minimax_poll_interval = 10
+metaso_minimax_run_timeout = 1800
 
 # OpenAI-compatible text-to-image material source ("openai_image"). Point the
 # base URL at any endpoint that speaks the OpenAI /images/generations protocol:

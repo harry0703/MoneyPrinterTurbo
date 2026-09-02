@@ -30,11 +30,14 @@ SUPPORTED_SOURCES = {
     "pixabay",
     "coverr",
     "volcengine_seedance",
+    "ofox",
+    "metaso_minimax",
     "local",
 }
 VOLCENGINE_ARK_API_KEY_URL = (
     "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey"
 )
+OFOX_API_KEY_URL = "https://ofox.ai"
 PEXELS_API_KEY_URL = "https://www.pexels.com/api/"
 PEXELS_VALIDATION_URL = "https://api.pexels.com/v1/collections?per_page=1"
 PEXELS_API_KEY_HELP_URL = (
@@ -216,7 +219,22 @@ def apply_environment_config(config_path: Path) -> None:
     model_name = os.environ.get("MPT_LLM_MODEL_NAME", "").strip()
     pexels_key = os.environ.get("MPT_PEXELS_API_KEY", "").strip()
     seedance_key = os.environ.get("MPT_VOLCENGINE_ARK_API_KEY", "").strip()
-    if not any((provider, llm_key, base_url, model_name, pexels_key, seedance_key)):
+    ofox_key = os.environ.get("MPT_OFOX_API_KEY", "").strip()
+    metaso_minimax_key = os.environ.get(
+        "MPT_METASO_MINIMAX_API_KEY", ""
+    ).strip()
+    if not any(
+        (
+            provider,
+            llm_key,
+            base_url,
+            model_name,
+            pexels_key,
+            seedance_key,
+            ofox_key,
+            metaso_minimax_key,
+        )
+    ):
         return
 
     text = config_path.read_text(encoding="utf-8")
@@ -243,6 +261,14 @@ def apply_environment_config(config_path: Path) -> None:
             text, "volcengine_seedance_api_key", seedance_key
         )
         changes.append("volcengine_seedance_api_key")
+    if ofox_key:
+        text = _replace_config_value(text, "ofox_api_key", ofox_key)
+        changes.append("ofox_api_key")
+    if metaso_minimax_key:
+        text = _replace_config_value(
+            text, "metaso_minimax_api_key", metaso_minimax_key
+        )
+        changes.append("metaso_minimax_api_key")
     config_path.write_text(text, encoding="utf-8")
     log("updated configuration fields: " + ", ".join(changes))
 
@@ -334,6 +360,28 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("volcengine_seedance_api_key")
         if not has_cli_option(cli_args, "--confirm-seedance-charge"):
             missing.append("confirm_seedance_charge")
+    elif source == "ofox":
+        # 与运行时 Provider 保持完全一致的凭据优先级：配置键优先，其次是
+        # 语义明确的 OFOX_API_KEY 环境变量。
+        value = (
+            _plain_config_value(text, "ofox_api_key")
+            or os.environ.get("OFOX_API_KEY", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("ofox_api_key")
+        if not has_cli_option(cli_args, "--confirm-ofox-charge"):
+            missing.append("confirm_ofox_charge")
+    elif source == "metaso_minimax":
+        # 秘塔 Key 与 MiniMax 官方 LLM Key 不互通，Skill 必须沿用运行时的
+        # 独立配置优先级，不能因为已经配置 minimax_api_key 就误判为可用。
+        value = (
+            _plain_config_value(text, "metaso_minimax_api_key")
+            or os.environ.get("METASO_MINIMAX_API_KEY", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("metaso_minimax_api_key")
+        if not has_cli_option(cli_args, "--confirm-metaso-minimax-charge"):
+            missing.append("confirm_metaso_minimax_charge")
     elif source != "local":
         value = _plain_config_value(text, f"{source}_api_keys")
         if not _has_configured_value(value):
@@ -349,7 +397,11 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print(f"MISSING={field}")
     if any(
         field.endswith("_api_key")
-        and field != "volcengine_seedance_api_key"
+        and field not in {
+            "volcengine_seedance_api_key",
+            "ofox_api_key",
+            "metaso_minimax_api_key",
+        }
         for field in missing
     ):
         print("LLM_PROVIDER_OPTIONS_BEGIN")
@@ -373,6 +425,18 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print("VOLCENGINE_ARK_API_KEY_ENV=MPT_VOLCENGINE_ARK_API_KEY")
     if "confirm_seedance_charge" in missing:
         print("SEEDANCE_CHARGE_CONFIRMATION_REQUIRED=--confirm-seedance-charge")
+    if "ofox_api_key" in missing:
+        print(f"OFOX_API_KEY_URL={OFOX_API_KEY_URL}")
+        print("OFOX_API_KEY_ENV=MPT_OFOX_API_KEY")
+    if "confirm_ofox_charge" in missing:
+        print("OFOX_CHARGE_CONFIRMATION_REQUIRED=--confirm-ofox-charge")
+    if "metaso_minimax_api_key" in missing:
+        print("METASO_MINIMAX_API_KEY_ENV=MPT_METASO_MINIMAX_API_KEY")
+    if "confirm_metaso_minimax_charge" in missing:
+        print(
+            "METASO_MINIMAX_CHARGE_CONFIRMATION_REQUIRED="
+            "--confirm-metaso-minimax-charge"
+        )
     print("Request only the listed values, set the environment variables, and rerun the same command.")
     return NEEDS_INPUT_EXIT_CODE
 

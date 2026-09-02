@@ -375,6 +375,22 @@
     "Upload-Post Profile Username": "Upload-Post Profil Kullanıcı Adı",
     "Upload-Post Profile Username Help": "Upload-Post hesap e-postanız yerine [Manage Users]({manage_users_url}) sayfasında gösterilen kullanıcı adını girin. Bu yayın kullanıcısı seçilen platformlara bağlı olmalıdır.",
     "Upload-Post Setup Guide": "Otomatik yayınlamayı etkinleştirmeden önce:\n1. [API Keys]({api_keys_url}) sayfasında bir API anahtarı oluşturun.\n2. [Manage Users]({manage_users_url}) sayfasında bir yayın kullanıcısı oluşturun veya seçin ve hedef platformları bağlayın.\n\nAşağıya Upload-Post hesap e-postanızı değil, bu yayın kullanıcısının **kullanıcı adını** girin.",
-    "YouTube Privacy Status": "YouTube Gizlilik Durumu"
+    "YouTube Privacy Status": "YouTube Gizlilik Durumu",
+    "OFox AI Video": "OFox AI Video",
+    "OFox AI Video Help": "Resmî OFox API’siyle yeni klipler oluşturun. Gönderilen her klip ücretli bir OFox görevidir.",
+    "OFox API Key": "OFox API Anahtarı ([API Anahtarı Al](https://ofox.ai))",
+    "OFox Text-to-Video Model": "OFox metinden videoya modeli",
+    "OFox Base URL": "OFox Temel URL’si",
+    "Please Enter the OFox API Key": "Lütfen **OFox API Anahtarını** girin",
+    "OFox Billing Notice": "Oluşturulan her klip OFox tarafından ücretlendirilir. Tahmini seslendirme ve klip süresine göre yaklaşık {min}–{max} ücretli görev gönderilir. Yeterli görüntü elde edildiğinde üretim durur.",
+    "OFox Billing Notice Without Script": "Oluşturulan her klip OFox tarafından ücretlendirilir. Tahmini görev sayısını görmek için video metnini girin veya oluşturun.",
+    "Confirm OFox Charge": "OFox üretiminin ücretli OFox görevleri oluşturduğunu anlıyorum",
+    "Confirm OFox Charge Help": "OFox klipleri tek tek gönderilir ve seslendirme süresini karşıladığında durur. OFox, gönderilen her üretim görevi için ücret alır.",
+    "Confirm OFox Charge Required": "Videoyu oluşturmadan önce OFox üretim ücretini onaylayın.",
+    "OFox Upstream Vendor": "OFox Üst Akış Sağlayıcısı",
+    "OFox Upstream Vendor Help": "OFox video üretimini hangi üst akış sağlayıcısının sunacağı. BytePlus (uluslararası) tutarlı içerik politikasıyla varsayılandır; Volcano Engine Çin anakarası sağlayıcısıdır; Otomatik, OFox ağ geçidinin yükü sağlayıcılar arasında dengelemesine izin verir.",
+    "OFox Vendor BytePlus": "BytePlus (uluslararası, varsayılan)",
+    "OFox Vendor Volcengine": "Volcano Engine (Çin anakarası)",
+    "OFox Vendor Auto": "Otomatik (ağ geçidi yük dengeleme)"
   }
 }

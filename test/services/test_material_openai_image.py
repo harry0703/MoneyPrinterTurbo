@@ -152,6 +152,71 @@ class TestOpenAIImageProvider(unittest.TestCase):
             "https://cdn.example.com/generated/abc.png?sig=1",
         )
 
+    def test_generate_images_openai_skips_b64_json_with_invalid_image(self):
+        """
+        兼容层返回 200 但 body 不是可解码图片（如伪装成 JSON 的 HTML 错误页）
+        时，必须按素材源约定返回空列表让上层跳过该关键词，而不是让解码
+        异常中断整个任务。
+        """
+        fake_content = b"<html><body>gateway degraded</body></html>"
+        response = _image_response(
+            {"data": [{"b64_json": base64.b64encode(fake_content).decode("ascii")}]}
+        )
+
+        with patch("app.services.material.requests.post", return_value=response):
+            results = material.generate_images_openai(
+                "sunrise over mountains", minimum_duration=5, save_dir=self.save_dir
+            )
+
+        self.assertEqual(results, [])
+        self.assertEqual(os.listdir(self.save_dir), [])
+
+    def test_generate_images_openai_skips_url_download_with_invalid_content(self):
+        """临时 URL 下载到 200 的非图片内容时同样走跳过路径。"""
+        response = _image_response(
+            {"data": [{"url": "https://cdn.example.com/generated/abc.png?sig=1"}]}
+        )
+        download = _download_response(b"\x89PNG\r\n\x1a\nnot-really-a-png")
+
+        with (
+            patch("app.services.material.requests.post", return_value=response),
+            patch("app.services.material.requests.get", return_value=download),
+        ):
+            results = material.generate_images_openai(
+                "city at night", minimum_duration=3, save_dir=self.save_dir
+            )
+
+        self.assertEqual(results, [])
+        self.assertEqual(os.listdir(self.save_dir), [])
+
+    def test_generate_images_openai_propagates_image_write_failure(self):
+        """
+        图片已经成功解码但 PNG 写入失败时必须中断任务。此类故障通常会持续
+        影响后续关键词，若误判为单张内容异常并继续，会产生无法落盘的付费请求。
+        """
+        response = _image_response(
+            {
+                "data": [
+                    {"b64_json": base64.b64encode(_png_bytes()).decode("ascii")}
+                ]
+            }
+        )
+
+        with (
+            patch("app.services.material.requests.post", return_value=response),
+            patch.object(
+                Image.Image,
+                "save",
+                side_effect=OSError("no space left on device"),
+            ),
+            self.assertRaisesRegex(OSError, "no space left on device"),
+        ):
+            material.generate_images_openai(
+                "city at night", minimum_duration=3, save_dir=self.save_dir
+            )
+
+        self.assertEqual(os.listdir(self.save_dir), [])
+
     # ------------------------------------------------------------------
     # 退避重试与 key 轮换
     # ------------------------------------------------------------------
@@ -575,6 +640,54 @@ class TestOpenAIImageProvider(unittest.TestCase):
         # 每张图片都渲染成 mp4 片段后才计入时长
         self.assertEqual(render.call_count, 2)
         self.assertEqual(result, ["/tmp/img-1.png.mp4", "/tmp/img-2.png.mp4"])
+
+    def test_download_videos_openai_image_continues_after_invalid_image(self):
+        """
+        首个兼容接口响应无法解码时只跳过对应关键词，随后一张合法图片仍能
+        完成落盘和渲染，验证修复覆盖真实的按需生成调用链而不只是单个函数。
+        """
+        invalid_response = _image_response(
+            {
+                "data": [
+                    {
+                        "b64_json": base64.b64encode(
+                            b"<html>gateway degraded</html>"
+                        ).decode("ascii")
+                    }
+                ]
+            }
+        )
+        valid_response = _image_response(
+            {
+                "data": [
+                    {"b64_json": base64.b64encode(_png_bytes()).decode("ascii")}
+                ]
+            }
+        )
+        config.app["material_directory"] = self.save_dir
+
+        with (
+            patch(
+                "app.services.material.requests.post",
+                side_effect=[invalid_response, valid_response],
+            ) as post,
+            patch(
+                "app.services.material._render_openai_image_video",
+                return_value="/tmp/rendered-openai-image.mp4",
+            ) as render,
+            patch("app.services.material._persist_material_sources"),
+        ):
+            result = material.download_videos(
+                task_id="test-openai-image-invalid-then-valid",
+                search_terms=["invalid term", "valid term"],
+                source="openai_image",
+                audio_duration=5,
+                max_clip_duration=5,
+            )
+
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(render.call_count, 1)
+        self.assertEqual(result, ["/tmp/rendered-openai-image.mp4"])
 
     def test_download_videos_openai_image_stops_when_duration_exactly_covered(self):
         """边界回归:恰好凑够所需时长即已够用,停止判断必须是 >= 而不是 >。"""

@@ -371,8 +371,10 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
 }
 
 
-/* 中等宽度下将四个设置面板调整为 2×2，避免每列过窄导致标签和按钮频繁换行。 */
-@media (min-width: 701px) and (max-width: 1100px) {
+/* 中等宽度下将四个设置面板调整为 2×2。主内容区还会扣除页面边距，因此
+   1200～1440px 的常见视口不足以稳定容纳四列英文标签；断点覆盖到 1500px，
+   避免下拉内容和标题被裁切，真正的宽屏才恢复四列。 */
+@media (min-width: 701px) and (max-width: 1500px) {
     .mpt-brand__name {
         font-size: 2.25rem;
     }

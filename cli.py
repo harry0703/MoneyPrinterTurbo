@@ -34,6 +34,19 @@ _PIPELINE_STAGES = ("script", "terms", "audio", "subtitle", "materials", "video"
 _CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 _BATCH_FILE_MAX_BYTES = 1024 * 1024
 _BATCH_TASK_MAX_COUNT = 100
+# 单任务 argparse 和批量清单必须共享同一来源集合。此前两处手工维护导致
+# openai_image 只在单任务入口可用；集中定义后，新增 Provider 不会再次遗漏
+# 批量校验。这里仅包含 CLI 已公开支持的来源，不强行暴露 WebUI 专属流程。
+_CLI_VIDEO_SOURCES = (
+    "pexels",
+    "pixabay",
+    "coverr",
+    "volcengine_seedance",
+    "ofox",
+    "metaso_minimax",
+    "openai_image",
+    "local",
+)
 
 
 class _CliHelpFormatter(
@@ -263,14 +276,7 @@ Batch manifests:
     material_group.add_argument(
         "--video-source",
         default="pexels",
-        choices=[
-            "pexels",
-            "pixabay",
-            "coverr",
-            "volcengine_seedance",
-            "openai_image",
-            "local",
-        ],
+        choices=_CLI_VIDEO_SOURCES,
         help="video material provider; online providers require matching API keys in config.toml",
     )
     material_group.add_argument(
@@ -315,6 +321,22 @@ Batch manifests:
         help=(
             "confirm that Volcano Engine Seedance creates paid Ark tasks; required "
             "with --video-source volcengine_seedance for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-ofox-charge",
+        action="store_true",
+        help=(
+            "confirm that OFox video generation creates paid tasks; required "
+            "with --video-source ofox for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-metaso-minimax-charge",
+        action="store_true",
+        help=(
+            "confirm that Metaso MiniMax H3 creates paid video tasks; required "
+            "with --video-source metaso_minimax for materials or video output"
         ),
     )
 
@@ -635,6 +657,25 @@ Batch manifests:
         parser.error(
             "--confirm-seedance-charge is required with "
             "--video-source volcengine_seedance"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "ofox"
+        and stage_requires_materials
+        and not args.confirm_ofox_charge
+    ):
+        parser.error(
+            "--confirm-ofox-charge is required with --video-source ofox"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "metaso_minimax"
+        and stage_requires_materials
+        and not args.confirm_metaso_minimax_charge
+    ):
+        parser.error(
+            "--confirm-metaso-minimax-charge is required with "
+            "--video-source metaso_minimax"
         )
 
     if args.bgm_file:
@@ -1095,20 +1136,15 @@ def _validate_batch_task_params(
     stop_at: str,
     custom_position_is_explicit: bool,
     seedance_charge_confirmed: bool,
+    ofox_charge_confirmed: bool,
+    metaso_minimax_charge_confirmed: bool,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
 
-    if params.video_source not in {
-        "pexels",
-        "pixabay",
-        "coverr",
-        "volcengine_seedance",
-        "local",
-    }:
+    if params.video_source not in _CLI_VIDEO_SOURCES:
         raise ValueError(
-            "video_source must be one of: pexels, pixabay, coverr, "
-            "volcengine_seedance, local"
+            "video_source must be one of: " + ", ".join(_CLI_VIDEO_SOURCES)
         )
     for field_name, value in (
         ("video_aspect", params.video_aspect),
@@ -1141,6 +1177,20 @@ def _validate_batch_task_params(
     ):
         raise ValueError(
             "--confirm-seedance-charge is required for Volcano Engine Seedance"
+        )
+    if (
+        params.video_source == "ofox"
+        and stop_at in {"materials", "video"}
+        and not ofox_charge_confirmed
+    ):
+        raise ValueError("--confirm-ofox-charge is required for OFox video generation")
+    if (
+        params.video_source == "metaso_minimax"
+        and stop_at in {"materials", "video"}
+        and not metaso_minimax_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-metaso-minimax-charge is required for Metaso MiniMax H3"
         )
 
     # Validate scenes
@@ -1255,6 +1305,10 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                     or "custom_position" in override_fields
                 ),
                 seedance_charge_confirmed=args.confirm_seedance_charge,
+                ofox_charge_confirmed=args.confirm_ofox_charge,
+                metaso_minimax_charge_confirmed=(
+                    args.confirm_metaso_minimax_charge
+                ),
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc
