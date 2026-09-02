@@ -824,3 +824,18 @@ div[data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] > la
 }
 
 
+.mpt-trend-card {
+    align-items: center;
+    background: var(--secondary-background-color);
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    border-radius: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+}
+
+.mpt-trend-card span {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}

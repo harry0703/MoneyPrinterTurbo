@@ -50,6 +50,7 @@ class TestWebUINavigationAndViews(unittest.TestCase):
         source = ast.get_source_segment(WEBUI_MAIN.read_text(encoding="utf-8"), func)
         assert '"dashboard"' in source or "'dashboard'" in source
         assert '"studio"' in source or "'studio'" in source
+        assert '"trends"' in source or "'trends'" in source
         assert '"settings"' in source or "'settings'" in source
 
     def test_active_series_id_association_on_task_submit(self):

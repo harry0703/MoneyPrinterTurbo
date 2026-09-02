@@ -57,6 +57,9 @@ from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
 from app.services import version_checker
+from app.services.trends.service import TrendDiscoveryService
+from app.services.trends.sources import GoogleTrendsRssSource, YouTubeMostPopularSource
+from app.services.trends.storage import TrendStore
 from app.utils.logging_utils import configure_terminal_logger
 from app.utils import utils
 
@@ -1390,6 +1393,7 @@ def _render_sidebar_navigation():
         nav_options = [
             ("dashboard", f"📊 {tr('Nav Dashboard')}"),
             ("studio", f"🎬 {tr('Nav Studio')}"),
+            ("trends", f"📈 {tr('Nav Trends')}"),
             ("settings", f"⚙️ {tr('Nav Settings')}"),
         ]
         nav_keys = [opt[0] for opt in nav_options]
@@ -6141,6 +6145,150 @@ def _render_dashboard_view():
                                 st.rerun()
 
 
+def _trend_discovery_service():
+    session = requests.Session()
+    return TrendDiscoveryService(
+        TrendStore(),
+        GoogleTrendsRssSource(session),
+        YouTubeMostPopularSource(
+            session, str(config.app.get("youtube_data_api_key", ""))
+        ),
+    )
+
+
+def _trend_topic_id(topic):
+    return re.sub(r"[^a-z0-9]+", "-", topic.casefold()).strip("-")
+
+
+def _apply_trend_topic_to_studio(topic, angle):
+    st.session_state["video_subject"] = topic
+    st.session_state["video_script_prompt"] = angle or tr("Trend Default Prompt")
+    st.session_state["nav_view"] = "studio"
+    st.session_state["main_nav_radio"] = "studio"
+
+
+def _render_trend_topic(service, platform, topic):
+    topic_id = _trend_topic_id(topic.topic)
+    markets = sorted({signal.market for signal in topic.evidence})
+    st.markdown(
+        f"<div class='mpt-trend-card'><strong>{html.escape(topic.topic)}</strong>"
+        f"<span>{topic.retention_potential}/100</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        f"{tr('Trend Classification')}: {topic.classification.title()} · "
+        f"{tr('Trend Confidence')}: {topic.confidence_label.title()} · "
+        f"{tr('Trend Markets')}: {', '.join(markets) or '-'}"
+    )
+    with st.expander(tr("Trend Evidence and Score")):
+        st.write(dict(topic.components))
+        for signal in topic.evidence:
+            st.markdown(
+                f"[{signal.source} · {signal.market} · "
+                f"{signal.collected_at.isoformat()}]({signal.source_reference})"
+            )
+    if topic.angles:
+        angle = st.selectbox(
+            tr("Trend Content Angle"),
+            topic.angles,
+            key=f"trend_angle_{platform}_{topic_id}",
+        )
+    else:
+        angle = ""
+        if st.button(
+            tr("Trend Generate Angles"),
+            key=f"trend_angles_{platform}_{topic_id}",
+        ):
+            service.add_angles(
+                topic.topic, config.snapshot_config_with_pending(config.app)
+            )
+            st.rerun()
+    action_1, action_2 = st.columns(2)
+    with action_1:
+        if st.button(
+            tr("Trend Shortlist"), key=f"trend_shortlist_{platform}_{topic_id}"
+        ):
+            service.shortlist(topic.topic)
+            st.toast(tr("Trend Shortlisted"))
+    with action_2:
+        st.button(
+            tr("Trend Use Topic"),
+            key=f"trend_use_{platform}_{topic_id}",
+            type="primary",
+            on_click=_apply_trend_topic_to_studio,
+            args=(topic.topic, angle),
+        )
+
+
+def _render_trend_discovery_view():
+    st.title(f"📈 {tr('Nav Trends')}")
+    st.caption(tr("Trend Discovery Help"))
+    service = _trend_discovery_service()
+    if st.button(tr("Trend Refresh"), type="primary"):
+        with st.spinner(tr("Trend Refreshing")):
+            service.refresh()
+    snapshot = service.get_cached()
+    if snapshot is None:
+        st.info(tr("Trend No Cache"))
+        return
+
+    status = " · ".join(
+        f"{source}: {getattr(value, 'value', value)}"
+        for source, value in snapshot.source_status.items()
+    )
+    st.caption(f"{snapshot.collected_at.isoformat()} · {status}")
+    if snapshot.stale:
+        st.warning(tr("Trend Stale Warning"))
+    st.info(tr("Trend Inferred Warning"))
+
+    classifications = sorted(
+        {
+            topic.classification
+            for topics in snapshot.platforms.values()
+            for topic in topics
+        }
+    )
+    filter_1, filter_2, filter_3 = st.columns(3)
+    with filter_1:
+        selected_class = st.selectbox(
+            tr("Trend Classification Filter"), [tr("Trend All")] + classifications
+        )
+    with filter_2:
+        selected_markets = st.multiselect(
+            tr("Trend Market Filter"), ["US", "IN", "GB", "CA", "AU"]
+        )
+    with filter_3:
+        minimum_score = st.slider(tr("Trend Minimum Score"), 0, 100, 0)
+
+    platform_specs = (
+        ("youtube_shorts", "YouTube Shorts"),
+        ("tiktok", "TikTok"),
+        ("instagram_reels", "Instagram Reels"),
+    )
+    tabs = st.tabs([label for _, label in platform_specs])
+    for tab, (platform, _) in zip(tabs, platform_specs):
+        with tab:
+            topics = snapshot.platforms.get(platform, ())
+            visible = [
+                topic
+                for topic in topics
+                if topic.retention_potential >= minimum_score
+                and (
+                    selected_class == tr("Trend All")
+                    or topic.classification == selected_class
+                )
+                and (
+                    not selected_markets
+                    or set(selected_markets)
+                    & {signal.market for signal in topic.evidence}
+                )
+            ]
+            if not visible:
+                st.info(tr("Trend No Results"))
+            for topic in visible:
+                _render_trend_topic(service, platform, topic)
+
+
 def _render_studio_view():
     """渲染视频创作工坊主界面（四列面板网格、任务提交及任务结果）。"""
     active_series_id = st.session_state.get("active_series_id")
@@ -6216,6 +6364,9 @@ def _render_application():
     if current_nav == "dashboard":
         _render_dashboard_view()
         _save_runtime_config()
+        return
+    elif current_nav == "trends":
+        _render_trend_discovery_view()
         return
     elif current_nav == "settings":
         _render_settings_view()
