@@ -152,6 +152,43 @@ class TestOpenAIImageProvider(unittest.TestCase):
             "https://cdn.example.com/generated/abc.png?sig=1",
         )
 
+    def test_generate_images_openai_skips_b64_json_with_invalid_image(self):
+        """
+        兼容层返回 200 但 body 不是可解码图片（如伪装成 JSON 的 HTML 错误页）
+        时，必须按素材源约定返回空列表让上层跳过该关键词，而不是让解码
+        异常中断整个任务。
+        """
+        fake_content = b"<html><body>gateway degraded</body></html>"
+        response = _image_response(
+            {"data": [{"b64_json": base64.b64encode(fake_content).decode("ascii")}]}
+        )
+
+        with patch("app.services.material.requests.post", return_value=response):
+            results = material.generate_images_openai(
+                "sunrise over mountains", minimum_duration=5, save_dir=self.save_dir
+            )
+
+        self.assertEqual(results, [])
+        self.assertEqual(os.listdir(self.save_dir), [])
+
+    def test_generate_images_openai_skips_url_download_with_invalid_content(self):
+        """临时 URL 下载到 200 的非图片内容时同样走跳过路径。"""
+        response = _image_response(
+            {"data": [{"url": "https://cdn.example.com/generated/abc.png?sig=1"}]}
+        )
+        download = _download_response(b"\x89PNG\r\n\x1a\nnot-really-a-png")
+
+        with (
+            patch("app.services.material.requests.post", return_value=response),
+            patch("app.services.material.requests.get", return_value=download),
+        ):
+            results = material.generate_images_openai(
+                "city at night", minimum_duration=3, save_dir=self.save_dir
+            )
+
+        self.assertEqual(results, [])
+        self.assertEqual(os.listdir(self.save_dir), [])
+
     # ------------------------------------------------------------------
     # 退避重试与 key 轮换
     # ------------------------------------------------------------------

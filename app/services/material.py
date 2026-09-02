@@ -1413,7 +1413,17 @@ def generate_images_openai(
         )
         return []
 
-    image_path, width, height = _save_openai_image_file(image_bytes, save_dir)
+    try:
+        image_path, width, height = _save_openai_image_file(image_bytes, save_dir)
+    except Exception as e:
+        # 兼容层可能返回 200 但 body 不是图片（如伪装成 JSON 的 HTML 错误页、
+        # 网关的降级提示页）。图片无法解码属于"该次生成已失败"，按素材源
+        # 约定返回空列表让上层跳过该关键词继续，而不是让异常中断整个任务。
+        logger.error(
+            "openai image response is not a decodable image, skipping term: "
+            f"term={search_term!r}, error={type(e).__name__}, detail={e}"
+        )
+        return []
     item = MaterialInfo()
     item.provider = "openai_image"
     item.url = image_path
