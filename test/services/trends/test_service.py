@@ -80,3 +80,30 @@ def test_all_sources_failed_returns_stale_cache():
     assert result.stale
     assert result.collected_at == cached.collected_at
     assert result.source_status["google_trends"] is SourceStatus.UNAVAILABLE
+
+
+def test_youtube_verification_applies_only_to_topics_with_youtube_evidence():
+    google = FakeSource(
+        "google_trends",
+        [
+            signal("Ocean mystery", "US", "google_trends", 0.8),
+            signal("Google-only topic", "IN", "google_trends", 0.8),
+        ],
+    )
+    youtube = FakeSource(
+        "youtube_most_popular",
+        [signal("Ocean mystery", "US", "youtube_most_popular", 0.9)],
+    )
+
+    snapshot = TrendDiscoveryService(
+        FakeStore(), google, youtube, clock=lambda: NOW
+    ).refresh()
+
+    confidence = {
+        topic.topic: topic.confidence_label
+        for topic in snapshot.platforms["youtube_shorts"]
+    }
+    assert confidence == {
+        "Ocean mystery": "verified",
+        "Google-only topic": "inferred",
+    }

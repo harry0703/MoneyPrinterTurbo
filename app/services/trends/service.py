@@ -33,8 +33,10 @@ class TrendDiscoveryService:
             return TrendSnapshot(collected_at, (), statuses, _empty_platforms(), True)
 
         previous = self.store.load_previous()
-        youtube_topics = self._score(google + youtube, previous, verified=bool(youtube))
-        inferred = self._score(google, previous, verified=False)
+        youtube_topics = self._score(
+            google + youtube, previous, verified_source="youtube_most_popular"
+        )
+        inferred = self._score(google, previous)
         platforms = {
             "youtube_shorts": youtube_topics,
             "tiktok": inferred,
@@ -99,7 +101,7 @@ class TrendDiscoveryService:
         )
         return updated
 
-    def _score(self, signals, previous, verified):
+    def _score(self, signals, previous, verified_source=None):
         topics = []
         for candidate in cluster_signals(signals):
             if not is_safe_topic(candidate.topic):
@@ -108,7 +110,15 @@ class TrendDiscoveryService:
             topics.append(
                 replace(
                     topic,
-                    confidence_label="verified" if verified else "inferred",
+                    confidence_label=(
+                        "verified"
+                        if verified_source
+                        and any(
+                            signal.source == verified_source
+                            for signal in candidate.signals
+                        )
+                        else "inferred"
+                    ),
                     angles=(),
                 )
             )
