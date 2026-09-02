@@ -158,6 +158,44 @@ def test_verify_login_rejects_generated_password_when_override_set(db_path):
     )
 
 
+def test_create_session_returns_validatable_token(db_path):
+    token = auth_store.create_session(db_path)
+
+    assert token
+    assert auth_store.validate_session(token, db_path) is True
+
+
+def test_validate_session_rejects_unknown_token(db_path):
+    assert auth_store.validate_session("does-not-exist", db_path) is False
+
+
+def test_validate_session_rejects_blank_token(db_path):
+    assert auth_store.validate_session("", db_path) is False
+    assert auth_store.validate_session(None, db_path) is False
+
+
+def test_invalidate_session_revokes_token(db_path):
+    token = auth_store.create_session(db_path)
+    auth_store.invalidate_session(token, db_path)
+
+    assert auth_store.validate_session(token, db_path) is False
+
+
+def test_invalidate_session_is_noop_for_unknown_token(db_path):
+    # Must not raise even when the token was never issued.
+    auth_store.invalidate_session("never-issued", db_path)
+
+
+def test_sessions_have_no_expiry_and_stay_valid_over_time(db_path, monkeypatch):
+    fake_now = [1_000_000.0]
+    monkeypatch.setattr(auth_store.time, "time", lambda: fake_now[0])
+
+    token = auth_store.create_session(db_path)
+    fake_now[0] += 60 * 60 * 24 * 365  # one year later, no TTL enforced
+
+    assert auth_store.validate_session(token, db_path) is True
+
+
 def test_verify_login_still_locks_out_with_override_password(db_path):
     auth_store.ensure_account(TEST_EMAIL, db_path)
 

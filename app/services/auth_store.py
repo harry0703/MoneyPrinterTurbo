@@ -48,6 +48,14 @@ def _connect(db_path: str | None) -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            created_at REAL NOT NULL
+        )
+        """
+    )
     conn.commit()
     return conn
 
@@ -93,6 +101,43 @@ def ensure_account(email: str, db_path: str | None = None) -> str | None:
         )
         conn.commit()
         return password
+
+
+def create_session(db_path: str | None = None) -> str:
+    """Issue a new opaque session token, persisted with no expiry.
+
+    The token is a bearer credential for the login cookie, never the
+    password: it never expires on its own, only ``invalidate_session``
+    (logout) revokes it.
+    """
+    token = secrets.token_urlsafe(32)
+    with closing(_connect(db_path)) as conn:
+        conn.execute(
+            "INSERT INTO sessions (token, created_at) VALUES (?, ?)",
+            (token, time.time()),
+        )
+        conn.commit()
+    return token
+
+
+def validate_session(token: str | None, db_path: str | None = None) -> bool:
+    token = (token or "").strip()
+    if not token:
+        return False
+    with closing(_connect(db_path)) as conn:
+        row = conn.execute(
+            "SELECT 1 FROM sessions WHERE token = ?", (token,)
+        ).fetchone()
+        return row is not None
+
+
+def invalidate_session(token: str | None, db_path: str | None = None) -> None:
+    token = (token or "").strip()
+    if not token:
+        return
+    with closing(_connect(db_path)) as conn:
+        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.commit()
 
 
 def verify_login(
