@@ -4237,252 +4237,294 @@ def _render_video_settings(panel, params):
     video_source_label = dict((v, label) for label, v in video_sources).get(
         saved_video_source_name, saved_video_source_name
     )
-    panel_label = f"{tr('Video Settings')} · {video_source_label}"
+    # P2 do critique: resumo do accordion só mostrava 1 valor. Fonte + proporção
+    # + transição dão reconhecimento sem precisar abrir o painel.
+    default_aspect = "landscape" if saved_video_source_name == "coverr" else "portrait"
+    saved_aspect = config.ui.get(
+        f"video_aspect_{saved_video_source_name}", default_aspect
+    )
+    aspect_label = tr("Landscape") if saved_aspect == "landscape" else tr("Portrait")
+    transition_labels = {
+        VideoTransitionMode.none.value: tr("None"),
+        VideoTransitionMode.shuffle.value: tr("Shuffle"),
+        VideoTransitionMode.fade_in.value: tr("FadeIn"),
+        VideoTransitionMode.fade_out.value: tr("FadeOut"),
+        VideoTransitionMode.slide_in.value: tr("SlideIn"),
+        VideoTransitionMode.slide_out.value: tr("SlideOut"),
+        VideoTransitionMode.zoom_in.value: tr("ZoomIn"),
+        VideoTransitionMode.zoom_out.value: tr("ZoomOut"),
+    }
+    saved_transition = config.ui.get(
+        "video_transition_mode", VideoTransitionMode.none.value
+    )
+    transition_label = transition_labels.get(saved_transition, saved_transition)
+    panel_label = (
+        f"{tr('Video Settings')} · {video_source_label} · "
+        f"{aspect_label} · {transition_label}"
+    )
 
     with panel:
         with st.expander(panel_label, expanded=False):
+            # P0 do critique: painel tinha 14+ campos simultâneos atrás de 1 clique.
+            # Sub-agrupar em abas limita o que fica visível de uma vez por grupo.
+            source_tab, transition_tab, advanced_tab = st.tabs(
+                [tr("Source"), tr("Transition & Format"), tr("Advanced")]
+            )
+
             video_concat_modes = [
                 (tr("Sequential"), "sequential"),
                 (tr("Random"), "random"),
             ]
 
-            params.video_source = stable_selectbox(
-                tr("Video Source"),
-                options=[value for _, value in video_sources],
-                default_value=saved_video_source_name,
-                key="video_source_select",
-                format_func=lambda value: dict(
-                    (v, label) for label, v in video_sources
-                )[value],
-            )
-            _set_runtime_config("app", "video_source", params.video_source)
-
-            if params.video_source == "wavespeed":
-                st.caption(tr("WaveSpeed AI Video Help"))
-            if params.video_source == "volcengine_seedance":
-                st.caption(tr("Volcano Engine Seedance Help"))
-
-            if params.video_source == "local":
-                # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
-                local_file_types = sorted(
-                    extension.removeprefix(".")
-                    for extension in LOCAL_MATERIAL_EXTENSIONS
+            with source_tab:
+                params.video_source = stable_selectbox(
+                    tr("Video Source"),
+                    options=[value for _, value in video_sources],
+                    default_value=saved_video_source_name,
+                    key="video_source_select",
+                    format_func=lambda value: dict(
+                        (v, label) for label, v in video_sources
+                    )[value],
                 )
-                uploaded_files = st.file_uploader(
-                    tr("Upload Local Files"),
-                    type=local_file_types
-                    + [file_type.upper() for file_type in local_file_types],
-                    accept_multiple_files=True,
-                    key="local_video_materials_uploader",
+                _set_runtime_config("app", "video_source", params.video_source)
+
+                if params.video_source == "wavespeed":
+                    st.caption(tr("WaveSpeed AI Video Help"))
+                if params.video_source == "volcengine_seedance":
+                    st.caption(tr("Volcano Engine Seedance Help"))
+
+                if params.video_source == "local":
+                    # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
+                    local_file_types = sorted(
+                        extension.removeprefix(".")
+                        for extension in LOCAL_MATERIAL_EXTENSIONS
+                    )
+                    uploaded_files = st.file_uploader(
+                        tr("Upload Local Files"),
+                        type=local_file_types
+                        + [file_type.upper() for file_type in local_file_types],
+                        accept_multiple_files=True,
+                        key="local_video_materials_uploader",
+                    )
+
+                # 文案顺序匹配会从关键词生成到最终合成全程保持叙事顺序，因此开启时
+                # 顺序拼接是唯一符合实际执行逻辑的选项。同步控件值可避免界面仍显示
+                # “随机拼接”，同时保留用户原选择，关闭后自动恢复。
+                sync_script_order_concat_mode()
+                selected_concat_mode = stable_selectbox(
+                    tr("Video Concat Mode"),
+                    options=[value for _, value in video_concat_modes],
+                    default_value=_saved_ui_choice(
+                        "video_concat_mode",
+                        [value for _, value in video_concat_modes],
+                        VideoConcatMode.random.value,
+                    ),
+                    key="video_concat_mode_select",
+                    format_func=lambda value: dict(
+                        (v, label) for label, v in video_concat_modes
+                    )[value],
+                    disabled=bool(
+                        st.session_state.get("match_materials_to_script", False)
+                    ),
                 )
+                params.video_concat_mode = VideoConcatMode(selected_concat_mode)
 
-            # 文案顺序匹配会从关键词生成到最终合成全程保持叙事顺序，因此开启时
-            # 顺序拼接是唯一符合实际执行逻辑的选项。同步控件值可避免界面仍显示
-            # “随机拼接”，同时保留用户原选择，关闭后自动恢复。
-            sync_script_order_concat_mode()
-            selected_concat_mode = stable_selectbox(
-                tr("Video Concat Mode"),
-                options=[value for _, value in video_concat_modes],
-                default_value=_saved_ui_choice(
-                    "video_concat_mode",
-                    [value for _, value in video_concat_modes],
-                    VideoConcatMode.random.value,
-                ),
-                key="video_concat_mode_select",
-                format_func=lambda value: dict(
-                    (v, label) for label, v in video_concat_modes
-                )[value],
-                disabled=bool(st.session_state.get("match_materials_to_script", False)),
-            )
-            params.video_concat_mode = VideoConcatMode(selected_concat_mode)
-
-            params.match_materials_to_script = st.checkbox(
-                tr("Match Materials to Script Order"),
-                help=tr("Match Materials to Script Order Help"),
-                key="match_materials_to_script",
-                on_change=sync_script_order_concat_mode,
-            )
-            _set_runtime_config(
-                "app",
-                "match_materials_to_script",
-                params.match_materials_to_script,
-            )
-            # 顺序匹配开启时，sequential 是派生出的强制值，不应覆盖用户在关闭
-            # 该功能时选择的拼接偏好；关闭后仍能恢复此前的 random/sequential。
-            if not params.match_materials_to_script:
+                params.match_materials_to_script = st.checkbox(
+                    tr("Match Materials to Script Order"),
+                    help=tr("Match Materials to Script Order Help"),
+                    key="match_materials_to_script",
+                    on_change=sync_script_order_concat_mode,
+                )
                 _set_runtime_config(
-                    "ui", "video_concat_mode", params.video_concat_mode.value
+                    "app",
+                    "match_materials_to_script",
+                    params.match_materials_to_script,
                 )
+                # 顺序匹配开启时，sequential 是派生出的强制值，不应覆盖用户在关闭
+                # 该功能时选择的拼接偏好；关闭后仍能恢复此前的 random/sequential。
+                if not params.match_materials_to_script:
+                    _set_runtime_config(
+                        "ui", "video_concat_mode", params.video_concat_mode.value
+                    )
 
-            # 视频转场模式
-            video_transition_modes = [
-                (tr("None"), VideoTransitionMode.none.value),
-                (tr("Shuffle"), VideoTransitionMode.shuffle.value),
-                (tr("FadeIn"), VideoTransitionMode.fade_in.value),
-                (tr("FadeOut"), VideoTransitionMode.fade_out.value),
-                (tr("SlideIn"), VideoTransitionMode.slide_in.value),
-                (tr("SlideOut"), VideoTransitionMode.slide_out.value),
-                (tr("ZoomIn"), VideoTransitionMode.zoom_in.value),
-                (tr("ZoomOut"), VideoTransitionMode.zoom_out.value),
-            ]
-            selected_transition_mode = stable_selectbox(
-                tr("Video Transition Mode"),
-                options=[value for _, value in video_transition_modes],
-                default_value=_saved_ui_choice(
+            with transition_tab:
+                # 视频转场模式
+                video_transition_modes = [
+                    (tr("None"), VideoTransitionMode.none.value),
+                    (tr("Shuffle"), VideoTransitionMode.shuffle.value),
+                    (tr("FadeIn"), VideoTransitionMode.fade_in.value),
+                    (tr("FadeOut"), VideoTransitionMode.fade_out.value),
+                    (tr("SlideIn"), VideoTransitionMode.slide_in.value),
+                    (tr("SlideOut"), VideoTransitionMode.slide_out.value),
+                    (tr("ZoomIn"), VideoTransitionMode.zoom_in.value),
+                    (tr("ZoomOut"), VideoTransitionMode.zoom_out.value),
+                ]
+                selected_transition_mode = stable_selectbox(
+                    tr("Video Transition Mode"),
+                    options=[value for _, value in video_transition_modes],
+                    default_value=_saved_ui_choice(
+                        "video_transition_mode",
+                        [value for _, value in video_transition_modes],
+                        VideoTransitionMode.none.value,
+                    ),
+                    key="video_transition_mode_select",
+                    format_func=lambda value: dict(
+                        (v, label) for label, v in video_transition_modes
+                    )[value],
+                )
+                params.video_transition_mode = VideoTransitionMode(
+                    selected_transition_mode
+                )
+                _set_runtime_config(
+                    "ui",
                     "video_transition_mode",
-                    [value for _, value in video_transition_modes],
-                    VideoTransitionMode.none.value,
-                ),
-                key="video_transition_mode_select",
-                format_func=lambda value: dict(
-                    (v, label) for label, v in video_transition_modes
-                )[value],
-            )
-            params.video_transition_mode = VideoTransitionMode(selected_transition_mode)
-            _set_runtime_config(
-                "ui",
-                "video_transition_mode",
-                params.video_transition_mode.value,
-            )
-
-            video_aspect_ratios = [
-                (tr("Portrait"), VideoAspect.portrait.value),
-                (tr("Landscape"), VideoAspect.landscape.value),
-            ]
-            # Coverr 库 99% 是 16:9 横屏,默认竖屏会让画面被大量黑边包围。
-            # 用 source-specific widget key 让每个 source 各自记忆 aspect 选择:
-            #   - 首次切到 coverr → 默认 Landscape(index=1)
-            #   - 其他 source 沿用 Portrait(index=0)
-            #   - 用户在某 source 下手动改过 aspect,session_state 会记住,
-            #     下次回到同一 source 时尊重用户选择,不会再被强制覆盖。
-            default_aspect_index = 1 if params.video_source == "coverr" else 0
-            video_aspect_values = [value for _, value in video_aspect_ratios]
-            video_aspect_config_key = f"video_aspect_{params.video_source}"
-            selected_aspect_ratio = stable_selectbox(
-                tr("Video Ratio"),
-                options=video_aspect_values,
-                default_value=_saved_ui_choice(
-                    video_aspect_config_key,
-                    video_aspect_values,
-                    video_aspect_ratios[default_aspect_index][1],
-                ),
-                key=f"video_aspect_for_{params.video_source}",
-                format_func=lambda value: dict(
-                    (v, label) for label, v in video_aspect_ratios
-                )[value],
-            )
-            params.video_aspect = VideoAspect(selected_aspect_ratio)
-            _set_runtime_config(
-                "ui", video_aspect_config_key, params.video_aspect.value
-            )
-
-            video_fit_modes = [
-                (tr("Fill and Crop"), VideoFitMode.cover.value),
-                (tr("Fit with Black Bars"), VideoFitMode.contain.value),
-            ]
-            selected_fit_mode = stable_selectbox(
-                tr("Video Fit Mode"),
-                options=[value for _, value in video_fit_modes],
-                default_value=_saved_ui_choice(
-                    "video_fit_mode",
-                    [value for _, value in video_fit_modes],
-                    VideoFitMode.cover.value,
-                ),
-                key="video_fit_mode_select",
-                format_func=lambda value: dict(
-                    (v, label) for label, v in video_fit_modes
-                )[value],
-                help=tr("Video Fit Mode Help"),
-            )
-            params.video_fit_mode = VideoFitMode(selected_fit_mode)
-            _set_runtime_config(
-                "ui", "video_fit_mode", params.video_fit_mode.value
-            )
-
-            video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]
-            params.video_clip_duration = stable_selectbox(
-                tr("Clip Duration"),
-                options=video_clip_durations,
-                default_value=_saved_ui_choice(
-                    "video_clip_duration", video_clip_durations, 3
-                ),
-                key="video_clip_duration_select",
-                help=tr("Clip Duration Help"),
-            )
-            _set_runtime_config(
-                "ui", "video_clip_duration", params.video_clip_duration
-            )
-            clip_speed_key = localized_widget_key("video_clip_speed_slider")
-            # session_state 可能来自旧任务、API 参数或旧版页面状态。控件创建前
-            # 统一归一化，既保留合法选择，也确保 slider 始终收到 0.5～2.0
-            # 范围内的有限浮点数。
-            st.session_state[clip_speed_key] = utils.normalize_clip_speed(
-                st.session_state.get(
-                    clip_speed_key,
-                    _saved_ui_number("video_clip_speed", 1.0, 0.5, 2.0),
+                    params.video_transition_mode.value,
                 )
-            )
-            params.video_clip_speed = st.slider(
-                tr("Clip Speed"),
-                min_value=0.5,
-                max_value=2.0,
-                step=0.05,
-                format="%.2fx",
-                key=clip_speed_key,
-                help=tr("Clip Speed Help"),
-            )
-            _set_runtime_config("ui", "video_clip_speed", params.video_clip_speed)
-            video_count_options = [1, 2, 3, 4, 5]
-            params.video_count = stable_selectbox(
-                tr("Number of Videos Generated Simultaneously"),
-                options=video_count_options,
-                default_value=_saved_ui_choice(
-                    "video_count", video_count_options, 1
-                ),
-                key="video_count_select",
-            )
-            _set_runtime_config("ui", "video_count", params.video_count)
 
-            video_codec_options = [
-                (tr("Default Video Encoder"), DEFAULT_VIDEO_CODEC_OPTION),
-                ("libx264 (CPU)", "libx264"),
-                ("NVIDIA NVENC (h264_nvenc)", "h264_nvenc"),
-                ("AMD AMF (h264_amf)", "h264_amf"),
-                ("Intel QSV (h264_qsv)", "h264_qsv"),
-                ("Windows MediaFoundation (h264_mf)", "h264_mf"),
-                ("macOS VideoToolbox (h264_videotoolbox)", "h264_videotoolbox"),
-            ]
-            saved_video_codec = config.app.get(
-                "video_codec", DEFAULT_VIDEO_CODEC_OPTION
-            )
-            saved_video_codec_values = [item[1] for item in video_codec_options]
-            if saved_video_codec not in saved_video_codec_values:
-                # 旧版本或手工配置可能留下无效值。UI 回到“默认”而不是替用户
-                # 固定某个编码器，后端仍会按稳定策略解析为 libx264。
-                saved_video_codec = DEFAULT_VIDEO_CODEC_OPTION
-            selected_video_codec = stable_selectbox(
-                tr("Video Encoder"),
-                options=saved_video_codec_values,
-                default_value=saved_video_codec,
-                key="video_encoder_select",
-                format_func=lambda value: dict(
-                    (v, label) for label, v in video_codec_options
-                )[value],
-                help=tr("Video Encoder Help"),
-            )
-            if selected_video_codec == DEFAULT_VIDEO_CODEC_OPTION:
-                # 默认模式不持久化具体编码器，让配置表达“跟随项目默认值”。
-                _delete_runtime_config("app", "video_codec")
-            else:
-                _set_runtime_config("app", "video_codec", selected_video_codec)
+                video_aspect_ratios = [
+                    (tr("Portrait"), VideoAspect.portrait.value),
+                    (tr("Landscape"), VideoAspect.landscape.value),
+                ]
+                # Coverr 库 99% 是 16:9 横屏,默认竖屏会让画面被大量黑边包围。
+                # 用 source-specific widget key 让每个 source 各自记忆 aspect 选择:
+                #   - 首次切到 coverr → 默认 Landscape(index=1)
+                #   - 其他 source 沿用 Portrait(index=0)
+                #   - 用户在某 source 下手动改过 aspect,session_state 会记住,
+                #     下次回到同一 source 时尊重用户选择,不会再被强制覆盖。
+                default_aspect_index = 1 if params.video_source == "coverr" else 0
+                video_aspect_values = [value for _, value in video_aspect_ratios]
+                video_aspect_config_key = f"video_aspect_{params.video_source}"
+                selected_aspect_ratio = stable_selectbox(
+                    tr("Video Ratio"),
+                    options=video_aspect_values,
+                    default_value=_saved_ui_choice(
+                        video_aspect_config_key,
+                        video_aspect_values,
+                        video_aspect_ratios[default_aspect_index][1],
+                    ),
+                    key=f"video_aspect_for_{params.video_source}",
+                    format_func=lambda value: dict(
+                        (v, label) for label, v in video_aspect_ratios
+                    )[value],
+                )
+                params.video_aspect = VideoAspect(selected_aspect_ratio)
+                _set_runtime_config(
+                    "ui", video_aspect_config_key, params.video_aspect.value
+                )
 
-            if params.video_source == "loomloom":
-                _render_loomloom_video_settings(params)
+                video_fit_modes = [
+                    (tr("Fill and Crop"), VideoFitMode.cover.value),
+                    (tr("Fit with Black Bars"), VideoFitMode.contain.value),
+                ]
+                selected_fit_mode = stable_selectbox(
+                    tr("Video Fit Mode"),
+                    options=[value for _, value in video_fit_modes],
+                    default_value=_saved_ui_choice(
+                        "video_fit_mode",
+                        [value for _, value in video_fit_modes],
+                        VideoFitMode.cover.value,
+                    ),
+                    key="video_fit_mode_select",
+                    format_func=lambda value: dict(
+                        (v, label) for label, v in video_fit_modes
+                    )[value],
+                    help=tr("Video Fit Mode Help"),
+                )
+                params.video_fit_mode = VideoFitMode(selected_fit_mode)
+                _set_runtime_config(
+                    "ui", "video_fit_mode", params.video_fit_mode.value
+                )
 
-            if params.video_source == "wavespeed":
-                _render_wavespeed_video_settings(params)
-            if params.video_source == "volcengine_seedance":
-                _render_seedance_video_settings(params)
+                video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+                params.video_clip_duration = stable_selectbox(
+                    tr("Clip Duration"),
+                    options=video_clip_durations,
+                    default_value=_saved_ui_choice(
+                        "video_clip_duration", video_clip_durations, 3
+                    ),
+                    key="video_clip_duration_select",
+                    help=tr("Clip Duration Help"),
+                )
+                _set_runtime_config(
+                    "ui", "video_clip_duration", params.video_clip_duration
+                )
+                clip_speed_key = localized_widget_key("video_clip_speed_slider")
+                # session_state 可能来自旧任务、API 参数或旧版页面状态。控件创建前
+                # 统一归一化，既保留合法选择，也确保 slider 始终收到 0.5～2.0
+                # 范围内的有限浮点数。
+                st.session_state[clip_speed_key] = utils.normalize_clip_speed(
+                    st.session_state.get(
+                        clip_speed_key,
+                        _saved_ui_number("video_clip_speed", 1.0, 0.5, 2.0),
+                    )
+                )
+                params.video_clip_speed = st.slider(
+                    tr("Clip Speed"),
+                    min_value=0.5,
+                    max_value=2.0,
+                    step=0.05,
+                    format="%.2fx",
+                    key=clip_speed_key,
+                    help=tr("Clip Speed Help"),
+                )
+                _set_runtime_config(
+                    "ui", "video_clip_speed", params.video_clip_speed
+                )
+
+            with advanced_tab:
+                video_count_options = [1, 2, 3, 4, 5]
+                params.video_count = stable_selectbox(
+                    tr("Number of Videos Generated Simultaneously"),
+                    options=video_count_options,
+                    default_value=_saved_ui_choice(
+                        "video_count", video_count_options, 1
+                    ),
+                    key="video_count_select",
+                )
+                _set_runtime_config("ui", "video_count", params.video_count)
+
+                video_codec_options = [
+                    (tr("Default Video Encoder"), DEFAULT_VIDEO_CODEC_OPTION),
+                    ("libx264 (CPU)", "libx264"),
+                    ("NVIDIA NVENC (h264_nvenc)", "h264_nvenc"),
+                    ("AMD AMF (h264_amf)", "h264_amf"),
+                    ("Intel QSV (h264_qsv)", "h264_qsv"),
+                    ("Windows MediaFoundation (h264_mf)", "h264_mf"),
+                    ("macOS VideoToolbox (h264_videotoolbox)", "h264_videotoolbox"),
+                ]
+                saved_video_codec = config.app.get(
+                    "video_codec", DEFAULT_VIDEO_CODEC_OPTION
+                )
+                saved_video_codec_values = [
+                    item[1] for item in video_codec_options
+                ]
+                if saved_video_codec not in saved_video_codec_values:
+                    # 旧版本或手工配置可能留下无效值。UI 回到“默认”而不是替用户
+                    # 固定某个编码器，后端仍会按稳定策略解析为 libx264。
+                    saved_video_codec = DEFAULT_VIDEO_CODEC_OPTION
+                selected_video_codec = stable_selectbox(
+                    tr("Video Encoder"),
+                    options=saved_video_codec_values,
+                    default_value=saved_video_codec,
+                    key="video_encoder_select",
+                    format_func=lambda value: dict(
+                        (v, label) for label, v in video_codec_options
+                    )[value],
+                    help=tr("Video Encoder Help"),
+                )
+                if selected_video_codec == DEFAULT_VIDEO_CODEC_OPTION:
+                    # 默认模式不持久化具体编码器，让配置表达“跟随项目默认值”。
+                    _delete_runtime_config("app", "video_codec")
+                else:
+                    _set_runtime_config("app", "video_codec", selected_video_codec)
+
+                if params.video_source == "loomloom":
+                    _render_loomloom_video_settings(params)
+
+                if params.video_source == "wavespeed":
+                    _render_wavespeed_video_settings(params)
+                if params.video_source == "volcengine_seedance":
+                    _render_seedance_video_settings(params)
     return uploaded_files
 
 
@@ -5411,7 +5453,24 @@ def _render_audio_settings(panel, params):
             if saved_tts_server == voice.NO_VOICE_NAME
             else VOICE_MODE_TTS
         )
+    # P2 do critique: resumo do accordion só mostrava 1 valor. Modo + provedor
+    # (quando aplicável) dão reconhecimento sem precisar abrir o painel.
     panel_label = f"{tr('Audio Settings')} · {voice_mode_labels[saved_voice_mode]}"
+    if saved_voice_mode == VOICE_MODE_TTS:
+        tts_server_labels = {
+            "azure-tts-v1": "Azure TTS V1",
+            "azure-tts-v2": "Azure TTS V2",
+            "siliconflow": "SiliconFlow TTS",
+            "gemini-tts": "Google Gemini TTS",
+            "mimo-tts": "Xiaomi MiMo TTS",
+            "minimax-tts": "MiniMax TTS",
+            "elevenlabs": "ElevenLabs TTS",
+            "chatterbox": "Chatterbox TTS",
+            "fish_audio": "Fish Audio TTS",
+        }
+        panel_label += (
+            f" · {tts_server_labels.get(saved_tts_server, saved_tts_server)}"
+        )
 
     with panel:
         with st.expander(panel_label, expanded=False):
@@ -5904,230 +5963,276 @@ def _render_subtitle_settings(panel, params):
     subtitle_currently_enabled = _saved_ui_bool(
         "subtitle_enabled", DEFAULT_SUBTITLE_SETTINGS["subtitle_enabled"]
     )
+    # P2 do critique: resumo do accordion só mostrava ativado/desativado. Fonte
+    # + posição dão reconhecimento sem precisar abrir o painel quando ativo.
     panel_label = f"{tr('Subtitle Settings')} · {'✓' if subtitle_currently_enabled else '✕'}"
+    if subtitle_currently_enabled:
+        saved_font_name = config.ui.get(
+            "font_name", DEFAULT_SUBTITLE_SETTINGS["font_name"]
+        )
+        subtitle_position_labels = {
+            "top": tr("Top"),
+            "center": tr("Center"),
+            "bottom": tr("Bottom"),
+            "custom": tr("Custom"),
+        }
+        saved_subtitle_position = config.ui.get(
+            "subtitle_position", DEFAULT_SUBTITLE_SETTINGS["subtitle_position"]
+        )
+        position_label = subtitle_position_labels.get(
+            saved_subtitle_position, saved_subtitle_position
+        )
+        panel_label += f" · {saved_font_name} · {position_label}"
 
     with panel:
         with st.expander(panel_label, expanded=False):
-            st.session_state.setdefault(
-                "subtitle_enabled_checkbox",
-                subtitle_currently_enabled,
+            # P0 do critique: painel tinha 9+ campos simultâneos atrás de 1 clique.
+            # Sub-agrupar em abas limita o que fica visível de uma vez por grupo.
+            basic_tab, style_tab, background_tab = st.tabs(
+                [tr("Basic"), tr("Style"), tr("Background")]
             )
-            params.subtitle_enabled = st.checkbox(
-                tr("Enable Subtitles"),
-                key="subtitle_enabled_checkbox",
-            )
-            _set_runtime_config("ui", "subtitle_enabled", params.subtitle_enabled)
-            subtitle_settings_disabled = not params.subtitle_enabled
-            font_names = get_all_fonts()
-            saved_font_name = config.ui.get(
-                "font_name", DEFAULT_SUBTITLE_SETTINGS["font_name"]
-            )
-            saved_font_name_index = 0
-            if saved_font_name in font_names:
-                saved_font_name_index = font_names.index(saved_font_name)
-            params.font_name = stable_selectbox(
-                tr("Font"),
-                options=font_names,
-                default_value=font_names[saved_font_name_index] if font_names else "",
-                key="font_name_select",
-                disabled=subtitle_settings_disabled,
-            )
-            _set_runtime_config("ui", "font_name", params.font_name)
 
-            subtitle_positions = [
-                (tr("Top"), "top"),
-                (tr("Center"), "center"),
-                (tr("Bottom"), "bottom"),
-                (tr("Custom"), "custom"),
-            ]
-            saved_subtitle_position = config.ui.get(
-                "subtitle_position", DEFAULT_SUBTITLE_SETTINGS["subtitle_position"]
-            )
-            saved_position_index = 2
-            for i, (_, pos_value) in enumerate(subtitle_positions):
-                if pos_value == saved_subtitle_position:
-                    saved_position_index = i
-                    break
-            selected_subtitle_position = stable_selectbox(
-                tr("Position"),
-                options=[value for _, value in subtitle_positions],
-                default_value=subtitle_positions[saved_position_index][1],
-                key="subtitle_position_select",
-                format_func=lambda value: dict(
-                    (v, label) for label, v in subtitle_positions
-                )[value],
-                disabled=subtitle_settings_disabled,
-            )
-            params.subtitle_position = selected_subtitle_position
-            _set_runtime_config("ui", "subtitle_position", params.subtitle_position)
-
-            if params.subtitle_position == "custom":
-                saved_custom_position = config.ui.get(
-                    "custom_position", DEFAULT_SUBTITLE_SETTINGS["custom_position"]
-                )
+            with basic_tab:
                 st.session_state.setdefault(
-                    "custom_position_input", str(saved_custom_position)
+                    "subtitle_enabled_checkbox",
+                    subtitle_currently_enabled,
                 )
-                custom_position = st.text_input(
-                    tr("Custom Position (% from top)"),
-                    key="custom_position_input",
+                params.subtitle_enabled = st.checkbox(
+                    tr("Enable Subtitles"),
+                    key="subtitle_enabled_checkbox",
+                )
+                _set_runtime_config(
+                    "ui", "subtitle_enabled", params.subtitle_enabled
+                )
+                subtitle_settings_disabled = not params.subtitle_enabled
+                font_names = get_all_fonts()
+                saved_font_name = config.ui.get(
+                    "font_name", DEFAULT_SUBTITLE_SETTINGS["font_name"]
+                )
+                saved_font_name_index = 0
+                if saved_font_name in font_names:
+                    saved_font_name_index = font_names.index(saved_font_name)
+                params.font_name = stable_selectbox(
+                    tr("Font"),
+                    options=font_names,
+                    default_value=font_names[saved_font_name_index]
+                    if font_names
+                    else "",
+                    key="font_name_select",
                     disabled=subtitle_settings_disabled,
                 )
-                try:
-                    params.custom_position = float(custom_position)
-                    if params.custom_position < 0 or params.custom_position > 100:
-                        st.error(tr("Please enter a value between 0 and 100"))
-                    else:
-                        _set_runtime_config(
-                            "ui", "custom_position", params.custom_position
-                        )
-                except ValueError:
-                    st.error(tr("Please enter a valid number"))
+                _set_runtime_config("ui", "font_name", params.font_name)
 
-            # 非中文语言的颜色标签通常比中文更长。为颜色选择器保留适当宽度，
-            # 避免标签换行，同时仍给字号滑块保留足够的可操作空间。
-            font_cols = st.columns([0.42, 0.58])
-            with font_cols[0]:
-                saved_text_fore_color = config.ui.get(
-                    "text_fore_color", DEFAULT_SUBTITLE_SETTINGS["text_fore_color"]
+                subtitle_positions = [
+                    (tr("Top"), "top"),
+                    (tr("Center"), "center"),
+                    (tr("Bottom"), "bottom"),
+                    (tr("Custom"), "custom"),
+                ]
+                saved_subtitle_position = config.ui.get(
+                    "subtitle_position",
+                    DEFAULT_SUBTITLE_SETTINGS["subtitle_position"],
                 )
-                st.session_state.setdefault("font_color_picker", saved_text_fore_color)
-                params.text_fore_color = st.color_picker(
-                    tr("Font Color"),
-                    key="font_color_picker",
+                saved_position_index = 2
+                for i, (_, pos_value) in enumerate(subtitle_positions):
+                    if pos_value == saved_subtitle_position:
+                        saved_position_index = i
+                        break
+                selected_subtitle_position = stable_selectbox(
+                    tr("Position"),
+                    options=[value for _, value in subtitle_positions],
+                    default_value=subtitle_positions[saved_position_index][1],
+                    key="subtitle_position_select",
+                    format_func=lambda value: dict(
+                        (v, label) for label, v in subtitle_positions
+                    )[value],
                     disabled=subtitle_settings_disabled,
                 )
-                _set_runtime_config("ui", "text_fore_color", params.text_fore_color)
+                params.subtitle_position = selected_subtitle_position
+                _set_runtime_config(
+                    "ui", "subtitle_position", params.subtitle_position
+                )
 
-            with font_cols[1]:
-                saved_font_size = config.ui.get(
-                    "font_size", DEFAULT_SUBTITLE_SETTINGS["font_size"]
-                )
-                st.session_state.setdefault("font_size_slider", saved_font_size)
-                params.font_size = st.slider(
-                    tr("Font Size"),
-                    30,
-                    100,
-                    key="font_size_slider",
-                    disabled=subtitle_settings_disabled,
-                )
-                _set_runtime_config("ui", "font_size", params.font_size)
+                if params.subtitle_position == "custom":
+                    saved_custom_position = config.ui.get(
+                        "custom_position",
+                        DEFAULT_SUBTITLE_SETTINGS["custom_position"],
+                    )
+                    st.session_state.setdefault(
+                        "custom_position_input", str(saved_custom_position)
+                    )
+                    custom_position = st.text_input(
+                        tr("Custom Position (% from top)"),
+                        key="custom_position_input",
+                        disabled=subtitle_settings_disabled,
+                    )
+                    try:
+                        params.custom_position = float(custom_position)
+                        if (
+                            params.custom_position < 0
+                            or params.custom_position > 100
+                        ):
+                            st.error(tr("Please enter a value between 0 and 100"))
+                        else:
+                            _set_runtime_config(
+                                "ui", "custom_position", params.custom_position
+                            )
+                    except ValueError:
+                        st.error(tr("Please enter a valid number"))
 
-            stroke_cols = st.columns([0.42, 0.58])
-            with stroke_cols[0]:
-                st.session_state.setdefault(
-                    "stroke_color_picker",
-                    _saved_ui_color(
-                        "stroke_color", DEFAULT_SUBTITLE_SETTINGS["stroke_color"]
-                    ),
-                )
-                params.stroke_color = st.color_picker(
-                    tr("Stroke Color"),
-                    key="stroke_color_picker",
-                    disabled=subtitle_settings_disabled,
-                )
-                _set_runtime_config("ui", "stroke_color", params.stroke_color)
-            with stroke_cols[1]:
-                st.session_state.setdefault(
-                    "stroke_width_slider",
-                    _saved_ui_number(
-                        "stroke_width",
-                        DEFAULT_SUBTITLE_SETTINGS["stroke_width"],
+            with style_tab:
+                # 非中文语言的颜色标签通常比中文更长。为颜色选择器保留适当宽度，
+                # 避免标签换行，同时仍给字号滑块保留足够的可操作空间。
+                font_cols = st.columns([0.42, 0.58])
+                with font_cols[0]:
+                    saved_text_fore_color = config.ui.get(
+                        "text_fore_color",
+                        DEFAULT_SUBTITLE_SETTINGS["text_fore_color"],
+                    )
+                    st.session_state.setdefault(
+                        "font_color_picker", saved_text_fore_color
+                    )
+                    params.text_fore_color = st.color_picker(
+                        tr("Font Color"),
+                        key="font_color_picker",
+                        disabled=subtitle_settings_disabled,
+                    )
+                    _set_runtime_config(
+                        "ui", "text_fore_color", params.text_fore_color
+                    )
+
+                with font_cols[1]:
+                    saved_font_size = config.ui.get(
+                        "font_size", DEFAULT_SUBTITLE_SETTINGS["font_size"]
+                    )
+                    st.session_state.setdefault(
+                        "font_size_slider", saved_font_size
+                    )
+                    params.font_size = st.slider(
+                        tr("Font Size"),
+                        30,
+                        100,
+                        key="font_size_slider",
+                        disabled=subtitle_settings_disabled,
+                    )
+                    _set_runtime_config("ui", "font_size", params.font_size)
+
+                stroke_cols = st.columns([0.42, 0.58])
+                with stroke_cols[0]:
+                    st.session_state.setdefault(
+                        "stroke_color_picker",
+                        _saved_ui_color(
+                            "stroke_color", DEFAULT_SUBTITLE_SETTINGS["stroke_color"]
+                        ),
+                    )
+                    params.stroke_color = st.color_picker(
+                        tr("Stroke Color"),
+                        key="stroke_color_picker",
+                        disabled=subtitle_settings_disabled,
+                    )
+                    _set_runtime_config("ui", "stroke_color", params.stroke_color)
+                with stroke_cols[1]:
+                    st.session_state.setdefault(
+                        "stroke_width_slider",
+                        _saved_ui_number(
+                            "stroke_width",
+                            DEFAULT_SUBTITLE_SETTINGS["stroke_width"],
+                            0.0,
+                            10.0,
+                        ),
+                    )
+                    params.stroke_width = st.slider(
+                        tr("Stroke Width"),
                         0.0,
                         10.0,
-                    ),
-                )
-                params.stroke_width = st.slider(
-                    tr("Stroke Width"),
-                    0.0,
-                    10.0,
-                    key="stroke_width_slider",
-                    disabled=subtitle_settings_disabled,
-                )
-                _set_runtime_config("ui", "stroke_width", params.stroke_width)
+                        key="stroke_width_slider",
+                        disabled=subtitle_settings_disabled,
+                    )
+                    _set_runtime_config("ui", "stroke_width", params.stroke_width)
 
-            # 背景开关的本地化名称普遍比颜色标签更长，因此让开关占据略多空间。
-            subtitle_bg_cols = st.columns([0.55, 0.45])
-            saved_subtitle_background_enabled = config.ui.get(
-                "subtitle_background_enabled",
-                DEFAULT_SUBTITLE_SETTINGS["subtitle_background_enabled"],
-            )
-            st.session_state.setdefault(
-                "subtitle_background_enabled_checkbox",
-                saved_subtitle_background_enabled,
-            )
-            with subtitle_bg_cols[0]:
-                subtitle_background_enabled = st.checkbox(
-                    tr("Enable Subtitle Background"),
-                    key="subtitle_background_enabled_checkbox",
-                    disabled=subtitle_settings_disabled,
+            with background_tab:
+                # 背景开关的本地化名称普遍比颜色标签更长，因此让开关占据略多空间。
+                subtitle_bg_cols = st.columns([0.55, 0.45])
+                saved_subtitle_background_enabled = config.ui.get(
+                    "subtitle_background_enabled",
+                    DEFAULT_SUBTITLE_SETTINGS["subtitle_background_enabled"],
                 )
-            _set_runtime_config(
-                "ui",
-                "subtitle_background_enabled",
-                subtitle_background_enabled,
-            )
-
-            # 背景颜色和圆角样式都从属于字幕背景开关。子控件始终保留在页面中，
-            # 父开关关闭时统一禁用，避免一个控件消失而另一个控件禁用造成布局跳动。
-            # 颜色值仍保存在 UI 配置中，重新启用背景后可以恢复用户之前的选择；
-            # 传给生成服务的参数则设为 False，确保关闭状态不会实际渲染背景。
-            saved_subtitle_background_color = config.ui.get(
-                "subtitle_background_color",
-                DEFAULT_SUBTITLE_SETTINGS["subtitle_background_color"],
-            )
-            st.session_state.setdefault(
-                "subtitle_background_color_picker",
-                saved_subtitle_background_color,
-            )
-            with subtitle_bg_cols[1]:
-                selected_subtitle_background_color = st.color_picker(
-                    tr("Subtitle Background Color"),
-                    key="subtitle_background_color_picker",
-                    disabled=subtitle_settings_disabled
-                    or not subtitle_background_enabled,
+                st.session_state.setdefault(
+                    "subtitle_background_enabled_checkbox",
+                    saved_subtitle_background_enabled,
                 )
-            _set_runtime_config(
-                "ui",
-                "subtitle_background_color",
-                selected_subtitle_background_color,
-            )
-            params.text_background_color = (
-                selected_subtitle_background_color
-                if subtitle_background_enabled
-                else False
-            )
-
-            saved_rounded_subtitle_background = config.ui.get(
-                "rounded_subtitle_background",
-                DEFAULT_SUBTITLE_SETTINGS["rounded_subtitle_background"],
-            )
-            # 背景关闭时，圆角背景没有可渲染的底色。这里禁用控件但保留原配置，
-            # 用户下次重新开启字幕背景后，可以继续使用之前保存的圆角偏好。
-            rounded_background_disabled = (
-                subtitle_settings_disabled or not subtitle_background_enabled
-            )
-            st.session_state.setdefault(
-                "rounded_subtitle_background_checkbox",
-                saved_rounded_subtitle_background,
-            )
-            selected_rounded_subtitle_background = st.checkbox(
-                tr("Rounded Subtitle Background"),
-                help=tr("Rounded Subtitle Background Help"),
-                disabled=rounded_background_disabled,
-                key="rounded_subtitle_background_checkbox",
-            )
-            params.rounded_subtitle_background = (
-                selected_rounded_subtitle_background
-                if subtitle_background_enabled
-                else False
-            )
-            if not subtitle_settings_disabled and subtitle_background_enabled:
+                with subtitle_bg_cols[0]:
+                    subtitle_background_enabled = st.checkbox(
+                        tr("Enable Subtitle Background"),
+                        key="subtitle_background_enabled_checkbox",
+                        disabled=subtitle_settings_disabled,
+                    )
                 _set_runtime_config(
                     "ui",
-                    "rounded_subtitle_background",
-                    selected_rounded_subtitle_background,
+                    "subtitle_background_enabled",
+                    subtitle_background_enabled,
                 )
+
+                # 背景颜色和圆角样式都从属于字幕背景开关。子控件始终保留在页面中，
+                # 父开关关闭时统一禁用，避免一个控件消失而另一个控件禁用造成布局跳动。
+                # 颜色值仍保存在 UI 配置中，重新启用背景后可以恢复用户之前的选择；
+                # 传给生成服务的参数则设为 False，确保关闭状态不会实际渲染背景。
+                saved_subtitle_background_color = config.ui.get(
+                    "subtitle_background_color",
+                    DEFAULT_SUBTITLE_SETTINGS["subtitle_background_color"],
+                )
+                st.session_state.setdefault(
+                    "subtitle_background_color_picker",
+                    saved_subtitle_background_color,
+                )
+                with subtitle_bg_cols[1]:
+                    selected_subtitle_background_color = st.color_picker(
+                        tr("Subtitle Background Color"),
+                        key="subtitle_background_color_picker",
+                        disabled=subtitle_settings_disabled
+                        or not subtitle_background_enabled,
+                    )
+                _set_runtime_config(
+                    "ui",
+                    "subtitle_background_color",
+                    selected_subtitle_background_color,
+                )
+                params.text_background_color = (
+                    selected_subtitle_background_color
+                    if subtitle_background_enabled
+                    else False
+                )
+
+                saved_rounded_subtitle_background = config.ui.get(
+                    "rounded_subtitle_background",
+                    DEFAULT_SUBTITLE_SETTINGS["rounded_subtitle_background"],
+                )
+                # 背景关闭时，圆角背景没有可渲染的底色。这里禁用控件但保留原配置，
+                # 用户下次重新开启字幕背景后，可以继续使用之前保存的圆角偏好。
+                rounded_background_disabled = (
+                    subtitle_settings_disabled or not subtitle_background_enabled
+                )
+                st.session_state.setdefault(
+                    "rounded_subtitle_background_checkbox",
+                    saved_rounded_subtitle_background,
+                )
+                selected_rounded_subtitle_background = st.checkbox(
+                    tr("Rounded Subtitle Background"),
+                    help=tr("Rounded Subtitle Background Help"),
+                    disabled=rounded_background_disabled,
+                    key="rounded_subtitle_background_checkbox",
+                )
+                params.rounded_subtitle_background = (
+                    selected_rounded_subtitle_background
+                    if subtitle_background_enabled
+                    else False
+                )
+                if not subtitle_settings_disabled and subtitle_background_enabled:
+                    _set_runtime_config(
+                        "ui",
+                        "rounded_subtitle_background",
+                        selected_rounded_subtitle_background,
+                    )
 
             if video.subtitle_colors_are_indistinguishable(params):
                 # 同色配置仍然是合法的用户选择，因此只在字幕设置区域就近提示，
