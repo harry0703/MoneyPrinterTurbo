@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from loguru import logger
 from streamlit_tour import Tour
 
@@ -1773,6 +1774,11 @@ def _render_top_bar():
                 icon=":material/logout:",
                 width="content",
             ):
+                cookie_token = st.context.cookies.get(_SESSION_COOKIE_NAME)
+                if isinstance(cookie_token, str) and cookie_token:
+                    auth_store.invalidate_session(cookie_token)
+                _clear_session_cookie()
+                time.sleep(0.35)
                 st.session_state["authenticated"] = False
                 st.rerun()
 
@@ -6755,14 +6761,58 @@ def _render_application():
         _save_runtime_config()
 
 
+_SESSION_COOKIE_NAME = "mpt_session"
+
+
+def _set_session_cookie(token: str) -> None:
+    """Writes the session token as a browser cookie via a JS-executing iframe.
+
+    st.markdown(unsafe_allow_html=True) silently strips <script> tags in
+    Streamlit's frontend sanitizer, so it never runs. components.v1.html
+    renders in a real (srcdoc) iframe that does execute JS, and a srcdoc
+    iframe without a sandbox override shares the parent page's cookie jar.
+    Streamlit has no server-side API to set cookies, so this is a JS
+    write, which means the cookie can't be marked HttpOnly. The token is
+    an opaque, revocable session id (never the password), and the cookie
+    is scoped SameSite=Strict to limit cross-site exposure.
+    """
+    components.html(
+        f"<script>document.cookie="
+        f"'{_SESSION_COOKIE_NAME}={token}; path=/; SameSite=Strict; max-age=31536000';"
+        f"</script>",
+        height=0,
+    )
+
+
+def _clear_session_cookie() -> None:
+    components.html(
+        f"<script>document.cookie="
+        f"'{_SESSION_COOKIE_NAME}=; path=/; SameSite=Strict; max-age=0';"
+        f"</script>",
+        height=0,
+    )
+
+
 def _render_login_gate() -> bool:
     """Bloqueia o app inteiro atrás de login. True libera o resto da UI.
 
     O botão de sair não mora aqui: quando autenticado, ele é renderizado
     dentro de _render_top_bar (canto superior direito), junto dos outros
     ícones de ação.
+
+    Sessão sobrevive F5: o token vive num cookie (sem expiração, só cai no
+    logout manual), validado contra a tabela `sessions` de auth_store.
     """
     if st.session_state.get("authenticated"):
+        return True
+
+    cookie_token = st.context.cookies.get(_SESSION_COOKIE_NAME)
+    if (
+        isinstance(cookie_token, str)
+        and cookie_token
+        and auth_store.validate_session(cookie_token)
+    ):
+        st.session_state["authenticated"] = True
         return True
 
     _, mid_col, _ = st.columns([1, 1.1, 1])
@@ -6785,6 +6835,12 @@ def _render_login_gate() -> bool:
                 if auth_store.verify_login(
                     email, password, override_password=login_senha or None
                 ):
+                    _set_session_cookie(auth_store.create_session())
+                    # ponytail: rerun() tears down the DOM immediately, racing the
+                    # cookie iframe's own network fetch + script execution. A short
+                    # sleep lets it win the race; upgrade to a completion signal
+                    # (e.g. postMessage from the iframe) if this proves flaky.
+                    time.sleep(0.35)
                     st.session_state["authenticated"] = True
                     st.rerun()
                 else:
