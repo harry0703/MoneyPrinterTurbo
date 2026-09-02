@@ -48,7 +48,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
       <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo"><strong>BytePlus ModelArk</strong></a>
     </td>
     <td align="left">
-      Thanks to ByteDance VolcEngine for sponsoring this project! VolcEngine Ark's Agent/Coding Plan for leading Chinese models starts at CNY 9.9 for first-time buyers and supports GLM-5.3, Kimi-K3, DeepSeek, MiniMax, Doubao, and more. New users receive 25 million free tokens. One unified API is designed for coding and agent development. --&gt; <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">Visit now</a>
+      Thanks to ByteDance VolcEngine for sponsoring this project! VolcEngine Ark's Agent/Coding Plan for leading Chinese models starts at CNY 9.9 for first-time buyers and supports GLM-5.3, Kimi-K3, DeepSeek, MiniMax, Doubao, and more. New users receive 25 million free tokens. One unified API is designed for coding and agent development. <a href="https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=MoneyPrinterTurbo&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo">Visit now</a>
     </td>
   </tr>
   <tr>
@@ -89,7 +89,18 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
       ⚡ Low-cost, reliable access: pricing starts at just 10% of official rates, with transparent model multipliers and detailed usage records. Dynamic routing across multiple providers helps avoid rate limits and unexpected service interruptions.<br>
       🧠 Leading LLMs for script creation: access OpenAI, Claude, Google Gemini, DeepSeek, Qwen, and other leading models through an OpenAI-compatible API. Infistar.ai provides low-latency, high-concurrency support for MoneyPrinterTurbo's script generation and media keyword extraction workflows.<br>
       🎨 A cutting-edge multimodal ecosystem: access leading image and video generation models including FLUX, Midjourney, Seedance, Kling, Sora, and Luma, all ready for the next generation of AI video creation.<br>
-      🎁 Exclusive benefits for MoneyPrinterTurbo users: sign up through the <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">dedicated referral link</a> to receive [exclusive bonus credits / a first top-up offer] and start creating right away!
+      🎁 MoneyPrinterTurbo users can sign up through the <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">dedicated referral link</a> and view the latest exclusive offers available from Infistar.ai.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK"><img src="docs/sponsors/shengsuanyun-logo.jpg" alt="Shengsuan Cloud" height="56"></a><br>
+      <a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK"><strong>Shengsuan Cloud</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK">Shengsuan Cloud</a> for sponsoring this project! Shengsuan Cloud is an API aggregation platform for AI-native teams, providing unified, usage-based access to leading language and multimodal models including Claude, ChatGPT, and Gemini.<br>
+      The platform focuses on compliant API services and also offers enterprise gateways with team cost and permission management, intelligent routing, security controls, BYOK credential management, and invoice support.<br>
+      🎁 New users who register through <a href="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK">this link</a> can receive CNY 10 in trial credits.
     </td>
   </tr>
   <tr>
@@ -151,16 +162,19 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 
 ### Video and Image Footage
 
-- [x] Upload your own **local images and videos**, or use free-to-use HD stock footage from [Pexels](https://www.pexels.com/api/), [Pixabay](https://pixabay.com/api/docs/), and [Coverr](https://coverr.co/developers?ctx=header_navigation)
-- [x] Generate original footage with [WaveSpeed AI](https://wavespeed.ai) text-to-video models or the native [Volcano Engine Ark Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey) integration
-- [x] Generate video with [OFox](https://ofox.ai) multi-model routing, using one API key for Seedance, Wan, and other models with charge confirmation and bounded polling
-- [x] Generate video with [Metaso MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT), including `768P`/`2K` source material, 4–15 second clips, three aspect ratios, charge confirmation, and bounded polling
-- [x] Use [Shengsuan Cloud AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK) and [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) sources for aggregated cloud services or custom image gateways
-- [x] Control clip duration, fitting, and material order; paid providers submit clips only as needed and stop once enough footage has been collected
+- [x] Upload your own **local images and videos**, or get HD stock footage from [Pexels (free)](https://www.pexels.com/api/), [Pixabay (free)](https://pixabay.com/api/docs/), and [Coverr](https://coverr.co/developers?ctx=header_navigation)
+- [x] Generate `768P` or `2K` source footage with [Metaso MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT), with 4–15 second clips in `9:16`, `16:9`, or `1:1`
+- [x] Create multiple AI video clips with [Shengsuan Cloud AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), then combine them with the project's voiceover, subtitle, and editing workflow
+- [x] Use the native [Volcano Engine Ark Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey) integration to generate cohesive visuals from individual script segments
+- [x] Turn script keywords into original video footage with [WaveSpeed AI](https://wavespeed.ai)
+- [x] Access Seedance, Wan, and other text-to-video models through [OFox](https://ofox.ai) with a single API key
+- [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services or custom image gateways and turn generated images into animated video clips
+- [x] Adjust clip duration, frame fitting, and material order to suit different aspect ratios and storytelling styles
 
-### Voiceover, Subtitles, and Music
+### Voiceover, Subtitles, and Background Music
 
-- [x] Choose automatic voiceover, uploaded audio, or no voiceover; integrations include **Edge TTS, Azure Speech, SiliconFlow, Google Gemini, Xiaomi MiMo, MiniMax, ElevenLabs, Chatterbox, and Fish Audio**, with real-time previews
+- [x] Choose automatic voiceover, uploaded audio, or no voiceover, with voice samples and full narration previews
+- [x] Use **Edge TTS (free, no API key required)**, Azure Speech, SiliconFlow, Google Gemini, Xiaomi MiMo, MiniMax, ElevenLabs, Chatterbox, Fish Audio, and other voice services
 - [x] Generate subtitles and configure their font, position, color, size, outline, and background style
 - [x] Use random, local, or AI-generated background music with independent volume control
 
@@ -250,7 +264,7 @@ Want to try MoneyPrinterTurbo without setting up a local environment? Run it dir
 
 Download the latest Windows one-click package from GitHub Releases, then extract it directly.
 
-- GitHub Release: https://github.com/harry0703/MoneyPrinterTurbo/releases/latest
+- [Download the latest Windows one-click package](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 
 After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
 
@@ -273,19 +287,19 @@ Use the local setup or Docker instructions below.
 git clone https://github.com/harry0703/MoneyPrinterTurbo.git
 ```
 
-#### ② Configure the Project (Optional)
+#### ② Complete the Initial Setup
 
-On first launch, the project creates `config.toml` from `config.example.toml`. You can configure the LLM provider, footage source, and related API keys directly in the WebUI basic settings.
+On first launch, the project creates `config.toml` from `config.example.toml`, so you do not need to create the file manually. Before using cloud LLMs, online footage, or AI video services, add the corresponding API keys in the WebUI basic settings.
 
 ### Docker Deployment 🐳
 
 #### ① Launch the Docker Container
 
-If you haven't installed Docker, please install it first https://www.docker.com/products/docker-desktop/
+If Docker is not installed, [download and install Docker Desktop](https://www.docker.com/products/docker-desktop/) first.
 If you are using a Windows system, please refer to Microsoft's documentation:
 
-1. https://learn.microsoft.com/en-us/windows/wsl/install
-2. https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers
+1. [Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
+2. [Use Docker containers with WSL](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
 ```shell
 cd MoneyPrinterTurbo
@@ -418,13 +432,15 @@ individual runtime failure, and the command prints one JSON summary when finishe
 The summary contains `total`, `succeeded`, `failed`, and `tasks`; each task entry has
 `index`, `task_id`, `status`, `result`, `failed_stage`, and `error`.
 
-## Voice Synthesis 🗣
+## Voiceover, Subtitles, and Background Music 🎙️
 
-The default provider is the free **Edge TTS**, shown as **Azure TTS V1** in the WebUI. MoneyPrinterTurbo also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, **Fish Audio TTS**, and a no-voice mode.
+### Voice Synthesis
+
+**Azure TTS V1** in the WebUI is powered by **Edge TTS** and is free to use without an API key. MoneyPrinterTurbo also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, **Fish Audio TTS**, and a no-voice mode.
 
 Select a provider and voice in the WebUI, then follow the on-screen instructions for any required credentials. Edge TTS does not require an API key; [Azure TTS V2](https://portal.azure.com/) and other cloud providers require credentials from their respective platforms. See the available Edge TTS voices in the [voice list](./docs/voice-list.txt).
 
-## Subtitle Generation 📜
+### Subtitle Generation
 
 Two subtitle generation modes are available:
 
@@ -456,101 +472,19 @@ MoneyPrinterTurbo
   │          vocabulary.json
 ```
 
-## Background Music 🎵
+### Background Music
 
 Background music for videos is located in the project's `resource/songs` directory.
 
 > The current project includes some default music from YouTube videos. If there are copyright issues, please delete
 > them.
 
-## Subtitle Fonts 🅰
+### Subtitle Fonts
 
 Fonts for rendering video subtitles are located in the project's `resource/fonts` directory, and you can also add your
 own fonts.
 
 ## Common Questions 🤔
-
-<details>
-<summary>How do I publish to TikTok, Instagram, or YouTube Shorts?</summary>
-
-Create an [Upload-Post](https://upload-post.com/) account and API key, then add the following settings under `[app]` in `config.toml`:
-
-```toml
-[app]
-upload_post_enabled = true
-upload_post_api_key = "your-api-key"
-upload_post_username = "your-username"
-upload_post_platforms = ["tiktok", "instagram", "youtube"]
-upload_post_auto_upload = true
-upload_post_youtube_privacy_status = "public"
-```
-
-Restart the app after saving. Generated videos will then be published automatically to the configured platforms. YouTube privacy can be set to `public`, `unlisted`, or `private`.
-
-</details>
-
-<details>
-<summary>How do I use the official Volcano Engine Ark Seedance provider?</summary>
-
-Create an [Ark API key](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey), then configure the provider under `[app]`:
-
-```toml
-[app]
-volcengine_seedance_api_key = "your-ark-api-key"
-volcengine_seedance_model = "doubao-seedance-1-0-pro-250528"
-volcengine_seedance_base_url = "https://ark.cn-beijing.volces.com/api/v3"
-```
-
-When the dedicated config value is empty, `VOLCENGINE_ARK_API_KEY` is used, followed by the existing `volcengine_api_key` LLM setting. Select **Volcano Engine Seedance** as the video source and explicitly confirm paid generation before starting. CLI users must add `--confirm-seedance-charge`.
-
-The first integration supports text-to-video only. Every submitted clip is a paid asynchronous Ark task; the app polls the same task ID, stops submitting after an unknown state, and downloads only enough clips to cover the voiceover.
-
-</details>
-
-<details>
-<summary>How do I use the OFox multi-model text-to-video provider?</summary>
-
-Create an [OFox API key](https://ofox.ai), then configure under `[app]`:
-
-```toml
-[app]
-ofox_api_key = "your-ofox-api-key"
-ofox_text_to_video_model = "bytedance/seedance-2.0-fast"
-ofox_base_url = "https://api.ofox.ai/v1"
-```
-
-When the dedicated config value is empty, the `OFOX_API_KEY` environment variable is used. Select **OFox AI Video** as the video source and explicitly confirm paid generation before starting. CLI users must add `--confirm-ofox-charge`. The upstream vendor defaults to `"byteplus"` (the international vendor, for a consistent content policy and predictable routing); set `ofox_provider` to `"volcengine"` for the mainland-China vendor, or to an empty string `""` to let OFox load-balance across vendors. The model can be any text-to-video model from the OFox catalog (`GET /v1/models`), e.g. `alibaba/wan-2.7`; each model has its own supported duration range and resolutions, and out-of-range values are rejected by the API with a clear error before any task is created.
-
-The first version supports text-to-video only. Each clip creates one asynchronous paid task; the program only polls the same task id, stops submitting new tasks whenever a paid task state is unknown, and generates just enough footage to cover the voiceover duration.
-
-</details>
-
-<details>
-<summary>How do I use the Metaso MiniMax H3 video provider?</summary>
-
-Register through the [MoneyPrinterTurbo referral link](https://metaso.cn/minimax-h3/?s=MPT),
-obtain an independent API key from Metaso, then configure it under `[app]`:
-
-```toml
-[app]
-metaso_minimax_api_key = "your-metaso-api-key"
-metaso_minimax_base_url = "https://metaso.cn/api/minimax"
-metaso_minimax_resolution = "2K"
-```
-
-The key can also be supplied through `METASO_MINIMAX_API_KEY`. It belongs to a
-different credential system from the MiniMax LLM API key and cannot be shared.
-Select **Metaso · MiniMax H3** and confirm the paid-generation notice. CLI users
-must also pass `--confirm-metaso-minimax-charge`.
-
-The current integration supports text-to-video with 4–15 second clips at `768P`
-or `2K`. The app submits clips one at a time, polls only the returned task ID,
-stops after an unknown remote state, and stops generating as soon as the clips
-cover the voiceover duration. This resolution controls the generated source
-material; MPT still exports on its current fixed canvas (for example,
-1920×1080 for 16:9).
-
-</details>
 
 <details>
 <summary>RuntimeError: No ffmpeg exe could be found</summary>
@@ -563,8 +497,8 @@ RuntimeError: No ffmpeg exe could be found.
 Install ffmpeg on your system, or set the IMAGEIO_FFMPEG_EXE environment variable.
 ```
 
-In this case, you can download ffmpeg from https://www.gyan.dev/ffmpeg/builds/, unzip it, and set `ffmpeg_path` to your
-actual installation path.
+In this case, download FFmpeg from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/), extract it, and set `ffmpeg_path` to
+the actual installation path.
 
 ```toml
 [app]
@@ -611,7 +545,7 @@ specified revision on the local disk. Please check your internet connection and 
 Trying to load the model directly from the local cache, if it exists.
 ```
 
-Solution: [See how to download the model manually from Hugging Face](#subtitle-generation-)
+Solution: [See how to download the model manually from Hugging Face](#subtitle-generation)
 
 </details>
 
@@ -622,13 +556,3 @@ Solution: [See how to download the model manually from Hugging Face](#subtitle-g
 ## License 📝
 
 Click to view the [`LICENSE`](LICENSE) file
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=harry0703%2FMoneyPrinterTurbo&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=harry0703/MoneyPrinterTurbo&type=date&theme=dark&legend=top-left&sealed_token=AtOR8By6GcNKd46eJLixrnucHF_99GOSBBKfc60pAm2xsDylemaYxDMcvTlPRz-G_onzDrs-hDrM0xdKkn0L6PgDin3fv02ViVtsZvgRYgk0YOzkX2KgLG8wro66VGphii-u6GNpzD8JocrqGGKvsFSpmbRqo5g-2mEDaN7-ESdtF48ZH0rDOCpoc1Mh" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=harry0703/MoneyPrinterTurbo&type=date&legend=top-left&sealed_token=AtOR8By6GcNKd46eJLixrnucHF_99GOSBBKfc60pAm2xsDylemaYxDMcvTlPRz-G_onzDrs-hDrM0xdKkn0L6PgDin3fv02ViVtsZvgRYgk0YOzkX2KgLG8wro66VGphii-u6GNpzD8JocrqGGKvsFSpmbRqo5g-2mEDaN7-ESdtF48ZH0rDOCpoc1Mh" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=harry0703/MoneyPrinterTurbo&type=date&legend=top-left&sealed_token=AtOR8By6GcNKd46eJLixrnucHF_99GOSBBKfc60pAm2xsDylemaYxDMcvTlPRz-G_onzDrs-hDrM0xdKkn0L6PgDin3fv02ViVtsZvgRYgk0YOzkX2KgLG8wro66VGphii-u6GNpzD8JocrqGGKvsFSpmbRqo5g-2mEDaN7-ESdtF48ZH0rDOCpoc1Mh" />
- </picture>
-</a>
