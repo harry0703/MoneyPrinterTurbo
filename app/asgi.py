@@ -41,9 +41,16 @@ async def application_lifespan(_: FastAPI):
     from app.services import task as task_service
 
     task_service.recover_interrupted_cross_posts()
+
+    # 视频排程持久化在 sqlite，跨进程重启存活；轮询线程负责在到点时把
+    # 待处理的排程条目变成真正的生成任务。
+    from app.services import scheduler as schedule_service
+
+    schedule_service.start_scheduler()
     try:
         yield
     finally:
+        schedule_service.stop_scheduler()
         logger.info("shutdown event")
 
 

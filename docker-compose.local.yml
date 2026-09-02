@@ -1,0 +1,21 @@
+x-common-volumes: &common-volumes
+  - ./config.toml:/MoneyPrinterTurbo/config.toml
+  - ./storage:/MoneyPrinterTurbo/storage
+
+services:
+  webui:
+    image: ghcr.io/harry0703/moneyprinterturbo:latest
+    container_name: "moneyprinterturbo-fork-webui"
+    ports:
+      - "127.0.0.1:8502:8501"
+    command: [ "streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.serverAddress=127.0.0.1", "--server.enableCORS=True", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal", "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False" ]
+    volumes: *common-volumes
+    restart: always
+  api:
+    image: ghcr.io/harry0703/moneyprinterturbo:latest
+    container_name: "moneyprinterturbo-fork-api"
+    ports:
+      - "127.0.0.1:8081:8080"
+    command: [ "python3", "main.py" ]
+    volumes: *common-volumes
+    restart: always

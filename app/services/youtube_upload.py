@@ -9,6 +9,7 @@ client id / client secret / refresh token。刷新令牌可以在服务端离线
 import json
 import os
 import time
+from datetime import timezone
 from types import SimpleNamespace
 from typing import Any, Iterable
 
@@ -99,6 +100,22 @@ def normalize_privacy_status(value: Any) -> str:
     if candidate in PRIVACY_STATUSES:
         return candidate
     return DEFAULT_PRIVACY_STATUS
+
+
+def format_publish_at(value: Any) -> str:
+    """
+    把 publish_at 规范成 YouTube 要求的 RFC3339 UTC 字符串。
+
+    调用方多半传入本机时区的 naive datetime（项目里其它时间戳都是这样处理
+    的，见 schedule_store.py），这里统一按本机时区解释后再转 UTC，避免服务器
+    和用户所在时区不同时，发布时间出现几小时的偏差。已经带时区或已经是
+    字符串的值原样透传。
+    """
+    if isinstance(value, str):
+        return value
+    if value.tzinfo is None:
+        value = value.astimezone()
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _clean_metadata_text(value: Any) -> str:
@@ -319,12 +336,17 @@ class YouTubeUploadService:
         category_id: str | None = None,
         made_for_kids: bool | None = None,
         contains_synthetic_media: bool | None = None,
+        publish_at: Any = None,
     ) -> dict:
         """
         发布单个成片，并始终返回稳定结构而不抛出异常。
 
         返回 ``{"success": bool, "platform": "youtube", ...}``，成功时附带
         ``video_id`` 和 ``url``，失败时附带可直接展示给用户的 ``error``。
+
+        ``publish_at``（datetime 或 RFC3339 字符串）只在最终隐私状态为
+        ``private`` 时生效：YouTube 到点会自动转成 public，符合官方
+        videos.insert 的 publishAt 约定。
         """
         if not self.is_configured():
             logger.warning("YouTube publishing is not configured. Skipping upload.")
@@ -366,6 +388,8 @@ class YouTubeUploadService:
                 ),
             },
         }
+        if publish_at is not None and resolved_privacy == "private":
+            body["status"]["publishAt"] = format_publish_at(publish_at)
 
         logger.info(
             f"uploading video to YouTube: {video_path}, privacy: {resolved_privacy}"
@@ -427,6 +451,101 @@ class YouTubeUploadService:
             ),
         }
 
+    def update_video_metadata(
+        self,
+        video_id: str,
+        title: str | None = None,
+        description: str | None = None,
+        tags: Iterable[Any] | None = None,
+        privacy_status: str | None = None,
+        publish_at: Any = None,
+    ) -> dict:
+        """
+        Faz PATCH em título/descrição/tags e/ou status de um vídeo já publicado.
+
+        Usado pelo fluxo de revisão manual (upload sobe como ``private`` sem
+        publicar; esta chamada edita o rascunho e então publica ou agenda).
+
+        A API do YouTube trata ``videos.update`` como substituição total de
+        cada ``part`` enviada: mandar só o campo que mudou apaga os demais
+        (ex.: omitir ``categoryId`` no snippet zera a categoria do vídeo). Por
+        isso o método sempre lê o recurso atual primeiro e só sobrescreve os
+        campos explicitamente passados, preservando o resto.
+        """
+        if not self.is_configured():
+            logger.warning("YouTube publishing is not configured. Skipping update.")
+            return {
+                "success": False,
+                "platform": PLATFORM,
+                "error": "YouTube publishing is not configured",
+            }
+        if not video_id:
+            return {
+                "success": False,
+                "platform": PLATFORM,
+                "error": "video_id is required",
+            }
+        if title is None and description is None and tags is None and privacy_status is None and publish_at is None:
+            return {
+                "success": False,
+                "platform": PLATFORM,
+                "error": "nothing to update",
+            }
+
+        try:
+            modules = _load_google_modules()
+            client = self._build_client(modules)
+
+            current = client.videos().list(part="snippet,status", id=video_id).execute()
+            items = current.get("items") or []
+            if not items:
+                raise YouTubeUploadError(f"video not found on YouTube: {video_id}")
+
+            snippet = dict(items[0].get("snippet") or {})
+            status = dict(items[0].get("status") or {})
+
+            if title is not None:
+                snippet["title"] = normalize_title(title)
+            if description is not None:
+                snippet["description"] = normalize_description(description)
+            if tags is not None:
+                snippet["tags"] = normalize_tags(tags)
+
+            resolved_privacy = status.get("privacyStatus")
+            if privacy_status is not None:
+                resolved_privacy = normalize_privacy_status(privacy_status)
+                status["privacyStatus"] = resolved_privacy
+            if publish_at is not None and resolved_privacy == "private":
+                status["publishAt"] = format_publish_at(publish_at)
+            elif resolved_privacy != "private":
+                # publishAt só é aceito com o vídeo em private; ao publicar de
+                # vez (public/unlisted) ele precisa sumir, senão a API rejeita.
+                status.pop("publishAt", None)
+
+            body = {"id": video_id, "snippet": snippet, "status": status}
+            response = client.videos().update(part="snippet,status", body=body).execute()
+        except YouTubeUploadError as exc:
+            logger.error(f"failed to update YouTube video metadata: {exc}")
+            return {"success": False, "platform": PLATFORM, "error": str(exc)}
+        except Exception as exc:
+            if _http_error_status(exc) is not None:
+                message = _describe_http_error(exc)
+            else:
+                message = f"{type(exc).__name__}: {exc}"
+            logger.error(f"failed to update YouTube video metadata: {message}")
+            return {"success": False, "platform": PLATFORM, "error": message}
+
+        logger.success(f"YouTube video metadata updated: {video_id}")
+        return {
+            "success": True,
+            "platform": PLATFORM,
+            "video_id": video_id,
+            "url": WATCH_URL_TEMPLATE.format(video_id=video_id),
+            "privacy_status": str(
+                (response.get("status") or {}).get("privacyStatus") or resolved_privacy
+            ),
+        }
+
 
 # Singleton instance
 youtube_upload_service = YouTubeUploadService()
@@ -438,6 +557,7 @@ def publish_video(
     description: str = "",
     tags: Iterable[Any] | None = None,
     privacy_status: str | None = None,
+    publish_at: Any = None,
 ) -> dict:
     return youtube_upload_service.upload_video(
         video_path=video_path,
@@ -445,4 +565,23 @@ def publish_video(
         description=description,
         tags=tags,
         privacy_status=privacy_status,
+        publish_at=publish_at,
+    )
+
+
+def update_video_metadata(
+    video_id: str,
+    title: str | None = None,
+    description: str | None = None,
+    tags: Iterable[Any] | None = None,
+    privacy_status: str | None = None,
+    publish_at: Any = None,
+) -> dict:
+    return youtube_upload_service.update_video_metadata(
+        video_id=video_id,
+        title=title,
+        description=description,
+        tags=tags,
+        privacy_status=privacy_status,
+        publish_at=publish_at,
     )

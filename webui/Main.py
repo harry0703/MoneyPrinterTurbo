@@ -56,6 +56,8 @@ from app.services import (
     youtube_upload,
 )
 from app.services import elevenlabs_music as elevenlabs_music_service
+from app.services import schedule_rules
+from app.services import schedule_store
 from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
@@ -884,6 +886,7 @@ def _collect_task_summaries(limit=20):
             "subject": subject,
             "state": task.get("state"),
             "cross_post_state": task.get("cross_post_state"),
+            "youtube_review_state": task.get("youtube_review_state"),
             "progress": int(task.get("progress", 0) or 0),
             "mtime": os.path.getmtime(task_path)
             if os.path.isdir(task_path)
@@ -1152,6 +1155,19 @@ def _render_task_table(filtered_tasks, key_prefix):
                         else:
                             st.error(tr("Task Delete Failed"))
 
+                # Revisão do YouTube é um estado raro (só quando o usuário pediu
+                # revisão manual); mostrado como uma linha própria em vez de um
+                # 5º botão apertado, pra não encolher os 4 botões de sempre.
+                if task.get("youtube_review_state") == const.YOUTUBE_REVIEW_STATE_PENDING:
+                    review_label = tr("Review Youtube")
+                    if st.button(
+                        review_label,
+                        key=f"review_youtube_{key_prefix}_{task_id}",
+                        icon=":material/rate_review:",
+                        use_container_width=True,
+                    ):
+                        st.session_state["youtube_review_task_id"] = task_id
+
 
 def _render_task_manager_panel(tasks=None):
     tasks = tasks if tasks is not None else _collect_task_summaries()
@@ -1231,6 +1247,167 @@ def _render_task_manager_entry():
             ),
         ):
             _render_task_manager_panel(task_summaries)
+
+
+# -----------------------------------------------------------------------------
+# Agendamento de vídeos: lista/cancelamento (criação fica perto do formulário
+# principal, em _render_schedule_dialog, pois reaproveita o `params` já
+# configurado nos outros painéis)
+# -----------------------------------------------------------------------------
+
+_SCHEDULE_STATUS_LABEL_KEYS = {
+    schedule_store.STATUS_PENDING: "Schedule Status Pending",
+    schedule_store.STATUS_DISPATCHED: "Schedule Status Dispatched",
+    schedule_store.STATUS_FAILED: "Schedule Status Failed",
+    schedule_store.STATUS_CANCELLED: "Schedule Status Cancelled",
+}
+
+
+def _schedule_manager_label(pending_count):
+    label = tr("Schedule Manager")
+    if pending_count <= 0:
+        return label
+    return f"{label} · {pending_count}"
+
+
+def _render_schedule_table(occurrences):
+    if not occurrences:
+        st.info(tr("No Schedules Yet"))
+        return
+
+    header_cols = st.columns([2.2, 1.6, 1.0, 1.2], vertical_alignment="center")
+    header_cols[0].caption(tr("Schedule Table Subject"))
+    header_cols[1].caption(tr("Schedule Table When"))
+    header_cols[2].caption(tr("Schedule Table Status"))
+    header_cols[3].caption(tr("Schedule Table Actions"))
+
+    visible = occurrences[:20]
+    with st.container(height=min(360, max(96, len(visible) * 58)), border=False):
+        for occurrence in visible:
+            with st.container(
+                key=f"schedule_row_{occurrence['id']}", border=True
+            ):
+                row_cols = st.columns(
+                    [2.2, 1.6, 1.0, 1.2], vertical_alignment="center"
+                )
+                row_cols[0].write(occurrence["video_subject"])
+                row_cols[1].write(
+                    occurrence["generate_at"].strftime("%Y-%m-%d %H:%M")
+                )
+                row_cols[2].write(
+                    tr(
+                        _SCHEDULE_STATUS_LABEL_KEYS.get(
+                            occurrence["status"], occurrence["status"]
+                        )
+                    )
+                )
+                cancel_label = tr("Schedule Cancel")
+                if row_cols[3].button(
+                    cancel_label,
+                    key=f"cancel_schedule_{occurrence['id']}",
+                    icon=":material/event_busy:",
+                    help=cancel_label,
+                    disabled=occurrence["status"] != schedule_store.STATUS_PENDING,
+                    use_container_width=True,
+                ):
+                    schedule_store.cancel_occurrence(occurrence["id"])
+                    st.toast(cancel_label)
+                    st.rerun()
+
+
+@st.fragment(run_every="30s")
+def _render_schedule_manager_entry():
+    # 30s 足够：排程只需要反映"待处理/已派发/失败"这种低频变化，不像任务
+    # 进度需要秒级刷新。
+    occurrences = schedule_store.list_occurrences()
+    pending_count = sum(
+        1 for o in occurrences if o["status"] == schedule_store.STATUS_PENDING
+    )
+    with st.container(key="schedule_manager_entry", width="content"):
+        with st.popover(
+            _schedule_manager_label(pending_count),
+            width="content",
+            icon=":material/schedule:",
+            key=(
+                "schedule_manager_popover_"
+                f"{st.session_state.get('schedule_manager_popover_nonce', 0)}"
+            ),
+        ):
+            _render_schedule_table(occurrences)
+
+
+def _dismiss_youtube_review_dialog():
+    st.session_state.pop("youtube_review_task_id", None)
+
+
+@st.dialog(tr("Review Youtube"), width="medium", on_dismiss=_dismiss_youtube_review_dialog)
+def _render_youtube_review_dialog(task_id: str):
+    task = sm.state.get_task(task_id)
+    if not task or task.get("youtube_review_state") != const.YOUTUBE_REVIEW_STATE_PENDING:
+        # Já foi resolvido em outra aba/sessão nesse meio tempo.
+        st.session_state.pop("youtube_review_task_id", None)
+        st.rerun()
+        return
+
+    drafts = [d for d in (task.get("youtube_review_drafts") or []) if d.get("success")]
+    default_draft = drafts[0] if drafts else {}
+
+    title = st.text_input(
+        tr("Youtube Review Title"), value=default_draft.get("title", "")
+    )
+    description = st.text_area(
+        tr("Youtube Review Description"), value=default_draft.get("description", "")
+    )
+    tags_text = st.text_input(
+        tr("Youtube Review Tags"), value=", ".join(default_draft.get("tags") or [])
+    )
+
+    publish_mode = st.radio(
+        tr("Youtube Review When"),
+        options=["now", "schedule"],
+        format_func=lambda value: tr(
+            "Youtube Review Publish Now" if value == "now" else "Youtube Review Schedule"
+        ),
+        key="youtube_review_publish_mode",
+        horizontal=True,
+    )
+    publish_at = None
+    if publish_mode == "schedule":
+        date_col, time_col = st.columns(2)
+        publish_date = date_col.date_input(
+            tr("Youtube Review Schedule Date"), key="youtube_review_publish_date"
+        )
+        publish_time = time_col.time_input(
+            tr("Schedule Time"), key="youtube_review_publish_time"
+        )
+        publish_at = datetime.combine(publish_date, publish_time)
+
+    if st.button(
+        tr("Youtube Review Confirm"),
+        type="primary",
+        use_container_width=True,
+        icon=":material/check_circle:",
+    ):
+        tags = [tag.strip() for tag in tags_text.split(",") if tag.strip()]
+        result = tm.confirm_youtube_review(
+            task_id,
+            title=title,
+            description=description,
+            tags=tags,
+            publish_at=publish_at,
+        )
+        st.session_state.pop("youtube_review_task_id", None)
+        if result["success"]:
+            st.toast(
+                tr(
+                    "Youtube Review Scheduled"
+                    if publish_mode == "schedule"
+                    else "Youtube Review Published"
+                )
+            )
+        else:
+            st.error(tr("Youtube Review Failed"))
+        st.rerun()
 
 
 def _load_task_restore_payload(task_id):
@@ -1547,6 +1724,7 @@ def _render_top_bar():
             width="stretch",
         ):
             _render_task_manager_entry()
+            _render_schedule_manager_entry()
 
             if st.button(
                 tr("Settings"),
@@ -5931,6 +6109,253 @@ def _render_subtitle_settings(panel, params):
                 st.toast(tr("Default Subtitle Settings Restored"))
 
 
+# -----------------------------------------------------------------------------
+# Agendamento de vídeos: criação (reaproveita o `params` já configurado nos
+# painéis de script/vídeo/áudio/legenda acima)
+# -----------------------------------------------------------------------------
+
+_SCHEDULE_INTERVAL_LABEL_KEYS = {
+    "once": "Schedule Once",
+    "daily": "Schedule Daily",
+    "weekly": "Schedule Weekly",
+    "monthly": "Schedule Monthly",
+}
+_SCHEDULE_INTERVAL_UNIT_KEYS = {
+    "daily": "Schedule Repeat Every Days",
+    "weekly": "Schedule Repeat Every Weeks",
+    "monthly": "Schedule Repeat Every Months",
+}
+
+
+def _open_schedule_dialog():
+    st.session_state["schedule_dialog_open"] = True
+
+
+def _dismiss_schedule_dialog():
+    st.session_state["schedule_dialog_open"] = False
+
+
+def _compose_schedule_occurrences(
+    base_dates, subjects, excluded_labels, extra_dates, fallback_subject
+):
+    """
+    Monta a lista final de ocorrências pra confirmar o agendamento.
+
+    ``base_dates``: datas calculadas por schedule_rules.expand_occurrences.
+    ``subjects``: lista de assuntos (1 por data, na ordem) ou None/vazio pra
+    usar ``fallback_subject`` em todas. ``excluded_labels``: strings
+    "%Y-%m-%d %H:%M" que o usuário marcou pra remover da prévia.
+    ``extra_dates``: ocorrências avulsas adicionadas manualmente, já no
+    formato ``{"generate_at": datetime, "video_subject": str}``.
+    """
+    result = [
+        {
+            "generate_at": dt,
+            "video_subject": (subjects[i] if subjects else fallback_subject),
+        }
+        for i, dt in enumerate(base_dates)
+        if dt.strftime("%Y-%m-%d %H:%M") not in excluded_labels
+    ] + list(extra_dates)
+    result.sort(key=lambda item: item["generate_at"])
+    return result
+
+
+@st.dialog(tr("New Schedule"), width="large", on_dismiss=_dismiss_schedule_dialog)
+def _render_schedule_dialog(base_params: VideoParams):
+    interval_type = stable_selectbox(
+        tr("Schedule Recurrence"),
+        options=["once", "daily", "weekly", "monthly"],
+        default_value=st.session_state.get(
+            localized_widget_key("schedule_interval_type"), "once"
+        ),
+        key="schedule_interval_type",
+        format_func=lambda value: tr(_SCHEDULE_INTERVAL_LABEL_KEYS[value]),
+    )
+
+    date_col, time_col = st.columns(2)
+    start_date = date_col.date_input(
+        tr("Schedule Start Date"), key="schedule_start_date"
+    )
+    time_of_day = time_col.time_input(tr("Schedule Time"), key="schedule_time")
+
+    interval_step = 1
+    end_mode = "count"
+    occurrence_count = 1
+    end_date = None
+    if interval_type != "once":
+        step_col, unit_col = st.columns([1, 2])
+        interval_step = step_col.number_input(
+            tr("Schedule Repeat Every"), min_value=1, value=1, step=1,
+            key="schedule_interval_step",
+        )
+        unit_col.write(f"\n{tr(_SCHEDULE_INTERVAL_UNIT_KEYS[interval_type])}")
+
+        end_mode = st.radio(
+            tr("Schedule End Mode"),
+            options=["count", "date"],
+            format_func=lambda value: tr(
+                "Schedule End By Count" if value == "count" else "Schedule End By Date"
+            ),
+            key="schedule_end_mode",
+            horizontal=True,
+        )
+        if end_mode == "count":
+            occurrence_count = st.number_input(
+                tr("Schedule Occurrence Count"),
+                min_value=1,
+                max_value=schedule_rules.MAX_OCCURRENCES,
+                value=5,
+                step=1,
+                key="schedule_occurrence_count",
+            )
+        else:
+            end_date = st.date_input(tr("Schedule End Date"), key="schedule_end_date")
+
+    st.divider()
+
+    subject_mode = "same"
+    subjects: list[str] | None = None
+    if interval_type == "once":
+        video_subject = st.text_input(
+            tr("Video Subject"), value=base_params.video_subject or ""
+        )
+    else:
+        subject_mode = st.radio(
+            tr("Schedule Subject Mode"),
+            options=["same", "list"],
+            format_func=lambda value: tr(
+                "Schedule Same Subject" if value == "same" else "Schedule Subject List"
+            ),
+            key="schedule_subject_mode",
+            horizontal=True,
+        )
+        if subject_mode == "same":
+            video_subject = st.text_input(
+                tr("Video Subject"), value=base_params.video_subject or ""
+            )
+        else:
+            video_subject = base_params.video_subject or ""
+            subject_list_text = st.text_area(
+                tr("Schedule Subject List"),
+                placeholder=tr("Schedule Subject List Placeholder"),
+                key="schedule_subject_list_text",
+            )
+            subjects = [
+                line.strip()
+                for line in subject_list_text.splitlines()
+                if line.strip()
+            ]
+
+    # --- calcula a prévia de datas a partir do que já foi preenchido acima ---
+    expand_kwargs = dict(
+        start_date=start_date,
+        time_of_day=time_of_day,
+        interval_type=interval_type,
+        interval_step=interval_step,
+    )
+    if interval_type != "once":
+        if subjects:
+            expand_kwargs["occurrence_count"] = len(subjects)
+        elif end_mode == "count":
+            expand_kwargs["occurrence_count"] = occurrence_count
+        else:
+            expand_kwargs["end_date"] = end_date
+
+    preview_error = None
+    base_dates: list[datetime] = []
+    if subject_mode == "list" and not subjects:
+        preview_error = None  # ainda digitando a lista; não é erro
+    else:
+        try:
+            base_dates = schedule_rules.expand_occurrences(**expand_kwargs)
+        except ValueError as exc:
+            preview_error = str(exc)
+
+    st.divider()
+    st.write(f"**{tr('Schedule Preview')}**")
+    if preview_error:
+        st.error(preview_error)
+    elif not base_dates:
+        st.info(tr("Schedule Preview Empty"))
+    else:
+        excluded_labels = st.multiselect(
+            tr("Schedule Exclude Dates"),
+            options=[dt.strftime("%Y-%m-%d %H:%M") for dt in base_dates],
+            key="schedule_excluded_dates",
+        )
+        with st.expander(tr("Schedule Add Extra Date")):
+            extra_cols = st.columns([1, 1, 2])
+            extra_date = extra_cols[0].date_input(
+                tr("Schedule Extra Date"), key="schedule_extra_date"
+            )
+            extra_time = extra_cols[1].time_input(
+                tr("Schedule Extra Time"), key="schedule_extra_time"
+            )
+            extra_subject = extra_cols[2].text_input(
+                tr("Schedule Extra Subject"), key="schedule_extra_subject"
+            )
+            if st.button(tr("Schedule Add Date Button"), key="schedule_add_extra_date"):
+                extra_dates = st.session_state.setdefault("schedule_extra_dates", [])
+                extra_dates.append(
+                    {
+                        "generate_at": datetime.combine(extra_date, extra_time),
+                        "video_subject": extra_subject.strip() or video_subject,
+                    }
+                )
+                st.rerun()
+
+        extra_dates = st.session_state.get("schedule_extra_dates", [])
+        final_occurrences = _compose_schedule_occurrences(
+            base_dates, subjects, excluded_labels, extra_dates, video_subject
+        )
+
+        for index, occurrence in enumerate(final_occurrences):
+            row = st.columns([3, 1])
+            row[0].write(
+                f"{occurrence['generate_at'].strftime('%Y-%m-%d %H:%M')} — "
+                f"{occurrence['video_subject']}"
+            )
+            if occurrence in extra_dates and row[1].button(
+                "✕", key=f"schedule_remove_extra_{index}"
+            ):
+                extra_dates.remove(occurrence)
+                st.rerun()
+
+        st.divider()
+        st.write(f"**{tr('Schedule Youtube Section')}**")
+        publish_offset_hours = st.number_input(
+            tr("Schedule Publish Offset Hours"),
+            min_value=0.0,
+            value=0.0,
+            step=1.0,
+            help=tr("Schedule Publish Offset Help"),
+            key="schedule_publish_offset_hours",
+        )
+        review_required = st.checkbox(
+            tr("Schedule Review Required"),
+            help=tr("Schedule Review Required Help"),
+            key="schedule_review_required",
+        )
+
+        if st.button(
+            tr("Schedule Confirm"),
+            type="primary",
+            use_container_width=True,
+            icon=":material/schedule:",
+            disabled=not final_occurrences,
+        ):
+            schedule_store.create_schedule(
+                occurrences=final_occurrences,
+                params=base_params.model_dump(),
+                youtube_publish_offset_hours=publish_offset_hours,
+                youtube_review_required=review_required,
+            )
+            st.session_state["schedule_extra_dates"] = []
+            st.session_state["schedule_dialog_open"] = False
+            st.toast(tr("Schedule Created"), icon=":material/schedule:")
+            st.rerun()
+
+
 def _render_generation_controls(
     params, uploaded_files, uploaded_audio_file, uploaded_bgm_file, voice_mode
 ):
@@ -5974,6 +6399,15 @@ def _render_generation_controls(
         key="generate_video_button",
         on_click=_prepare_generation_task,
     )
+    st.button(
+        tr("Schedule Videos"),
+        use_container_width=True,
+        icon=":material/schedule:",
+        key="open_schedule_dialog_button",
+        on_click=_open_schedule_dialog,
+    )
+    if st.session_state.get("schedule_dialog_open", False):
+        _render_schedule_dialog(params)
     render_onboarding_tour()
     if start_button:
         _save_runtime_config()
@@ -6271,6 +6705,10 @@ def _render_application():
 
     if st.session_state.get("settings_dialog_open", False):
         _render_settings_dialog()
+
+    review_task_id = st.session_state.get("youtube_review_task_id")
+    if review_task_id:
+        _render_youtube_review_dialog(review_task_id)
 
     if _apply_pending_settings_preset():
         st.success(tr("Settings Preset Imported"))

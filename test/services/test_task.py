@@ -1462,6 +1462,75 @@ class TestTaskService(unittest.TestCase):
         )
         self.assertEqual(published_task["cross_post_error"], "upload failed")
 
+    def test_start_routes_youtube_to_review_instead_of_auto_publish(self):
+        """
+        youtube_review_required desvia o YouTube pro fluxo de rascunho
+        (upload private, sem publicar): não deve chamar o publish_video
+        normal nem marcar cross_post_state, só youtube_review_state.
+        """
+        params = VideoParams(video_subject="Coffee", youtube_review_required=True)
+        youtube_service = tm.youtube_upload.youtube_upload_service
+        state = MemoryState()
+
+        def run_immediately(function, *args):
+            future = Future()
+            try:
+                function(*args)
+            except Exception as exc:
+                future.set_exception(exc)
+            else:
+                future.set_result(None)
+            return future
+
+        with (
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]),
+            patch.object(tm, "save_script_data"),
+            patch.object(
+                tm, "generate_audio", return_value=("audio.mp3", 5, object())
+            ),
+            patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+            patch.object(tm, "get_video_materials", return_value=["clip.mp4"]),
+            patch.object(
+                tm,
+                "generate_final_videos",
+                return_value=(["final.mp4"], ["combined.mp4"], []),
+            ),
+            patch.object(youtube_service, "is_configured", return_value=True),
+            patch.object(
+                type(youtube_service),
+                "auto_upload",
+                new_callable=PropertyMock,
+                return_value=True,
+            ),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "LLM title", "caption": "LLM caption"},
+            ),
+            patch.object(
+                tm.youtube_upload,
+                "publish_video",
+                return_value={"success": True, "video_id": "draft123"},
+            ) as publish_video,
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm._cross_post_executor, "submit", side_effect=run_immediately
+            ),
+        ):
+            result = tm.start("youtube-review-required", params)
+
+        # sobe como rascunho private, nunca publica sozinho.
+        publish_video.assert_called_once()
+        self.assertEqual(publish_video.call_args.kwargs["privacy_status"], "private")
+
+        self.assertIsNone(result["cross_post_state"])
+        self.assertEqual(
+            result["youtube_review_state"], tm.const.YOUTUBE_REVIEW_STATE_PENDING
+        )
+        task = state.get_task("youtube-review-required")
+        self.assertEqual(task["youtube_review_drafts"][0]["video_id"], "draft123")
+
     def test_start_returns_before_cross_post_worker_runs(self):
         """视频任务完成时只提交发布工作，不能在生成线程中同步上传。"""
         params = VideoParams(video_subject="Coffee")
@@ -1948,6 +2017,361 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(
             [result["platform"] for result in task["cross_post_results"]],
             ["youtube", "upload-post", "youtube", "upload-post"],
+        )
+
+    def test_cross_post_youtube_override_skips_llm_when_no_other_platform(self):
+        """Título/descrição/tags pré-configurados dispensam o LLM pro YouTube."""
+        state = MemoryState()
+        state.update_task(
+            "youtube-override-only",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(tm.llm, "generate_social_metadata") as generate_metadata,
+            patch.object(
+                tm.youtube_upload,
+                "publish_video",
+                return_value={"success": True, "video_id": "abc123"},
+            ) as publish_video,
+        ):
+            tm._run_cross_post(
+                "youtube-override-only",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                (),  # sem outras plataformas
+                True,
+                "public",
+                "Título fixo",
+                "Descrição fixa",
+                ("tag1", "tag2"),
+                0.0,
+            )
+
+        generate_metadata.assert_not_called()
+        publish_video.assert_called_once()
+        self.assertEqual(publish_video.call_args.kwargs["title"], "Título fixo")
+        self.assertEqual(
+            publish_video.call_args.kwargs["description"], "Descrição fixa"
+        )
+        self.assertEqual(publish_video.call_args.kwargs["tags"], ["tag1", "tag2"])
+
+    def test_cross_post_youtube_override_still_calls_llm_for_other_platforms(self):
+        """Override so vale pro YouTube; Upload-Post continua com legenda do LLM."""
+        state = MemoryState()
+        state.update_task(
+            "youtube-override-with-tiktok",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "LLM title", "caption": "LLM caption"},
+            ) as generate_metadata,
+            patch.object(
+                tm.youtube_upload,
+                "publish_video",
+                return_value={"success": True, "video_id": "abc123"},
+            ) as publish_video,
+            patch.object(
+                tm.upload_post, "cross_post_video", return_value={"success": True}
+            ) as cross_post,
+        ):
+            tm._run_cross_post(
+                "youtube-override-with-tiktok",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                ("tiktok",),
+                True,
+                "public",
+                "Título fixo",
+                "",
+                (),
+                0.0,
+            )
+
+        generate_metadata.assert_called_once()
+        self.assertEqual(publish_video.call_args.kwargs["title"], "Título fixo")
+        self.assertEqual(cross_post.call_args.kwargs["title"], "LLM caption")
+
+    def test_cross_post_publish_offset_sets_publish_at_and_forces_private(self):
+        """publish_offset > 0 agenda publishAt e força private, mesmo se a
+        configuração global pedir public/unlisted."""
+        state = MemoryState()
+        state.update_task(
+            "youtube-scheduled-publish",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "T", "caption": "C"},
+            ),
+            patch.object(
+                tm.youtube_upload,
+                "publish_video",
+                return_value={"success": True, "video_id": "abc123"},
+            ) as publish_video,
+        ):
+            tm._run_cross_post(
+                "youtube-scheduled-publish",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                (),
+                True,
+                "public",
+                "",
+                "",
+                (),
+                2.0,
+            )
+
+        self.assertEqual(publish_video.call_args.kwargs["privacy_status"], "private")
+        self.assertIsNotNone(publish_video.call_args.kwargs["publish_at"])
+
+    def test_cross_post_zero_offset_does_not_set_publish_at(self):
+        """Sem offset, publish_at continua None e a privacidade não é forçada."""
+        state = MemoryState()
+        state.update_task(
+            "youtube-immediate-publish",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "T", "caption": "C"},
+            ),
+            patch.object(
+                tm.youtube_upload,
+                "publish_video",
+                return_value={"success": True, "video_id": "abc123"},
+            ) as publish_video,
+        ):
+            tm._run_cross_post(
+                "youtube-immediate-publish",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                (),
+                True,
+                "public",
+            )
+
+        self.assertEqual(publish_video.call_args.kwargs["privacy_status"], "public")
+        self.assertIsNone(publish_video.call_args.kwargs["publish_at"])
+
+    def test_youtube_review_draft_uploads_as_private_without_publishing(self):
+        with patch.object(
+            tm_cross_post.youtube_upload,
+            "publish_video",
+            return_value={"success": True, "video_id": "draft123", "url": "https://x"},
+        ) as publish_video, patch.object(
+            tm_cross_post, "_patch_cross_post_state"
+        ) as patch_state:
+            tm_cross_post._upload_youtube_review_drafts(
+                "review-task",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                "Título fixo",
+                "Descrição fixa",
+                ("tag1",),
+            )
+
+        self.assertEqual(publish_video.call_args.kwargs["privacy_status"], "private")
+        self.assertEqual(publish_video.call_args.kwargs["title"], "Título fixo")
+        patch_state.assert_called_once()
+        self.assertEqual(
+            patch_state.call_args.kwargs["youtube_review_state"],
+            tm.const.YOUTUBE_REVIEW_STATE_PENDING,
+        )
+        drafts = patch_state.call_args.kwargs["youtube_review_drafts"]
+        self.assertEqual(drafts[0]["video_id"], "draft123")
+
+    def test_youtube_review_draft_marks_failed_state_when_upload_fails(self):
+        with patch.object(
+            tm_cross_post.youtube_upload,
+            "publish_video",
+            return_value={"success": False, "error": "quota exceeded"},
+        ), patch.object(tm_cross_post, "_patch_cross_post_state") as patch_state:
+            tm_cross_post._upload_youtube_review_drafts(
+                "review-task-failed",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                "Título fixo",
+                "",
+                (),
+            )
+
+        self.assertEqual(
+            patch_state.call_args.kwargs["youtube_review_state"],
+            tm.const.YOUTUBE_REVIEW_STATE_FAILED,
+        )
+
+    def test_youtube_review_draft_uses_llm_when_no_override_given(self):
+        with (
+            patch.object(
+                tm_cross_post.llm,
+                "generate_social_metadata",
+                return_value={"title": "LLM title", "caption": "LLM caption"},
+            ) as generate_metadata,
+            patch.object(
+                tm_cross_post.youtube_upload,
+                "publish_video",
+                return_value={"success": True, "video_id": "draft123"},
+            ) as publish_video,
+            patch.object(tm_cross_post, "_patch_cross_post_state"),
+        ):
+            tm_cross_post._upload_youtube_review_drafts(
+                "review-task-llm",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                "",
+                "",
+                (),
+            )
+
+        generate_metadata.assert_called_once()
+        self.assertEqual(publish_video.call_args.kwargs["title"], "LLM title")
+
+    def test_confirm_youtube_review_returns_error_for_unknown_task(self):
+        with patch.object(tm.sm.state, "get_task", return_value=None):
+            result = tm.confirm_youtube_review("missing-task")
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"], "task not found")
+
+    def test_confirm_youtube_review_returns_error_without_pending_review(self):
+        state = MemoryState()
+        state.update_task("no-review", state=tm.const.TASK_STATE_COMPLETE, progress=100)
+        with patch.object(tm.sm, "state", state):
+            result = tm.confirm_youtube_review("no-review")
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"], "no pending YouTube review for this task")
+
+    def test_confirm_youtube_review_publishes_now_by_default(self):
+        state = MemoryState()
+        state.update_task(
+            "review-publish-now",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            youtube_review_state=tm.const.YOUTUBE_REVIEW_STATE_PENDING,
+            youtube_review_drafts=[
+                {"video_path": "final.mp4", "success": True, "video_id": "draft123"}
+            ],
+        )
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm_cross_post.youtube_upload,
+                "update_video_metadata",
+                return_value={"success": True, "video_id": "draft123"},
+            ) as update_metadata,
+        ):
+            result = tm.confirm_youtube_review("review-publish-now", title="New title")
+
+        self.assertTrue(result["success"])
+        update_metadata.assert_called_once_with(
+            video_id="draft123",
+            title="New title",
+            description=None,
+            tags=None,
+            privacy_status="public",
+            publish_at=None,
+        )
+        self.assertEqual(
+            state.get_task("review-publish-now")["youtube_review_state"],
+            tm.const.YOUTUBE_REVIEW_STATE_PUBLISHED,
+        )
+
+    def test_confirm_youtube_review_schedules_when_publish_at_given(self):
+        state = MemoryState()
+        state.update_task(
+            "review-scheduled",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            youtube_review_state=tm.const.YOUTUBE_REVIEW_STATE_PENDING,
+            youtube_review_drafts=[
+                {"video_path": "final.mp4", "success": True, "video_id": "draft123"}
+            ],
+        )
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm_cross_post.youtube_upload,
+                "update_video_metadata",
+                return_value={"success": True, "video_id": "draft123"},
+            ) as update_metadata,
+        ):
+            result = tm.confirm_youtube_review(
+                "review-scheduled", publish_at="2026-03-05T12:00:00Z"
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(update_metadata.call_args.kwargs["privacy_status"], "private")
+        self.assertEqual(
+            state.get_task("review-scheduled")["youtube_review_state"],
+            tm.const.YOUTUBE_REVIEW_STATE_SCHEDULED,
+        )
+
+    def test_confirm_youtube_review_marks_failed_when_update_fails(self):
+        state = MemoryState()
+        state.update_task(
+            "review-fails",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            youtube_review_state=tm.const.YOUTUBE_REVIEW_STATE_PENDING,
+            youtube_review_drafts=[
+                {"video_path": "final.mp4", "success": True, "video_id": "draft123"}
+            ],
+        )
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm_cross_post.youtube_upload,
+                "update_video_metadata",
+                return_value={"success": False, "error": "quota exceeded"},
+            ),
+        ):
+            result = tm.confirm_youtube_review("review-fails")
+
+        self.assertFalse(result["success"])
+        self.assertEqual(
+            state.get_task("review-fails")["youtube_review_state"],
+            tm.const.YOUTUBE_REVIEW_STATE_FAILED,
         )
 
     def test_cross_post_empty_metadata_degrades_to_fallback_title(self):

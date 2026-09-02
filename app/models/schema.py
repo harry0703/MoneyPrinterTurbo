@@ -136,6 +136,19 @@ class VideoParams(BaseModel):
     video_script_prompt: str = Field(default="", max_length=2000)
     custom_system_prompt: str = Field(default="", max_length=8000)
 
+    # Per-generation YouTube publish overrides (feature: agendamento de vídeos).
+    # Vazio/None mantém o comportamento atual: título/descrição/tags vêm do
+    # LLM (generate_social_metadata) no momento da publicação.
+    youtube_title_override: str = Field(default="", max_length=100)
+    youtube_description_override: str = Field(default="", max_length=5000)
+    youtube_tags_override: Optional[List[str]] = None
+    # Horas após o fim da geração para o vídeo ir ao ar no YouTube (via
+    # status.publishAt nativo da API). 0 = publica assim que terminar.
+    youtube_publish_offset_hours: float = Field(default=0.0, ge=0)
+    # Sobe como "private" e aguarda revisão manual do usuário antes de
+    # publicar, em vez de publicar sozinho ao terminar.
+    youtube_review_required: bool = False
+
 
 class SubtitleRequest(BaseModel):
     video_script: str
@@ -539,3 +552,36 @@ class VideoMaterialUploadResponse(BaseResponse):
             },
         }
     )
+
+
+class YoutubePublishRequest(BaseModel):
+    """Confirma ou edita o rascunho de revisão do YouTube de uma task."""
+
+    title: Optional[str] = Field(default=None, max_length=100)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    tags: Optional[List[str]] = None
+    # None = publica imediatamente; com valor, agenda via publishAt nativo
+    # da API (o vídeo continua "private" até essa data/hora).
+    publish_at: Optional[str] = None
+    # Só usado quando publish_at é None; padrão "public" se omitido.
+    privacy_status: Optional[str] = None
+
+
+class ScheduleOccurrenceInput(BaseModel):
+    """Uma ocorrência já expandida, pronta pra persistir."""
+
+    generate_at: str  # ISO 8601, horário local do servidor
+    video_subject: str
+
+
+class CreateScheduleRequest(BaseModel):
+    """Corpo de criação de agendamento: ocorrências já resolvidas pela WebUI
+    (regra recorrente + exceções + datas extras já aplicadas no cliente)."""
+
+    occurrences: List[ScheduleOccurrenceInput] = Field(min_length=1)
+    params: VideoParams
+    youtube_title: str = ""
+    youtube_description: str = ""
+    youtube_tags: Optional[List[str]] = None
+    youtube_publish_offset_hours: float = Field(default=0.0, ge=0)
+    youtube_review_required: bool = False

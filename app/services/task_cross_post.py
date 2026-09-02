@@ -14,7 +14,9 @@ import socket
 import threading
 import time
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from datetime import datetime, timedelta
 from functools import partial
+from typing import Any
 from uuid import uuid4
 
 from loguru import logger
@@ -317,6 +319,10 @@ def _run_cross_post(
     platforms: tuple[str, ...],
     publish_youtube: bool,
     youtube_privacy_status: str,
+    youtube_title_override: str = "",
+    youtube_description_override: str = "",
+    youtube_tags_override: tuple[str, ...] = (),
+    youtube_publish_offset_hours: float = 0.0,
 ) -> None:
     """后台执行跨平台发布，并只补充发布相关的任务字段。"""
     results = []
@@ -347,7 +353,12 @@ def _run_cross_post(
         )
         youtube_metadata: dict = {}
         post_title = video_subject or "Check out this video! #shorts #viral"
-        if platforms or publish_youtube:
+        # Título pré-configurado (agendamento ou geração avulsa) dispensa o
+        # LLM pro YouTube; ainda assim ele roda se houver outras plataformas
+        # em `platforms`, que sempre usam o texto gerado pra legenda/caption.
+        have_youtube_override = publish_youtube and bool(youtube_title_override)
+        needs_llm_metadata = bool(platforms) or (publish_youtube and not have_youtube_override)
+        if needs_llm_metadata:
             # YouTube 走官方接口，其余平台仍由 Upload-Post 转发。只要目标里有
             # YouTube 就按 Shorts 规则生成一次文案，避免同一次任务出现两种风格。
             social_platform = "youtube_shorts"
@@ -361,7 +372,7 @@ def _run_cross_post(
                 language=video_language or "",
                 platform=social_platform,
             )
-            if publish_youtube:
+            if publish_youtube and not have_youtube_override:
                 youtube_metadata = {
                     "title": metadata.get("title") or video_subject,
                     "description": metadata.get("caption", ""),
@@ -373,6 +384,20 @@ def _run_cross_post(
                 or video_subject
                 or "Check out this video! #shorts #viral"
             )
+        if have_youtube_override:
+            youtube_metadata = {
+                "title": youtube_title_override,
+                "description": youtube_description_override,
+                "tags": list(youtube_tags_override),
+            }
+
+        publish_at = None
+        resolved_youtube_privacy = youtube_privacy_status
+        if publish_youtube and youtube_publish_offset_hours > 0:
+            publish_at = datetime.now() + timedelta(hours=youtube_publish_offset_hours)
+            # publishAt só tem efeito com o vídeo private; sem isso o upload
+            # publicaria na hora mesmo com um agendamento pedido.
+            resolved_youtube_privacy = "private"
 
         for video_path in video_paths:
             if publish_youtube:
@@ -383,7 +408,8 @@ def _run_cross_post(
                             title=youtube_metadata.get("title") or video_subject,
                             description=youtube_metadata.get("description", ""),
                             tags=youtube_metadata.get("tags", []),
-                            privacy_status=youtube_privacy_status,
+                            privacy_status=resolved_youtube_privacy,
+                            publish_at=publish_at,
                         ),
                         youtube_upload.PLATFORM,
                         "YouTube returned an invalid response",
@@ -571,6 +597,10 @@ def _schedule_cross_post(
             tuple(platforms),
             publish_youtube,
             youtube_privacy_status,
+            params.youtube_title_override or "",
+            params.youtube_description_override or "",
+            tuple(params.youtube_tags_override or ()),
+            params.youtube_publish_offset_hours or 0.0,
         )
         _register_cross_post_future(task_id, future)
         future.add_done_callback(partial(_finalize_cross_post_future, task_id))
@@ -589,3 +619,178 @@ def _schedule_cross_post(
         return f"failed to schedule cross-post: {exc}"
 
     return None
+
+
+def _upload_youtube_review_drafts(
+    task_id: str,
+    video_paths: tuple[str, ...],
+    video_subject: str,
+    video_script: str,
+    video_language: str,
+    title_override: str,
+    description_override: str,
+    tags_override: tuple[str, ...],
+) -> None:
+    """
+    Sobe cada vídeo do task como rascunho "private" no YouTube pra revisão.
+
+    Ao contrário do fluxo normal de cross-post, aqui não existe ``publishAt``:
+    o vídeo fica parado em private até o usuário confirmar (ou editar) título/
+    descrição/tags via ``youtube_upload.update_video_metadata`` e escolher
+    publicar agora ou agendar, no endpoint de revisão.
+    """
+    have_override = bool(title_override)
+    metadata: dict = {}
+    if not have_override:
+        try:
+            metadata = llm.generate_social_metadata(
+                video_subject=video_subject,
+                video_script=video_script,
+                language=video_language or "",
+                platform="youtube_shorts",
+            )
+        except Exception as exc:
+            logger.warning(
+                f"failed to draft youtube review metadata via LLM, "
+                f"falling back to the subject: task_id: {task_id}, error: {exc}"
+            )
+
+    title = title_override or metadata.get("title") or video_subject or "Untitled video"
+    description = description_override or metadata.get("caption", "")
+    tags = list(tags_override) if tags_override else metadata.get("hashtags", [])
+
+    drafts = []
+    for video_path in video_paths:
+        result = youtube_upload.publish_video(
+            video_path=video_path,
+            title=title,
+            description=description,
+            tags=tags,
+            privacy_status="private",
+        )
+        drafts.append(
+            {
+                "video_path": video_path,
+                "success": bool(result.get("success")),
+                "video_id": result.get("video_id"),
+                "url": result.get("url"),
+                "error": result.get("error"),
+                "title": title,
+                "description": description,
+                "tags": tags,
+            }
+        )
+
+    all_uploaded = all(draft["success"] for draft in drafts)
+    if all_uploaded:
+        logger.success(
+            f"youtube review drafts uploaded, task_id: {task_id}, "
+            f"videos: {len(drafts)}"
+        )
+    else:
+        logger.warning(
+            f"some youtube review drafts failed to upload, task_id: {task_id}"
+        )
+    _patch_cross_post_state(
+        task_id,
+        youtube_review_state=(
+            const.YOUTUBE_REVIEW_STATE_PENDING
+            if all_uploaded
+            else const.YOUTUBE_REVIEW_STATE_FAILED
+        ),
+        youtube_review_drafts=drafts,
+    )
+
+
+def schedule_youtube_review(
+    task_id: str,
+    video_paths: list[str],
+    params: VideoParams,
+    video_script: str,
+) -> None:
+    """
+    Agenda o upload dos rascunhos de revisão em background.
+
+    Reaproveita o mesmo executor do cross-post normal (capacidade já limitada
+    a 2 workers); não disputa o semáforo de fila porque a revisão é um upload
+    simples, sem os riscos de repetição/custo do fluxo de publicação paga.
+    """
+    _cross_post_executor.submit(
+        _upload_youtube_review_drafts,
+        task_id,
+        tuple(video_paths),
+        params.video_subject or "",
+        video_script,
+        params.video_language or "",
+        params.youtube_title_override or "",
+        params.youtube_description_override or "",
+        tuple(params.youtube_tags_override or ()),
+    )
+
+
+def confirm_youtube_review(
+    task_id: str,
+    title: str | None = None,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    publish_at: Any = None,
+    privacy_status: str | None = None,
+) -> dict:
+    """
+    Confirma (com edição opcional) o rascunho de revisão do YouTube de uma task.
+
+    Chamada tanto pelo endpoint HTTP (``POST /tasks/{id}/publish-youtube``)
+    quanto diretamente pela WebUI, que roda em processo separado da API e
+    mexe direto no estado da task em vez de se auto-chamar por HTTP.
+
+    ``publish_at`` agenda via publishAt nativo (mantém private); sem ele,
+    publica de vez com ``privacy_status`` (padrão "public").
+    """
+    task = sm.state.get_task(task_id)
+    if not task:
+        return {"success": False, "error": "task not found"}
+
+    drafts = task.get("youtube_review_drafts") or []
+    if task.get("youtube_review_state") != const.YOUTUBE_REVIEW_STATE_PENDING or not drafts:
+        return {"success": False, "error": "no pending YouTube review for this task"}
+
+    resolved_privacy = "private" if publish_at else (privacy_status or "public")
+
+    results = []
+    for draft in drafts:
+        video_id = draft.get("video_id")
+        if not draft.get("success") or not video_id:
+            continue
+        results.append(
+            youtube_upload.update_video_metadata(
+                video_id=video_id,
+                title=title,
+                description=description,
+                tags=tags,
+                privacy_status=resolved_privacy,
+                publish_at=publish_at,
+            )
+        )
+
+    all_ok = bool(results) and all(result.get("success") for result in results)
+    new_review_state = (
+        (
+            const.YOUTUBE_REVIEW_STATE_SCHEDULED
+            if publish_at
+            else const.YOUTUBE_REVIEW_STATE_PUBLISHED
+        )
+        if all_ok
+        else const.YOUTUBE_REVIEW_STATE_FAILED
+    )
+    sm.state.patch_task(
+        task_id,
+        youtube_review_state=new_review_state,
+        youtube_review_results=results,
+    )
+    if not all_ok:
+        logger.warning(f"failed to confirm YouTube review, task_id: {task_id}")
+    return {
+        "success": all_ok,
+        "youtube_review_state": new_review_state,
+        "results": results,
+    }

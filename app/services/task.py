@@ -59,7 +59,9 @@ from app.services.task_cross_post import (  # noqa: F401
     _run_cross_post_with_slot,
     _schedule_cross_post,
     _unregister_cross_post_future,
+    confirm_youtube_review,
     recover_interrupted_cross_posts,
+    schedule_youtube_review,
 )
 
 _LOOMLOOM_STATE_WRITE_ATTEMPTS = 3
@@ -997,6 +999,16 @@ def _run_pipeline(
     # 7. 先完成视频生成任务，再按需提交跨平台发布。第三方上传可能耗时
     # 数分钟，不应阻塞视频结果返回，也不能反向影响已经生成的成片。
     platforms, publish_youtube = _resolve_publish_targets(task_id)
+
+    # 用户要求人工审核 YouTube 发布内容时，YouTube 单独走审核草稿流程
+    # （上传为 private，不设 publishAt），不进入下面自动发布的批次；
+    # 其它平台（Upload-Post）不受影响，继续走原有的自动发布。
+    youtube_review_requested = bool(
+        params.youtube_review_required
+    ) and youtube_upload.youtube_upload_service.is_configured()
+    if youtube_review_requested:
+        publish_youtube = False
+
     should_cross_post = bool(platforms) or publish_youtube
     cross_post_state = const.CROSS_POST_STATE_PENDING if should_cross_post else None
 
@@ -1014,10 +1026,22 @@ def _run_pipeline(
         "cross_post_error": None,
         "cross_post_owner": _cross_post_process_owner if should_cross_post else None,
         "warnings": generation_warnings or None,
+        "youtube_review_state": (
+            const.YOUTUBE_REVIEW_STATE_PENDING if youtube_review_requested else None
+        ),
+        "youtube_review_drafts": None,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
     )
+
+    if youtube_review_requested:
+        schedule_youtube_review(
+            task_id=task_id,
+            video_paths=final_video_paths,
+            params=params,
+            video_script=video_script,
+        )
 
     if should_cross_post:
         scheduling_error = _schedule_cross_post(

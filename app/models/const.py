@@ -31,5 +31,12 @@ CROSS_POST_STATE_PROCESSING = "processing"
 CROSS_POST_STATE_COMPLETE = "complete"
 CROSS_POST_STATE_FAILED = "failed"
 
+# youtube_review_required: vídeo sobe como "private" e espera revisão manual
+# do usuário (título/descrição/tags) antes de publicar ou agendar no YouTube.
+YOUTUBE_REVIEW_STATE_PENDING = "pending"
+YOUTUBE_REVIEW_STATE_FAILED = "failed"
+YOUTUBE_REVIEW_STATE_PUBLISHED = "published"
+YOUTUBE_REVIEW_STATE_SCHEDULED = "scheduled"
+
 FILE_TYPE_VIDEOS = ["mp4", "mov", "mkv", "webm"]
 FILE_TYPE_IMAGES = ["jpg", "jpeg", "png", "bmp"]
