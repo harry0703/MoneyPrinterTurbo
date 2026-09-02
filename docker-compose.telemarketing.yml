@@ -1,0 +1,45 @@
+version: '3.8'
+services:
+  telemarketing_app:
+    build: ./backend
+    container_name: telemarketing_app
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.example
+    ports:
+      - "4000:4000"
+    depends_on:
+      - telemarketing_db
+
+  telemarketing_client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: telemarketing_client
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./client/.env
+    depends_on:
+      - telemarketing_app
+
+  telemarketing_db:
+    image: postgres:15
+    container_name: telemarketing_db
+    environment:
+      POSTGRES_USER: teleuser
+      POSTGRES_PASSWORD: telepass
+      POSTGRES_DB: telemarketing_db
+    volumes:
+      - telemarketing_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  telemarketing_pgdata:
+
+# Usage:
+# docker compose -f docker-compose.telemarketing.yml up --build -d
+# Then run migrations inside the app container:
+# docker compose -f docker-compose.telemarketing.yml exec -T telemarketing_app npx prisma migrate deploy

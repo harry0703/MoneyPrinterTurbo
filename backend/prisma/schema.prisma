@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  password  String
+  name      String?
+  role      String  @default("agent")
+  createdAt DateTime @default(now())
+}
+
+model Lead {
+  id          Int      @id @default(autoincrement())
+  name        String
+  business    String?
+  phone       String?
+  whatsapp    String?  
+  email       String?
+  source      String?  
+  stage       String   @default("Prospecto")
+  notes       String?
+  ownerId     Int?
+  owner       User?    @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -1,0 +1,7 @@
+node_modules/
+.env
+/dev.db
+/prisma/dev.db
+
+**/.env
+**/node_modules
