@@ -21,14 +21,17 @@ def snapshot():
         (),
         ("Why the deep ocean remains unknown",),
     )
+    punjabi = ScoredTopic("ਪੰਜਾਬ", "emerging", 24, {}, "inferred", (), ())
+    tamil = ScoredTopic("வெள்ளம்", "emerging", 24, {}, "inferred", (), ())
+    topics = (topic, punjabi, tamil)
     return TrendSnapshot(
         datetime(2026, 9, 2, tzinfo=UTC),
-        (topic,),
+        topics,
         {"google_trends": SourceStatus.AVAILABLE},
         {
-            "youtube_shorts": (topic,),
-            "tiktok": (topic,),
-            "instagram_reels": (topic,),
+            "youtube_shorts": topics,
+            "tiktok": topics,
+            "instagram_reels": topics,
         },
     )
 

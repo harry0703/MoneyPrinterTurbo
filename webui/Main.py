@@ -6157,7 +6157,8 @@ def _trend_discovery_service():
 
 
 def _trend_topic_id(topic):
-    return re.sub(r"[^a-z0-9]+", "-", topic.casefold()).strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "-", topic.casefold()).strip("-")
+    return slug or hashlib.sha256(topic.encode("utf-8")).hexdigest()[:12]
 
 
 def _apply_trend_topic_to_studio(topic, angle):
