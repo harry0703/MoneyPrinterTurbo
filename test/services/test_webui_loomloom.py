@@ -126,7 +126,7 @@ def test_loomloom_webui_quotes_then_requires_confirmation_before_execute():
         llm_provider="openai",
         script_generation_backend="loomloom",
         loomloom_base_url="https://example.test/loom/v1",
-        loomloom_api_token="test-token",
+        loomloom_api_token="user-token-1",
         loomloom_market_listing_id="listing-1",
     )
     quote_result = loomloom.LoomLoomQuote(
@@ -173,9 +173,7 @@ def test_loomloom_webui_quotes_then_requires_confirmation_before_execute():
         assert execute_call.call_count == 0
 
         _widget_by_key(app.text_area, "video_subject").set_value("AI daily life").run()
-        _widget_by_key(app.text_input, "loomloom_user_api_token").set_value(
-            "user-token-1"
-        ).run()
+        assert all(item.key != "loomloom_user_api_token" for item in app.text_input)
         _widget_by_key(app.button, "loomloom_quote_scripts").click().run()
 
         assert quote_call.call_count == 1
@@ -183,14 +181,12 @@ def test_loomloom_webui_quotes_then_requires_confirmation_before_execute():
         assert execute_button.disabled
         assert execute_call.call_count == 0
 
-        _widget_by_key(app.text_input, "loomloom_user_api_token").set_value(
-            "user-token-2"
-        ).run()
+        test_config["loomloom_api_token"] = "user-token-2"
+        app.run()
         assert _widget_by_key(app.button, "loomloom_execute_scripts").disabled
 
-        _widget_by_key(app.text_input, "loomloom_user_api_token").set_value(
-            "user-token-1"
-        ).run()
+        test_config["loomloom_api_token"] = "user-token-1"
+        app.run()
         _widget_by_key(app.checkbox, "loomloom_confirm_charge").check().run()
         execute_button = _widget_by_key(app.button, "loomloom_execute_scripts")
         assert not execute_button.disabled
@@ -214,7 +210,7 @@ def test_loomloom_video_source_quotes_then_passes_secret_in_confirmed_request():
         script_generation_backend="local",
         video_source="pexels",
         loomloom_base_url="https://example.test/loom/v1",
-        loomloom_api_token="",
+        loomloom_api_token="session-user-token",
     )
     quote_result = loomloom.LoomLoomQuote(
         quote_id="video-quote-1",
@@ -249,9 +245,7 @@ def test_loomloom_video_source_quotes_then_passes_secret_in_confirmed_request():
         ).run()
         app.session_state["video_source_select_en"] = "loomloom"
         app.run()
-        _widget_by_key(app.text_input, "loomloom_user_api_token").set_value(
-            "session-user-token"
-        ).run()
+        assert all(item.key != "loomloom_user_api_token" for item in app.text_input)
         assert _widget_by_key(app.number_input, "loomloom_video_scene_count").value == 1
         _widget_by_key(app.button, "loomloom_quote_videos").click().run()
         assert quote_call.call_count == 1
@@ -270,7 +264,7 @@ def test_loomloom_video_source_quotes_then_passes_secret_in_confirmed_request():
         assert [str(item.value) for item in app.exception] == []
 
 
-def test_selected_shengsuanyun_provider_hides_duplicate_loomloom_key_input():
+def test_generation_page_omits_shengsuan_key_input():
     test_config = dict(
         config.app,
         llm_provider="shengsuanyun",
@@ -288,7 +282,6 @@ def test_selected_shengsuanyun_provider_hides_duplicate_loomloom_key_input():
         app.run()
 
         assert all(item.key != "loomloom_user_api_token" for item in app.text_input)
-        assert any("reused" in str(item.value).lower() for item in app.caption)
         assert [str(item.value) for item in app.exception] == []
 
 

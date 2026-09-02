@@ -46,6 +46,22 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Resume LoomLoom Status Check",
         "LoomLoom Quote Summary Singular",
         "LoomLoom Video Terms Reuse Help",
+        "Metaso MiniMax H3",
+        "Metaso MiniMax H3 Help",
+        "Metaso MiniMax API Key",
+        "Metaso MiniMax API Key Help",
+        "Metaso MiniMax Base URL",
+        "Metaso MiniMax Resolution",
+        "Metaso MiniMax Resolution Help",
+        "Metaso MiniMax Invalid Resolution",
+        "Select Metaso MiniMax Resolution",
+        "Please Enter the Metaso MiniMax API Key",
+        "Metaso MiniMax Billing Notice",
+        "Metaso MiniMax Billing Notice Uploaded Audio",
+        "Metaso MiniMax Billing Notice Without Script",
+        "Confirm Metaso MiniMax Charge",
+        "Confirm Metaso MiniMax Charge Help",
+        "Confirm Metaso MiniMax Charge Required",
         "Script Generation Method",
         "Script Generation Method Help",
         "Shengsuan Cloud AI Video",
@@ -160,6 +176,15 @@ class TestWebuiI18n(unittest.TestCase):
                     default_model=provider.default_model,
                 )
                 self.assertEqual(_markdown_urls(rendered), expected_urls)
+
+    def test_metaso_api_key_label_keeps_mpt_referral_link(self):
+        """秘塔 Key 获取入口必须保留 MPT 追踪参数，避免赞助转化链路失效。"""
+        expected_url = "https://metaso.cn/minimax-h3/?s=MPT"
+
+        for locale in ("zh", "en"):
+            with self.subTest(locale=locale):
+                label = _load_translation(locale)["Metaso MiniMax API Key"]
+                self.assertEqual(_markdown_urls(label), {expected_url})
 
     def test_secondary_locales_cover_english_locale(self):
         en_translations = _load_translation("en")

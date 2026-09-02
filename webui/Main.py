@@ -49,8 +49,9 @@ from app.services import (
     llm,
     loomloom,
     material,
-    video,
+    metaso_minimax,
     ofox,
+    video,
     volcengine_seedance,
     voice,
     webui_task,
@@ -103,11 +104,18 @@ VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
 LOOMLOOM_MAX_POLL_FAILURES = 5
 # WebUI 按素材能力分组展示视频来源，但底层仍保存原有 video_source 值。
-# 这样既能让用户先判断需要“搜索库存素材”还是“AI 生成”，又不会改变
-# config.toml、历史任务和 API 请求中的字段语义，旧用户升级后无需迁移配置。
+# AI 视频组与设置页共用同一业务顺序：合作服务商优先，并按秘塔、胜算云、
+# 火山引擎排列；其余服务随后展示。这样用户在两个入口看到的顺序一致，同时
+# 不改变 config.toml、历史任务和 API 请求中的字段语义，旧用户无需迁移配置。
 VIDEO_SOURCE_GROUPS = {
     "stock_video": ("pexels", "pixabay", "coverr"),
-    "ai_video": ("wavespeed", "volcengine_seedance", "ofox", "loomloom"),
+    "ai_video": (
+        "metaso_minimax",
+        "loomloom",
+        "volcengine_seedance",
+        "wavespeed",
+        "ofox",
+    ),
     "ai_image": ("openai_image",),
     "local": ("local",),
 }
@@ -220,12 +228,11 @@ NON_LLM_COMPANION_KEYS = {
     "app": ("upload_post_username",)
 }
 # 同一个密钥在不同面板可能使用各自的控件 key：音频面板直接编辑 Gemini 和
-# MiMo 的 LLM 密钥，胜算云密钥的控件没有 _input 后缀。恢复备份时必须清除
-# 每一个别名，否则遗留的旧值会在下一次 rerun 覆盖刚刚恢复的密钥。
+# MiMo 的 LLM 密钥。恢复备份时必须清除每一个别名，否则遗留的旧值
+# 会在下一次 rerun 覆盖刚刚恢复的密钥。
 CREDENTIAL_WIDGET_STATE_ALIASES = {
     ("app", "gemini_api_key"): ("gemini_tts_api_key_input",),
     ("app", "mimo_api_key"): ("mimo_tts_api_key_input",),
-    ("app", "loomloom_api_token"): ("loomloom_user_api_token",),
 }
 # ui 分区只保存界面偏好，不含任何凭据，备份时整体跳过。
 KEY_BACKUP_EXCLUDED_SECTIONS = frozenset({"ui"})
@@ -562,6 +569,7 @@ def _initialize_session_state():
         "wavespeed_confirm_charge": False,
         "volcengine_seedance_confirm_charge": False,
         "ofox_confirm_charge": False,
+        "metaso_minimax_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -3297,15 +3305,112 @@ def _render_settings_dialog():
                 st.markdown(f"#### {tr('AI Video Generation APIs')}")
                 st.caption(tr("AI Video Generation APIs Help"))
 
-                wavespeed_api_key = _get_material_api_keys("wavespeed_api_keys")
-                st.markdown("**WaveSpeed**")
-                wavespeed_api_key = st.text_input(
-                    tr("WaveSpeed API Key"),
-                    value=wavespeed_api_key,
+                # 视频生成 Provider 按赞助商优先展示，赞助商内部顺序
+                # 与商务约定保持一致：秘塔、胜算云、火山引擎。
+                st.markdown(f"**{tr('Metaso MiniMax H3')}**")
+                metaso_api_key = st.text_input(
+                    tr("Metaso MiniMax API Key"),
+                    value=str(
+                        config.app.get("metaso_minimax_api_key", "") or ""
+                    ).strip(),
                     type="password",
-                    key="wavespeed_api_keys_input",
+                    help=tr("Metaso MiniMax API Key Help"),
+                    key="metaso_minimax_api_key_input",
                 )
-                _save_material_api_keys("wavespeed_api_keys", wavespeed_api_key)
+                _set_runtime_config(
+                    "app", "metaso_minimax_api_key", metaso_api_key.strip()
+                )
+                configured_metaso_base_url = str(
+                    config.app.get(
+                        "metaso_minimax_base_url",
+                        metaso_minimax.DEFAULT_BASE_URL,
+                    )
+                    or metaso_minimax.DEFAULT_BASE_URL
+                ).strip()
+                metaso_base_url = st.text_input(
+                    tr("Metaso MiniMax Base URL"),
+                    value=(
+                        ""
+                        if configured_metaso_base_url == metaso_minimax.DEFAULT_BASE_URL
+                        else configured_metaso_base_url
+                    ),
+                    placeholder=metaso_minimax.DEFAULT_BASE_URL,
+                    key="metaso_minimax_base_url_input",
+                )
+                _set_runtime_config(
+                    "app",
+                    "metaso_minimax_base_url",
+                    metaso_base_url.strip() or metaso_minimax.DEFAULT_BASE_URL,
+                )
+                configured_metaso_resolution = (
+                    str(
+                        config.app.get(
+                            "metaso_minimax_resolution",
+                            metaso_minimax.DEFAULT_RESOLUTION,
+                        )
+                    )
+                    .strip()
+                    .upper()
+                )
+                metaso_resolution_options = sorted(
+                    metaso_minimax.SUPPORTED_RESOLUTIONS,
+                    key=lambda value: value != metaso_minimax.DEFAULT_RESOLUTION,
+                )
+                resolution_is_valid = (
+                    configured_metaso_resolution
+                    in metaso_minimax.SUPPORTED_RESOLUTIONS
+                )
+                if not resolution_is_valid:
+                    # 分辨率直接影响计费。手工配置错误时保留原值并要求用户
+                    # 主动选择，不能在打开设置弹窗时静默改成价格更高的 2K。
+                    st.error(
+                        tr("Metaso MiniMax Invalid Resolution").format(
+                            value=configured_metaso_resolution,
+                            supported=", ".join(metaso_resolution_options),
+                        )
+                    )
+                metaso_resolution = st.selectbox(
+                    tr("Metaso MiniMax Resolution"),
+                    options=metaso_resolution_options,
+                    index=(
+                        metaso_resolution_options.index(configured_metaso_resolution)
+                        if resolution_is_valid
+                        else None
+                    ),
+                    key="metaso_minimax_resolution_input",
+                    help=tr("Metaso MiniMax Resolution Help"),
+                    placeholder=tr("Select Metaso MiniMax Resolution"),
+                )
+                if metaso_resolution is not None:
+                    _set_runtime_config(
+                        "app", "metaso_minimax_resolution", metaso_resolution
+                    )
+
+                st.divider()
+                st.markdown(f"**{tr('Shengsuan Cloud AI Video')}**")
+                app_config_snapshot = config.snapshot_config_with_pending(config.app)
+                if (
+                    str(app_config_snapshot.get("llm_provider", "") or "").lower()
+                    == "shengsuanyun"
+                ):
+                    # 大模型 Provider 已选胜算云时，视频生成直接复用
+                    # 同一密钥，不再展示一个容易引起歧义的独立输入框。
+                    st.caption(tr("Shengsuan Cloud API Key Reused"))
+                else:
+                    configured_loomloom_token = str(
+                        app_config_snapshot.get("loomloom_api_token", "") or ""
+                    ).strip()
+                    loomloom_api_token = st.text_input(
+                        tr("Shengsuan Cloud API Key"),
+                        value=configured_loomloom_token,
+                        type="password",
+                        key="loomloom_api_token_input",
+                        help=tr("Shengsuan Cloud API Key Help"),
+                        placeholder=tr("Shengsuan Cloud API Key Placeholder"),
+                    ).strip()
+                    _set_runtime_config(
+                        "app", "loomloom_api_token", loomloom_api_token
+                    )
 
                 st.divider()
                 seedance_api_key_value = str(
@@ -3387,6 +3492,18 @@ def _render_settings_dialog():
                     seedance_base_url.strip() or volcengine_seedance.DEFAULT_BASE_URL,
                 )
 
+                st.divider()
+                wavespeed_api_key = _get_material_api_keys("wavespeed_api_keys")
+                st.markdown("**WaveSpeed**")
+                wavespeed_api_key = st.text_input(
+                    tr("WaveSpeed API Key"),
+                    value=wavespeed_api_key,
+                    type="password",
+                    key="wavespeed_api_keys_input",
+                )
+                _save_material_api_keys("wavespeed_api_keys", wavespeed_api_key)
+
+                st.divider()
                 st.markdown("**OFox**")
                 ofox_api_key = st.text_input(
                     tr("OFox API Key"),
@@ -3566,26 +3683,6 @@ def _effective_script_generation_backend():
     return backend if backend in {"local", "loomloom"} else "local"
 
 
-def _render_loomloom_api_token_input():
-    """仅在未选择胜算云 Provider 时显示独立 LoomLoom 密钥输入。"""
-    app_config_snapshot = config.snapshot_config_with_pending(config.app)
-    if str(app_config_snapshot.get("llm_provider", "") or "").lower() == "shengsuanyun":
-        st.caption(tr("Shengsuan Cloud API Key Reused"))
-        return loomloom.resolve_api_token(app_config_snapshot)
-
-    configured_token = loomloom.resolve_api_token(app_config_snapshot)
-    st.session_state.setdefault("loomloom_user_api_token", configured_token)
-    api_token = st.text_input(
-        tr("Shengsuan Cloud API Key"),
-        type="password",
-        key="loomloom_user_api_token",
-        help=tr("Shengsuan Cloud API Key Help"),
-        placeholder=tr("Shengsuan Cloud API Key Placeholder"),
-    ).strip()
-    _set_runtime_config("app", "loomloom_api_token", api_token)
-    return _effective_loomloom_api_token()
-
-
 def _loomloom_video_scene_prompts(video_terms, subject, scene_count):
     """按素材关键词生成有限数量的场景描述，供视频模型逐段生成素材。"""
     if isinstance(video_terms, str):
@@ -3655,9 +3752,7 @@ def _current_loomloom_video_quote_context(params):
 def _render_loomloom_video_settings(params):
     """渲染默认视频 SkillBot 的报价、报价失效和付费确认流程。"""
     st.caption(tr("Shengsuan Cloud AI Video Help"))
-    if _effective_script_generation_backend() != "loomloom":
-        _render_loomloom_api_token_input()
-    elif (
+    if (
         str(
             config.snapshot_config_with_pending(config.app).get("llm_provider", "")
             or ""
@@ -3929,7 +4024,7 @@ def _render_loomloom_run_progress():
 
 def _render_loomloom_script_generation(params):
     st.caption(tr("LoomLoom Batch Script Generation Help"))
-    effective_token = _render_loomloom_api_token_input()
+    effective_token = _effective_loomloom_api_token()
     if not effective_token:
         st.warning(tr("Shengsuan Cloud API Key Required"))
 
@@ -4316,6 +4411,7 @@ def _render_video_settings(panel, params):
                 "wavespeed": tr("WaveSpeed AI Video"),
                 "volcengine_seedance": tr("Volcano Engine Seedance"),
                 "ofox": tr("OFox AI Video"),
+                "metaso_minimax": tr("Metaso MiniMax H3"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
                 "local": tr("Local file"),
@@ -4345,6 +4441,8 @@ def _render_video_settings(panel, params):
                 st.caption(tr("Volcano Engine Seedance Help"))
             if params.video_source == "ofox":
                 st.caption(tr("OFox AI Video Help"))
+            if params.video_source == "metaso_minimax":
+                st.caption(tr("Metaso MiniMax H3 Help"))
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
                 local_file_types = sorted(
@@ -4482,12 +4580,25 @@ def _render_video_settings(panel, params):
                 "ui", "video_fit_mode", params.video_fit_mode.value
             )
 
-            video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+            # MiniMax H3 的远端时长范围是 4～15 秒。选择秘塔时使用完整能力
+            # 范围，既避免 2/3 秒被按 4 秒计费，也让 WebUI 与 CLI、服务层一致。
+            video_clip_durations = (
+                list(
+                    range(
+                        metaso_minimax.DEFAULT_MIN_DURATION_SECONDS,
+                        metaso_minimax.DEFAULT_MAX_DURATION_SECONDS + 1,
+                    )
+                )
+                if params.video_source == "metaso_minimax"
+                else [2, 3, 4, 5, 6, 7, 8, 9, 10]
+            )
             params.video_clip_duration = stable_selectbox(
                 tr("Clip Duration"),
                 options=video_clip_durations,
                 default_value=_saved_ui_choice(
-                    "video_clip_duration", video_clip_durations, 3
+                    "video_clip_duration",
+                    video_clip_durations,
+                    5 if params.video_source == "metaso_minimax" else 3,
                 ),
                 key="video_clip_duration_select",
                 help=tr("Clip Duration Help"),
@@ -4568,6 +4679,8 @@ def _render_video_settings(panel, params):
                 _render_seedance_video_settings(params)
             if params.video_source == "ofox":
                 _render_ofox_video_settings(params)
+            if params.video_source == "metaso_minimax":
+                _render_metaso_minimax_video_settings(params)
     return uploaded_files
 
 
@@ -4650,6 +4763,60 @@ def _render_ofox_video_settings(params):
         tr("Confirm OFox Charge"),
         key="ofox_confirm_charge",
         help=tr("Confirm OFox Charge Help"),
+    )
+
+
+def _render_metaso_minimax_video_settings(params):
+    """展示预计付费任务数量，并要求用户确认秘塔 MiniMax 生成费用。"""
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    voice_mode = st.session_state.get(
+        localized_widget_key("voice_mode_control"),
+        config.ui.get("voice_mode"),
+    )
+    if voice_mode == VOICE_MODE_UPLOAD:
+        # 视频设置渲染在音频设置之前，此时无法可靠读取本轮新上传文件的实际
+        # 时长。上传模式不再展示按脚本文字推算的数字，避免用户误以为一个
+        # 5 秒音频也会按较长文案创建多个付费任务；运行时仍以文件真实时长为准。
+        st.warning(
+            tr("Metaso MiniMax Billing Notice Uploaded Audio").format(
+                resolution=str(
+                    config.app.get(
+                        "metaso_minimax_resolution",
+                        metaso_minimax.DEFAULT_RESOLUTION,
+                    )
+                    or metaso_minimax.DEFAULT_RESOLUTION
+                ),
+                duration=clip_duration,
+                count=video_count,
+            )
+        )
+    elif estimated_range := _estimate_voiceover_duration_range(
+        str(params.video_script or ""), params.voice_rate
+    ):
+        min_clips = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        max_clips = max(
+            math.ceil(estimated_range[1] * video_count / clip_duration), min_clips
+        )
+        st.warning(
+            tr("Metaso MiniMax Billing Notice").format(
+                min=min_clips,
+                max=max_clips,
+                resolution=str(
+                    config.app.get(
+                        "metaso_minimax_resolution",
+                        metaso_minimax.DEFAULT_RESOLUTION,
+                    )
+                    or metaso_minimax.DEFAULT_RESOLUTION
+                ),
+            )
+        )
+    else:
+        st.warning(tr("Metaso MiniMax Billing Notice Without Script"))
+    st.checkbox(
+        tr("Confirm Metaso MiniMax Charge"),
+        key="metaso_minimax_confirm_charge",
+        help=tr("Confirm Metaso MiniMax Charge Help"),
     )
 
 
@@ -6326,6 +6493,7 @@ def _render_generation_controls(
             "wavespeed",
             "volcengine_seedance",
             "ofox",
+            "metaso_minimax",
             "loomloom",
             "openai_image",
             "local",
@@ -6397,6 +6565,22 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm OFox Charge Required"))
+            st.stop()
+
+        if params.video_source == "metaso_minimax" and not (
+            metaso_minimax.is_enabled(
+                config.snapshot_config_with_pending(config.app)
+            )
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the Metaso MiniMax API Key"))
+            st.stop()
+
+        if params.video_source == "metaso_minimax" and not st.session_state.get(
+            "metaso_minimax_confirm_charge", False
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm Metaso MiniMax Charge Required"))
             st.stop()
 
         if params.video_source == "openai_image" and not material.is_openai_image_enabled(

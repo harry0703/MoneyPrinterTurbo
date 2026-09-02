@@ -359,7 +359,6 @@ def test_credential_widget_state_keys_cover_shared_input_aliases():
     )
     assert credential_widget_state_keys("app", "loomloom_api_token") == (
         "loomloom_api_token_input",
-        "loomloom_user_api_token",
     )
 
 
@@ -370,7 +369,7 @@ def test_apply_key_backup_writes_config_and_clears_every_widget_alias():
         {
             "gemini_api_key_input": "stale-gemini",
             "gemini_tts_api_key_input": "stale-gemini",
-            "loomloom_user_api_token": "stale-loomloom",
+            "loomloom_api_token_input": "stale-loomloom",
             "azure_speech_key_input": "stale-azure",
             "elevenlabs_voices_stale-key": ["old voice"],
             "video_subject": "untouched",

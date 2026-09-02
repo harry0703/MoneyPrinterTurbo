@@ -127,3 +127,61 @@ def test_material_settings_target_uses_localized_tab_state_and_is_consumed():
         assert [str(item.value) for item in app.exception] == []
         assert app.session_state["settings_dialog_tabs_zh"] == "素材来源设置"
         assert "settings_dialog_target_tab" not in app.session_state
+
+
+def test_ai_video_settings_prioritize_sponsors_and_own_shengsuan_key():
+    """视频 Provider 应按约定的赞助商顺序展示，胜算云密钥只在设置中管理。"""
+    app_config = dict(
+        config.app,
+        llm_provider="openai",
+        script_generation_backend="loomloom",
+        video_source="pexels",
+        loomloom_api_token="initial-token",
+    )
+    ui_config = dict(config.ui, language="en")
+
+    with (
+        patch.object(config, "app", app_config),
+        patch.object(config, "ui", ui_config),
+        patch.object(config, "try_save_config", return_value=True),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
+        app.session_state["ui_language"] = "en"
+        app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "material"
+        app.run()
+
+        markdown_values = [str(item.value) for item in app.markdown]
+        provider_titles = [
+            "**Metaso · MiniMax H3**",
+            "**Shengsuan Cloud AI Video**",
+            "**Volcano Engine Ark · Seedance**",
+            "**WaveSpeed**",
+            "**OFox**",
+        ]
+        provider_positions = [
+            next(
+                index
+                for index, value in enumerate(markdown_values)
+                if value.startswith(title)
+            )
+            for title in provider_titles
+        ]
+        assert provider_positions == sorted(provider_positions)
+
+        settings_token = _widget_by_key(
+            app.text_input,
+            "loomloom_api_token_input",
+        )
+        assert settings_token.value == "initial-token"
+        assert all(
+            item.key != "loomloom_user_api_token" for item in app.text_input
+        )
+
+        settings_token.set_value("settings-token").run()
+        assert app_config["loomloom_api_token"] == "settings-token"
+        assert _widget_by_key(
+            app.text_input,
+            "loomloom_api_token_input",
+        ).value == "settings-token"
+        assert [str(item.value) for item in app.exception] == []

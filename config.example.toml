@@ -63,7 +63,8 @@ tls_verify = true
 # -----------------------------------------------------------------------------
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
-# "volcengine_seedance", "ofox", "loomloom", "openai_image", "local".
+# "volcengine_seedance", "ofox", "metaso_minimax", "loomloom",
+# "openai_image", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
 # "loomloom" is a paid Shengsuan Cloud source and requires explicit
@@ -155,6 +156,17 @@ ofox_max_duration = 15
 ofox_provider = "byteplus"
 ofox_poll_interval = 5
 ofox_run_timeout = 1800
+
+# Metaso proxies the MiniMax H3 V2 asynchronous video API. Register and obtain
+# an independent API key through https://metaso.cn/minimax-h3/?s=MPT. Its mk-*
+# key belongs to a separate credential system and must not reuse the MiniMax LLM key.
+# When this value is empty, METASO_MINIMAX_API_KEY is used. Generation is billed
+# per submitted clip; the WebUI and CLI require explicit charge confirmation.
+metaso_minimax_api_key = ""
+metaso_minimax_base_url = "https://metaso.cn/api/minimax"
+metaso_minimax_resolution = "2K" # "768P" or "2K"
+metaso_minimax_poll_interval = 10
+metaso_minimax_run_timeout = 1800
 
 # OpenAI-compatible text-to-image material source ("openai_image"). Point the
 # base URL at any endpoint that speaks the OpenAI /images/generations protocol:

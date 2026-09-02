@@ -19,6 +19,7 @@ from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
     material_cache,
+    metaso_minimax,
     ofox,
     task_artifacts,
     video,
@@ -1728,6 +1729,18 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
+    if source == "metaso_minimax":
+        # 秘塔 MiniMax 同样按远端异步任务计费。它与火山方舟的请求体相似，
+        # 但任务查询路径和响应结构不同，因此只共享本地按需生成语义，不复用
+        # 供应商客户端，避免协议差异渗入素材编排层。
+        return _download_videos_metaso_minimax_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
     if source == "openai_image":
         # 与 WaveSpeed 相同的按需付费语义：文生图按张计费，逐段生成、凑够
         # 所需时长立即停止。生成结果是一次性的本地图片文件，也不参与 24
@@ -2109,6 +2122,120 @@ def _download_videos_ofox_on_demand(
             break
 
     logger.success(f"generated and downloaded {len(video_paths)} OFox videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_metaso_minimax_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """顺序生成秘塔 MiniMax 素材，覆盖配音时长后立即停止付费下单。"""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+
+    # 远端最短生成 4 秒，但本地仍按用户片段时长裁剪和累计。提前验证循环
+    # 控制参数，避免 NaN、Infinity 或非正数让停止条件永远无法满足，进而把
+    # 所有关键词都提交为付费任务。
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError) as exc:
+        raise metaso_minimax.MetasoMiniMaxError(
+            "Metaso MiniMax audio duration must be a finite number"
+        ) from exc
+    if not math.isfinite(required_duration):
+        raise metaso_minimax.MetasoMiniMaxError(
+            "Metaso MiniMax audio duration must be a finite number"
+        )
+    if required_duration <= 0:
+        logger.warning(
+            "skip Metaso MiniMax paid generation because required audio duration "
+            f"is not positive: duration={required_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    try:
+        clip_duration = int(max_clip_duration)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise metaso_minimax.MetasoMiniMaxError(
+            "Metaso MiniMax clip duration must be a positive integer"
+        ) from exc
+    if clip_duration <= 0:
+        raise metaso_minimax.MetasoMiniMaxError(
+            "Metaso MiniMax clip duration must be a positive integer"
+        )
+
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = metaso_minimax.generate_videos(
+                search_term=search_term,
+                minimum_duration=clip_duration,
+                video_aspect=video_aspect,
+            )
+        except metaso_minimax.MetasoMiniMaxUnconfirmedTaskError as exc:
+            # 请求或轮询状态不明时，远端任务仍可能成功并计费。立即停止整个
+            # 生成循环，防止后续关键词继续下单，并把任务 ID 交给任务服务保存。
+            logger.error(
+                "stop submitting new Metaso MiniMax tasks because the last paid "
+                f"task is unconfirmed: task_id={exc.task_id or 'unknown'}, "
+                f"detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except metaso_minimax.MetasoMiniMaxError as exc:
+            logger.error(f"Metaso MiniMax generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        for item in video_items:
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "metaso_minimax"
+            )
+            if not saved_video_path:
+                # 生成成功已产生费用，下载失败时不能继续创建新任务来替代。
+                # 抛出携带远端 ID 的专用错误，供任务状态和人工恢复使用。
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise metaso_minimax.MetasoMiniMaxDownloadError(
+                    "Metaso MiniMax generated a paid video but the result could "
+                    f"not be downloaded: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                )
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=metaso_minimax, error={type(source_error).__name__}, "
+                    f"detail={source_error}"
+                )
+
+            # 本地成片只使用用户选择的片段长度；即使 H3 因最短时长约束生成
+            # 了更长素材，也不能把未使用部分计入覆盖时长并少生成必要画面。
+            total_duration += min(clip_duration, item.duration)
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated Metaso MiniMax materials cover the required duration; "
+                f"stop submitting paid tasks: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(f"generated and downloaded {len(video_paths)} Metaso MiniMax videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
 
