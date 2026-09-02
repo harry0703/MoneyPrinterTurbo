@@ -24,7 +24,7 @@ from loguru import logger
 from app.config import config
 from app.models import const
 from app.models.schema import VideoParams
-from app.services import llm, upload_post, youtube_upload
+from app.services import llm, upload_post, webhook_notifier, youtube_upload
 from app.services import state as sm
 
 # 发布请求最长可等待数分钟，不能继续占用视频生成任务的并发名额。
@@ -401,20 +401,39 @@ def _run_cross_post(
 
         for video_path in video_paths:
             if publish_youtube:
-                results.append(
-                    _normalize_publish_result(
-                        youtube_upload.publish_video(
-                            video_path=video_path,
-                            title=youtube_metadata.get("title") or video_subject,
-                            description=youtube_metadata.get("description", ""),
-                            tags=youtube_metadata.get("tags", []),
-                            privacy_status=resolved_youtube_privacy,
-                            publish_at=publish_at,
-                        ),
-                        youtube_upload.PLATFORM,
-                        "YouTube returned an invalid response",
-                    )
+                youtube_title = youtube_metadata.get("title") or video_subject
+                youtube_description = youtube_metadata.get("description", "")
+                youtube_tags = youtube_metadata.get("tags", [])
+                youtube_result = _normalize_publish_result(
+                    youtube_upload.publish_video(
+                        video_path=video_path,
+                        title=youtube_title,
+                        description=youtube_description,
+                        tags=youtube_tags,
+                        privacy_status=resolved_youtube_privacy,
+                        publish_at=publish_at,
+                    ),
+                    youtube_upload.PLATFORM,
+                    "YouTube returned an invalid response",
                 )
+                results.append(youtube_result)
+                # publishAt agenda em private; o vídeo só fica público quando o
+                # YouTube processar o agendamento, então não é "publicado" ainda.
+                if youtube_result.get("success") and not publish_at:
+                    webhook_notifier.notify_video_published(
+                        task_id=task_id,
+                        video_id=str(youtube_result.get("video_id") or ""),
+                        url=str(youtube_result.get("url") or ""),
+                        title=youtube_title,
+                        description=youtube_description,
+                        tags=list(youtube_tags),
+                        privacy_status=str(
+                            youtube_result.get("privacy_status")
+                            or resolved_youtube_privacy
+                        ),
+                        video_subject=video_subject,
+                        video_language=video_language,
+                    )
             if platforms:
                 results.append(
                     _normalize_publish_result(
@@ -761,16 +780,29 @@ def confirm_youtube_review(
         video_id = draft.get("video_id")
         if not draft.get("success") or not video_id:
             continue
-        results.append(
-            youtube_upload.update_video_metadata(
-                video_id=video_id,
-                title=title,
-                description=description,
-                tags=tags,
-                privacy_status=resolved_privacy,
-                publish_at=publish_at,
-            )
+        result = youtube_upload.update_video_metadata(
+            video_id=video_id,
+            title=title,
+            description=description,
+            tags=tags,
+            privacy_status=resolved_privacy,
+            publish_at=publish_at,
         )
+        results.append(result)
+        # Agendado (publishAt) fica private até o YouTube publicar sozinho;
+        # só notifica quando o vídeo já sai público/unlisted nesta chamada.
+        if result.get("success") and resolved_privacy != "private":
+            webhook_notifier.notify_video_published(
+                task_id=task_id,
+                video_id=str(result.get("video_id") or video_id),
+                url=str(result.get("url") or ""),
+                title=str(title if title is not None else draft.get("title") or ""),
+                description=str(
+                    description if description is not None else draft.get("description") or ""
+                ),
+                tags=list(tags if tags is not None else draft.get("tags") or []),
+                privacy_status=str(result.get("privacy_status") or resolved_privacy),
+            )
 
     all_ok = bool(results) and all(result.get("success") for result in results)
     new_review_state = (

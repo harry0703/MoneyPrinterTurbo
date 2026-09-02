@@ -406,6 +406,10 @@ youtube_made_for_kids = false
 # Discloses that the video contains synthetic or altered media. Generated
 # videos use TTS and stock footage, so this stays enabled by default.
 youtube_contains_synthetic_media = true
+# Optional webhook notified (POST, JSON body) whenever a video is actually
+# published on YouTube (auto-upload or after manual review is confirmed).
+# Leave empty to disable. Failures are logged and never affect the upload.
+youtube_publish_webhook_url = ""
 
 # Upload-Post cross-posts generated videos to TikTok and Instagram.
 # Create an account and API key at https://upload-post.com/
