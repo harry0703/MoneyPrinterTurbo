@@ -13,7 +13,7 @@ from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
 import requests
 from loguru import logger
 from moviepy.video.io.VideoFileClip import VideoFileClip
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
@@ -23,6 +23,10 @@ from app.utils import utils
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
+
+
+class _OpenAIImageDecodeError(ValueError):
+    """表示兼容接口返回的字节无法解码为图片，不包含本地文件写入故障。"""
 
 
 def _safe_public_url(value: Any) -> str | None:
@@ -1368,10 +1372,25 @@ def _save_openai_image_file(
         os.makedirs(save_dir, exist_ok=True)
 
     image_path = os.path.join(save_dir, f"openai-image-{uuid.uuid4().hex[:12]}.png")
-    with Image.open(io.BytesIO(image_bytes)) as image:
-        image.load()
+
+    # 图片解码失败可以降级为“跳过当前关键词”，但目录权限、磁盘空间和文件
+    # 写入失败必须继续抛出，否则按需生成循环会在本地无法保存文件时继续创建
+    # 后续付费任务。Image.open 只读取内存字节，因此这里的 OSError 属于格式
+    # 识别失败；image.load 的 OSError 则对应截断或损坏的图片数据。
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
+        raise _OpenAIImageDecodeError(f"{type(exc).__name__}: {exc}") from exc
+
+    with image:
+        try:
+            image.load()
+        except (OSError, SyntaxError, ValueError) as exc:
+            raise _OpenAIImageDecodeError(f"{type(exc).__name__}: {exc}") from exc
         if image.mode not in ("RGB", "RGBA", "L", "LA", "P"):
             image = image.convert("RGB")
+        # save 不放进解码异常保护区：写入错误表示运行环境持续不可用，应立即
+        # 终止整个任务，避免后续关键词继续产生无法落盘的付费图片。
         image.save(image_path, format="PNG")
         width, height = image.size
     return image_path, width, height
@@ -1415,7 +1434,7 @@ def generate_images_openai(
 
     try:
         image_path, width, height = _save_openai_image_file(image_bytes, save_dir)
-    except Exception as e:
+    except _OpenAIImageDecodeError as e:
         # 兼容层可能返回 200 但 body 不是图片（如伪装成 JSON 的 HTML 错误页、
         # 网关的降级提示页）。图片无法解码属于"该次生成已失败"，按素材源
         # 约定返回空列表让上层跳过该关键词继续，而不是让异常中断整个任务。
