@@ -1,3 +1,9 @@
+[theme]
+# Vermelho padrão do Streamlit (#FF4B4B) só dá 3.3:1 de contraste com texto
+# branco nos botões primários, abaixo do WCAG AA (4.5:1). Este tom (Material
+# red 700) mantém a identidade vermelha e passa em ~4.97:1.
+primaryColor = "#D32F2F"
+
 [browser]
 gatherUsageStats = false
 
