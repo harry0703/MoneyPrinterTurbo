@@ -28,6 +28,8 @@ git diff --check
 
 These are scoped technical checks, not whole-repository release certification.
 
+A later full-repository finishing gate stopped at the first unrelated failure: `test/services/test_material_cache.py::TestMaterialSearchCache::test_corrupted_cache_is_removed_without_breaking_search` after 323 passes and 1 skip. The same test passed alone, the complete material-cache module passed 19/19, and the immediately preceding material plus material-cache modules passed 61/61. This ordering-dependent pre-existing failure blocks a clean whole-repository claim but does not invalidate the affected-suite result above.
+
 ## Live Windows source acceptance
 
 At `2026-09-02T05:38:44.354719+00:00`, Google Trends RSS returned 50 signals across AU, CA, GB, IN, and US. YouTube configuration was absent; the adapter returned `unavailable`, performed no key-backed acceptance, and exposed no key.
