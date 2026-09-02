@@ -4,7 +4,7 @@ import pathlib
 import shutil
 from typing import Union
 
-from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
+from fastapi import BackgroundTasks, Body, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
 from fastapi.responses import FileResponse, StreamingResponse
 from loguru import logger
@@ -28,7 +28,8 @@ from app.models.schema import (
     TaskResponse,
     TaskVideoRequest,
     VideoMaterialUploadResponse,
-    VideoMaterialRetrieveResponse
+    VideoMaterialRetrieveResponse,
+    YoutubePublishRequest,
 )
 from app.services import bgm as bgm_service
 from app.services import material_upload as material_upload_service
@@ -319,6 +320,53 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
 
     raise HttpException(
         task_id=task_id, status_code=404, message=f"{request_id}: task not found"
+    )
+
+
+@router.post(
+    "/tasks/{task_id}/publish-youtube",
+    summary="Confirm or edit a pending YouTube review draft, then publish or schedule it",
+)
+def publish_youtube_review(
+    request: Request,
+    task_id: str = Path(..., description="Task ID"),
+    body: YoutubePublishRequest = Body(default=YoutubePublishRequest()),
+):
+    request_id = base.get_task_id(request)
+    if not sm.state.get_task(task_id):
+        raise HttpException(
+            task_id=task_id, status_code=404, message=f"{request_id}: task not found"
+        )
+
+    result = tm.confirm_youtube_review(
+        task_id,
+        title=body.title,
+        description=body.description,
+        tags=body.tags,
+        publish_at=body.publish_at,
+        privacy_status=body.privacy_status,
+    )
+    if not result["success"] and result.get("error") == "no pending YouTube review for this task":
+        raise HttpException(
+            task_id=task_id,
+            status_code=409,
+            message=f"{request_id}: no pending YouTube review for this task",
+        )
+    if not result["success"] and "results" not in result:
+        raise HttpException(
+            task_id=task_id, status_code=404, message=f"{request_id}: task not found"
+        )
+    if not result["success"]:
+        logger.warning(
+            f"failed to confirm YouTube review, request_id: {request_id}, "
+            f"task_id: {task_id}"
+        )
+    return utils.get_response(
+        200,
+        {
+            "youtube_review_state": result.get("youtube_review_state"),
+            "results": result.get("results", []),
+        },
     )
 
 

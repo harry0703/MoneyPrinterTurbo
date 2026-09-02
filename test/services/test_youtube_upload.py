@@ -468,6 +468,7 @@ class TestYouTubeUploadService(unittest.TestCase):
             description="d",
             tags=["t"],
             privacy_status=None,
+            publish_at=None,
         )
 
 
@@ -552,6 +553,210 @@ class TestYouTubeDependencyLoading(unittest.TestCase):
                 media.stream().close()
         finally:
             os.unlink(video_path)
+
+
+class TestFormatPublishAt(unittest.TestCase):
+    def test_naive_datetime_is_interpreted_as_local_time_and_converted_to_utc(self):
+        import datetime as dt
+
+        # Simula um servidor em UTC-3 (ex.: America/Sao_Paulo): 09:00 local
+        # tem que virar 12:00Z, nunca "09:00Z" literal.
+        class _FixedOffsetLocal(dt.datetime):
+            def astimezone(self, tz=None):
+                if tz is None:
+                    return dt.datetime(
+                        self.year, self.month, self.day, self.hour, self.minute,
+                        tzinfo=dt.timezone(dt.timedelta(hours=-3)),
+                    )
+                return super().astimezone(tz)
+
+        fixed_local = _FixedOffsetLocal(2026, 3, 5, 9, 0)
+        result = youtube_upload.format_publish_at(fixed_local)
+        self.assertEqual(result, "2026-03-05T12:00:00Z")
+
+    def test_string_value_passes_through_unchanged(self):
+        self.assertEqual(
+            youtube_upload.format_publish_at("2026-03-05T12:00:00Z"),
+            "2026-03-05T12:00:00Z",
+        )
+
+
+class TestUploadVideoPublishAt(unittest.TestCase):
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    @patch("app.services.youtube_upload.os.path.exists", return_value=True)
+    def test_publish_at_is_included_when_privacy_is_private(self, _exists):
+        modules, state = _fake_modules([{"id": "vid123"}])
+
+        with patch(
+            "app.services.youtube_upload._load_google_modules", return_value=modules
+        ):
+            YouTubeUploadService().upload_video(
+                "/fake/v.mp4",
+                "Title",
+                privacy_status="private",
+                publish_at="2026-03-05T12:00:00Z",
+            )
+
+        self.assertEqual(
+            state.insert_kwargs["body"]["status"]["publishAt"],
+            "2026-03-05T12:00:00Z",
+        )
+
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    @patch("app.services.youtube_upload.os.path.exists", return_value=True)
+    def test_publish_at_is_ignored_when_privacy_is_not_private(self, _exists):
+        """publishAt só é aceito pela API quando o vídeo continua private."""
+        modules, state = _fake_modules([{"id": "vid123"}])
+
+        with patch(
+            "app.services.youtube_upload._load_google_modules", return_value=modules
+        ):
+            YouTubeUploadService().upload_video(
+                "/fake/v.mp4",
+                "Title",
+                privacy_status="unlisted",
+                publish_at="2026-03-05T12:00:00Z",
+            )
+
+        self.assertNotIn("publishAt", state.insert_kwargs["body"]["status"])
+
+
+def _fake_update_modules(existing_item, refresh_error=None):
+    """Fake client exposing videos().list() and videos().update()."""
+    state = SimpleNamespace(
+        list_kwargs=None, update_kwargs=None, refreshed=False
+    )
+
+    class FakeCredentials:
+        def __init__(self, **kwargs):
+            pass
+
+        def refresh(self, request):
+            if refresh_error is not None:
+                raise refresh_error
+            state.refreshed = True
+
+    def fake_build(service, version, credentials=None, cache_discovery=None):
+        def list_(**kwargs):
+            state.list_kwargs = kwargs
+            return SimpleNamespace(
+                execute=lambda: {"items": [existing_item] if existing_item else []}
+            )
+
+        def update(**kwargs):
+            state.update_kwargs = kwargs
+            body = kwargs["body"]
+            return SimpleNamespace(execute=lambda: body)
+
+        return SimpleNamespace(videos=lambda: SimpleNamespace(list=list_, update=update))
+
+    modules = SimpleNamespace(
+        GoogleAuthError=FakeGoogleAuthError,
+        Request=lambda: object(),
+        Credentials=FakeCredentials,
+        build=fake_build,
+        HttpError=FakeHttpError,
+    )
+    return modules, state
+
+
+class TestUpdateVideoMetadata(unittest.TestCase):
+    @patch(
+        "app.services.youtube_upload.config.app",
+        {**_CONFIG_BASE, "youtube_enabled": False},
+    )
+    def test_not_configured_returns_error_without_calling_api(self):
+        result = YouTubeUploadService().update_video_metadata(
+            "vid123", title="New title"
+        )
+        self.assertFalse(result["success"])
+        self.assertIn("not configured", result["error"])
+
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    def test_requires_at_least_one_field_to_update(self):
+        result = YouTubeUploadService().update_video_metadata("vid123")
+        self.assertFalse(result["success"])
+        self.assertIn("nothing to update", result["error"])
+
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    def test_video_not_found_returns_error(self):
+        modules, _state = _fake_update_modules(existing_item=None)
+        with patch(
+            "app.services.youtube_upload._load_google_modules", return_value=modules
+        ):
+            result = YouTubeUploadService().update_video_metadata(
+                "vid123", title="New title"
+            )
+        self.assertFalse(result["success"])
+        self.assertIn("not found", result["error"])
+
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    def test_updates_only_requested_fields_and_preserves_the_rest(self):
+        existing = {
+            "snippet": {
+                "title": "Old title",
+                "description": "Old description",
+                "tags": ["old"],
+                "categoryId": "27",
+            },
+            "status": {"privacyStatus": "private"},
+        }
+        modules, state = _fake_update_modules(existing_item=existing)
+
+        with patch(
+            "app.services.youtube_upload._load_google_modules", return_value=modules
+        ):
+            result = YouTubeUploadService().update_video_metadata(
+                "vid123", title="New title"
+            )
+
+        self.assertTrue(result["success"])
+        body = state.update_kwargs["body"]
+        self.assertEqual(body["snippet"]["title"], "New title")
+        # categoryId e description preservados, mesmo sem serem passados.
+        self.assertEqual(body["snippet"]["categoryId"], "27")
+        self.assertEqual(body["snippet"]["description"], "Old description")
+        self.assertEqual(body["status"]["privacyStatus"], "private")
+
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    def test_schedules_publish_at_while_keeping_video_private(self):
+        existing = {
+            "snippet": {"title": "T", "categoryId": "27"},
+            "status": {"privacyStatus": "private"},
+        }
+        modules, state = _fake_update_modules(existing_item=existing)
+
+        with patch(
+            "app.services.youtube_upload._load_google_modules", return_value=modules
+        ):
+            result = YouTubeUploadService().update_video_metadata(
+                "vid123", publish_at="2026-03-05T12:00:00Z"
+            )
+
+        self.assertTrue(result["success"])
+        body = state.update_kwargs["body"]
+        self.assertEqual(body["status"]["publishAt"], "2026-03-05T12:00:00Z")
+        self.assertEqual(body["status"]["privacyStatus"], "private")
+
+    @patch("app.services.youtube_upload.config.app", _CONFIG_BASE)
+    def test_publishing_now_drops_any_stale_publish_at(self):
+        existing = {
+            "snippet": {"title": "T", "categoryId": "27"},
+            "status": {"privacyStatus": "private", "publishAt": "2026-01-01T00:00:00Z"},
+        }
+        modules, state = _fake_update_modules(existing_item=existing)
+
+        with patch(
+            "app.services.youtube_upload._load_google_modules", return_value=modules
+        ):
+            result = YouTubeUploadService().update_video_metadata(
+                "vid123", privacy_status="public"
+            )
+
+        self.assertTrue(result["success"])
+        body = state.update_kwargs["body"]
+        self.assertNotIn("publishAt", body["status"])
+        self.assertEqual(body["status"]["privacyStatus"], "public")
 
 
 if __name__ == "__main__":

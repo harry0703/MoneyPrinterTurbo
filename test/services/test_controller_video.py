@@ -44,9 +44,14 @@ class TestVideoControllerHelpers(unittest.TestCase):
 
     def test_fastapi_startup_recovers_interrupted_cross_posts(self):
         """API 进程启动时必须执行一次发布遗留状态恢复。"""
+        from app.services import scheduler as schedule_service
         from app.services import task as task_service
 
-        with patch.object(task_service, "recover_interrupted_cross_posts") as recover:
+        with (
+            patch.object(task_service, "recover_interrupted_cross_posts") as recover,
+            patch.object(schedule_service, "start_scheduler"),
+            patch.object(schedule_service, "stop_scheduler"),
+        ):
 
             async def run_lifespan():
                 async with asgi.application_lifespan(asgi.app):
@@ -55,6 +60,26 @@ class TestVideoControllerHelpers(unittest.TestCase):
             asyncio.run(run_lifespan())
 
         recover.assert_called_once_with()
+
+    def test_fastapi_startup_starts_and_stops_the_schedule_poller(self):
+        """视频排程轮询线程要随进程启动/关闭，不能只靠手动触发。"""
+        from app.services import scheduler as schedule_service
+        from app.services import task as task_service
+
+        with (
+            patch.object(task_service, "recover_interrupted_cross_posts"),
+            patch.object(schedule_service, "start_scheduler") as start_scheduler,
+            patch.object(schedule_service, "stop_scheduler") as stop_scheduler,
+        ):
+
+            async def run_lifespan():
+                async with asgi.application_lifespan(asgi.app):
+                    start_scheduler.assert_called_once_with()
+                    stop_scheduler.assert_not_called()
+
+            asyncio.run(run_lifespan())
+
+        stop_scheduler.assert_called_once_with()
 
     def test_sanitize_upload_filename_rejects_empty_name(self):
         """空文件名和目录占位符不能进入服务端存储路径。"""
@@ -601,6 +626,118 @@ class TestBuildRedisUrl(unittest.TestCase):
         self.assertEqual(
             _build_redis_url("redis-host", 6380, 1, "s3cr3t"),
             "redis://:s3cr3t@redis-host:6380/1",
+        )
+
+
+class TestPublishYoutubeReviewHTTP(unittest.TestCase):
+    """POST /api/v1/tasks/{task_id}/publish-youtube (fluxo de revisão do YouTube)."""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        config.app["api_key"] = ""
+        self.client = TestClient(asgi.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    def _seed_pending_review_task(self, task_id: str) -> None:
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            youtube_review_state=const.YOUTUBE_REVIEW_STATE_PENDING,
+            youtube_review_drafts=[
+                {"video_path": "final.mp4", "success": True, "video_id": "draft123"}
+            ],
+        )
+
+    def test_returns_404_for_unknown_task(self):
+        response = self.client.post("/api/v1/tasks/does-not-exist/publish-youtube")
+        self.assertEqual(response.status_code, 404)
+
+    def test_returns_409_when_no_review_is_pending(self):
+        task_id = "no-review-pending"
+        sm.state.update_task(task_id, state=const.TASK_STATE_COMPLETE, progress=100)
+        try:
+            response = self.client.post(f"/api/v1/tasks/{task_id}/publish-youtube")
+        finally:
+            sm.state.delete_task(task_id)
+        self.assertEqual(response.status_code, 409)
+
+    def test_publish_now_sets_public_and_records_state(self):
+        task_id = "publish-review-now"
+        self._seed_pending_review_task(task_id)
+        try:
+            with patch(
+                "app.services.task_cross_post.youtube_upload.update_video_metadata",
+                return_value={"success": True, "video_id": "draft123"},
+            ) as update_metadata:
+                response = self.client.post(
+                    f"/api/v1/tasks/{task_id}/publish-youtube",
+                    json={"title": "Edited title"},
+                )
+            task = sm.state.get_task(task_id)
+        finally:
+            sm.state.delete_task(task_id)
+
+        self.assertEqual(response.status_code, 200)
+        update_metadata.assert_called_once_with(
+            video_id="draft123",
+            title="Edited title",
+            description=None,
+            tags=None,
+            privacy_status="public",
+            publish_at=None,
+        )
+        self.assertEqual(
+            task["youtube_review_state"], const.YOUTUBE_REVIEW_STATE_PUBLISHED
+        )
+
+    def test_scheduling_publish_at_keeps_video_private(self):
+        task_id = "publish-review-scheduled"
+        self._seed_pending_review_task(task_id)
+        try:
+            with patch(
+                "app.services.task_cross_post.youtube_upload.update_video_metadata",
+                return_value={"success": True, "video_id": "draft123"},
+            ) as update_metadata:
+                response = self.client.post(
+                    f"/api/v1/tasks/{task_id}/publish-youtube",
+                    json={"publish_at": "2026-03-05T12:00:00Z"},
+                )
+            task = sm.state.get_task(task_id)
+        finally:
+            sm.state.delete_task(task_id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            update_metadata.call_args.kwargs["privacy_status"], "private"
+        )
+        self.assertEqual(
+            update_metadata.call_args.kwargs["publish_at"], "2026-03-05T12:00:00Z"
+        )
+        self.assertEqual(
+            task["youtube_review_state"], const.YOUTUBE_REVIEW_STATE_SCHEDULED
+        )
+
+    def test_failed_metadata_update_marks_review_as_failed(self):
+        task_id = "publish-review-fails"
+        self._seed_pending_review_task(task_id)
+        try:
+            with patch(
+                "app.services.task_cross_post.youtube_upload.update_video_metadata",
+                return_value={"success": False, "error": "quota exceeded"},
+            ):
+                response = self.client.post(f"/api/v1/tasks/{task_id}/publish-youtube")
+            task = sm.state.get_task(task_id)
+        finally:
+            sm.state.delete_task(task_id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            task["youtube_review_state"], const.YOUTUBE_REVIEW_STATE_FAILED
         )
 
 
