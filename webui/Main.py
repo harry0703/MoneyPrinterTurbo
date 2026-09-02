@@ -1142,7 +1142,10 @@ def _render_task_table(filtered_tasks, key_prefix):
                         if is_busy
                         else delete_label
                     )
-                    if st.button(
+                    # P1 do critique: exclusão irreversível de 1 clique. Popover
+                    # exige um segundo clique explícito de confirmação antes de
+                    # apagar o vídeo gerado.
+                    with st.popover(
                         delete_label,
                         key=f"delete_task_{key_prefix}_{task_id}",
                         use_container_width=True,
@@ -1150,11 +1153,21 @@ def _render_task_table(filtered_tasks, key_prefix):
                         help=delete_help,
                         disabled=is_busy,
                     ):
-                        if _delete_task(task_id, task["task_path"], task["state"]):
-                            st.toast(tr("Task Deleted"))
-                            st.rerun()
-                        else:
-                            st.error(tr("Task Delete Failed"))
+                        st.write(tr("Confirm Delete Task"))
+                        if st.button(
+                            tr("Youtube Review Confirm"),
+                            key=f"confirm_delete_task_{key_prefix}_{task_id}",
+                            icon=":material/delete_forever:",
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            if _delete_task(
+                                task_id, task["task_path"], task["state"]
+                            ):
+                                st.toast(tr("Task Deleted"))
+                                st.rerun()
+                            else:
+                                st.error(tr("Task Delete Failed"))
 
                 # Revisão do YouTube é um estado raro (só quando o usuário pediu
                 # revisão manual); mostrado como uma linha própria em vez de um
