@@ -31,11 +31,18 @@ app_config（可选配置对象）
 返回脚本文本
 输出: 返回一个字符串（str），即最终脚本内容。关键词生成在后续 generate_terms 阶段单独完成。
 
-1.2 generate_voice / tts（语音合成）
+1.2 generate_audio / tts（语音合成）
 文件: app/services/voice.py
 
-函数名: tts（核心调度函数，上层封装为 generate_voice）
+函数名: tts（核心调度函数，上层封装为 generate_audio）
 
+调用关系:
+
+text
+task.generate_audio
+  -> voice.tts
+    -> voice.azure_tts_v1 (Edge TTS)
+    -> 或其他 provider
 输入参数:
 
 text: str（待合成文本）
@@ -209,7 +216,7 @@ text
 
 script  (以及 terms)
    ↓
-generate_voice / tts(script, voice_name, ...)
+generate_audio / tts(script, voice_name, ...)
    │
    ├── no-voice → 静音音频 + 模拟 SubMaker
    └── Edge TTS (或其他 provider) → audio.mp3 + SubMaker
@@ -264,6 +271,8 @@ app.services.task.start(task_id, params, stop_at, allow_server_file_input=True) 
 返回结果 JSON，退出码 0 成功，1 失败，2 参数错误
 
 4.3 零 Key 成片命令（已更新为 uv run）
+注意：以下路径仅为示例，请替换为实际本地素材路径。仓库中默认不包含这些示例文件。
+
 powershell
 uv run python cli.py --video-script "在今天的视频里，我们会介绍三个提高效率的小工具。第一个工具可以帮你自动整理日程。第二个工具擅长生成会议摘要。第三个工具能跨设备同步剪贴板。现在让我们逐一来看。" --video-source local --video-materials "storage/materials/demo/1.mp4,storage/materials/demo/2.mp4" --video-aspect 9:16 --bgm-type none --video-transition-mode none
 如果脚本较长，可以先存入文件再读取：
@@ -272,3 +281,4 @@ powershell
 $script = Get-Content -Raw storage/scripts/demo_script.txt
 uv run python cli.py --video-script $script --video-source local --video-materials "storage/materials/demo/1.mp4,storage/materials/demo/2.mp4" --video-aspect 9:16 --bgm-type none
 预期输出：storage/tasks/<task_id>/final-1.mp4（含旁白、字幕、画面），可正常播放。
+
