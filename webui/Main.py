@@ -1950,6 +1950,34 @@ def _render_generation_logs(task_id):
     st.code("\n".join(log_records))
 
 
+def _render_progress_badge(task_id, progress):
+    """Progresso da geração num badge flutuante no canto da tela.
+
+    Fica fixo via CSS (chave "mpt_progress_badge" em styles.css) pra não
+    empurrar o resto da página nem exigir rolar até o rodapé. Colapsado
+    mostra só % + último passo do log; expandido mostra o log completo.
+    """
+    log_records = [] if config.ui.get("hide_log", False) else webui_task.get_task_logs(task_id)
+    step_text = log_records[-1] if log_records else tr("Generating Video")
+    expanded = st.session_state.get("progress_badge_expanded", False)
+
+    with st.container(key="mpt_progress_badge"):
+        header_cols = st.columns([6, 1], vertical_alignment="center")
+        with header_cols[0]:
+            st.markdown(f"**{progress}%** · {step_text}")
+        with header_cols[1]:
+            if st.button(
+                "▾" if expanded else "▸",
+                key="progress_badge_toggle",
+                type="tertiary",
+            ):
+                st.session_state["progress_badge_expanded"] = not expanded
+                st.rerun()
+        st.progress(progress)
+        if expanded and log_records:
+            st.code("\n".join(log_records))
+
+
 def _render_generation_task_snapshot(task_id, task):
     """根据状态存储中的快照渲染进度、失败原因或最终成片。"""
     if not task:
@@ -1960,12 +1988,7 @@ def _render_generation_task_snapshot(task_id, task):
     state = _normalize_task_state(task.get("state"))
     progress = max(0, min(100, int(task.get("progress", 0) or 0)))
     if state == const.TASK_STATE_PROCESSING:
-        st.info(tr("Generating Video"))
-        st.progress(
-            progress,
-            text=f"{tr('Task Progress')}: {progress}%",
-        )
-        _render_generation_logs(task_id)
+        _render_progress_badge(task_id, progress)
         return
 
     if state == const.TASK_STATE_FAILED:
@@ -4188,24 +4211,27 @@ def _render_script_settings(panel, params):
 def _render_video_settings(panel, params):
     """渲染视频设置并返回本次选择的本地素材。"""
     uploaded_files = []
+    video_sources = [
+        (tr("Pexels"), "pexels"),
+        (tr("Pixabay"), "pixabay"),
+        (tr("Coverr"), "coverr"),
+        (tr("WaveSpeed AI Video"), "wavespeed"),
+        (tr("Volcano Engine Seedance"), "volcengine_seedance"),
+        (tr("Shengsuan Cloud AI Video"), "loomloom"),
+        (tr("Local file"), "local"),
+    ]
+    saved_video_source_name = config.app.get("video_source", "pexels")
+    video_source_label = dict((v, label) for label, v in video_sources).get(
+        saved_video_source_name, saved_video_source_name
+    )
+    panel_label = f"{tr('Video Settings')} · {video_source_label}"
+
     with panel:
-        with st.container(border=True):
-            st.write(tr("Video Settings"))
+        with st.expander(panel_label, expanded=False):
             video_concat_modes = [
                 (tr("Sequential"), "sequential"),
                 (tr("Random"), "random"),
             ]
-            video_sources = [
-                (tr("Pexels"), "pexels"),
-                (tr("Pixabay"), "pixabay"),
-                (tr("Coverr"), "coverr"),
-                (tr("WaveSpeed AI Video"), "wavespeed"),
-                (tr("Volcano Engine Seedance"), "volcengine_seedance"),
-                (tr("Shengsuan Cloud AI Video"), "loomloom"),
-                (tr("Local file"), "local"),
-            ]
-
-            saved_video_source_name = config.app.get("video_source", "pexels")
 
             params.video_source = stable_selectbox(
                 tr("Video Source"),
@@ -5352,30 +5378,30 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
 
 def _render_audio_settings(panel, params):
     """渲染音频设置并返回上传音频与当前配音模式。"""
-    with panel:
-        with st.container(border=True):
-            st.write(tr("Audio Settings"))
+    # 配音方式是音频设置的一级状态，负责明确区分自动配音、用户上传和无配音。
+    # 旧配置没有 voice_mode 时，根据原 tts_server 的无配音哨兵保持兼容。
+    saved_tts_server = config.ui.get("tts_server", "azure-tts-v1")
+    saved_voice_mode = config.ui.get("voice_mode")
+    voice_mode_options = [VOICE_MODE_TTS, VOICE_MODE_UPLOAD, VOICE_MODE_NONE]
+    voice_mode_labels = {
+        VOICE_MODE_TTS: tr("Automatic Voiceover"),
+        VOICE_MODE_UPLOAD: tr("Upload Voiceover"),
+        VOICE_MODE_NONE: tr("No Voiceover"),
+    }
+    if saved_voice_mode not in {
+        VOICE_MODE_TTS,
+        VOICE_MODE_UPLOAD,
+        VOICE_MODE_NONE,
+    }:
+        saved_voice_mode = (
+            VOICE_MODE_NONE
+            if saved_tts_server == voice.NO_VOICE_NAME
+            else VOICE_MODE_TTS
+        )
+    panel_label = f"{tr('Audio Settings')} · {voice_mode_labels[saved_voice_mode]}"
 
-            # 配音方式是音频设置的一级状态，负责明确区分自动配音、用户上传和无配音。
-            # 旧配置没有 voice_mode 时，根据原 tts_server 的无配音哨兵保持兼容。
-            saved_tts_server = config.ui.get("tts_server", "azure-tts-v1")
-            saved_voice_mode = config.ui.get("voice_mode")
-            if saved_voice_mode not in {
-                VOICE_MODE_TTS,
-                VOICE_MODE_UPLOAD,
-                VOICE_MODE_NONE,
-            }:
-                saved_voice_mode = (
-                    VOICE_MODE_NONE
-                    if saved_tts_server == voice.NO_VOICE_NAME
-                    else VOICE_MODE_TTS
-                )
-            voice_mode_options = [VOICE_MODE_TTS, VOICE_MODE_UPLOAD, VOICE_MODE_NONE]
-            voice_mode_labels = {
-                VOICE_MODE_TTS: tr("Automatic Voiceover"),
-                VOICE_MODE_UPLOAD: tr("Upload Voiceover"),
-                VOICE_MODE_NONE: tr("No Voiceover"),
-            }
+    with panel:
+        with st.expander(panel_label, expanded=False):
             voice_mode = stable_segmented_control(
                 tr("Voiceover Mode"),
                 options=voice_mode_options,
@@ -5862,15 +5888,16 @@ def _render_audio_settings(panel, params):
 
 def _render_subtitle_settings(panel, params):
     """渲染字幕设置并更新生成参数。"""
+    subtitle_currently_enabled = _saved_ui_bool(
+        "subtitle_enabled", DEFAULT_SUBTITLE_SETTINGS["subtitle_enabled"]
+    )
+    panel_label = f"{tr('Subtitle Settings')} · {'✓' if subtitle_currently_enabled else '✕'}"
+
     with panel:
-        with st.container(border=True):
-            st.write(tr("Subtitle Settings"))
+        with st.expander(panel_label, expanded=False):
             st.session_state.setdefault(
                 "subtitle_enabled_checkbox",
-                _saved_ui_bool(
-                    "subtitle_enabled",
-                    DEFAULT_SUBTITLE_SETTINGS["subtitle_enabled"],
-                ),
+                subtitle_currently_enabled,
             )
             params.subtitle_enabled = st.checkbox(
                 tr("Enable Subtitles"),
@@ -6727,18 +6754,17 @@ def _render_application():
     if restore_applied or restore_succeeded:
         st.success(tr("Task Configuration Loaded"))
 
-    with st.container(key="main_settings_grid"):
-        panel = st.columns(4)
-    left_panel = panel[0]
-    middle_panel = panel[1]
-    audio_panel = panel[2]
-    right_panel = panel[3]
-
     params = VideoParams(video_subject="")
     params.match_materials_to_script = bool(
         st.session_state.get("match_materials_to_script", False)
     )
-    _render_script_settings(left_panel, params)
+    # Assunto + idioma ficam sempre visíveis, fora do accordion: são os únicos
+    # campos indispensáveis pra iniciar uma geração.
+    _render_script_settings(st.container(key="hero_script"), params)
+
+    with st.container(key="main_settings_grid"):
+        panel = st.columns(3)
+    middle_panel, audio_panel, right_panel = panel
 
     uploaded_files = _render_video_settings(middle_panel, params)
     uploaded_audio_file, uploaded_bgm_file, voice_mode = _render_audio_settings(

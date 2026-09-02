@@ -11,6 +11,41 @@ div[data-testid="stMainBlockContainer"] {
     padding-top: 0.5rem !important;
 }
 
+/* Badge de progresso da geração: fixo no canto, some da tela sem competir
+   com a coluna de resultado nem exigir rolar o rodapé. Entrada suave por
+   opacidade/translação, minimalista, sem bounce. */
+div[class*="st-key-mpt_progress_badge"] {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 999;
+    width: 320px;
+    max-width: calc(100vw - 2.5rem);
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    background: var(--background-color);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+    animation: mpt-badge-in 0.2s ease-out;
+}
+
+@keyframes mpt-badge-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Accordion de Vídeo/Áudio/Legenda: transição já é nativa do st.expander;
+   só suaviza o hover do cabeçalho pra reforçar que é clicável. */
+div[data-testid="stExpander"] summary {
+    transition: background-color 0.15s ease;
+}
+
 h1 {
     padding-top: 0 !important;
     margin-top: 0 !important;
