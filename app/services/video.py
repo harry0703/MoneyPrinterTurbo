@@ -1239,10 +1239,48 @@ def generate_video(
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
+
+        # Pop-up spring animation effect (scales from 0 -> 1.15 -> 1.0 like a spring)
+        anim_type = getattr(params, "subtitle_animation", "none")
+        if anim_type in ("pop_spring", "spring", "pop"):
+            anim_dur = min(0.18, duration) if duration > 0 else 0.18
+
+            def _spring_scale(t_rel):
+                # t_rel is relative time from clip start (0 to anim_dur)
+                p = t_rel / anim_dur
+                # Damped spring formula: 1 - exp(-6*p) * cos(6*pi*p)
+                return 1.0 - math.exp(-6.0 * p) * math.cos(2.5 * math.pi * p)
+
+            def _apply_spring_transform(get_frame, t):
+                orig_frame = get_frame(t)
+                if anim_dur <= 0:
+                    return orig_frame
+                t_rel = max(0.0, min(t, anim_dur))
+                if t_rel >= anim_dur:
+                    return orig_frame
+                scale = _spring_scale(t_rel)
+                scale = max(0.05, min(scale, 1.35))
+                h, w = orig_frame.shape[:2]
+                new_w = max(1, int(round(w * scale)))
+                new_h = max(1, int(round(h * scale)))
+                im = Image.fromarray(orig_frame)
+                resized_im = im.resize((new_w, new_h), Image.Resampling.BILINEAR)
+                canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+                offset_x = (w - new_w) // 2
+                offset_y = (h - new_h) // 2
+                canvas.paste(resized_im, (offset_x, offset_y))
+                return np.asarray(canvas)
+
+            _clip = _clip.transform(_apply_spring_transform)
+
         if params.subtitle_position == "bottom":
             _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
         elif params.subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
+        elif params.subtitle_position in ("two_thirds_bottom", "two_thirds", "2/3_bottom"):
+            # 2/3 from the bottom = 1/3 from the top: y = (video_height - _clip.h) * (1/3)
+            y_two_thirds = (video_height - _clip.h) / 3.0
+            _clip = _clip.with_position(("center", y_two_thirds))
         elif params.subtitle_position == "custom":
             # Ensure the subtitle is fully within the screen bounds
             margin = 10  # Additional margin, in pixels

@@ -19,7 +19,7 @@ initial_prompt = config.whisper.get("initial_prompt", "") or None
 model = None
 
 
-def create(audio_file, subtitle_file: str = ""):
+def create(audio_file, subtitle_file: str = "", word_level: bool = False):
     global model
     if WhisperModel is None:
         logger.warning("faster_whisper not available, skipping whisper subtitle generation")
@@ -81,6 +81,13 @@ def create(audio_file, subtitle_file: str = ""):
         )
 
     for segment in segments:
+        if word_level and segment.words:
+            for word in segment.words:
+                cleaned_word = word.word.strip()
+                if cleaned_word:
+                    recognized(cleaned_word, word.start, word.end)
+            continue
+
         words_idx = 0
         words_len = len(segment.words)
 

@@ -2110,16 +2110,82 @@ def _build_subtitle_items_from_legacy_submaker(
     return sub_items
 
 
-def create_subtitle(sub_maker: SubMaker, text: str, subtitle_file: str):
+def _build_subtitle_items_from_edge_cues_words(sub_maker: SubMaker) -> list[str]:
+    """
+    Directly format edge_tts cues into single-word / cue-level SRT items.
+    """
+    formatter = _build_subtitle_formatter()
+    sub_items = []
+    sub_index = 0
+    for cue in sub_maker.cues:
+        cue_text = unescape(cue.content).strip()
+        if not cue_text:
+            continue
+        sub_index += 1
+        start_time = int(cue.start.total_seconds() * 10000000)
+        end_time = int(cue.end.total_seconds() * 10000000)
+        sub_items.append(
+            formatter(
+                idx=sub_index,
+                start_time=start_time,
+                end_time=end_time,
+                sub_text=cue_text,
+            )
+        )
+    return sub_items
+
+
+def _build_subtitle_items_from_legacy_submaker_words(sub_maker: SubMaker) -> list[str]:
+    """
+    Directly format legacy submaker into single-word SRT items.
+    """
+    formatter = _build_subtitle_formatter()
+    sub_items = []
+    sub_index = 0
+    legacy_offsets = getattr(sub_maker, "offset", [])
+    legacy_subs = getattr(sub_maker, "subs", [])
+    for offset, sub in zip(legacy_offsets, legacy_subs):
+        cue_text = unescape(sub).strip()
+        if not cue_text:
+            continue
+        sub_index += 1
+        start_time, end_time = offset
+        sub_items.append(
+            formatter(
+                idx=sub_index,
+                start_time=start_time,
+                end_time=end_time,
+                sub_text=cue_text,
+            )
+        )
+    return sub_items
+
+
+def create_subtitle(
+    sub_maker: SubMaker,
+    text: str,
+    subtitle_file: str,
+    word_level: bool = False,
+):
     """
     优化字幕文件
     1. 将字幕文件按照标点符号分割成多行
     2. 逐行匹配字幕文件中的文本
     3. 生成新的字幕文件
+    如果 word_level 为 True，直接输出逐词单条字幕。
     """
     text = _format_text(text)
-    script_lines = utils.split_string_by_punctuations(text)
     try:
+        if word_level:
+            if hasattr(sub_maker, "cues") and sub_maker.cues:
+                sub_items = _build_subtitle_items_from_edge_cues_words(sub_maker)
+            else:
+                sub_items = _build_subtitle_items_from_legacy_submaker_words(sub_maker)
+            if sub_items:
+                _write_subtitle_items(sub_items, subtitle_file)
+                return
+
+        script_lines = utils.split_string_by_punctuations(text)
         if hasattr(sub_maker, "cues") and sub_maker.cues:
             sub_items = _build_subtitle_items_from_edge_cues(sub_maker, script_lines)
         else:
