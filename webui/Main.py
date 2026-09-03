@@ -58,6 +58,7 @@ from app.services import (
 )
 from app.services import elevenlabs_music as elevenlabs_music_service
 from app.services import sonilo as sonilo_service
+from app.services import youtube_music as youtube_music_service
 from app.services import state as sm
 from app.services import task as tm
 from app.services import version_checker
@@ -5443,6 +5444,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
         (tr("Custom Background Music"), "custom"),
         (tr("Sonilo Background Music"), "sonilo"),
         (tr("ElevenLabs Background Music"), "elevenlabs"),
+        ("YouTube Link & Start Time", "youtube"),
     ]
     selected_bgm_type = stable_selectbox(
         tr("Background Music Source"),
@@ -5479,7 +5481,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
         else:
             _render_elevenlabs_api_key_input("ElevenLabs Music API Key")
 
-    bgm_volume_options = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    bgm_volume_options = [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     params.bgm_volume = stable_selectbox(
         tr("Background Music Volume"),
         options=bgm_volume_options,
@@ -5684,6 +5686,69 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
                 st.error(tr("ElevenLabs Connection Test Failed").format(error=str(exc)))
             else:
                 st.success(tr("ElevenLabs Connection Test Succeeded"))
+    elif params.bgm_type == "youtube":
+        if previous_bgm_type != "youtube":
+            if "youtube_music_url_input" not in st.session_state:
+                st.session_state["youtube_music_url_input"] = _saved_ui_text(
+                    "youtube_music_url",
+                    max_length=200,
+                )
+            if "youtube_music_start_input" not in st.session_state:
+                st.session_state["youtube_music_start_input"] = _saved_ui_text(
+                    "youtube_music_start",
+                    max_length=50,
+                )
+        
+        col_url, col_btn = st.columns([3, 1])
+        with col_url:
+            yt_url = st.text_input(
+                "YouTube URL",
+                key="youtube_music_url_input",
+                max_chars=200,
+                placeholder="https://www.youtube.com/watch?v=...",
+                help="Enter YouTube video URL",
+            ).strip()
+        
+        with col_btn:
+            st.write("") # 占位对齐
+            st.write("")
+            preview_clicked = st.button("Preview Song", key="preview_youtube_song_button", use_container_width=True)
+
+        yt_start = st.text_input(
+            "Start Time (seconds or mm:ss)",
+            key="youtube_music_start_input",
+            max_chars=50,
+            value="0",
+            placeholder="0 or 0:30",
+            help="Enter start time for the music",
+        ).strip()
+
+        if preview_clicked:
+            if not yt_url:
+                st.error("Please enter a YouTube URL first")
+            else:
+                try:
+                    with st.spinner("Downloading YouTube audio for preview..."):
+                        preview_mp3 = youtube_music_service.download_full_audio(yt_url)
+                        st.session_state["youtube_preview_file"] = preview_mp3
+                        st.success("Audio downloaded successfully!")
+                except Exception as exc:
+                    st.error(f"Failed to download YouTube audio: {exc}")
+
+        cached_preview_file = st.session_state.get("youtube_preview_file")
+        if cached_preview_file and os.path.exists(cached_preview_file):
+            st.audio(cached_preview_file, format="audio/mp3")
+            st.info("Full Song Preview Ready")
+
+        # 组合成后端要求的 URL|start_time 格式存入 params.video_music_prompt
+        if yt_url:
+            params.video_music_prompt = f"{yt_url}|{yt_start if yt_start else '0'}"
+        else:
+            params.video_music_prompt = ""
+
+        _set_runtime_config("ui", "youtube_music_url", yt_url)
+        _set_runtime_config("ui", "youtube_music_start", yt_start)
+        _set_runtime_config("ui", "youtube_music_prompt", params.video_music_prompt)
     if params.bgm_type == "sonilo" and bgm_enabled and not sonilo_service.is_enabled():
         # 音量为 0 时任务层不会生成或混合 Sonilo 配乐，因此无需提示 Key；
         # 该判断与任务入口共用服务层规则，避免界面提示和实际执行条件分叉。

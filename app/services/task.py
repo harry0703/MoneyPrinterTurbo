@@ -29,6 +29,7 @@ from app.services import (
     video,
     volcengine_seedance,
     voice,
+    youtube_music,
 )
 from app.services import upload_post
 from app.services import state as sm
@@ -84,6 +85,13 @@ _VIDEO_MUSIC_PROVIDERS = {
         "suffix": ".mp3",
         "warning_code": "elevenlabs_bgm_failed",
         "display_name": "ElevenLabs",
+    },
+    "youtube": {
+        "service": youtube_music,
+        "error_type": youtube_music.YouTubeMusicError,
+        "suffix": ".mp3",
+        "warning_code": "",
+        "display_name": "YouTube",
     },
 }
 
@@ -899,8 +907,10 @@ def generate_final_videos(
                 )
                 bgm_file_override = generated_bgm_path
             except video_music_provider["error_type"] as exc:
-                # 视频、旁白和字幕都已生成时，第三方配乐临时失败不应浪费整条
-                # 任务。当前视频明确禁用 BGM，并把降级结果返回 WebUI 提醒用户。
+                if params.bgm_type == "youtube":
+                    logger.error(f"YouTube music generation failed, stopping task: {exc}")
+                    _mark_task_failed(task_id, "bgm", str(exc))
+                    return None, None, warnings
                 logger.warning(
                     f"{display_name} BGM generation failed: task_id={task_id}, "
                     f"video_index={index}, error={exc}"
