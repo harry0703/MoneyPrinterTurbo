@@ -447,10 +447,9 @@ def _generate_single_scene(
     logger.info(f"scene {scene.scene_id}: generating audio")
     sub_maker = voice.tts(
         text=script,
-        voice_name=params.voice_name,
+        voice_name=voice.parse_voice_name(params.voice_name),
         voice_rate=params.voice_rate,
         voice_file=audio_file,
-        voice_volume=params.voice_volume,
     )
     if not sub_maker and not voice.is_no_voice(params.voice_name):
         logger.error(f"scene {scene.scene_id}: TTS failed")
@@ -1906,13 +1905,14 @@ def _run_pipeline(
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
-    # Scene mode handles materials per-scene in _generate_single_scene.
-    # The standard get_video_materials path is not designed for scenes.
+    # Scene mode only supports stop_at="video".  Intermediate stages
+    # (audio, subtitle, materials) don't make sense because each scene
+    # handles its own audio/subtitles/materials internally.
     if processed_scenes:
         return _mark_task_failed(
             task_id,
-            "materials",
-            "scene mode does not support stop_at=materials; "
+            stop_at,
+            f"scene mode does not support stop_at={stop_at}; "
             "use stop_at=video to generate full scene videos",
         )
 

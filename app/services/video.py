@@ -1039,6 +1039,7 @@ def concat_scene_videos_with_transitions(
         )
 
     logger.info(f"final scene concatenation complete: {output_file}")
+    return bool(bgm_resolved)
 
 
 def _overlay_bgm_on_video(
