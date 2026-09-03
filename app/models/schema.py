@@ -121,7 +121,13 @@ class VideoParams(BaseModel):
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get(
         "subtitle_position", "bottom"
-    )  # top, bottom, center, custom
+    )  # top, bottom, center, custom, two_thirds_bottom
+    subtitle_display_mode: Optional[str] = config.ui.get(
+        "subtitle_display_mode", "sentence"
+    )  # sentence, word_by_word
+    subtitle_animation: Optional[str] = config.ui.get(
+        "subtitle_animation", "none"
+    )  # none, pop_spring
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
@@ -147,6 +153,10 @@ class SubtitleRequest(BaseModel):
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")
+    subtitle_display_mode: Optional[str] = config.ui.get(
+        "subtitle_display_mode", "sentence"
+    )
+    subtitle_animation: Optional[str] = config.ui.get("subtitle_animation", "none")
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = False

@@ -132,6 +132,8 @@ DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_enabled": True,
     "font_name": "MicrosoftYaHeiBold.ttc",
     "subtitle_position": "bottom",
+    "subtitle_display_mode": "sentence",
+    "subtitle_animation": "none",
     "custom_position": 70.0,
     "text_fore_color": "#FFFFFF",
     "font_size": 60,
@@ -1383,6 +1385,12 @@ def _apply_restored_params(params):
     _set_stable_widget_value(
         "subtitle_position_select", params.get("subtitle_position") or "bottom"
     )
+    _set_stable_widget_value(
+        "subtitle_display_mode_select", params.get("subtitle_display_mode") or "sentence"
+    )
+    _set_stable_widget_value(
+        "subtitle_animation_select", params.get("subtitle_animation") or "none"
+    )
     custom_position = min(100.0, max(0.0, float(params.get("custom_position", 70.0))))
     st.session_state["custom_position_input"] = str(custom_position)
     st.session_state["font_color_picker"] = params.get("text_fore_color") or "#FFFFFF"
@@ -2283,6 +2291,8 @@ def reset_subtitle_settings():
     st.session_state["subtitle_enabled_checkbox"] = defaults["subtitle_enabled"]
     _set_stable_widget_value("font_name_select", defaults["font_name"])
     _set_stable_widget_value("subtitle_position_select", defaults["subtitle_position"])
+    _set_stable_widget_value("subtitle_display_mode_select", defaults.get("subtitle_display_mode", "sentence"))
+    _set_stable_widget_value("subtitle_animation_select", defaults.get("subtitle_animation", "none"))
     st.session_state["custom_position_input"] = str(defaults["custom_position"])
     st.session_state["font_color_picker"] = defaults["text_fore_color"]
     st.session_state["font_size_slider"] = defaults["font_size"]
@@ -2303,6 +2313,8 @@ def reset_subtitle_settings():
         "subtitle_enabled",
         "font_name",
         "subtitle_position",
+        "subtitle_display_mode",
+        "subtitle_animation",
         "custom_position",
         "text_fore_color",
         "font_size",
@@ -2312,7 +2324,8 @@ def reset_subtitle_settings():
         "subtitle_background_color",
         "rounded_subtitle_background",
     ):
-        _set_runtime_config("ui", key, defaults[key])
+        if key in defaults:
+            _set_runtime_config("ui", key, defaults[key])
 
 
 @st.dialog(tr("Final Prompt Preview"), width="large")
@@ -6213,6 +6226,7 @@ def _render_subtitle_settings(panel, params):
                 (tr("Top"), "top"),
                 (tr("Center"), "center"),
                 (tr("Bottom"), "bottom"),
+                (tr("2/3 from Bottom"), "two_thirds_bottom"),
                 (tr("Custom"), "custom"),
             ]
             saved_subtitle_position = config.ui.get(
@@ -6230,11 +6244,63 @@ def _render_subtitle_settings(panel, params):
                 key="subtitle_position_select",
                 format_func=lambda value: dict(
                     (v, label) for label, v in subtitle_positions
-                )[value],
+                ).get(value, value),
                 disabled=subtitle_settings_disabled,
             )
             params.subtitle_position = selected_subtitle_position
             _set_runtime_config("ui", "subtitle_position", params.subtitle_position)
+
+            # Subtitle Display Mode (Sentence vs Single Word)
+            subtitle_display_modes = [
+                (tr("Sentence by Sentence"), "sentence"),
+                (tr("Single Word (Word by Word)"), "word_by_word"),
+            ]
+            saved_display_mode = config.ui.get(
+                "subtitle_display_mode", DEFAULT_SUBTITLE_SETTINGS.get("subtitle_display_mode", "sentence")
+            )
+            saved_mode_idx = 0
+            for i, (_, mode_val) in enumerate(subtitle_display_modes):
+                if mode_val == saved_display_mode:
+                    saved_mode_idx = i
+                    break
+            selected_display_mode = stable_selectbox(
+                tr("Display Mode"),
+                options=[val for _, val in subtitle_display_modes],
+                default_value=subtitle_display_modes[saved_mode_idx][1],
+                key="subtitle_display_mode_select",
+                format_func=lambda value: dict(
+                    (v, label) for label, v in subtitle_display_modes
+                ).get(value, value),
+                disabled=subtitle_settings_disabled,
+            )
+            params.subtitle_display_mode = selected_display_mode
+            _set_runtime_config("ui", "subtitle_display_mode", params.subtitle_display_mode)
+
+            # Subtitle Animation (None vs Pop Spring)
+            subtitle_animations = [
+                (tr("None"), "none"),
+                (tr("Pop Up (Spring)"), "pop_spring"),
+            ]
+            saved_anim = config.ui.get(
+                "subtitle_animation", DEFAULT_SUBTITLE_SETTINGS.get("subtitle_animation", "none")
+            )
+            saved_anim_idx = 0
+            for i, (_, anim_val) in enumerate(subtitle_animations):
+                if anim_val == saved_anim:
+                    saved_anim_idx = i
+                    break
+            selected_anim = stable_selectbox(
+                tr("Subtitle Animation"),
+                options=[val for _, val in subtitle_animations],
+                default_value=subtitle_animations[saved_anim_idx][1],
+                key="subtitle_animation_select",
+                format_func=lambda value: dict(
+                    (v, label) for label, v in subtitle_animations
+                ).get(value, value),
+                disabled=subtitle_settings_disabled,
+            )
+            params.subtitle_animation = selected_anim
+            _set_runtime_config("ui", "subtitle_animation", params.subtitle_animation)
 
             if params.subtitle_position == "custom":
                 saved_custom_position = config.ui.get(

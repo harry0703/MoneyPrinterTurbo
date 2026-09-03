@@ -596,9 +596,14 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         )
         return ""
 
+    is_word_level = getattr(params, "subtitle_display_mode", "sentence") == "word_by_word"
+
     if subtitle_provider == "edge":
         voice.create_subtitle(
-            text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path
+            text=video_script,
+            sub_maker=sub_maker,
+            subtitle_file=subtitle_path,
+            word_level=is_word_level,
         )
         if not os.path.exists(subtitle_path):
             # Edge 字幕偶尔会因为时间轴与文案无法匹配而没有产出文件。这里不能
@@ -612,9 +617,14 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
             return ""
 
     if subtitle_provider == "whisper":
-        subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
-        logger.info("\n\n## correcting subtitle")
-        subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
+        subtitle.create(
+            audio_file=audio_file,
+            subtitle_file=subtitle_path,
+            word_level=is_word_level,
+        )
+        if not is_word_level:
+            logger.info("\n\n## correcting subtitle")
+            subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
 
     subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
     if not subtitle_lines:
