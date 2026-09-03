@@ -705,6 +705,304 @@ Please note that you must use English for generating video search terms; Chinese
 
 
 # =============================================================================
+# Scene-based generation
+#
+# Generate scripts and keywords for multiple scenes in a single LLM call.
+# Each scene gets its own narration text and search terms. The LLM returns
+# structured JSON so the WebUI can distribute results into per-scene blocks.
+# =============================================================================
+
+MIN_SCENE_COUNT = 2
+MAX_SCENE_COUNT = 10
+MAX_SCENE_SCRIPT_LENGTH = 4000
+MAX_SCENE_TERMS_PER_SCENE = 5
+
+
+DEFAULT_SCENE_SCRIPT_SYSTEM_PROMPT = """
+# Role: Multi-Scene Video Script Generator
+
+## Goals:
+Generate a script for a video divided into {scene_count} distinct scenes, depending
+on the subject of the video.
+
+## Constrains:
+1. each scene must be a self-contained narration segment that can stand on its own.
+2. the scenes must follow a logical narrative progression (introduction → body → conclusion).
+3. do not under any circumstance reference this prompt in your response.
+4. get straight to the point, don't start with unnecessary things like "welcome to this video".
+5. you must not include any type of markdown or formatting in the script, never use a title.
+6. do not include "voiceover", "narrator" or similar indicators at the beginning of each scene.
+7. you must not mention the prompt, or anything about the script itself.
+8. respond in the same language as the video subject.
+9. you MUST return exactly {scene_count} scenes in the JSON array.
+
+## Output Format:
+You MUST return a valid JSON object matching this exact structure:
+{{
+  "scenes": [
+    {{"scene_id": 1, "script": "narration text for scene 1"}},
+    {{"scene_id": 2, "script": "narration text for scene 2"}}
+  ]
+}}
+
+Return ONLY the JSON object. No other text, no code fences, no explanation.
+""".strip()
+
+
+DEFAULT_SCENE_KEYWORD_SYSTEM_PROMPT = """
+# Role: Multi-Scene Video Search Terms Generator
+
+## Goals:
+Generate stock-video search terms for each scene of a video. The video has
+{scene_count} scenes.
+
+## Constrains:
+1. return search terms as a JSON object matching the structure below exactly.
+2. each scene should have {terms_per_scene} search terms (1-3 words each, in English).
+3. search terms must be visually descriptive — they describe what should appear on screen.
+4. respond in English for the search terms regardless of the script language.
+5. you MUST return exactly {scene_count} scenes in the JSON array.
+6. return ONLY the JSON object. No other text, no code fences.
+
+## Output Format:
+{{
+  "scenes": [
+    {{"scene_id": 1, "terms": ["search term 1", "search term 2"]}},
+    {{"scene_id": 2, "terms": ["search term 3", "search term 4"]}}
+  ]
+}}
+""".strip()
+
+
+def _normalize_scene_count(scene_count: int | None) -> int:
+    """Clamp scene count to the supported range."""
+    if not scene_count:
+        return 2
+    return max(MIN_SCENE_COUNT, min(int(scene_count), MAX_SCENE_COUNT))
+
+
+def generate_scene_scripts(
+    video_subject: str,
+    scene_count: int = 2,
+    language: str = "",
+    video_script_prompt: str = "",
+    custom_system_prompt: str = "",
+    app_config=None,
+) -> list[dict]:
+    """Generate narration scripts for multiple scenes in a single LLM call.
+
+    Returns a list of dicts: [{"scene_id": 1, "script": "..."}, ...].
+    On failure returns an empty list.
+    """
+    scene_count = _normalize_scene_count(scene_count)
+    video_script_prompt = _limit_script_text(
+        video_script_prompt, MAX_SCRIPT_PROMPT_LENGTH, "video_script_prompt"
+    )
+    custom_system_prompt = _limit_script_text(
+        custom_system_prompt, MAX_SCENE_SCRIPT_LENGTH, "custom_system_prompt"
+    )
+
+    prompt = custom_system_prompt or DEFAULT_SCENE_SCRIPT_SYSTEM_PROMPT.format(
+        scene_count=scene_count,
+    )
+    prompt += f"""
+
+# Initialization:
+- video subject: {video_subject}
+- number of scenes: {scene_count}
+""".rstrip()
+    if language:
+        prompt += f"\n- language: {language}"
+    if video_script_prompt:
+        prompt += f"""
+
+# Additional User Requirements:
+{video_script_prompt}
+""".rstrip()
+
+    logger.info(
+        "generating scene scripts: "
+        f"subject={video_subject}, scene_count={scene_count}"
+    )
+
+    response = ""
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt=prompt)
+            else:
+                response = _generate_response(prompt=prompt, app_config=app_config)
+
+            if not response:
+                logger.error("LLM returned empty response for scene scripts")
+                continue
+
+            if response.startswith("Error: "):
+                logger.error(f"failed to generate scene scripts: {response}")
+                return []
+
+            raw = _strip_code_fence(response)
+            data = json.loads(raw)
+            scenes = data.get("scenes", [])
+            if not isinstance(scenes, list) or len(scenes) == 0:
+                logger.warning("response.scenes is not a non-empty list")
+                continue
+
+            result = []
+            for scene in scenes:
+                sid = scene.get("scene_id", 0)
+                script = scene.get("script", "").strip()
+                if script:
+                    result.append({"scene_id": sid, "script": script})
+
+            if result:
+                logger.success(
+                    f"generated {len(result)} scene scripts (requested {scene_count})"
+                )
+                return result
+        except Exception as exc:
+            logger.warning(f"failed to parse scene scripts (attempt {i+1}): {exc}")
+            if response:
+                # Try regex recovery: extract {"scenes": [...]} from response
+                match = re.search(r'\{"scenes"\s*:\s*\[.*?\]\s*\}', response, re.DOTALL)
+                if match:
+                    try:
+                        data = json.loads(match.group())
+                        scenes = data.get("scenes", [])
+                        result = [
+                            {"scene_id": s.get("scene_id", 0), "script": s.get("script", "").strip()}
+                            for s in scenes if s.get("script", "").strip()
+                        ]
+                        if result:
+                            logger.success(f"recovered {len(result)} scene scripts via regex")
+                            return result
+                    except Exception as exc2:
+                        logger.warning(f"regex recovery also failed: {exc2}")
+
+        if i < _max_retries - 1:
+            logger.warning(f"retrying scene script generation... {i + 1}")
+
+    logger.error(f"failed to generate scene scripts after {_max_retries} attempts")
+    return []
+
+
+def generate_scene_keywords(
+    video_subject: str,
+    scene_scripts: list[dict],
+    scene_count: int = 2,
+    terms_per_scene: int = 5,
+    app_config=None,
+) -> list[dict]:
+    """Generate search keywords for multiple scenes based on their scripts.
+
+    Args:
+        video_subject: The video topic.
+        scene_scripts: List of {"scene_id": int, "script": str} dicts.
+        scene_count: Expected number of scenes.
+        terms_per_scene: Number of search terms per scene.
+        app_config: Optional LLM config override.
+
+    Returns a list of dicts: [{"scene_id": 1, "terms": ["term1", ...]}, ...].
+    On failure returns an empty list.
+    """
+    scene_count = _normalize_scene_count(scene_count)
+    terms_per_scene = max(1, min(terms_per_scene, MAX_SCENE_TERMS_PER_SCENE))
+
+    script_context = "\n\n".join(
+        f"Scene {s.get('scene_id', i+1)}: {s.get('script', '')}"
+        for i, s in enumerate(scene_scripts)
+        if s.get("script", "").strip()
+    )
+    if not script_context:
+        logger.error("no scene scripts provided for keyword generation")
+        return []
+
+    prompt = DEFAULT_SCENE_KEYWORD_SYSTEM_PROMPT.format(
+        scene_count=scene_count,
+        terms_per_scene=terms_per_scene,
+    )
+    prompt += f"""
+
+## Context:
+### Video Subject
+{video_subject}
+
+### Scene Scripts
+{script_context}
+
+Please generate English search terms only.
+""".strip()
+
+    logger.info(
+        f"generating scene keywords: subject={video_subject}, "
+        f"scenes={len(scene_scripts)}, terms_per_scene={terms_per_scene}"
+    )
+
+    response = ""
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt)
+            else:
+                response = _generate_response(prompt, app_config=app_config)
+
+            if not response:
+                logger.error("LLM returned empty response for scene keywords")
+                continue
+
+            if response.startswith("Error: "):
+                logger.error(f"failed to generate scene keywords: {response}")
+                return []
+
+            raw = _strip_code_fence(response)
+            data = json.loads(raw)
+            scenes = data.get("scenes", [])
+            if not isinstance(scenes, list):
+                logger.warning("response.scenes is not a list")
+                continue
+
+            result = []
+            for scene in scenes:
+                sid = scene.get("scene_id", 0)
+                terms = scene.get("terms", [])
+                if isinstance(terms, list) and terms:
+                    # Ensure all terms are strings
+                    clean_terms = [str(t).strip() for t in terms if str(t).strip()]
+                    if clean_terms:
+                        result.append({"scene_id": sid, "terms": clean_terms})
+
+            if result:
+                logger.success(
+                    f"generated keywords for {len(result)} scenes "
+                    f"(requested {scene_count})"
+                )
+                return result
+        except Exception as exc:
+            logger.warning(f"failed to parse scene keywords (attempt {i+1}): {exc}")
+            if response:
+                match = re.search(r'\{"scenes"\s*:\s*\[.*?\]\s*\}', response, re.DOTALL)
+                if match:
+                    try:
+                        data = json.loads(match.group())
+                        scenes = data.get("scenes", [])
+                        result = [
+                            {"scene_id": s.get("scene_id", 0), "terms": s.get("terms", [])}
+                            for s in scenes if s.get("terms")
+                        ]
+                        if result:
+                            logger.success(f"recovered keywords for {len(result)} scenes via regex")
+                            return result
+                    except Exception as exc2:
+                        logger.warning(f"regex recovery also failed: {exc2}")
+
+        if i < _max_retries - 1:
+            logger.warning(f"retrying scene keyword generation... {i + 1}")
+
+    logger.error(f"failed to generate scene keywords after {_max_retries} attempts")
+    return []
+
+
+# =============================================================================
 # Social publishing metadata
 #
 # 根据视频主题和脚本生成发布到短视频平台时常用的 title、caption 和 hashtags。
