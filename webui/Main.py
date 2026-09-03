@@ -5439,6 +5439,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
     bgm_options = [
         (tr("No Background Music"), ""),
         (tr("Random Background Music"), "random"),
+        (tr("Preset Song"), "preset"),
         (tr("Custom Background Music"), "custom"),
         (tr("Sonilo Background Music"), "sonilo"),
         (tr("ElevenLabs Background Music"), "elevenlabs"),
@@ -5603,6 +5604,25 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
             # 上传控件继续保留用户已选择的文件，调高音量后的下一次 rerun 会自动
             # 完整校验；当前任务参数必须清空，避免 0 音量任务保存或解析该文件。
             params.bgm_file = ""
+
+    if params.bgm_type == "preset":
+        available_songs = bgm_service.list_bgm_filenames()
+        if not available_songs:
+            st.warning(tr("No Background Music Available") if "No Background Music Available" in st.session_state else "No songs found in resource/songs.")
+            params.bgm_file = ""
+        else:
+            default_preset_song = _saved_ui_text("preset_song", available_songs[0])
+            selected_song = stable_selectbox(
+                tr("Preset Song"),
+                options=available_songs,
+                default_value=default_preset_song if default_preset_song in available_songs else available_songs[0],
+                key="preset_song_select",
+            )
+            _set_runtime_config("ui", "preset_song", selected_song)
+            if bgm_enabled:
+                params.bgm_file = selected_song
+            else:
+                params.bgm_file = ""
 
     if params.bgm_type == "sonilo":
         if previous_bgm_type != "sonilo":

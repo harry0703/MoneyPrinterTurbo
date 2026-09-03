@@ -300,6 +300,26 @@ def list_bgm_files() -> list[str]:
     return [files_by_name[name] for name in sorted(files_by_name, key=str.lower)]
 
 
+def list_bgm_filenames() -> list[str]:
+    """列出可用背景音乐的展示文件名。"""
+    files_by_name: dict[str, str] = {}
+    for directory in (utils.song_dir(), uploaded_bgm_dir(create=True)):
+        if not os.path.isdir(directory):
+            continue
+        for name in sorted(os.listdir(directory), key=str.lower):
+            if name.startswith(_INTERNAL_UPLOAD_PREFIX):
+                continue
+            if Path(name).suffix.lower() not in SUPPORTED_BGM_EXTENSIONS:
+                continue
+            file_path = os.path.join(directory, name)
+            try:
+                file_security.resolve_path_within_directory(directory, file_path)
+            except ValueError:
+                continue
+            files_by_name[name] = name
+    return sorted(files_by_name.keys(), key=str.lower)
+
+
 def resolve_bgm_file(unsafe_path: str) -> str:
     """
     在用户上传目录和内置歌曲目录中解析 BGM，并拒绝两个白名单之外的路径。
