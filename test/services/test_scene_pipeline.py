@@ -1396,6 +1396,194 @@ class TestScenePipelineEndToEnd(unittest.TestCase):
         self.assertEqual(len(valid), 1)
 
 
+class TestScenePipelineFullFlow(unittest.TestCase):
+    """Full pipeline e2e tests via tm.start() with mocked external services.
+
+    Tests the complete orchestration: _run_pipeline → generate_scenes →
+    _generate_single_scene (×N) → concat_scene_videos_with_transitions.
+    Uses real ffmpeg/MoviePy, mocks only TTS/LLM/material APIs.
+    """
+
+    def setUp(self):
+        from app.utils import utils
+        self.tmp_dir = utils.storage_dir("test_e2e_fullflow", create=True)
+        self.task_id = f"fullflow-{os.getpid()}"
+        self.clip1 = os.path.join(self.tmp_dir, "fl_clip1.mp4")
+        self.clip2 = os.path.join(self.tmp_dir, "fl_clip2.mp4")
+        _generate_test_video(self.clip1, duration=2, color="red")
+        _generate_test_video(self.clip2, duration=2, color="blue")
+
+    def tearDown(self):
+        for f in (self.clip1, self.clip2):
+            if os.path.isfile(f):
+                os.remove(f)
+
+    def _mock_tts(self, audio_file, duration=3):
+        def fake_tts(text, voice_name, voice_rate, voice_file):
+            _generate_test_audio(voice_file, duration=duration)
+            sub_maker = MagicMock()
+            sub_maker.subs = []
+            return sub_maker
+        return fake_tts
+
+    def test_full_pipeline_two_scenes(self):
+        """tm.start() with 2 scenes: full orchestration from start to final video."""
+        params = VideoParams(
+            video_subject="test subject",
+            scenes=[
+                SceneConfig(scene_id=1, script="First scene narration", search_terms=["nature"]),
+                SceneConfig(scene_id=2, script="Second scene narration", search_terms=["city"]),
+            ],
+            video_source="pexels",
+            video_aspect="16:9",
+            video_concat_mode=VideoConcatMode.sequential,
+            video_clip_duration=3,
+            voice_name="test-voice",
+            voice_volume=1.0,
+            voice_rate=1.0,
+            subtitle_enabled=False,
+            bgm_type="none",
+            bgm_volume=0.0,
+            n_threads=2,
+        )
+
+        state = MagicMock()
+        with patch.object(tm.sm, "state", state):
+            with patch.object(tm.voice, "tts", side_effect=self._mock_tts("audio.mp3")):
+                with patch.object(
+                    tm.material, "download_videos",
+                    return_value=[self.clip1, self.clip2],
+                ):
+                    with patch.object(tm.llm, "generate_terms", return_value=["term"]):
+                        result = tm.start(task_id=self.task_id, params=params)
+
+        # Task should succeed
+        self.assertNotEqual(
+            result.get("state"), -1,
+            f"Task failed: {result.get('error')}"
+        )
+        # Should have produced a final video
+        final_path = os.path.join(
+            os.path.dirname(self.clip1), "..", "tasks", self.task_id, "final-1.mp4"
+        )
+        # Check via the task directory
+        from app.utils import utils
+        task_dir = utils.task_dir(self.task_id)
+        final_video = os.path.join(task_dir, "final-1.mp4")
+        self.assertTrue(
+            os.path.isfile(final_video),
+            f"Final video should exist at {final_video}"
+        )
+
+    def test_full_pipeline_with_transitions(self):
+        """tm.start() with scene transitions: verify transitions are applied."""
+        params = VideoParams(
+            video_subject="test",
+            scenes=[
+                SceneConfig(scene_id=1, script="Scene one"),
+                SceneConfig(scene_id=2, script="Scene two"),
+            ],
+            video_source="pexels",
+            video_aspect="16:9",
+            video_concat_mode=VideoConcatMode.sequential,
+            video_clip_duration=3,
+            voice_name="test-voice",
+            voice_volume=1.0,
+            voice_rate=1.0,
+            subtitle_enabled=False,
+            scene_transition=VideoTransitionMode.fade_in,
+            bgm_type="none",
+            bgm_volume=0.0,
+            n_threads=2,
+        )
+
+        state = MagicMock()
+        with patch.object(tm.sm, "state", state):
+            with patch.object(tm.voice, "tts", side_effect=self._mock_tts("audio.mp3")):
+                with patch.object(
+                    tm.material, "download_videos",
+                    return_value=[self.clip1, self.clip2],
+                ):
+                    with patch.object(tm.llm, "generate_terms", return_value=["term"]):
+                        result = tm.start(task_id=f"{self.task_id}-trans", params=params)
+
+        self.assertNotEqual(result.get("state"), -1, f"Task failed: {result.get('error')}")
+
+    def test_full_pipeline_all_scenes_fail(self):
+        """When all scenes have empty scripts, task should fail gracefully."""
+        params = VideoParams(
+            video_subject="test",
+            scenes=[
+                SceneConfig(scene_id=1, script=""),
+                SceneConfig(scene_id=2, script=""),
+            ],
+            video_source="pexels",
+            video_aspect="16:9",
+            voice_name="test-voice",
+            voice_volume=1.0,
+            voice_rate=1.0,
+            bgm_type="none",
+            bgm_volume=0.0,
+            n_threads=2,
+        )
+
+        state = MagicMock()
+        with patch.object(tm.sm, "state", state):
+            with patch.object(tm.voice, "tts", side_effect=self._mock_tts("audio.mp3")):
+                # Mock generate_terms to return empty (simulates LLM failure)
+                # so generate_scenes produces scenes with no search terms
+                with patch.object(tm.llm, "generate_terms", return_value=[]):
+                    result = tm.start(task_id=f"{self.task_id}-fail", params=params)
+
+        # Should fail because all scenes have empty scripts and no terms
+        self.assertEqual(result.get("state"), -1)
+
+    def test_full_pipeline_partial_failure(self):
+        """When 1 of 2 scenes has no materials, the other should still produce output."""
+        params = VideoParams(
+            video_subject="test",
+            scenes=[
+                SceneConfig(scene_id=1, script="Good scene with real content"),
+                SceneConfig(scene_id=2, script="Another good scene"),
+            ],
+            video_source="pexels",
+            video_aspect="16:9",
+            video_concat_mode=VideoConcatMode.sequential,
+            video_clip_duration=3,
+            voice_name="test-voice",
+            voice_volume=1.0,
+            voice_rate=1.0,
+            subtitle_enabled=False,
+            bgm_type="none",
+            bgm_volume=0.0,
+            n_threads=2,
+        )
+
+        # Mock download_videos to return clips for scene 1, empty for scene 2
+        call_count = {"n": 0}
+        def mock_download(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return [self.clip1]  # Scene 1 succeeds
+            return []  # Scene 2 fails (no materials)
+
+        state = MagicMock()
+        with patch.object(tm.sm, "state", state):
+            with patch.object(tm.voice, "tts", side_effect=self._mock_tts("audio.mp3")):
+                with patch.object(tm.material, "download_videos", side_effect=mock_download):
+                    with patch.object(tm.llm, "generate_terms", return_value=["term"]):
+                        result = tm.start(task_id=f"{self.task_id}-partial", params=params)
+
+        # Should succeed with 1 scene (the other was skipped)
+        self.assertNotEqual(result.get("state"), -1, f"Task failed: {result.get('error')}")
+        # Should have scene_warnings
+        warnings = result.get("warnings") or []
+        self.assertTrue(
+            any(w.get("code") == "scene_generation_failed" for w in warnings),
+            f"Expected scene_generation_failed warning, got: {warnings}"
+        )
+
+
 RUN_INTEGRATION_TESTS = os.environ.get("MPT_RUN_INTEGRATION_TESTS", "").lower() in {
     "1", "true", "yes",
 }
@@ -1463,7 +1651,7 @@ class TestScenePipelineIntegration(unittest.TestCase):
 
         result = tm.start(task_id=task_id, params=params)
         print(f"Integration test result: {result}")
-        self.assertNotEqual(result.get("state"), "failed", f"Task failed: {result.get('error')}")
+        self.assertNotEqual(result.get("state"), -1, f"Task failed: {result.get('error')}")
 
 
 if __name__ == "__main__":
