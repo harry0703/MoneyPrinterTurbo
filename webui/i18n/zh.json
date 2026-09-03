@@ -140,6 +140,7 @@
     "Background Music": "背景音乐",
     "No Background Music": "无背景音乐",
     "Random Background Music": "随机背景音乐",
+    "Preset Song": "预设歌曲",
     "Custom Background Music": "自定义背景音乐",
     "Sonilo Background Music": "根据画面自动配乐（Sonilo AI）",
     "Sonilo API Key": "Sonilo API Key（[点击获取](https://platform.sonilo.com/)）",
