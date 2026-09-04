@@ -1,0 +1,72 @@
+name: 🐛 Bug | Relatório de erro
+description: Relate um erro ou comportamento inesperado
+title: "[Bug]: "
+labels:
+  - bug
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Antes de abrir uma issue, leia a documentação: [Início rápido (Português)](../../README-pt-BR.md#início-rápido-) ou [Getting Started (English)](../../README-en.md#system-requirements-).**
+
+        **Não inclua chaves de API, tokens, senhas ou outros dados sensíveis.**
+
+  - type: textarea
+    attributes:
+      label: Descrição do problema
+      description: Descreva o erro ou comportamento inesperado observado.
+      placeholder: Ao executar..., o programa apresenta...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Passos para reproduzir
+      description: Descreva detalhadamente como reproduzir o problema.
+      placeholder: |
+        1. Abra...
+        2. Clique em...
+        3. Execute...
+        4. O erro ocorre...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Logs de erro
+      description: Forneça mensagens de erro ou logs relevantes sem incluir informações sensíveis.
+      placeholder: Mensagens de erro, logs ou capturas de tela...
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Versão do Python
+      description: Informe a versão do Python utilizada.
+      placeholder: v3.13.0, v3.11.9 etc.
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Sistema operacional
+      description: Informe o sistema operacional e a versão.
+      placeholder: macOS 14.1, Windows 11, Ubuntu 22.04 etc.
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Versão do MoneyPrinterTurbo
+      description: Informe a versão do MoneyPrinterTurbo utilizada.
+      placeholder: v1.2.2 etc.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Informações adicionais
+      description: Inclua qualquer outra informação útil para investigar o problema, como capturas de tela ou vídeos.
+    validations:
+      required: false
