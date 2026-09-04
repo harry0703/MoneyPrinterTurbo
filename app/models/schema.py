@@ -112,7 +112,10 @@ class VideoParams(BaseModel):
     video_transition_mode: Optional[VideoTransitionMode] = None
     video_clip_duration: int = Field(default=5, ge=1)
     video_clip_speed: Optional[float] = 1.0
-    match_materials_to_script: bool = False
+    # Two-lane: generic stock backgrounds ordered by script; proper nouns
+    # and charts go to overlays instead of stock search. Opt out if the
+    # legacy global-theme terms are preferred.
+    match_materials_to_script: bool = True
     video_count: int = Field(default=1, ge=1)
 
     video_source: Optional[str] = "pexels"

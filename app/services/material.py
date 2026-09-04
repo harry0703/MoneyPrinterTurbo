@@ -1767,6 +1767,7 @@ def download_videos(
 
     valid_video_items = []
     valid_video_urls = []
+    empty_terms: List[str] = []
     found_duration = 0.0
     for search_term in search_terms:
         video_items = search_videos(
@@ -1776,8 +1777,21 @@ def download_videos(
         )
         logger.info(f"found {len(video_items)} videos for '{search_term}'")
 
+        if not video_items:
+            empty_terms.append(search_term)
         for item in video_items:
             if item.url not in valid_video_urls:
+                valid_video_items.append(item)
+                valid_video_urls.append(item.url)
+                found_duration += item.duration
+
+    # Replacement net: if some terms came back empty and the duration is
+    # still short, ask the LLM once for generic alternatives and add hits.
+    if empty_terms and found_duration <= audio_duration:
+        for term, items in _search_replacement_candidates(
+            empty_terms, search_videos, video_aspect, max_clip_duration, set(valid_video_urls)
+        ):
+            for item in items:
                 valid_video_items.append(item)
                 valid_video_urls.append(item.url)
                 found_duration += item.duration
@@ -1834,6 +1848,52 @@ def download_videos(
     logger.success(f"downloaded {len(video_paths)} videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
+
+
+def _search_replacement_candidates(
+    empty_terms: List[str],
+    search_videos: Callable,
+    video_aspect: VideoAspect,
+    max_clip_duration: int,
+    valid_video_urls: set,
+) -> list[tuple[str, list]]:
+    """One round of LLM replacement terms + search for empty queries.
+
+    Returns an empty list on any error; the pipeline continues with the
+    candidates it already has.
+    """
+    if not empty_terms:
+        return []
+    try:
+        from app.services import llm as llm_service
+
+        replacements = llm_service.suggest_replacement_terms(empty_terms)
+    except Exception as e:
+        logger.warning(f"replacement terms skipped: {type(e).__name__}")
+        return []
+    groups: list[tuple[str, list]] = []
+    for original, replacement in zip(empty_terms, replacements):
+        term = (replacement or "").strip()
+        if not term:
+            continue
+        try:
+            items = search_videos(
+                search_term=term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+        except Exception as e:
+            logger.warning(f"replacement search failed: term={term!r}, error={type(e).__name__}")
+            continue
+        logger.info(
+            f"found {len(items)} videos for replacement '{term}' (was '{original}')"
+        )
+        term_items = [it for it in items if it.url not in valid_video_urls]
+        for it in term_items:
+            valid_video_urls.add(it.url)
+        if term_items:
+            groups.append((term, term_items))
+    return groups
 
 
 def _download_videos_wavespeed_on_demand(
@@ -2261,6 +2321,7 @@ def _download_videos_by_script_order(
     logger.info("downloading videos with script-order material matching")
     candidate_groups = []
     valid_video_urls = set()
+    empty_terms: List[str] = []
     found_duration = 0.0
 
     for search_term in search_terms:
@@ -2281,6 +2342,17 @@ def _download_videos_by_script_order(
 
         if term_items:
             candidate_groups.append((search_term, term_items))
+        else:
+            empty_terms.append(search_term)
+
+    # Replacement net (ordered mode): empty terms get generic replacement
+    # groups, keeping the round-robin order intact.
+    if empty_terms and found_duration <= audio_duration:
+        for term, items in _search_replacement_candidates(
+            empty_terms, search_videos, video_aspect, max_clip_duration, valid_video_urls
+        ):
+            candidate_groups.append((term, items))
+            found_duration += sum(it.duration for it in items)
 
     logger.info(
         f"found total ordered video candidates: {sum(len(items) for _, items in candidate_groups)}, "

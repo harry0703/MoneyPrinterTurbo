@@ -631,6 +631,18 @@ def generate_terms(
             '"search term 4", "search term 5"]'
         )
 
+    # Two-lane: stock clips are atmospheric backgrounds; specific facts go to
+    # overlays. Stock pools have no brand/logo/person/chart footage, so a term
+    # with a proper noun returns generic irrelevant results. Stock terms must
+    # be filmable generic scenes; proper nouns belong to overlays.
+    two_lane_rule = (
+        "7. STOCK-SAFE RULE (two-lane): each term must describe a generic "
+        "filmable scene (place, object, activity), never a brand, product, "
+        "person name, logo, chart, number or meme — those have no stock "
+        "footage and are shown as overlay graphics instead. "
+        "Example: instead of 'Hugging Face', write 'programmers office'; "
+        "instead of 'Jensen Huang', write 'chip factory engineer'."
+    )
     prompt = f"""
 # Role: Video Search Terms Generator
 
@@ -644,6 +656,7 @@ def generate_terms(
 4. the search terms must be related to the subject of the video.
 5. reply with english search terms only.
 {ordering_rule}
+{two_lane_rule}
 
 ## Output Example:
 {output_example}
@@ -702,6 +715,58 @@ Please note that you must use English for generating video search terms; Chinese
 
     logger.success(f"completed: \n{search_terms}")
     return search_terms
+
+
+def suggest_replacement_terms(empty_terms: List[str] | str, app_config=None) -> List[str]:
+    """Suggest one generic replacement scene per empty stock query.
+
+    Single attempt only. Returns an empty list on any error; the caller
+    continues with the candidates it already has.
+    """
+    if isinstance(empty_terms, str):
+        empties = [empty_terms]
+    else:
+        empties = [str(t) for t in (empty_terms or [])]
+    empties = [t.strip()[:80] for t in empties if t.strip()][:8]
+    if not empties:
+        return []
+    listed = "\n".join(f"- {t}" for t in empties)
+    prompt = f"""
+# Role: Stock Footage Query Repair
+
+## Goal
+These stock-video search queries returned ZERO footage. Propose exactly ONE generic, filmable replacement scene per query.
+
+## Hard Constraints
+1. Return ONLY a minified JSON array of strings, no other text.
+2. Each replacement: 1-3 English words, a generic filmable scene (place, object, activity).
+3. NEVER reuse brand, product, person, logo, chart or meme terms — they have no stock footage.
+4. Same order and count as the input list ({len(empties)} items).
+
+## Empty queries
+{listed}
+
+## Output Example
+["server room", "business handshake"]
+""".strip()
+    logger.info(f"requesting replacement terms for {len(empties)} empty queries")
+    for i in range(_max_retries):
+        try:
+            if app_config is None:
+                response = _generate_response(prompt=prompt)
+            else:
+                response = _generate_response(prompt=prompt, app_config=app_config)
+            if isinstance(response, str) and response.startswith("Error:"):
+                logger.error(f"failed to suggest replacements: {response}")
+                return []
+            data = json.loads(_strip_code_fence(response))
+            if not isinstance(data, list):
+                raise ValueError("replacements response is not a JSON array")
+            out = [str(t).strip()[:60] for t in data if str(t).strip()][: len(empties)]
+            return out
+        except Exception as e:
+            logger.warning(f"failed to suggest replacements (try {i + 1}): {e}")
+    return []
 
 
 # =============================================================================

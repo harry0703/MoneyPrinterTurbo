@@ -308,6 +308,50 @@ def generate_script(task_id, params):
     return video_script
 
 
+def _terms_look_english(terms) -> bool:
+    """Stock terms must be short English; other languages/sentences fail."""
+    if not terms or not isinstance(terms, list):
+        return False
+    bad = sum(1 for t in terms if _is_bad_term(t))
+    return bad <= len(terms) // 2
+
+
+_TR_STOPWORDS = frozenset({
+    "ve", "ile", "için", "gibi", "daha", "çok", "bir", "bu", "şu", "o",
+    "da", "de", "ki", "ne", "hem", "veya", "ya", "ise", "diye", "kadar",
+    "sonra", "önce", "karşı", "arasında", "olarak", "olan", "içinde",
+})
+
+
+def _is_bad_term(term) -> bool:
+    """Non-English characters, stopwords, sentence length, or empty?"""
+    s = str(term or "").strip()
+    if not s:
+        return True
+    if any(c in "ğüşöçıİĞÜŞÖÇ" for c in s):
+        return True
+    words = s.split()
+    if len(words) > 3 or len(words) == 0:
+        return True
+    lowered = [w.strip(".,!?:;()\"'").lower() for w in words]
+    if any(w in _TR_STOPWORDS for w in lowered):
+        return True
+    return False
+
+
+def _dedup_terms(terms) -> list:
+    seen: set[str] = set()
+    out = []
+    for t in terms or []:
+        # The model sometimes wraps terms like "['term']"; clean that up.
+        cleaned = str(t or "").strip().strip("[]\"'’‘").strip()
+        key = cleaned.lower()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(cleaned)
+    return out
+
+
 def generate_terms(task_id, params, video_script):
     logger.info("\n\n## generating video terms")
     video_terms = params.video_terms
@@ -321,6 +365,21 @@ def generate_terms(task_id, params, video_script):
             amount=8 if params.match_materials_to_script else 5,
             match_script_order=params.match_materials_to_script,
         )
+        # Language/shape guard: the model sometimes returns non-English,
+        # duplicated, or sentence-like terms, which yield generic results
+        # from stock APIs. Drop the bad ones and request one round of
+        # generic replacements.
+        if video_terms:
+            video_terms = _dedup_terms(video_terms)
+            bad_terms = [t for t in video_terms if _is_bad_term(t)]
+            if bad_terms:
+                logger.warning(f"dropping non-stock-safe terms: {bad_terms!r}")
+                good = [t for t in video_terms if not _is_bad_term(t)]
+                try:
+                    replacements = llm.suggest_replacement_terms(bad_terms)
+                except Exception:
+                    replacements = []
+                video_terms = _dedup_terms(good + [r for r in replacements if r and not _is_bad_term(r)])
     else:
         if isinstance(video_terms, str):
             video_terms = [term.strip() for term in re.split(r"[,，]", video_terms)]
