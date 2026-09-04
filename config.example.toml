@@ -441,6 +441,15 @@ upload_post_youtube_privacy_status = "public"
 # Cross-post jobs run in the current process and are not resumed after restart.
 upload_post_max_pending_tasks = 10
 
+# Postiz publishing (optional, self-hosted)
+postiz_enabled = false
+postiz_api_url = "http://localhost:8004"
+postiz_api_key = ""
+postiz_platforms = ["youtube", "instagram"]
+postiz_auto_upload = false
+postiz_youtube_privacy_status = "public"
+postiz_max_pending_tasks = 10
+
 # =============================================================================
 # Whisper Subtitles / Whisper 字幕
 # =============================================================================

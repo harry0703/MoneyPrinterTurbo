@@ -31,6 +31,8 @@ from app.services import (
     voice,
 )
 from app.services import upload_post
+from app.services import postiz
+from app.services.publishing_base import PUBLISHING_PROVIDER_REGISTRY
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -1111,18 +1113,21 @@ def _run_cross_post(
             )
 
         for video_path in video_paths:
-            result = upload_post.cross_post_video(
-                video_path=video_path,
-                title=post_title,
-                platforms=list(platforms),
-                youtube_extra=youtube_extra,
-            )
-            if not isinstance(result, dict):
-                result = {
-                    "success": False,
-                    "error": "Upload-Post returned an invalid response",
-                }
-            results.append(result)
+            for provider_name, provider in PUBLISHING_PROVIDER_REGISTRY.items():
+                if provider.is_configured() and getattr(provider, "auto_upload", False):
+                    try:
+                        result = provider.upload_video(
+                            video_path=video_path,
+                            title=post_title,
+                            platforms=list(getattr(provider, "platforms", platforms)),
+                            youtube_extra=youtube_extra,
+                        )
+                    except Exception as e:
+                        logger.error(f"Cross-post via {provider_name} failed: {e}")
+                        result = {"success": False, "error": str(e)}
+                    if not isinstance(result, dict):
+                        result = {"success": False, "error": "Publishing provider returned an invalid response"}
+                    results.append(result)
 
         failures = [result for result in results if not result.get("success")]
         if failures:

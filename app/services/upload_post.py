@@ -9,9 +9,10 @@ from typing import Optional
 import requests
 from loguru import logger
 from app.config import config
+from app.services.publishing_base import PublishingProvider, PUBLISHING_PROVIDER_REGISTRY
 
 
-class UploadPostService:
+class UploadPostService(PublishingProvider):
     API_BASE = "https://api.upload-post.com"
 
     @property
@@ -141,6 +142,7 @@ class UploadPostService:
 
 # Singleton instance
 upload_post_service = UploadPostService()
+PUBLISHING_PROVIDER_REGISTRY["upload_post"] = upload_post_service
 
 
 def cross_post_video(
