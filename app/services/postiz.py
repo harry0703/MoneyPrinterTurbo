@@ -1,94 +1,99 @@
 """
-Postiz API integration for cross-posting videos to YouTube (and potentially other platforms).
+Postiz API integration for cross-posting videos via the Postiz Public API.
 
-Docs: (Assumed) http://localhost:4007 or configured via config.app.
+Docs: https://docs.postiz.com/public-api/introduction
 """
 import os
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
+
 import requests
 from loguru import logger
 from app.config import config
-from .publishing_base import PublishingProvider, PUBLISHING_PROVIDER_REGISTRY
+from app.services.publishing_base import PublishingProvider, PUBLISHING_PROVIDER_REGISTRY
+
+# Maps MPT platform names to Postiz __type values and integration config keys.
+_POSTIZ_PLATFORM_MAP = {
+    "youtube": {
+        "__type": "youtube",
+        "integration_key": "postiz_youtube_integration_id",
+    },
+    "instagram": {
+        "__type": "instagram",
+        "integration_key": "postiz_instagram_integration_id",
+    },
+    "tiktok": {
+        "__type": "tiktok",
+        "integration_key": "postiz_tiktok_integration_id",
+    },
+    "x": {
+        "__type": "x",
+        "integration_key": "postiz_x_integration_id",
+    },
+}
 
 
 class PostizService(PublishingProvider):
-    """Service wrapper for Postiz API.
+    """Service wrapper for the Postiz Public API.
 
-    Mirrors the structure of :class:`UploadPostService` but uses the Postiz endpoints.
+    Uses the official endpoints:
+      - POST {api_url}/api/public/v1/upload  (multipart file upload)
+      - POST {api_url}/api/public/v1/posts   (create / schedule post)
+      - GET  {api_url}/api/public/v1/posts   (list posts)
+
+    Authentication uses the raw API key in the Authorization header
+    (no Bearer prefix), per the official docs.
     """
 
     @property
     def api_url(self) -> str:
-        """Base URL for the Postiz API.
-
-        Config key: ``postiz_api_url`` – defaults to ``http://localhost:4007``.
-        """
-        return config.app.get("postiz_api_url", "http://localhost:4007")
+        return config.app.get("postiz_api_url", "http://localhost:8004")
 
     @property
     def api_key(self) -> str:
-        """Bearer token for authentication.
-
-        Config key: ``postiz_api_key``.
-        """
         return config.app.get("postiz_api_key", "")
 
     @property
     def enabled(self) -> bool:
-        """Whether Postiz integration is enabled.
-
-        Config key: ``postiz_enabled`` – defaults to ``False``.
-        """
         return config.app.get("postiz_enabled", False)
 
     @property
     def platforms(self) -> List[str]:
-        """Supported platforms for cross‑posting.
-
-        Config key: ``postiz_platforms`` – defaults to ``["youtube"]``.
-        """
         return config.app.get("postiz_platforms", ["youtube"])
 
     @property
     def auto_upload(self) -> bool:
-        """Whether videos should be auto‑uploaded after generation.
-
-        Config key: ``postiz_auto_upload`` – defaults to ``False``.
-        """
         return config.app.get("postiz_auto_upload", False)
 
     @property
     def youtube_privacy_status(self) -> str:
-        """YouTube privacy status for posts.
-
-        Config key: ``postiz_youtube_privacy_status`` – defaults to ``"public"``.
-        """
         return config.app.get("postiz_youtube_privacy_status", "public")
 
     @property
     def max_pending_tasks(self) -> int:
-        """Maximum number of pending Postiz tasks.
-
-        Config key: ``postiz_max_pending_tasks`` – defaults to ``5``.
-        """
         return config.app.get("postiz_max_pending_tasks", 5)
 
-    # ---------------------------------------------------------------------
-    # Helper methods
-    # ---------------------------------------------------------------------
     def _auth_headers(self) -> Dict[str, str]:
-        """Return the Authorization header for the API.
+        """Return headers with raw API key (no Bearer prefix)."""
+        return {"Authorization": self.api_key}
 
-        Postiz expects a ``Bearer`` token.
-        """
-        return {"Authorization": f"Bearer {self.api_key}"}
+    def _api_base(self) -> str:
+        base = self.api_url.rstrip("/")
+        return f"{base}/api/public/v1"
 
-    # ---------------------------------------------------------------------
-    # PublishingProvider interface
-    # ---------------------------------------------------------------------
+    def _get_integration_id(self, platform: str) -> Optional[str]:
+        platform_info = _POSTIZ_PLATFORM_MAP.get(platform)
+        if not platform_info:
+            return None
+        return config.app.get(platform_info["integration_key"], "")
+
     def is_configured(self) -> bool:
-        """Return ``True`` when the service is enabled and an API key is present."""
-        return bool(self.enabled and self.api_key)
+        if not (self.enabled and self.api_key):
+            return False
+        for platform in self.platforms:
+            if self._get_integration_id(platform):
+                return True
+        return False
 
     def upload_video(
         self,
@@ -97,19 +102,8 @@ class PostizService(PublishingProvider):
         platforms: Optional[List[str]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
-        """Upload a video to Postiz and create a post.
-
-        Args:
-            video_path: Path to the local video file.
-            title: Title for the post (max 2200 characters as per YouTube limit).
-            platforms: Optional list of target platforms – currently only ``youtube`` is used.
-            **kwargs: Additional keyword arguments – ignored for now but kept for API compatibility.
-
-        Returns:
-            A ``dict`` with at least ``success`` (bool). On success the dict contains ``post_id``.
-        """
         if not self.is_configured():
-            logger.warning("Postiz is not configured. Skipping cross‑post.")
+            logger.warning("Postiz is not configured. Skipping cross-post.")
             return {"success": False, "error": "Postiz not configured"}
 
         if platforms is None:
@@ -119,73 +113,112 @@ class PostizService(PublishingProvider):
             logger.error(f"Video file not found: {video_path}")
             return {"success": False, "error": f"Video file not found: {video_path}"}
 
-        logger.info(f"Uploading video to Postiz (platforms: {', '.join(platforms)}) …")
+        logger.info(f"Uploading video to Postiz (platforms: {', '.join(platforms)})...")
 
-        # -------------------------------------------------------------
-        # 1. Upload media to /media endpoint
-        # -------------------------------------------------------------
+        # 1. Upload the video file
         try:
             with open(video_path, "rb") as video_file:
                 files = {"file": video_file}
-                media_resp = requests.post(
-                    f"{self.api_url}/media",
+                upload_resp = requests.post(
+                    f"{self._api_base()}/upload",
                     headers=self._auth_headers(),
                     files=files,
                     timeout=300,
                 )
-                media_resp.raise_for_status()
-                media_json = media_resp.json()
-                media_id = media_json.get("id")
-                if not media_id:
-                    raise ValueError("Missing 'id' in /media response")
+                upload_resp.raise_for_status()
+                upload_json = upload_resp.json()
+                media_id = upload_json.get("id")
+                media_path = upload_json.get("path")
+                if not media_id or not media_path:
+                    raise ValueError(f"Missing id or path in upload response: {upload_json}")
         except Exception as e:
             logger.error(f"Failed to upload media to Postiz: {e}")
             return {"success": False, "error": str(e)}
 
-        # -------------------------------------------------------------
-        # 2. Create a post using the uploaded media ID
-        # -------------------------------------------------------------
-        post_payload: Dict[str, Any] = {
-            "provider": "youtube",
-            "media_ids": [media_id],
-            "title": title[:2200],
-            "content_posting_method": "DIRECT_POST",
-            "privacy_status": self.youtube_privacy_status,
-        }
-        # ``platforms`` is kept for future extensions – for now we only support youtube.
-        try:
-            post_resp = requests.post(
-                f"{self.api_url}/posts",
-                headers={**self._auth_headers(), "Content-Type": "application/json"},
-                json=post_payload,
-                timeout=300,
-            )
-            post_resp.raise_for_status()
-            post_json = post_resp.json()
-            # Expected to contain an identifier for the created post – assume ``id``.
-            post_id = post_json.get("id") or post_json.get("request_id")
-            if post_id:
-                logger.info(f"✅ Video posted successfully! Post ID: {post_id}")
-                return {"success": True, "post_id": post_id, "media_id": media_id}
-            else:
-                logger.warning("Postiz responded without a post identifier.")
-                return {"success": False, "error": "Missing post identifier in response", "response": post_json}
-        except Exception as e:
-            logger.error(f"Failed to create Postiz post: {e}")
-            return {"success": False, "error": str(e)}
+        logger.info(f"Media uploaded to Postiz: id={media_id}, path={media_path}")
+
+        # 2. Create a post for each platform with a configured integration ID
+        results: List[Dict[str, Any]] = []
+        any_success = False
+
+        for platform in platforms:
+            platform_info = _POSTIZ_PLATFORM_MAP.get(platform)
+            if not platform_info:
+                logger.warning(f"Unsupported Postiz platform: {platform}")
+                results.append({"platform": platform, "success": False, "error": f"Unsupported platform: {platform}"})
+                continue
+
+            integration_id = self._get_integration_id(platform)
+            if not integration_id:
+                logger.warning(f"No Postiz integration ID configured for platform: {platform}")
+                results.append({"platform": platform, "success": False, "error": f"No integration ID for {platform}"})
+                continue
+
+            settings: Dict[str, Any] = {"__type": platform_info["__type"]}
+
+            if platform == "youtube":
+                settings["title"] = title[:100]
+                settings["type"] = self.youtube_privacy_status
+                settings["selfDeclaredMadeForKids"] = "no"
+                settings["tags"] = []
+            elif platform == "instagram":
+                settings["post_type"] = "reels"
+            elif platform == "tiktok":
+                settings["privacy_level"] = "PUBLIC_TO_EVERYONE"
+                settings["duet"] = True
+                settings["stitch"] = True
+                settings["comment"] = True
+                settings["autoAddMusic"] = True
+                settings["brand_content_toggle"] = False
+                settings["brand_organic_toggle"] = False
+                settings["content_posting_method"] = "DIRECT_POST"
+
+            post_payload: Dict[str, Any] = {
+                "type": "now",
+                "date": datetime.now(timezone.utc).isoformat(),
+                "shortLink": False,
+                "tags": [],
+                "posts": [
+                    {
+                        "integration": {"id": integration_id},
+                        "value": [
+                            {
+                                "content": title[:2200],
+                                "image": [{"id": media_id, "path": media_path}],
+                            }
+                        ],
+                        "settings": settings,
+                    }
+                ],
+            }
+
+            try:
+                post_resp = requests.post(
+                    f"{self._api_base()}/posts",
+                    headers={**self._auth_headers(), "Content-Type": "application/json"},
+                    json=post_payload,
+                    timeout=300,
+                )
+                post_resp.raise_for_status()
+                post_json = post_resp.json()
+                if isinstance(post_json, list) and len(post_json) > 0:
+                    post_id = post_json[0].get("postId", "")
+                    logger.info(f"Postiz post created for {platform}: postId={post_id}")
+                    results.append({"platform": platform, "success": True, "post_id": post_id})
+                    any_success = True
+                else:
+                    logger.warning(f"Unexpected Postiz response for {platform}: {post_json}")
+                    results.append({"platform": platform, "success": False, "error": "Unexpected response format", "response": post_json})
+            except Exception as e:
+                logger.error(f"Failed to create Postiz post for {platform}: {e}")
+                results.append({"platform": platform, "success": False, "error": str(e)})
+
+        return {"success": any_success, "results": results, "media_id": media_id}
 
     def check_status(self, request_id: str) -> Dict[str, Any]:
-        """Check the status of a previously submitted post.
-
-        Args:
-            request_id: The identifier returned by ``upload_video`` (``post_id``).
-
-        Returns:
-            JSON response from the GET ``/posts/<id>`` endpoint.
-        """
         try:
             resp = requests.get(
-                f"{self.api_url}/posts/{request_id}",
+                f"{self._api_base()}/posts",
                 headers=self._auth_headers(),
                 timeout=30,
             )
@@ -196,9 +229,6 @@ class PostizService(PublishingProvider):
             return {"success": False, "error": str(e)}
 
 
-# ---------------------------------------------------------------------
-# Singleton instance and helper function
-# ---------------------------------------------------------------------
 postiz_service = PostizService()
 PUBLISHING_PROVIDER_REGISTRY["postiz"] = postiz_service
 
@@ -209,8 +239,4 @@ def cross_post_video(
     platforms: Optional[List[str]] = None,
     **kwargs,
 ) -> Dict[str, Any]:
-    """Convenient wrapper mirroring :func:`upload_post.cross_post_video`.
-
-    Delegates to ``postiz_service.upload_video``.
-    """
     return postiz_service.upload_video(video_path, title, platforms, **kwargs)

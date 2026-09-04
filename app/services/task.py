@@ -31,7 +31,7 @@ from app.services import (
     voice,
 )
 from app.services import upload_post
-from app.services import postiz
+from app.services import postiz  # noqa: F401  # side-effect: registers Postiz in PUBLISHING_PROVIDER_REGISTRY
 from app.services.publishing_base import PUBLISHING_PROVIDER_REGISTRY
 from app.services import state as sm
 from app.utils import file_security, utils
@@ -1523,15 +1523,18 @@ def _run_pipeline(
 
     # 7. 先完成视频生成任务，再按需提交跨平台发布。第三方上传可能耗时
     # 数分钟，不应阻塞视频结果返回，也不能反向影响已经生成的成片。
-    cross_post_enabled = (
-        upload_post.upload_post_service.is_configured()
-        and upload_post.upload_post_service.auto_upload
-    )
-    platforms = (
-        list(upload_post.upload_post_service.platforms) if cross_post_enabled else []
-    )
-    should_cross_post = cross_post_enabled and bool(platforms)
-    if cross_post_enabled and not platforms:
+    # Determine if any publishing provider is ready for cross-post
+    configured_providers = [
+        p for p in PUBLISHING_PROVIDER_REGISTRY.values()
+        if p.is_configured() and getattr(p, "auto_upload", False)
+    ]
+    any_provider_ready = bool(configured_providers)
+    # Aggregate platforms from all ready providers, deduped
+    platforms = list(dict.fromkeys(
+        [plat for p in configured_providers for plat in getattr(p, "platforms", [])]
+    ))
+    should_cross_post = any_provider_ready and bool(platforms)
+    if any_provider_ready and not platforms:
         logger.warning(
             f"skip cross-post because no platforms are configured, task_id: {task_id}"
         )

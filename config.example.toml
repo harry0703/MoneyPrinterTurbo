@@ -449,6 +449,10 @@ postiz_platforms = ["youtube", "instagram"]
 postiz_auto_upload = false
 postiz_youtube_privacy_status = "public"
 postiz_max_pending_tasks = 10
+# Postiz integration IDs (required per platform — find them in Postiz Settings > Integrations)
+postiz_youtube_integration_id = ""
+postiz_instagram_integration_id = ""
+postiz_tiktok_integration_id = ""
 
 # =============================================================================
 # Whisper Subtitles / Whisper 字幕

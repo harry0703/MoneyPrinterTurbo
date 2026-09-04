@@ -3003,6 +3003,30 @@ def _render_settings_dialog():
             if postiz_api_key != config.app.get("postiz_api_key", ""):
                 _set_runtime_config("app", "postiz_api_key", postiz_api_key)
 
+            postiz_youtube_integration_id = st.text_input(
+                "Postiz YouTube Integration ID",
+                value=config.app.get("postiz_youtube_integration_id", ""),
+                key="postiz_youtube_integration_id_input"
+            )
+            if postiz_youtube_integration_id != config.app.get("postiz_youtube_integration_id", ""):
+                _set_runtime_config("app", "postiz_youtube_integration_id", postiz_youtube_integration_id)
+
+            postiz_instagram_integration_id = st.text_input(
+                "Postiz Instagram Integration ID",
+                value=config.app.get("postiz_instagram_integration_id", ""),
+                key="postiz_instagram_integration_id_input"
+            )
+            if postiz_instagram_integration_id != config.app.get("postiz_instagram_integration_id", ""):
+                _set_runtime_config("app", "postiz_instagram_integration_id", postiz_instagram_integration_id)
+
+            postiz_tiktok_integration_id = st.text_input(
+                "Postiz TikTok Integration ID",
+                value=config.app.get("postiz_tiktok_integration_id", ""),
+                key="postiz_tiktok_integration_id_input"
+            )
+            if postiz_tiktok_integration_id != config.app.get("postiz_tiktok_integration_id", ""):
+                _set_runtime_config("app", "postiz_tiktok_integration_id", postiz_tiktok_integration_id)
+
             postiz_platforms = st.multiselect(
                 "Postiz Platforms",
                 options=["youtube", "instagram", "tiktok", "x", "linkedin", "reddit"],
