@@ -43,6 +43,19 @@ Generate a script for a video, depending on the subject of the video.
 8. respond in the same language as the video subject.
 """.strip()
 
+# Claude Code CLI 默认使用编码 agent 的系统提示词，其中大量约束与文案写作
+# 无关，会让脚本和关键词生成偏离要求，因此调用时整体替换掉。
+CLAUDE_CODE_SYSTEM_PROMPT = (
+    "You are a concise copywriter. Follow the user's instructions and output "
+    "format exactly, and output nothing else."
+)
+# 文案生成是一次纯文本请求，不需要任何工具。显式禁用可以避免 CLI 在容器里
+# 尝试读写文件或联网，从而让每次调用都是确定的单轮生成。
+CLAUDE_CODE_DISALLOWED_TOOLS = (
+    "Bash Read Write Edit NotebookEdit Glob Grep WebFetch WebSearch Task"
+)
+CLAUDE_CODE_DEFAULT_TIMEOUT = 300.0
+
 
 def _normalize_text_response(content, llm_provider: str) -> str:
     # 不同 LLM SDK 在异常或被拦截场景下，可能返回 None、空字符串，
@@ -354,6 +367,116 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 raise Exception(
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
+
+        if adapter == "claude_code":
+            # Claude 订阅（Pro / Max / Team）不签发 API Key，其凭证只能由
+            # Claude Code 官方客户端自己使用。这里不直接请求 Anthropic API，
+            # 而是以 headless 模式调用本机已登录的 claude CLI（`claude -p`），
+            # 由 CLI 完成鉴权，脚本生成只消费它返回的文本。
+            import os
+            import shutil
+            import subprocess
+            import tempfile
+
+            configured_cli = (extra_values.get("cli_path") or "").strip() or "claude"
+            cli_path = shutil.which(configured_cli)
+            if not cli_path and os.path.isfile(configured_cli):
+                cli_path = configured_cli
+            if not cli_path:
+                raise ValueError(
+                    f"{llm_provider}: claude CLI not found ('{configured_cli}'), "
+                    f"install it in the runtime or set "
+                    f"{provider.config_key('cli_path')} in the config.toml file."
+                )
+
+            configured_timeout = (extra_values.get("timeout") or "").strip()
+            try:
+                timeout_seconds = (
+                    float(configured_timeout)
+                    if configured_timeout
+                    else CLAUDE_CODE_DEFAULT_TIMEOUT
+                )
+            except ValueError:
+                raise ValueError(
+                    f"{llm_provider}: {provider.config_key('timeout')} must be a "
+                    f"number of seconds, got '{configured_timeout}'."
+                )
+            if timeout_seconds <= 0:
+                raise ValueError(
+                    f"{llm_provider}: {provider.config_key('timeout')} must be "
+                    "greater than 0."
+                )
+
+            command = [
+                cli_path,
+                "-p",
+                prompt,
+                "--output-format",
+                "json",
+                "--system-prompt",
+                CLAUDE_CODE_SYSTEM_PROMPT,
+                "--disallowed-tools",
+                CLAUDE_CODE_DISALLOWED_TOOLS,
+                "--strict-mcp-config",
+            ]
+            # 模型名留空时沿用 CLI 自己的默认模型，避免这里硬编码的模型 ID
+            # 随订阅可用模型变化而失效。
+            if model_name:
+                command += ["--model", model_name]
+
+            logger.info(f"invoking claude cli, model: {model_name or 'cli default'}")
+            # CLI 会读取工作目录下的 CLAUDE.md 和项目设置，这些内容会污染
+            # 文案结果，因此固定在一个临时空目录中执行。
+            with tempfile.TemporaryDirectory() as work_dir:
+                try:
+                    completed = subprocess.run(
+                        command,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout_seconds,
+                        cwd=work_dir,
+                    )
+                except subprocess.TimeoutExpired:
+                    raise Exception(
+                        f"[{llm_provider}] claude cli timed out after "
+                        f"{timeout_seconds:.0f}s"
+                    )
+
+            # 未登录、用量耗尽这类失败同样会返回 JSON（`is_error` 为真，
+            # `result` 是可读原因），只是退出码非 0。因此先解析 stdout，
+            # 只有在拿不到 JSON 时才回退到退出码和 stderr。
+            stdout = (completed.stdout or "").strip()
+            try:
+                payload = json.loads(stdout) if stdout else None
+            except json.JSONDecodeError:
+                payload = None
+
+            if payload is None:
+                detail = (completed.stderr or stdout or "").strip()
+                if completed.returncode != 0:
+                    raise Exception(
+                        f"[{llm_provider}] claude cli exited with code "
+                        f"{completed.returncode}: {detail[:500]}"
+                    )
+                raise Exception(
+                    f'[{llm_provider}] returned an invalid response: "{detail[:500]}"'
+                )
+
+            if payload.get("is_error") or completed.returncode != 0:
+                reason = str(payload.get("result") or "").strip() or (
+                    f"claude cli exited with code {completed.returncode}"
+                )
+                # 容器里无法执行交互式 /login，这里直接给出可用的鉴权方式。
+                if "login" in reason.lower():
+                    reason += (
+                        " (run `claude setup-token` on the host and pass the token "
+                        "to the container as CLAUDE_CODE_OAUTH_TOKEN)"
+                    )
+                raise Exception(
+                    f'[{llm_provider}] returned an error response: "{reason[:500]}"'
+                )
+
+            return _normalize_text_response(payload.get("result"), llm_provider)
 
         if adapter == "modelscope":
             content = ""
