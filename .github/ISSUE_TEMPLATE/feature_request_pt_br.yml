@@ -1,0 +1,22 @@
+name: ✨ Recurso | Solicitação de funcionalidade
+description: Proponha uma nova ideia, melhoria ou funcionalidade para o projeto
+title: "[Feature]: "
+labels:
+  - enhancement
+
+body:
+  - type: textarea
+    attributes:
+      label: Descrição da necessidade
+      description: Descreva o problema, limitação ou necessidade que você deseja resolver.
+      placeholder: Durante o uso do projeto, preciso de...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Solução proposta
+      description: Descreva a solução ou forma de implementação que você considera adequada.
+      placeholder: Uma possível solução seria adicionar...
+    validations:
+      required: true
