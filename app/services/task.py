@@ -1470,6 +1470,18 @@ def _run_pipeline(
         )
         return {"subtitle_path": subtitle_path}
 
+    # 4b. Trim TTS silence gaps: inter-sentence gaps > 0.6s shrink to 0.3s,
+    # shifting subtitle timings. Failures are skipped silently.
+    if getattr(params, "trim_silence", True):
+        try:
+            from app.services import silence as silence_service
+
+            trimmed = silence_service.trim_silences(audio_file, subtitle_path)
+            if trimmed and trimmed[0] and trimmed[1]:
+                audio_file, audio_duration = trimmed
+        except Exception as e:
+            logger.warning(f"silence trim skipped: {type(e).__name__}")
+
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     # 5. Get video materials
