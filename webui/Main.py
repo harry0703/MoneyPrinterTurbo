@@ -1369,6 +1369,12 @@ def _apply_restored_params(params):
     bgm_type = params.get("bgm_type") or ""
     _set_stable_widget_value("bgm_type_select", bgm_type)
     _set_stable_widget_value("bgm_volume_select", params.get("bgm_volume", 0.2))
+    if bgm_type == "preset" and params.get("bgm_file"):
+        # 预设歌曲控件使用文件名作为稳定业务值。历史任务可能保存绝对路径或
+        # 相对路径，统一取 basename 后即可匹配当前安全枚举出的歌曲列表。
+        _set_stable_widget_value(
+            "preset_song_select", os.path.basename(str(params["bgm_file"]))
+        )
     st.session_state["custom_bgm_file_input"] = params.get("bgm_file") or ""
     st.session_state["sonilo_bgm_prompt_input"] = (
         params.get("video_music_prompt") or params.get("sonilo_bgm_prompt") or ""
@@ -2686,6 +2692,17 @@ def _build_settings_preset_payload(params, app_version):
         for key, value in params.items()
         if key not in PRESET_EXCLUDED_PARAM_KEYS
     }
+    if params.get("bgm_type") == "preset" and params.get("bgm_file"):
+        try:
+            builtin_bgm_path = bgm_service.resolve_builtin_bgm_file(
+                str(params["bgm_file"])
+            )
+        except ValueError:
+            # 自定义文件属于本机资源，不能进入可移植的设置预设。异常场景下保持
+            # 既有排除行为，避免导出文件包含绝对路径或另一台设备不存在的 UUID。
+            pass
+        else:
+            preset_params["bgm_file"] = Path(builtin_bgm_path).name
     return {
         "schema": SETTINGS_PRESET_SCHEMA,
         "version": SETTINGS_PRESET_VERSION,
@@ -2713,6 +2730,13 @@ def _parse_settings_preset(raw_bytes):
         for key, value in preset_params.items()
         if key not in PRESET_EXCLUDED_PARAM_KEYS
     }
+    if preset_params.get("bgm_type") == "preset" and preset_params.get("bgm_file"):
+        # 设置预设只能恢复当前版本真实存在的内置歌曲。服务层同时拒绝目录分隔符
+        # 和用户上传文件，防止导入文件借试听功能读取任意本机路径。
+        builtin_bgm_path = bgm_service.resolve_builtin_bgm_file(
+            str(preset_params["bgm_file"])
+        )
+        params_input["bgm_file"] = Path(builtin_bgm_path).name
     # video_subject 是 VideoParams 的必填字段，但预设允许只保存风格设置。
     params_input.setdefault("video_subject", "")
     return VideoParams.model_validate(params_input).model_dump(mode="json")
@@ -5610,20 +5634,60 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
             params.bgm_file = ""
 
     if params.bgm_type == "preset":
-        available_songs = bgm_service.list_bgm_filenames()
+        # 服务层已经统一完成扩展名、临时文件和符号链接校验。这里直接复用其
+        # 结果，避免 UI 维护第二套枚举规则，后续新增格式时也不会出现差异。
+        available_song_paths = bgm_service.list_builtin_bgm_files()
+        songs_by_name = {
+            os.path.basename(song_path): song_path for song_path in available_song_paths
+        }
+        available_songs = list(songs_by_name)
         if not available_songs:
-            st.warning(tr("No Background Music Available") if "No Background Music Available" in st.session_state else "No songs found in resource/songs.")
+            st.warning(tr("No Background Music Available"))
             params.bgm_file = ""
         else:
             default_preset_song = _saved_ui_text("preset_song", available_songs[0])
+            requested_preset_song = st.session_state.get(
+                localized_widget_key("preset_song_select"), default_preset_song
+            )
+            if requested_preset_song not in available_songs:
+                # 历史任务或其它版本导出的设置可能引用当前安装中不存在的歌曲。
+                # 明确提示后由 stable_selectbox 回退第一首，避免静默换歌。
+                st.warning(tr("Selected Background Music Unavailable"))
             selected_song = stable_selectbox(
                 tr("Preset Song"),
                 options=available_songs,
-                default_value=default_preset_song if default_preset_song in available_songs else available_songs[0],
+                default_value=(
+                    default_preset_song
+                    if default_preset_song in available_songs
+                    else available_songs[0]
+                ),
                 key="preset_song_select",
             )
             _set_runtime_config("ui", "preset_song", selected_song)
-            if bgm_enabled:
+            # 用户选择歌曲后立即提供在线试听。播放器读取的是刚刚通过服务层
+            # 白名单校验得到的真实路径，不接受页面输入的任意文件路径。
+            selected_song_path = songs_by_name[selected_song]
+            preview_mime_type = (
+                mimetypes.guess_type(selected_song_path)[0] or "audio/mpeg"
+            )
+            preview_available = True
+            try:
+                # Streamlit 读取路径失败时会把 OSError 包装成内部异常，导致下面
+                # 无法按文件错误处理。先自行读取字节，既保持播放器行为，也让
+                # Docker 挂载短暂失效、权限变化等情况稳定落入可控分支。
+                selected_song_bytes = Path(selected_song_path).read_bytes()
+            except OSError as exc:
+                preview_available = False
+                # 文件可能在枚举后被其它进程删除。试听失败不能中断页面或视频
+                # 参数编辑，但需要保留日志以便定位运行环境和挂载问题。
+                logger.warning(
+                    "failed to preview preset background music: "
+                    f"name={selected_song}, error={str(exc)}"
+                )
+                st.warning(tr("Background Music Preview Failed"))
+            else:
+                st.audio(selected_song_bytes, format=preview_mime_type)
+            if bgm_enabled and preview_available:
                 params.bgm_file = selected_song
             else:
                 params.bgm_file = ""

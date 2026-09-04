@@ -271,10 +271,10 @@ def save_bgm_upload(filename: str, source: BinaryIO) -> str:
         _remove_staged_file(temp_path)
 
 
-def list_bgm_files() -> list[str]:
-    """列出用户上传和内置的可用背景音乐。"""
+def _list_bgm_files(directories: tuple[str, ...]) -> list[str]:
+    """按目录优先级枚举安全且受支持的背景音乐文件。"""
     files_by_name: dict[str, str] = {}
-    for directory in (utils.song_dir(), uploaded_bgm_dir(create=True)):
+    for directory in directories:
         if not os.path.isdir(directory):
             continue
         for name in sorted(os.listdir(directory), key=str.lower):
@@ -300,24 +300,36 @@ def list_bgm_files() -> list[str]:
     return [files_by_name[name] for name in sorted(files_by_name, key=str.lower)]
 
 
-def list_bgm_filenames() -> list[str]:
-    """列出可用背景音乐的展示文件名。"""
-    files_by_name: dict[str, str] = {}
-    for directory in (utils.song_dir(), uploaded_bgm_dir(create=True)):
-        if not os.path.isdir(directory):
-            continue
-        for name in sorted(os.listdir(directory), key=str.lower):
-            if name.startswith(_INTERNAL_UPLOAD_PREFIX):
-                continue
-            if Path(name).suffix.lower() not in SUPPORTED_BGM_EXTENSIONS:
-                continue
-            file_path = os.path.join(directory, name)
-            try:
-                file_security.resolve_path_within_directory(directory, file_path)
-            except ValueError:
-                continue
-            files_by_name[name] = name
-    return sorted(files_by_name.keys(), key=str.lower)
+def list_builtin_bgm_files() -> list[str]:
+    """
+    列出随项目分发的内置背景音乐。
+
+    WebUI 的“预设歌曲”和设置预设导入导出只使用这一列表，确保保存的文件名
+    可以在另一台使用相同版本的设备上恢复；用户上传文件仍由自定义音乐管理。
+    """
+    return _list_bgm_files((utils.song_dir(),))
+
+
+def list_bgm_files() -> list[str]:
+    """列出用户上传和内置的可用背景音乐，重名时优先使用上传文件。"""
+    return _list_bgm_files((utils.song_dir(), uploaded_bgm_dir(create=True)))
+
+
+def resolve_builtin_bgm_file(unsafe_path: str) -> str:
+    """按文件名解析内置背景音乐，并拒绝路径、未知文件和用户上传文件。"""
+    if not unsafe_path:
+        raise ValueError("background music filename is required")
+
+    filename = str(unsafe_path)
+    if filename != os.path.basename(filename):
+        raise ValueError("preset background music must use a filename")
+
+    files_by_name = {
+        os.path.basename(file_path): file_path for file_path in list_builtin_bgm_files()
+    }
+    if filename not in files_by_name:
+        raise ValueError("preset background music is not available")
+    return files_by_name[filename]
 
 
 def resolve_bgm_file(unsafe_path: str) -> str:

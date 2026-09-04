@@ -6,6 +6,7 @@ import pytest
 
 from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
 from app.models.schema import VideoParams
+from app.services import bgm as bgm_service
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -76,7 +77,9 @@ def _load_settings_transfer_helpers():
 
     namespace = {
         "json": json,
+        "Path": Path,
         "VideoParams": VideoParams,
+        "bgm_service": bgm_service,
         "LLM_PROVIDER_REGISTRY": LLM_PROVIDER_REGISTRY,
         # _apply_key_backup 写配置并清理控件状态，两者都由测试替身记录，
         # 这样可以验证真实实现而不需要启动 Streamlit 会话。
@@ -170,6 +173,37 @@ def test_settings_preset_round_trip_preserves_generation_settings():
     assert restored["stroke_width"] == 2.5
     assert restored["voice_volume"] == 0.8
     assert restored["paragraph_number"] == 3
+
+
+def test_settings_preset_round_trip_preserves_builtin_bgm_filename():
+    params = VideoParams(
+        video_subject="a cat",
+        bgm_type="preset",
+        bgm_file="output000.mp3",
+    ).model_dump(mode="json")
+
+    payload = build_settings_preset_payload(params, "1")
+    restored = parse_settings_preset(_encode(payload))
+
+    assert payload["params"]["bgm_file"] == "output000.mp3"
+    assert restored["bgm_type"] == "preset"
+    assert restored["bgm_file"] == "output000.mp3"
+
+
+def test_settings_preset_rejects_unsafe_or_missing_builtin_bgm():
+    for bgm_file in ("../output000.mp3", "missing-preset-song.mp3"):
+        payload = {
+            "schema": SETTINGS_PRESET_SCHEMA,
+            "version": SETTINGS_PRESET_VERSION,
+            "params": {
+                "video_subject": "a cat",
+                "bgm_type": "preset",
+                "bgm_file": bgm_file,
+            },
+        }
+
+        with pytest.raises(ValueError):
+            parse_settings_preset(_encode(payload))
 
 
 def test_settings_preset_accepts_file_without_video_subject():
