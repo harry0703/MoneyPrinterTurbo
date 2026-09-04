@@ -1245,6 +1245,66 @@ class TestVoiceService(unittest.TestCase):
         self.assertNotIn("---", subtitle_content)
         self.assertNotIn("00:00:00,000 --> 00:00:00,000", subtitle_content)
 
+    def test_create_subtitle_word_level_preserves_edge_cue_timing(self):
+        """Edge TTS 的细粒度 cue 应逐项写入，不能再被按标点聚合。"""
+        sub_maker = SimpleNamespace(
+            cues=[
+                SimpleNamespace(
+                    content="人工智能",
+                    start=timedelta(seconds=0.1),
+                    end=timedelta(seconds=0.8),
+                ),
+                SimpleNamespace(
+                    content="正在",
+                    start=timedelta(seconds=0.9),
+                    end=timedelta(seconds=1.2),
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "word-level.srt"
+            vs.create_subtitle(
+                sub_maker=sub_maker,
+                text="人工智能正在发展。",
+                subtitle_file=str(subtitle_file),
+                word_level=True,
+            )
+            subtitle_content = subtitle_file.read_text(encoding="utf-8")
+
+        self.assertIn("00:00:00,100 --> 00:00:00,800", subtitle_content)
+        self.assertIn("人工智能", subtitle_content)
+        self.assertIn("00:00:00,900 --> 00:00:01,200", subtitle_content)
+        self.assertIn("正在", subtitle_content)
+
+    def test_create_subtitle_word_level_falls_back_to_provider_granularity(self):
+        """
+        旧版 SubMaker 没有 cue 时，应保留语音服务返回的原始时间粒度。
+
+        ElevenLabs、Fish Audio 等服务可能只返回短语或整句时间轴。此时不能
+        按字符平均拆分并伪造逐词精度，否则字幕会逐渐偏离真实语音。
+        """
+        sub_maker = SimpleNamespace(
+            cues=[],
+            subs=["Hello world"],
+            # 旧版 SubMaker 的 offset 使用 100 纳秒为单位的整数时间戳。
+            offset=[(2_000_000, 11_000_000)],
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "word-level-fallback.srt"
+            vs.create_subtitle(
+                sub_maker=sub_maker,
+                text="Hello world",
+                subtitle_file=str(subtitle_file),
+                word_level=True,
+            )
+            subtitle_content = subtitle_file.read_text(encoding="utf-8")
+
+        self.assertEqual(subtitle_content.count(" --> "), 1)
+        self.assertIn("00:00:00,200 --> 00:00:01,100", subtitle_content)
+        self.assertIn("Hello world", subtitle_content)
+
     def test_create_subtitle_ignores_markdown_underscore_marks(self):
         """
         `_` 常被用户用作 Markdown 强调标记，但 TTS 返回的 cue 通常不包含

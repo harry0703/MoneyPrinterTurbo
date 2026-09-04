@@ -81,6 +81,45 @@ class TestSubtitleService(unittest.TestCase):
 
         self.assertEqual([item[2] for item in items], ["Hello world", "Again"])
 
+    def test_create_word_level_writes_each_whisper_word_with_its_timing(self):
+        """逐词模式应保留 Whisper 的每个词及其独立起止时间。"""
+        transcribe_kwargs = {}
+
+        class _FakeWhisperModel:
+            def __init__(self, **_kwargs):
+                pass
+
+            def transcribe(self, _audio_file, **kwargs):
+                transcribe_kwargs.update(kwargs)
+                words = [
+                    SimpleNamespace(start=0.1, end=0.4, word="Hello"),
+                    SimpleNamespace(start=0.4, end=0.8, word=" world"),
+                ]
+                segment = SimpleNamespace(start=0.1, end=0.8, words=words)
+                info = SimpleNamespace(language="en", language_probability=0.99)
+                return [segment], info
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "word-level.srt"
+            with patch.object(subtitle, "model", None), patch.object(
+                subtitle,
+                "WhisperModel",
+                _FakeWhisperModel,
+            ):
+                subtitle.create(
+                    "audio.mp3",
+                    str(subtitle_file),
+                    word_level=True,
+                )
+
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+
+        self.assertEqual([item[2] for item in items], ["Hello", "world"])
+        self.assertIs(transcribe_kwargs["word_timestamps"], True)
+        self.assertIs(transcribe_kwargs["vad_filter"], True)
+        self.assertIn("00:00:00,100 --> 00:00:00,400", items[0][1])
+        self.assertIn("00:00:00,400 --> 00:00:00,800", items[1][1])
+
     def test_correct_ignores_markdown_separator_lines(self):
         """
         Whisper fallback 校正阶段也必须忽略 `---` 这类不可发声脚本行。

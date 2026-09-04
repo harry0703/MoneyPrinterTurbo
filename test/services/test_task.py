@@ -987,9 +987,12 @@ class TestTaskService(unittest.TestCase):
             video_subject="custom audio",
             video_script="Hello world.",
             subtitle_enabled=True,
+            # 测试整句校正路径时必须显式指定模式，不能继承开发机 WebUI 偏好。
+            subtitle_display_mode="sentence",
         )
 
-        def fake_whisper_create(audio_file, subtitle_file):
+        def fake_whisper_create(audio_file, subtitle_file, word_level=False):
+            self.assertFalse(word_level)
             Path(subtitle_file).write_text(
                 "1\n00:00:00,000 --> 00:00:01,000\nHello world.\n\n",
                 encoding="utf-8",
@@ -1019,11 +1022,68 @@ class TestTaskService(unittest.TestCase):
 
         self.assertTrue(subtitle_path.endswith("subtitle.srt"))
         create.assert_called_once_with(
-            audio_file=audio_file, subtitle_file=subtitle_path
+            audio_file=audio_file,
+            subtitle_file=subtitle_path,
+            word_level=False,
         )
         correct.assert_called_once_with(
             subtitle_file=subtitle_path, video_script="Hello world."
         )
+
+    def test_generate_subtitle_uses_whisper_word_timing_without_correction(self):
+        """
+        逐词模式必须把 word_level 传给 Whisper，并跳过按整句文案纠正。
+
+        若继续执行 correct()，刚生成的逐词条目会被重新聚合，界面虽然选择
+        逐词显示，最终视频却仍会按句显示。
+        """
+        task_id = "test-custom-audio-whisper-word-subtitle"
+        task_dir = utils.task_dir(task_id)
+        audio_file = os.path.join(task_dir, "custom-audio.mp3")
+        Path(audio_file).write_bytes(b"fake audio")
+        params = VideoParams(
+            video_subject="custom audio",
+            video_script="Hello world.",
+            subtitle_enabled=True,
+            subtitle_display_mode="word_by_word",
+        )
+
+        def fake_whisper_create(audio_file, subtitle_file, word_level=False):
+            self.assertTrue(word_level)
+            Path(subtitle_file).write_text(
+                "1\n00:00:00,000 --> 00:00:00,500\nHello\n\n",
+                encoding="utf-8",
+            )
+
+        try:
+            with (
+                patch.object(
+                    tm.config,
+                    "app",
+                    dict(tm.config.app, subtitle_provider="whisper"),
+                ),
+                patch.object(
+                    tm.subtitle, "create", side_effect=fake_whisper_create
+                ) as create,
+                patch.object(tm.subtitle, "correct") as correct,
+            ):
+                subtitle_path = tm.generate_subtitle(
+                    task_id=task_id,
+                    params=params,
+                    video_script="Hello world.",
+                    sub_maker=None,
+                    audio_file=audio_file,
+                )
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+
+        self.assertTrue(subtitle_path.endswith("subtitle.srt"))
+        create.assert_called_once_with(
+            audio_file=audio_file,
+            subtitle_file=subtitle_path,
+            word_level=True,
+        )
+        correct.assert_not_called()
 
     def test_generate_subtitle_skips_edge_provider_without_sub_maker(self):
         """

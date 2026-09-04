@@ -2291,8 +2291,12 @@ def reset_subtitle_settings():
     st.session_state["subtitle_enabled_checkbox"] = defaults["subtitle_enabled"]
     _set_stable_widget_value("font_name_select", defaults["font_name"])
     _set_stable_widget_value("subtitle_position_select", defaults["subtitle_position"])
-    _set_stable_widget_value("subtitle_display_mode_select", defaults.get("subtitle_display_mode", "sentence"))
-    _set_stable_widget_value("subtitle_animation_select", defaults.get("subtitle_animation", "none"))
+    _set_stable_widget_value(
+        "subtitle_display_mode_select", defaults["subtitle_display_mode"]
+    )
+    _set_stable_widget_value(
+        "subtitle_animation_select", defaults["subtitle_animation"]
+    )
     st.session_state["custom_position_input"] = str(defaults["custom_position"])
     st.session_state["font_color_picker"] = defaults["text_fore_color"]
     st.session_state["font_size_slider"] = defaults["font_size"]
@@ -5718,7 +5722,7 @@ def _render_audio_settings(panel, params):
             # Provider 下拉只负责选择自动配音服务；无配音已经由上方模式控制，
             # 不再作为 TTS Provider 混入列表，避免两个入口表达同一状态。
             tts_servers = [
-                ("azure-tts-v1", "Azure TTS V1"),
+                ("azure-tts-v1", "Azure TTS V1 (Edge TTS)"),
                 ("azure-tts-v2", "Azure TTS V2"),
                 ("siliconflow", "SiliconFlow TTS"),
                 ("gemini-tts", "Google Gemini TTS"),
@@ -6256,7 +6260,8 @@ def _render_subtitle_settings(panel, params):
                 (tr("Single Word (Word by Word)"), "word_by_word"),
             ]
             saved_display_mode = config.ui.get(
-                "subtitle_display_mode", DEFAULT_SUBTITLE_SETTINGS.get("subtitle_display_mode", "sentence")
+                "subtitle_display_mode",
+                DEFAULT_SUBTITLE_SETTINGS["subtitle_display_mode"],
             )
             saved_mode_idx = 0
             for i, (_, mode_val) in enumerate(subtitle_display_modes):
@@ -6271,10 +6276,13 @@ def _render_subtitle_settings(panel, params):
                 format_func=lambda value: dict(
                     (v, label) for label, v in subtitle_display_modes
                 ).get(value, value),
+                help=tr("Word-by-word Timing Help"),
                 disabled=subtitle_settings_disabled,
             )
             params.subtitle_display_mode = selected_display_mode
-            _set_runtime_config("ui", "subtitle_display_mode", params.subtitle_display_mode)
+            _set_runtime_config(
+                "ui", "subtitle_display_mode", params.subtitle_display_mode
+            )
 
             # Subtitle Animation (None vs Pop Spring)
             subtitle_animations = [
@@ -6282,7 +6290,8 @@ def _render_subtitle_settings(panel, params):
                 (tr("Pop Up (Spring)"), "pop_spring"),
             ]
             saved_anim = config.ui.get(
-                "subtitle_animation", DEFAULT_SUBTITLE_SETTINGS.get("subtitle_animation", "none")
+                "subtitle_animation",
+                DEFAULT_SUBTITLE_SETTINGS["subtitle_animation"],
             )
             saved_anim_idx = 0
             for i, (_, anim_val) in enumerate(subtitle_animations):
@@ -6300,7 +6309,9 @@ def _render_subtitle_settings(panel, params):
                 disabled=subtitle_settings_disabled,
             )
             params.subtitle_animation = selected_anim
-            _set_runtime_config("ui", "subtitle_animation", params.subtitle_animation)
+            _set_runtime_config(
+                "ui", "subtitle_animation", params.subtitle_animation
+            )
 
             if params.subtitle_position == "custom":
                 saved_custom_position = config.ui.get(

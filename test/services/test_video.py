@@ -63,6 +63,60 @@ class TestVideoService(unittest.TestCase):
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
 
+    def test_subtitle_spring_animation_keeps_color_and_mask_aligned(self):
+        """
+        弹跳动画必须同步缩放颜色帧和透明蒙版。
+
+        旧实现只缩放颜色帧，首帧仍使用原尺寸蒙版，合成后会短暂出现黑色
+        文字轮廓。使用纯白画面和完整蒙版可以精确比较二者的有效像素区域。
+        """
+        color_frame = vd.np.full((20, 30, 3), 255, dtype=vd.np.uint8)
+        mask_frame = vd.np.ones((20, 30), dtype=float)
+        clip = (
+            ImageClip(color_frame)
+            .with_mask(ImageClip(mask_frame, is_mask=True))
+            .with_duration(1)
+        )
+        animated = vd._apply_subtitle_spring_animation(clip, 1)
+
+        try:
+            initial_color = vd.np.any(animated.get_frame(0) > 0, axis=2)
+            initial_mask = animated.mask.get_frame(0) > 0
+            vd.np.testing.assert_array_equal(initial_color, initial_mask)
+            self.assertLess(initial_color.sum(), color_frame.shape[0] * color_frame.shape[1])
+
+            # 动画结束后必须精确恢复原始尺寸，避免长字幕持续模糊或缩放。
+            settled_color = animated.get_frame(
+                vd._SUBTITLE_SPRING_DURATION_SECONDS
+            )
+            settled_mask = animated.mask.get_frame(
+                vd._SUBTITLE_SPRING_DURATION_SECONDS
+            )
+            vd.np.testing.assert_array_equal(settled_color, color_frame)
+            vd.np.testing.assert_array_equal(settled_mask, mask_frame)
+        finally:
+            vd.close_clip(animated)
+            vd.close_clip(clip)
+
+    def test_subtitle_spring_scale_handles_time_boundaries(self):
+        """零时长、负时间和动画结束点都不能产生除零或非法缩放比例。"""
+        duration = vd._SUBTITLE_SPRING_DURATION_SECONDS
+
+        self.assertEqual(vd._get_subtitle_spring_scale(0, duration), 0.05)
+        self.assertEqual(vd._get_subtitle_spring_scale(-1, duration), 0.05)
+        self.assertEqual(vd._get_subtitle_spring_scale(duration, duration), 1.0)
+        self.assertEqual(vd._get_subtitle_spring_scale(1, 0), 1.0)
+
+    def test_scale_subtitle_frame_rejects_unsupported_shapes(self):
+        """异常通道或维度应明确失败，避免把损坏帧继续交给视频编码器。"""
+        with self.assertRaisesRegex(ValueError, "2D mask or 3D color"):
+            vd._scale_subtitle_frame_on_canvas(vd.np.zeros((8,)), 0.5)
+        with self.assertRaisesRegex(ValueError, "RGB or RGBA"):
+            vd._scale_subtitle_frame_on_canvas(
+                vd.np.zeros((8, 8, 2), dtype=vd.np.uint8),
+                0.5,
+            )
+
     def test_fit_clip_cover_fills_portrait_canvas_without_black_bars(self):
         source_color = [17, 34, 51]
         source = ImageClip(
