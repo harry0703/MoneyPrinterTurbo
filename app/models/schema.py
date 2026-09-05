@@ -88,6 +88,59 @@ class MaterialInfo:
     source_info: Optional[dict[str, Any]] = None
 
 
+class SceneConfig(BaseModel):
+    """Description of a single scene within a video.
+
+    Each scene can have its own script text, search keywords, materials,
+    duration, and transition to the next scene. When scenes are defined,
+    the video pipeline processes each scene independently before combining
+    them into the final output.
+    """
+
+    scene_id: int = Field(
+        default=0,
+        ge=0,
+        description="Scene number (1-based). Auto-assigned if 0.",
+    )
+    script: str = Field(
+        default="",
+        max_length=8000,
+        description="Scene narration text. If empty, uses the full video_script.",
+    )
+    search_terms: Optional[List[str]] = Field(
+        default=None,
+        description="Keywords for material search. If empty, LLM generates from script.",
+    )
+    materials: Optional[List[MaterialInfo]] = Field(
+        default=None,
+        description="Local materials for this scene. Overrides search_terms.",
+    )
+    duration: Optional[float] = Field(
+        default=None,
+        ge=0.5,
+        description=(
+            "Target scene duration in seconds. Currently accepted but not yet used "
+            "to trim or extend the scene — the actual duration is determined by the "
+            "TTS audio length. Reserved for future use."
+        ),
+    )
+    transition: Optional[VideoTransitionMode] = Field(
+        default=None,
+        description=(
+            "Transition applied to the FIRST clip of this scene. "
+            "Used at the boundary between this scene and the previous one. "
+            "Not applied to the first scene (there is no previous scene to transition from)."
+        ),
+    )
+    clip_transition: Optional[VideoTransitionMode] = Field(
+        default=None,
+        description=(
+            "Transition applied between clips WITHIN this scene. "
+            "Independent from the between-scene transition."
+        ),
+    )
+
+
 class VideoParams(BaseModel):
     """
     {
@@ -159,6 +212,31 @@ class VideoParams(BaseModel):
     paragraph_number: int = Field(default=1, ge=1, le=10)
     video_script_prompt: str = Field(default="", max_length=2000)
     custom_system_prompt: str = Field(default="", max_length=8000)
+
+    # Scene-based video generation. When set, the pipeline processes each
+    # scene independently (its own script, keywords, materials, audio,
+    # subtitles) before combining them into the final video. If None or
+    # empty, the standard single-script pipeline is used.
+    scenes: Optional[List[SceneConfig]] = None
+
+    # Default transition applied between scenes at scene boundaries.
+    # Can be overridden per-scene via SceneConfig.transition.
+    scene_transition: Optional[VideoTransitionMode] = Field(
+        default=None,
+        description=(
+            "Default transition between scenes. Per-scene transition "
+            "in SceneConfig.transition takes precedence."
+        ),
+    )
+    # Default transition applied between clips WITHIN each scene.
+    # Can be overridden per-scene via SceneConfig.clip_transition.
+    clip_transition: Optional[VideoTransitionMode] = Field(
+        default=None,
+        description=(
+            "Default transition between clips within a scene. Per-scene "
+            "clip_transition in SceneConfig takes precedence."
+        ),
+    )
 
 
 class SubtitleRequest(BaseModel):
