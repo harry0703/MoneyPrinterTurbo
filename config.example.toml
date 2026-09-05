@@ -453,6 +453,12 @@ postiz_max_pending_tasks = 10
 postiz_youtube_integration_id = ""
 postiz_instagram_integration_id = ""
 postiz_tiktok_integration_id = ""
+postiz_x_integration_id = ""
+postiz_linkedin_integration_id = ""
+postiz_reddit_integration_id = ""
+postiz_reddit_subreddit = ""
+# TikTok autoAddMusic must be the string "yes" or "no".
+postiz_tiktok_auto_add_music = "no"
 
 # =============================================================================
 # Whisper Subtitles / Whisper 字幕

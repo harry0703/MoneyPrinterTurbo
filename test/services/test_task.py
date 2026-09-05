@@ -35,6 +35,10 @@ class TestTaskService(unittest.TestCase):
         with tm._cross_post_registry_lock:
             tm._cross_post_futures.clear()
 
+    @staticmethod
+    def _postiz_service():
+        return tm.PUBLISHING_PROVIDER_REGISTRY["postiz"]
+
     def test_is_task_busy_covers_generation_and_cross_posting(self):
         """删除入口必须同时识别视频生成和跨平台发布的活跃状态。"""
         busy_tasks = (
@@ -1224,7 +1228,14 @@ class TestTaskService(unittest.TestCase):
                 "is_configured",
                 return_value=False,
             ),
-            patch.object(tm.upload_post, "cross_post_video") as cross_post,
+            patch.object(
+                tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                "is_configured",
+                return_value=False,
+            ),
+            patch.object(
+                tm.upload_post.upload_post_service, "upload_video"
+            ) as upload_video,
             patch.object(tm.sm.state, "update_task") as update_task,
         ):
             result = tm.start("complete-video", params)
@@ -1233,7 +1244,7 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(result["combined_videos"], ["combined.mp4"])
         self.assertEqual(result["cross_post_results"], None)
         self.assertEqual(params.video_concat_mode, tm.VideoConcatMode.sequential)
-        cross_post.assert_not_called()
+        upload_video.assert_not_called()
         update_task.assert_called_with(
             "complete-video",
             state=tm.const.TASK_STATE_COMPLETE,
@@ -1373,18 +1384,23 @@ class TestTaskService(unittest.TestCase):
             patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["youtube"]),
             patch.object(type(service), "youtube_privacy_status", new_callable=PropertyMock, return_value="unlisted"),
             patch.object(
+                tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                "is_configured",
+                return_value=False,
+            ),
+            patch.object(
                 tm.llm,
                 "generate_social_metadata",
                 return_value=metadata,
             ) as generate_metadata,
             patch.object(
-                tm.upload_post,
-                "cross_post_video",
+                service,
+                "upload_video",
                 side_effect=[
                     {"success": True},
                     {"success": False, "error": "upload failed"},
                 ],
-            ) as cross_post,
+            ) as upload_video,
             patch.object(tm.sm, "state", state),
             patch.object(
                 tm._cross_post_executor,
@@ -1407,8 +1423,8 @@ class TestTaskService(unittest.TestCase):
             "privacyStatus": "unlisted",
             "containsSyntheticMedia": True,
         }
-        self.assertEqual(cross_post.call_count, 2)
-        for call in cross_post.call_args_list:
+        self.assertEqual(upload_video.call_count, 2)
+        for call in upload_video.call_args_list:
             self.assertEqual(call.kwargs["youtube_extra"], expected_extra)
             self.assertEqual(call.kwargs["platforms"], ["youtube"])
 
@@ -1460,7 +1476,12 @@ class TestTaskService(unittest.TestCase):
             patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
             patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["tiktok"]),
             patch.object(type(service), "youtube_privacy_status", new_callable=PropertyMock, return_value="private"),
-            patch.object(tm.upload_post, "cross_post_video") as cross_post,
+            patch.object(
+                tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                "is_configured",
+                return_value=False,
+            ),
+            patch.object(service, "upload_video") as upload_video,
             patch.object(tm.sm, "state", state),
             patch.object(
                 tm._cross_post_executor,
@@ -1471,7 +1492,7 @@ class TestTaskService(unittest.TestCase):
             result = tm.start("deferred-cross-post", params)
 
         submit.assert_called_once()
-        cross_post.assert_not_called()
+        upload_video.assert_not_called()
         self.assertEqual(result["videos"], ["final.mp4"])
         self.assertEqual(result["cross_post_state"], tm.const.CROSS_POST_STATE_PENDING)
         completed_task = state.get_task("deferred-cross-post")
@@ -1481,9 +1502,17 @@ class TestTaskService(unittest.TestCase):
         worker, worker_args = submitted[0]
         with (
             patch.object(tm.sm, "state", state),
+            patch.object(service, "is_configured", return_value=True),
+            patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
+            patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["tiktok"]),
             patch.object(
-                tm.upload_post,
-                "cross_post_video",
+                tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                "is_configured",
+                return_value=False,
+            ),
+            patch.object(
+                service,
+                "upload_video",
                 return_value={"success": True, "request_id": "upload-1"},
             ),
         ):
@@ -1513,7 +1542,7 @@ class TestTaskService(unittest.TestCase):
                 "generate_social_metadata",
                 side_effect=RuntimeError("metadata provider unavailable"),
             ),
-            patch.object(tm.upload_post, "cross_post_video") as cross_post,
+            patch.object(tm.upload_post.upload_post_service, "upload_video") as upload_video,
         ):
             tm._run_cross_post(
                 "cross-post-worker-failure",
@@ -1525,7 +1554,7 @@ class TestTaskService(unittest.TestCase):
                 "private",
             )
 
-        cross_post.assert_not_called()
+        upload_video.assert_not_called()
         task = state.get_task("cross-post-worker-failure")
         self.assertEqual(task["state"], tm.const.TASK_STATE_COMPLETE)
         self.assertEqual(task["videos"], ["final.mp4"])
@@ -1649,7 +1678,7 @@ class TestTaskService(unittest.TestCase):
 
         with (
             patch.object(tm.sm, "state", state),
-            patch.object(tm.upload_post, "cross_post_video") as cross_post,
+            patch.object(tm.upload_post.upload_post_service, "upload_video") as upload_video,
             patch.object(tm.logger, "exception") as log_exception,
             patch.object(tm.time, "sleep") as sleep,
         ):
@@ -1663,7 +1692,7 @@ class TestTaskService(unittest.TestCase):
                 "private",
             )
 
-        cross_post.assert_not_called()
+        upload_video.assert_not_called()
         self.assertEqual(state.patch_task.call_count, 6)
         self.assertEqual(sleep.call_count, 4)
         self.assertEqual(log_exception.call_count, 2)
@@ -1697,13 +1726,22 @@ class TestTaskService(unittest.TestCase):
             cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
         )
 
+        service = tm.upload_post.upload_post_service
         with (
             patch.object(tm.sm, "state", state),
+            patch.object(service, "is_configured", return_value=True),
+            patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
+            patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["tiktok"]),
             patch.object(
-                tm.upload_post,
-                "cross_post_video",
+                tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                "is_configured",
+                return_value=False,
+            ),
+            patch.object(
+                service,
+                "upload_video",
                 return_value={"success": True, "request_id": "upload-1"},
-            ) as cross_post,
+            ) as upload_video,
             patch.object(tm.time, "sleep") as sleep,
         ):
             tm._run_cross_post(
@@ -1717,7 +1755,7 @@ class TestTaskService(unittest.TestCase):
             )
 
         sleep.assert_called_once_with(tm._CROSS_POST_STATE_RETRY_DELAY_SECONDS)
-        cross_post.assert_called_once()
+        upload_video.assert_called_once()
         task = state.get_task("transient-state-failure")
         self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_COMPLETE)
         self.assertIsNone(task["cross_post_error"])
@@ -1748,6 +1786,7 @@ class TestTaskService(unittest.TestCase):
                     videos=["final.mp4"],
                     cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
                 )
+                service = tm.upload_post.upload_post_service
                 with (
                     patch.object(tm.sm, "state", state),
                     patch.object(
@@ -1755,11 +1794,19 @@ class TestTaskService(unittest.TestCase):
                         "generate_social_metadata",
                         return_value=metadata,
                     ) as generate_metadata,
+                    patch.object(service, "is_configured", return_value=True),
+                    patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
+                    patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=list(platforms)),
                     patch.object(
-                        tm.upload_post,
-                        "cross_post_video",
+                        tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                        "is_configured",
+                        return_value=False,
+                    ),
+                    patch.object(
+                        service,
+                        "upload_video",
                         return_value={"success": True},
-                    ) as cross_post,
+                    ) as upload_video,
                 ):
                     tm._run_cross_post(
                         task_id,
@@ -1777,8 +1824,8 @@ class TestTaskService(unittest.TestCase):
                     language="en",
                     platform=expected_platform,
                 )
-                cross_post.assert_called_once()
-                call = cross_post.call_args
+                upload_video.assert_called_once()
+                call = upload_video.call_args
                 self.assertEqual(call.kwargs["title"], "Watch this coffee ritual.")
                 self.assertEqual(call.kwargs["platforms"], list(platforms))
                 self.assertIsNone(call.kwargs["youtube_extra"])
@@ -1803,6 +1850,7 @@ class TestTaskService(unittest.TestCase):
             cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
         )
 
+        service = tm.upload_post.upload_post_service
         with (
             patch.object(tm.sm, "state", state),
             patch.object(
@@ -1810,11 +1858,19 @@ class TestTaskService(unittest.TestCase):
                 "generate_social_metadata",
                 return_value=metadata,
             ) as generate_metadata,
+            patch.object(service, "is_configured", return_value=True),
+            patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
+            patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["youtube"]),
             patch.object(
-                tm.upload_post,
-                "cross_post_video",
+                tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                "is_configured",
+                return_value=False,
+            ),
+            patch.object(
+                service,
+                "upload_video",
                 return_value={"success": True},
-            ) as cross_post,
+            ) as upload_video,
         ):
             tm._run_cross_post(
                 "shared-youtube-metadata",
@@ -1839,8 +1895,8 @@ class TestTaskService(unittest.TestCase):
             "privacyStatus": "unlisted",
             "containsSyntheticMedia": True,
         }
-        self.assertEqual(cross_post.call_count, 2)
-        for call in cross_post.call_args_list:
+        self.assertEqual(upload_video.call_count, 2)
+        for call in upload_video.call_args_list:
             self.assertEqual(call.kwargs["title"], "A better morning.")
             self.assertEqual(call.kwargs["youtube_extra"], expected_extra)
 
@@ -1866,6 +1922,7 @@ class TestTaskService(unittest.TestCase):
                     videos=["final.mp4"],
                     cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
                 )
+                service = tm.upload_post.upload_post_service
                 with (
                     patch.object(tm.sm, "state", state),
                     patch.object(
@@ -1873,11 +1930,19 @@ class TestTaskService(unittest.TestCase):
                         "generate_social_metadata",
                         return_value=metadata,
                     ) as generate_metadata,
+                    patch.object(service, "is_configured", return_value=True),
+                    patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
+                    patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["tiktok"]),
                     patch.object(
-                        tm.upload_post,
-                        "cross_post_video",
+                        tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                        "is_configured",
+                        return_value=False,
+                    ),
+                    patch.object(
+                        service,
+                        "upload_video",
                         return_value={"success": True},
-                    ) as cross_post,
+                    ) as upload_video,
                 ):
                     tm._run_cross_post(
                         task_id,
@@ -1890,8 +1955,254 @@ class TestTaskService(unittest.TestCase):
                     )
 
                 generate_metadata.assert_called_once()
-                cross_post.assert_called_once()
-                self.assertEqual(cross_post.call_args.kwargs["title"], expected_title)
+                upload_video.assert_called_once()
+                self.assertEqual(upload_video.call_args.kwargs["title"], expected_title)
+
+    def test_start_schedules_cross_post_for_postiz_only_config(self):
+        """upload-post off + Postiz configured with auto_upload schedules a worker."""
+        params = VideoParams(video_subject="Coffee")
+        upload_service = tm.upload_post.upload_post_service
+        postiz_service = tm.PUBLISHING_PROVIDER_REGISTRY["postiz"]
+        state = MemoryState()
+        submitted = []
+
+        def capture_submission(function, *args):
+            submitted.append((function, args))
+            return MagicMock(spec=Future)
+
+        with (
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]),
+            patch.object(tm, "save_script_data"),
+            patch.object(
+                tm, "generate_audio", return_value=("audio.mp3", 5, object())
+            ),
+            patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+            patch.object(tm, "get_video_materials", return_value=["clip.mp4"]),
+            patch.object(
+                tm,
+                "generate_final_videos",
+                return_value=(["final.mp4"], ["combined.mp4"], []),
+            ),
+            patch.object(upload_service, "is_configured", return_value=False),
+            patch.object(postiz_service, "is_configured", return_value=True),
+            patch.object(
+                type(postiz_service),
+                "auto_upload",
+                new_callable=PropertyMock,
+                return_value=True,
+            ),
+            patch.object(
+                type(postiz_service),
+                "platforms",
+                new_callable=PropertyMock,
+                return_value=["youtube"],
+            ),
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm._cross_post_executor,
+                "submit",
+                side_effect=capture_submission,
+            ) as submit,
+        ):
+            result = tm.start("postiz-only-cross-post", params)
+
+        submit.assert_called_once()
+        self.assertEqual(result["cross_post_state"], tm.const.CROSS_POST_STATE_PENDING)
+        self.assertIsNone(result["cross_post_results"])
+        persisted = state.get_task("postiz-only-cross-post")
+        self.assertEqual(persisted["cross_post_state"], tm.const.CROSS_POST_STATE_PENDING)
+
+        worker, worker_args = submitted[0]
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(upload_service, "is_configured", return_value=False),
+            patch.object(postiz_service, "is_configured", return_value=True),
+            patch.object(
+                type(postiz_service),
+                "auto_upload",
+                new_callable=PropertyMock,
+                return_value=True,
+            ),
+            patch.object(
+                type(postiz_service),
+                "platforms",
+                new_callable=PropertyMock,
+                return_value=["youtube"],
+            ),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "Coffee", "caption": "Sip.", "hashtags": []},
+            ),
+            patch.object(
+                postiz_service,
+                "upload_video",
+                return_value={"success": True, "results": [{"platform": "youtube", "success": True}]},
+            ) as postiz_upload,
+            patch.object(upload_service, "upload_video") as upload_post_upload,
+        ):
+            worker(*worker_args)
+
+        postiz_upload.assert_called_once()
+        upload_post_upload.assert_not_called()
+        published = state.get_task("postiz-only-cross-post")
+        self.assertEqual(published["cross_post_state"], tm.const.CROSS_POST_STATE_COMPLETE)
+
+    def test_start_invokes_both_providers_when_mixed_config(self):
+        """Both upload-post and Postiz configured + auto_upload invoke both upload_video."""
+        params = VideoParams(video_subject="Coffee")
+        upload_service = tm.upload_post.upload_post_service
+        postiz_service = tm.PUBLISHING_PROVIDER_REGISTRY["postiz"]
+        state = MemoryState()
+
+        def run_immediately(function, *args):
+            future = Future()
+            try:
+                function(*args)
+            except Exception as exc:
+                future.set_exception(exc)
+            else:
+                future.set_result(None)
+            return future
+
+        with (
+            patch.object(tm, "generate_script", return_value="generated script"),
+            patch.object(tm, "generate_terms", return_value=["coffee"]),
+            patch.object(tm, "save_script_data"),
+            patch.object(
+                tm, "generate_audio", return_value=("audio.mp3", 5, object())
+            ),
+            patch.object(tm, "generate_subtitle", return_value="subtitle.srt"),
+            patch.object(tm, "get_video_materials", return_value=["clip.mp4"]),
+            patch.object(
+                tm,
+                "generate_final_videos",
+                return_value=(["final.mp4"], ["combined.mp4"], []),
+            ),
+            patch.object(upload_service, "is_configured", return_value=True),
+            patch.object(
+                type(upload_service),
+                "auto_upload",
+                new_callable=PropertyMock,
+                return_value=True,
+            ),
+            patch.object(
+                type(upload_service),
+                "platforms",
+                new_callable=PropertyMock,
+                return_value=["tiktok"],
+            ),
+            patch.object(postiz_service, "is_configured", return_value=True),
+            patch.object(
+                type(postiz_service),
+                "auto_upload",
+                new_callable=PropertyMock,
+                return_value=True,
+            ),
+            patch.object(
+                type(postiz_service),
+                "platforms",
+                new_callable=PropertyMock,
+                return_value=["youtube"],
+            ),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "Coffee", "caption": "Sip.", "hashtags": []},
+            ),
+            patch.object(
+                upload_service,
+                "upload_video",
+                return_value={"success": True},
+            ) as upload_post_upload,
+            patch.object(
+                postiz_service,
+                "upload_video",
+                return_value={"success": True},
+            ) as postiz_upload,
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm._cross_post_executor,
+                "submit",
+                side_effect=run_immediately,
+            ),
+        ):
+            result = tm.start("mixed-provider-cross-post", params)
+
+        self.assertEqual(result["cross_post_state"], tm.const.CROSS_POST_STATE_PENDING)
+        upload_post_upload.assert_called_once()
+        postiz_upload.assert_called_once()
+        published = state.get_task("mixed-provider-cross-post")
+        self.assertEqual(published["cross_post_state"], tm.const.CROSS_POST_STATE_COMPLETE)
+
+    def test_cross_post_error_summarizes_nested_platform_failures(self):
+        """Missing top-level error still records platform names from results[]."""
+        state = MemoryState()
+        state.update_task(
+            "nested-platform-failure",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+        upload_service = tm.upload_post.upload_post_service
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(upload_service, "is_configured", return_value=False),
+            patch.object(
+                tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                "is_configured",
+                return_value=True,
+            ),
+            patch.object(
+                type(tm.PUBLISHING_PROVIDER_REGISTRY["postiz"]),
+                "auto_upload",
+                new_callable=PropertyMock,
+                return_value=True,
+            ),
+            patch.object(
+                type(tm.PUBLISHING_PROVIDER_REGISTRY["postiz"]),
+                "platforms",
+                new_callable=PropertyMock,
+                return_value=["youtube", "instagram"],
+            ),
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "Coffee", "caption": "Sip.", "hashtags": []},
+            ),
+            patch.object(
+                tm.PUBLISHING_PROVIDER_REGISTRY["postiz"],
+                "upload_video",
+                return_value={
+                    "success": False,
+                    "results": [
+                        {"platform": "youtube", "success": True, "post_id": "yt1"},
+                        {
+                            "platform": "instagram",
+                            "success": False,
+                            "error": "No integration ID for instagram",
+                        },
+                    ],
+                },
+            ),
+        ):
+            tm._run_cross_post(
+                "nested-platform-failure",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                ("youtube", "instagram"),
+                "public",
+            )
+
+        task = state.get_task("nested-platform-failure")
+        self.assertEqual(task["state"], tm.const.TASK_STATE_COMPLETE)
+        self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
+        self.assertIn("instagram", task["cross_post_error"])
+        self.assertIn("No integration ID for instagram", task["cross_post_error"])
 
     def test_recover_interrupted_cross_posts_preserves_active_future(self):
         """启动恢复只处理遗留状态，当前进程仍持有的发布任务不能被误伤。"""

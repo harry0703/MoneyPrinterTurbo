@@ -1049,6 +1049,25 @@ def recover_interrupted_cross_posts(page_size: int = 100) -> int | None:
     return recovered
 
 
+def _extract_cross_post_error(result: dict) -> str:
+    """Prefer a top-level error, then summarize per-platform results[]."""
+    top_level = result.get("error") or result.get("message")
+    if top_level:
+        return str(top_level)
+    nested = result.get("results")
+    if isinstance(nested, list):
+        parts = []
+        for item in nested:
+            if not isinstance(item, dict) or item.get("success"):
+                continue
+            platform = item.get("platform", "unknown")
+            reason = item.get("error") or item.get("message") or "unknown error"
+            parts.append(f"{platform}: {reason}")
+        if parts:
+            return "; ".join(parts)
+    return "unknown upload error"
+
+
 def _run_cross_post(
     task_id: str,
     video_paths: tuple[str, ...],
@@ -1132,12 +1151,7 @@ def _run_cross_post(
         failures = [result for result in results if not result.get("success")]
         if failures:
             error_messages = [
-                str(
-                    result.get("error")
-                    or result.get("message")
-                    or "unknown upload error"
-                )
-                for result in failures
+                _extract_cross_post_error(result) for result in failures
             ]
             cross_post_state = const.CROSS_POST_STATE_FAILED
             cross_post_error = "; ".join(error_messages)

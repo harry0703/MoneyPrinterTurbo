@@ -4,7 +4,7 @@ Postiz API integration for cross-posting videos via the Postiz Public API.
 Docs: https://docs.postiz.com/public-api/introduction
 """
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -13,7 +13,7 @@ from app.config import config
 from app.services.publishing_base import PublishingProvider, PUBLISHING_PROVIDER_REGISTRY
 
 # Maps MPT platform names to Postiz __type values and integration config keys.
-_POSTIZ_PLATFORM_MAP = {
+_POSTIZ_PLATFORM_MAP: Dict[str, Dict[str, str]] = {
     "youtube": {
         "__type": "youtube",
         "integration_key": "postiz_youtube_integration_id",
@@ -30,16 +30,39 @@ _POSTIZ_PLATFORM_MAP = {
         "__type": "x",
         "integration_key": "postiz_x_integration_id",
     },
+    "linkedin": {
+        "__type": "linkedin",
+        "integration_key": "postiz_linkedin_integration_id",
+    },
+    "reddit": {
+        "__type": "reddit",
+        "integration_key": "postiz_reddit_integration_id",
+    },
 }
+
+
+def _summarize_platform_failures(results: List[Dict[str, Any]]) -> str:
+    """Build a top-level error naming every failed platform and why."""
+    failed = [
+        item
+        for item in results
+        if isinstance(item, dict) and not item.get("success")
+    ]
+    if not failed:
+        return "No platforms processed"
+    return "; ".join(
+        f"{item.get('platform', 'unknown')}: {item.get('error', 'unknown error')}"
+        for item in failed
+    )
 
 
 class PostizService(PublishingProvider):
     """Service wrapper for the Postiz Public API.
 
     Uses the official endpoints:
-      - POST {api_url}/api/public/v1/upload  (multipart file upload)
-      - POST {api_url}/api/public/v1/posts   (create / schedule post)
-      - GET  {api_url}/api/public/v1/posts   (list posts)
+      - POST {api_url}/public/v1/upload  (multipart file upload)
+      - POST {api_url}/public/v1/posts   (create / schedule post)
+      - GET  {api_url}/public/v1/posts   (list posts)
 
     Authentication uses the raw API key in the Authorization header
     (no Bearer prefix), per the official docs.
@@ -78,8 +101,18 @@ class PostizService(PublishingProvider):
         return {"Authorization": self.api_key}
 
     def _api_base(self) -> str:
+        """Build the Public API base URL.
+
+        Strip trailing slashes only. If the URL already ends with
+        ``/public/v1`` (hosted ``.../public/v1`` or self-hosted
+        ``.../api/public/v1``), return it unchanged so a pasted full
+        Public API URL keeps its ``/api`` prefix. Otherwise append
+        ``/public/v1`` — never ``/api/public/v1``.
+        """
         base = self.api_url.rstrip("/")
-        return f"{base}/api/public/v1"
+        if base.endswith("/public/v1"):
+            return base
+        return f"{base}/public/v1"
 
     def _get_integration_id(self, platform: str) -> Optional[str]:
         platform_info = _POSTIZ_PLATFORM_MAP.get(platform)
@@ -94,6 +127,108 @@ class PostizService(PublishingProvider):
             if self._get_integration_id(platform):
                 return True
         return False
+
+    # ------------------------------------------------------------------
+    # Per-platform settings builders
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _settings_youtube(title: str, youtube_privacy_status: str) -> Dict[str, Any]:
+        return {
+            "__type": "youtube",
+            "title": title[:100],
+            "type": youtube_privacy_status,
+            "selfDeclaredMadeForKids": "no",
+            "tags": [],
+        }
+
+    @staticmethod
+    def _settings_instagram() -> Dict[str, Any]:
+        return {
+            "__type": "instagram",
+            "post_type": "reels",
+        }
+
+    @staticmethod
+    def _coerce_auto_add_music(value: Any) -> str:
+        """TikTok autoAddMusic must be the string ``yes`` or ``no``."""
+        if isinstance(value, bool):
+            return "yes" if value else "no"
+        text = str(value).strip().lower()
+        if text in {"yes", "true", "1"}:
+            return "yes"
+        return "no"
+
+    @staticmethod
+    def _settings_tiktok(title: str, auto_add_music: str) -> Dict[str, Any]:
+        return {
+            "__type": "tiktok",
+            "privacy_level": "PUBLIC_TO_EVERYONE",
+            "duet": True,
+            "stitch": True,
+            "comment": True,
+            "autoAddMusic": auto_add_music,
+            "brand_content_toggle": False,
+            "brand_organic_toggle": False,
+            "content_posting_method": "DIRECT_POST",
+            "title": title[:90],
+            "video_made_with_ai": False,
+        }
+
+    @staticmethod
+    def _settings_x() -> Dict[str, Any]:
+        return {
+            "__type": "x",
+            "who_can_reply_post": "everyone",
+        }
+
+    @staticmethod
+    def _settings_linkedin() -> Dict[str, Any]:
+        return {
+            "__type": "linkedin",
+            "post_as_images_carousel": False,
+        }
+
+    @staticmethod
+    def _settings_reddit(title: str, subreddit: str) -> Dict[str, Any]:
+        return {
+            "__type": "reddit",
+            "subreddit": [
+                {
+                    "value": {
+                        "subreddit": subreddit,
+                        "title": title[:90],
+                        "type": "self",
+                        "url": "",
+                        "is_flair_required": False,
+                        "flair": None,
+                    }
+                }
+            ],
+        }
+
+    def _build_platform_settings(
+        self, platform: str, title: str
+    ) -> Dict[str, Any]:
+        """Return the provider-specific settings dict for *platform*."""
+        if platform == "youtube":
+            return self._settings_youtube(title, self.youtube_privacy_status)
+        if platform == "instagram":
+            return self._settings_instagram()
+        if platform == "tiktok":
+            auto_add_music = self._coerce_auto_add_music(
+                config.app.get("postiz_tiktok_auto_add_music", "no")
+            )
+            return self._settings_tiktok(title, auto_add_music)
+        if platform == "x":
+            return self._settings_x()
+        if platform == "linkedin":
+            return self._settings_linkedin()
+        if platform == "reddit":
+            subreddit = config.app.get("postiz_reddit_subreddit", "")
+            return self._settings_reddit(title, subreddit)
+        # Fallback: bare type marker
+        return {"__type": _POSTIZ_PLATFORM_MAP.get(platform, {}).get("__type", platform)}
 
     def upload_video(
         self,
@@ -139,7 +274,6 @@ class PostizService(PublishingProvider):
 
         # 2. Create a post for each platform with a configured integration ID
         results: List[Dict[str, Any]] = []
-        any_success = False
 
         for platform in platforms:
             platform_info = _POSTIZ_PLATFORM_MAP.get(platform)
@@ -154,24 +288,15 @@ class PostizService(PublishingProvider):
                 results.append({"platform": platform, "success": False, "error": f"No integration ID for {platform}"})
                 continue
 
-            settings: Dict[str, Any] = {"__type": platform_info["__type"]}
+            # Reddit requires a non-empty subreddit
+            if platform == "reddit":
+                subreddit = config.app.get("postiz_reddit_subreddit", "")
+                if not subreddit:
+                    logger.warning("Postiz reddit_subreddit is empty, skipping Reddit")
+                    results.append({"platform": platform, "success": False, "error": "No reddit subreddit configured"})
+                    continue
 
-            if platform == "youtube":
-                settings["title"] = title[:100]
-                settings["type"] = self.youtube_privacy_status
-                settings["selfDeclaredMadeForKids"] = "no"
-                settings["tags"] = []
-            elif platform == "instagram":
-                settings["post_type"] = "reels"
-            elif platform == "tiktok":
-                settings["privacy_level"] = "PUBLIC_TO_EVERYONE"
-                settings["duet"] = True
-                settings["stitch"] = True
-                settings["comment"] = True
-                settings["autoAddMusic"] = True
-                settings["brand_content_toggle"] = False
-                settings["brand_organic_toggle"] = False
-                settings["content_posting_method"] = "DIRECT_POST"
+            settings = self._build_platform_settings(platform, title)
 
             post_payload: Dict[str, Any] = {
                 "type": "now",
@@ -205,7 +330,6 @@ class PostizService(PublishingProvider):
                     post_id = post_json[0].get("postId", "")
                     logger.info(f"Postiz post created for {platform}: postId={post_id}")
                     results.append({"platform": platform, "success": True, "post_id": post_id})
-                    any_success = True
                 else:
                     logger.warning(f"Unexpected Postiz response for {platform}: {post_json}")
                     results.append({"platform": platform, "success": False, "error": "Unexpected response format", "response": post_json})
@@ -213,17 +337,57 @@ class PostizService(PublishingProvider):
                 logger.error(f"Failed to create Postiz post for {platform}: {e}")
                 results.append({"platform": platform, "success": False, "error": str(e)})
 
-        return {"success": any_success, "results": results, "media_id": media_id}
+        # Overall success is True only if every requested platform succeeded
+        success = bool(results) and all(r["success"] for r in results)
+        payload: Dict[str, Any] = {
+            "success": success,
+            "results": results,
+            "media_id": media_id,
+        }
+        if not success:
+            payload["error"] = _summarize_platform_failures(results)
+        return payload
 
     def check_status(self, request_id: str) -> Dict[str, Any]:
+        """Check status via GET /posts with required date range."""
         try:
+            now = datetime.now(timezone.utc)
+            params = {
+                "startDate": (now - timedelta(days=7)).isoformat(),
+                "endDate": now.isoformat(),
+            }
             resp = requests.get(
                 f"{self._api_base()}/posts",
                 headers=self._auth_headers(),
+                params=params,
                 timeout=30,
             )
             resp.raise_for_status()
-            return resp.json()
+            raw = resp.json()
+            # API may return {"posts": [...]} or a bare list
+            if isinstance(raw, dict):
+                posts_list = raw.get("posts", [])
+            else:
+                posts_list = raw if isinstance(raw, list) else []
+            # Locate the entry matching request_id
+            matched = None
+            for entry in posts_list:
+                if entry.get("id") == request_id or entry.get("postId") == request_id:
+                    matched = entry
+                    break
+            if matched is not None:
+                return {
+                    "success": True,
+                    "request_id": request_id,
+                    "status": matched.get("status", "..."),
+                    "posts": [matched],
+                }
+            return {
+                "success": True,
+                "request_id": request_id,
+                "status": "not_found",
+                "posts": posts_list,
+            }
         except Exception as e:
             logger.error(f"Failed to query Postiz status for {request_id}: {e}")
             return {"success": False, "error": str(e)}

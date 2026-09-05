@@ -225,7 +225,16 @@ CREDENTIAL_COMPANION_KEYS = {
 }
 
 NON_LLM_COMPANION_KEYS = {
-    "app": ("upload_post_username",)
+    "app": (
+        "upload_post_username",
+        "postiz_youtube_integration_id",
+        "postiz_instagram_integration_id",
+        "postiz_tiktok_integration_id",
+        "postiz_x_integration_id",
+        "postiz_linkedin_integration_id",
+        "postiz_reddit_integration_id",
+        "postiz_reddit_subreddit",
+    )
 }
 # 同一个密钥在不同面板可能使用各自的控件 key：音频面板直接编辑 Gemini 和
 # MiMo 的 LLM 密钥。恢复备份时必须清除每一个别名，否则遗留的旧值
@@ -3026,6 +3035,38 @@ def _render_settings_dialog():
             )
             if postiz_tiktok_integration_id != config.app.get("postiz_tiktok_integration_id", ""):
                 _set_runtime_config("app", "postiz_tiktok_integration_id", postiz_tiktok_integration_id)
+
+            postiz_x_integration_id = st.text_input(
+                "Postiz X Integration ID",
+                value=config.app.get("postiz_x_integration_id", ""),
+                key="postiz_x_integration_id_input"
+            )
+            if postiz_x_integration_id != config.app.get("postiz_x_integration_id", ""):
+                _set_runtime_config("app", "postiz_x_integration_id", postiz_x_integration_id)
+
+            postiz_linkedin_integration_id = st.text_input(
+                "Postiz LinkedIn Integration ID",
+                value=config.app.get("postiz_linkedin_integration_id", ""),
+                key="postiz_linkedin_integration_id_input"
+            )
+            if postiz_linkedin_integration_id != config.app.get("postiz_linkedin_integration_id", ""):
+                _set_runtime_config("app", "postiz_linkedin_integration_id", postiz_linkedin_integration_id)
+
+            postiz_reddit_integration_id = st.text_input(
+                "Postiz Reddit Integration ID",
+                value=config.app.get("postiz_reddit_integration_id", ""),
+                key="postiz_reddit_integration_id_input"
+            )
+            if postiz_reddit_integration_id != config.app.get("postiz_reddit_integration_id", ""):
+                _set_runtime_config("app", "postiz_reddit_integration_id", postiz_reddit_integration_id)
+
+            postiz_reddit_subreddit = st.text_input(
+                "Postiz Reddit Subreddit",
+                value=config.app.get("postiz_reddit_subreddit", ""),
+                key="postiz_reddit_subreddit_input"
+            )
+            if postiz_reddit_subreddit != config.app.get("postiz_reddit_subreddit", ""):
+                _set_runtime_config("app", "postiz_reddit_subreddit", postiz_reddit_subreddit)
 
             postiz_platforms = st.multiselect(
                 "Postiz Platforms",
