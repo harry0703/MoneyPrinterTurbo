@@ -192,6 +192,7 @@
     "Rounded Subtitle Background Help": "Nonaktif secara default. Saat diaktifkan, latar belakang subtitle menggunakan gaya transparan melengkung yang lebih sesuai dengan lebar teks.",
     "Subtitle Colors Are Indistinguishable": "Teks dan latar memakai warna yang sama, sehingga subtitel mungkin tidak terlihat.",
     "Subtitle Font Does Not Support Text": "Font subtitel tidak mendukung beberapa karakter naskah, sehingga subtitel mungkin hilang.",
+    "Subtitle Text Shaping Unavailable": "Subtitel dari kanan ke kiri seperti bahasa Arab memerlukan mesin tata letak teks Raqm yang tidak tersedia di sini, sehingga huruf tidak akan tersambung dan urutan kata terbalik. Pasang libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm).",
     "Restore Default Subtitle Settings": "Pulihkan Setelan Subtitel",
     "Default Subtitle Settings Restored": "Setelan subtitel bawaan dipulihkan",
     "Generate Video": "Hasilkan Video",

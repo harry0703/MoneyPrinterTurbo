@@ -6581,6 +6581,16 @@ def _render_subtitle_settings(panel, params):
             ):
                 st.warning(tr("Subtitle Font Does Not Support Text"))
 
+            if (
+                params.subtitle_enabled
+                and subtitle_preview_text
+                and video.subtitle_text_needs_shaping(subtitle_preview_text)
+                and not video.text_layout_supports_shaping()
+            ):
+                # 阿拉伯语等文种缺少 Raqm 时不会报错，只会静默渲染成断开且顺序
+                # 颠倒的字母，因此必须在生成前显式提示，而不是等用户看成片。
+                st.warning(tr("Subtitle Text Shaping Unavailable"))
+
             if st.button(
                 tr("Restore Default Subtitle Settings"),
                 key="restore_default_subtitle_settings",

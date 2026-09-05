@@ -190,6 +190,7 @@
     "Rounded Subtitle Background Help": "Varsayılan olarak kapalıdır. Etkinleştirildiğinde altyazı arka planı, metin genişliğine daha iyi uyan yuvarlatılmış yarı saydam bir stil kullanır.",
     "Subtitle Colors Are Indistinguishable": "Altyazı metni ve arka planı aynı renkte olduğundan altyazılar görünmeyebilir.",
     "Subtitle Font Does Not Support Text": "Seçilen yazı tipi bazı metin karakterlerini desteklemiyor; altyazılar eksik olabilir.",
+    "Subtitle Text Shaping Unavailable": "Arapça gibi sağdan sola yazılan altyazılar için gereken Raqm metin yerleşim motoru burada bulunamadı; harfler birleşmez ve sözcük sırası ters görünür. libraqm kurun (Debian/Ubuntu: libraqm0, macOS: brew install libraqm).",
     "Restore Default Subtitle Settings": "Altyazı Ayarlarını Sıfırla",
     "Default Subtitle Settings Restored": "Varsayılan altyazı ayarları geri yüklendi",
     "Generate Video": "Video Oluştur",

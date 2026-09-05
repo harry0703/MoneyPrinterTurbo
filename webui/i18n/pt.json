@@ -192,6 +192,7 @@
     "Rounded Subtitle Background Help": "Desativado por padrão. Quando ativado, o fundo das legendas usa um estilo arredondado e translúcido que se ajusta melhor à largura do texto.",
     "Subtitle Colors Are Indistinguishable": "Texto e fundo usam a mesma cor, por isso as legendas podem não ficar visíveis.",
     "Subtitle Font Does Not Support Text": "A fonte escolhida não suporta alguns caracteres do roteiro, por isso podem faltar legendas.",
+    "Subtitle Text Shaping Unavailable": "Legendas da direita para a esquerda, como em árabe, precisam do motor de layout de texto Raqm, que está ausente aqui, por isso as letras não serão ligadas e a ordem das palavras será invertida. Instale o libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm).",
     "Restore Default Subtitle Settings": "Restaurar legendas",
     "Default Subtitle Settings Restored": "Definições de legendas restauradas",
     "Generate Video": "Gerar Vídeo",

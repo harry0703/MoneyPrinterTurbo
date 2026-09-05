@@ -192,6 +192,7 @@
     "Rounded Subtitle Background Help": "Mặc định tắt. Khi được bật, nền phụ đề sẽ dùng kiểu bo tròn mờ trong suốt, vừa khít với độ rộng của chữ.",
     "Subtitle Colors Are Indistinguishable": "Chữ và nền cùng màu nên phụ đề có thể không hiển thị rõ.",
     "Subtitle Font Does Not Support Text": "Phông chữ đã chọn không hỗ trợ một số ký tự trong kịch bản nên phụ đề có thể bị thiếu.",
+    "Subtitle Text Shaping Unavailable": "Phụ đề viết từ phải sang trái như tiếng Ả Rập cần công cụ dàn chữ Raqm nhưng hệ thống không có, nên các chữ cái sẽ không nối liền và thứ tự từ bị đảo ngược. Hãy cài libraqm (Debian/Ubuntu: libraqm0, macOS: brew install libraqm).",
     "Restore Default Subtitle Settings": "Khôi phục cài đặt phụ đề",
     "Default Subtitle Settings Restored": "Đã khôi phục cài đặt phụ đề mặc định",
     "Generate Video": "Tạo Video",
