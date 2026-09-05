@@ -132,6 +132,8 @@ DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_enabled": True,
     "font_name": "MicrosoftYaHeiBold.ttc",
     "subtitle_position": "bottom",
+    "subtitle_display_mode": "sentence",
+    "subtitle_animation": "none",
     "custom_position": 70.0,
     "text_fore_color": "#FFFFFF",
     "font_size": 60,
@@ -1376,6 +1378,12 @@ def _apply_restored_params(params):
     bgm_type = params.get("bgm_type") or ""
     _set_stable_widget_value("bgm_type_select", bgm_type)
     _set_stable_widget_value("bgm_volume_select", params.get("bgm_volume", 0.2))
+    if bgm_type == "preset" and params.get("bgm_file"):
+        # 预设歌曲控件使用文件名作为稳定业务值。历史任务可能保存绝对路径或
+        # 相对路径，统一取 basename 后即可匹配当前安全枚举出的歌曲列表。
+        _set_stable_widget_value(
+            "preset_song_select", os.path.basename(str(params["bgm_file"]))
+        )
     st.session_state["custom_bgm_file_input"] = params.get("bgm_file") or ""
     st.session_state["sonilo_bgm_prompt_input"] = (
         params.get("video_music_prompt") or params.get("sonilo_bgm_prompt") or ""
@@ -1391,6 +1399,12 @@ def _apply_restored_params(params):
     _set_stable_widget_value("font_name_select", params.get("font_name") or "")
     _set_stable_widget_value(
         "subtitle_position_select", params.get("subtitle_position") or "bottom"
+    )
+    _set_stable_widget_value(
+        "subtitle_display_mode_select", params.get("subtitle_display_mode") or "sentence"
+    )
+    _set_stable_widget_value(
+        "subtitle_animation_select", params.get("subtitle_animation") or "none"
     )
     custom_position = min(100.0, max(0.0, float(params.get("custom_position", 70.0))))
     st.session_state["custom_position_input"] = str(custom_position)
@@ -2292,6 +2306,12 @@ def reset_subtitle_settings():
     st.session_state["subtitle_enabled_checkbox"] = defaults["subtitle_enabled"]
     _set_stable_widget_value("font_name_select", defaults["font_name"])
     _set_stable_widget_value("subtitle_position_select", defaults["subtitle_position"])
+    _set_stable_widget_value(
+        "subtitle_display_mode_select", defaults["subtitle_display_mode"]
+    )
+    _set_stable_widget_value(
+        "subtitle_animation_select", defaults["subtitle_animation"]
+    )
     st.session_state["custom_position_input"] = str(defaults["custom_position"])
     st.session_state["font_color_picker"] = defaults["text_fore_color"]
     st.session_state["font_size_slider"] = defaults["font_size"]
@@ -2312,6 +2332,8 @@ def reset_subtitle_settings():
         "subtitle_enabled",
         "font_name",
         "subtitle_position",
+        "subtitle_display_mode",
+        "subtitle_animation",
         "custom_position",
         "text_fore_color",
         "font_size",
@@ -2321,7 +2343,8 @@ def reset_subtitle_settings():
         "subtitle_background_color",
         "rounded_subtitle_background",
     ):
-        _set_runtime_config("ui", key, defaults[key])
+        if key in defaults:
+            _set_runtime_config("ui", key, defaults[key])
 
 
 @st.dialog(tr("Final Prompt Preview"), width="large")
@@ -2678,6 +2701,17 @@ def _build_settings_preset_payload(params, app_version):
         for key, value in params.items()
         if key not in PRESET_EXCLUDED_PARAM_KEYS
     }
+    if params.get("bgm_type") == "preset" and params.get("bgm_file"):
+        try:
+            builtin_bgm_path = bgm_service.resolve_builtin_bgm_file(
+                str(params["bgm_file"])
+            )
+        except ValueError:
+            # 自定义文件属于本机资源，不能进入可移植的设置预设。异常场景下保持
+            # 既有排除行为，避免导出文件包含绝对路径或另一台设备不存在的 UUID。
+            pass
+        else:
+            preset_params["bgm_file"] = Path(builtin_bgm_path).name
     return {
         "schema": SETTINGS_PRESET_SCHEMA,
         "version": SETTINGS_PRESET_VERSION,
@@ -2705,6 +2739,13 @@ def _parse_settings_preset(raw_bytes):
         for key, value in preset_params.items()
         if key not in PRESET_EXCLUDED_PARAM_KEYS
     }
+    if preset_params.get("bgm_type") == "preset" and preset_params.get("bgm_file"):
+        # 设置预设只能恢复当前版本真实存在的内置歌曲。服务层同时拒绝目录分隔符
+        # 和用户上传文件，防止导入文件借试听功能读取任意本机路径。
+        builtin_bgm_path = bgm_service.resolve_builtin_bgm_file(
+            str(preset_params["bgm_file"])
+        )
+        params_input["bgm_file"] = Path(builtin_bgm_path).name
     # video_subject 是 VideoParams 的必填字段，但预设允许只保存风格设置。
     params_input.setdefault("video_subject", "")
     return VideoParams.model_validate(params_input).model_dump(mode="json")
@@ -5550,6 +5591,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
     bgm_options = [
         (tr("No Background Music"), ""),
         (tr("Random Background Music"), "random"),
+        (tr("Preset Song"), "preset"),
         (tr("Custom Background Music"), "custom"),
         (tr("Sonilo Background Music"), "sonilo"),
         (tr("ElevenLabs Background Music"), "elevenlabs"),
@@ -5715,6 +5757,65 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
             # 完整校验；当前任务参数必须清空，避免 0 音量任务保存或解析该文件。
             params.bgm_file = ""
 
+    if params.bgm_type == "preset":
+        # 服务层已经统一完成扩展名、临时文件和符号链接校验。这里直接复用其
+        # 结果，避免 UI 维护第二套枚举规则，后续新增格式时也不会出现差异。
+        available_song_paths = bgm_service.list_builtin_bgm_files()
+        songs_by_name = {
+            os.path.basename(song_path): song_path for song_path in available_song_paths
+        }
+        available_songs = list(songs_by_name)
+        if not available_songs:
+            st.warning(tr("No Background Music Available"))
+            params.bgm_file = ""
+        else:
+            default_preset_song = _saved_ui_text("preset_song", available_songs[0])
+            requested_preset_song = st.session_state.get(
+                localized_widget_key("preset_song_select"), default_preset_song
+            )
+            if requested_preset_song not in available_songs:
+                # 历史任务或其它版本导出的设置可能引用当前安装中不存在的歌曲。
+                # 明确提示后由 stable_selectbox 回退第一首，避免静默换歌。
+                st.warning(tr("Selected Background Music Unavailable"))
+            selected_song = stable_selectbox(
+                tr("Preset Song"),
+                options=available_songs,
+                default_value=(
+                    default_preset_song
+                    if default_preset_song in available_songs
+                    else available_songs[0]
+                ),
+                key="preset_song_select",
+            )
+            _set_runtime_config("ui", "preset_song", selected_song)
+            # 用户选择歌曲后立即提供在线试听。播放器读取的是刚刚通过服务层
+            # 白名单校验得到的真实路径，不接受页面输入的任意文件路径。
+            selected_song_path = songs_by_name[selected_song]
+            preview_mime_type = (
+                mimetypes.guess_type(selected_song_path)[0] or "audio/mpeg"
+            )
+            preview_available = True
+            try:
+                # Streamlit 读取路径失败时会把 OSError 包装成内部异常，导致下面
+                # 无法按文件错误处理。先自行读取字节，既保持播放器行为，也让
+                # Docker 挂载短暂失效、权限变化等情况稳定落入可控分支。
+                selected_song_bytes = Path(selected_song_path).read_bytes()
+            except OSError as exc:
+                preview_available = False
+                # 文件可能在枚举后被其它进程删除。试听失败不能中断页面或视频
+                # 参数编辑，但需要保留日志以便定位运行环境和挂载问题。
+                logger.warning(
+                    "failed to preview preset background music: "
+                    f"name={selected_song}, error={str(exc)}"
+                )
+                st.warning(tr("Background Music Preview Failed"))
+            else:
+                st.audio(selected_song_bytes, format=preview_mime_type)
+            if bgm_enabled and preview_available:
+                params.bgm_file = selected_song
+            else:
+                params.bgm_file = ""
+
     if params.bgm_type == "sonilo":
         if previous_bgm_type != "sonilo":
             st.session_state["sonilo_bgm_prompt_input"] = _saved_ui_text(
@@ -5829,7 +5930,7 @@ def _render_audio_settings(panel, params):
             # Provider 下拉只负责选择自动配音服务；无配音已经由上方模式控制，
             # 不再作为 TTS Provider 混入列表，避免两个入口表达同一状态。
             tts_servers = [
-                ("azure-tts-v1", "Azure TTS V1"),
+                ("azure-tts-v1", "Azure TTS V1 (Edge TTS)"),
                 ("azure-tts-v2", "Azure TTS V2"),
                 ("siliconflow", "SiliconFlow TTS"),
                 ("gemini-tts", "Google Gemini TTS"),
@@ -6337,6 +6438,7 @@ def _render_subtitle_settings(panel, params):
                 (tr("Top"), "top"),
                 (tr("Center"), "center"),
                 (tr("Bottom"), "bottom"),
+                (tr("2/3 from Bottom"), "two_thirds_bottom"),
                 (tr("Custom"), "custom"),
             ]
             saved_subtitle_position = config.ui.get(
@@ -6354,11 +6456,70 @@ def _render_subtitle_settings(panel, params):
                 key="subtitle_position_select",
                 format_func=lambda value: dict(
                     (v, label) for label, v in subtitle_positions
-                )[value],
+                ).get(value, value),
                 disabled=subtitle_settings_disabled,
             )
             params.subtitle_position = selected_subtitle_position
             _set_runtime_config("ui", "subtitle_position", params.subtitle_position)
+
+            # Subtitle Display Mode (Sentence vs Single Word)
+            subtitle_display_modes = [
+                (tr("Sentence by Sentence"), "sentence"),
+                (tr("Single Word (Word by Word)"), "word_by_word"),
+            ]
+            saved_display_mode = config.ui.get(
+                "subtitle_display_mode",
+                DEFAULT_SUBTITLE_SETTINGS["subtitle_display_mode"],
+            )
+            saved_mode_idx = 0
+            for i, (_, mode_val) in enumerate(subtitle_display_modes):
+                if mode_val == saved_display_mode:
+                    saved_mode_idx = i
+                    break
+            selected_display_mode = stable_selectbox(
+                tr("Display Mode"),
+                options=[val for _, val in subtitle_display_modes],
+                default_value=subtitle_display_modes[saved_mode_idx][1],
+                key="subtitle_display_mode_select",
+                format_func=lambda value: dict(
+                    (v, label) for label, v in subtitle_display_modes
+                ).get(value, value),
+                help=tr("Word-by-word Timing Help"),
+                disabled=subtitle_settings_disabled,
+            )
+            params.subtitle_display_mode = selected_display_mode
+            _set_runtime_config(
+                "ui", "subtitle_display_mode", params.subtitle_display_mode
+            )
+
+            # Subtitle Animation (None vs Pop Spring)
+            subtitle_animations = [
+                (tr("None"), "none"),
+                (tr("Pop Up (Spring)"), "pop_spring"),
+            ]
+            saved_anim = config.ui.get(
+                "subtitle_animation",
+                DEFAULT_SUBTITLE_SETTINGS["subtitle_animation"],
+            )
+            saved_anim_idx = 0
+            for i, (_, anim_val) in enumerate(subtitle_animations):
+                if anim_val == saved_anim:
+                    saved_anim_idx = i
+                    break
+            selected_anim = stable_selectbox(
+                tr("Subtitle Animation"),
+                options=[val for _, val in subtitle_animations],
+                default_value=subtitle_animations[saved_anim_idx][1],
+                key="subtitle_animation_select",
+                format_func=lambda value: dict(
+                    (v, label) for label, v in subtitle_animations
+                ).get(value, value),
+                disabled=subtitle_settings_disabled,
+            )
+            params.subtitle_animation = selected_anim
+            _set_runtime_config(
+                "ui", "subtitle_animation", params.subtitle_animation
+            )
 
             if params.subtitle_position == "custom":
                 saved_custom_position = config.ui.get(

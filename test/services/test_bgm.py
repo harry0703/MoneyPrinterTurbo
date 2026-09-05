@@ -333,6 +333,7 @@ class TestBackgroundMusicService(unittest.TestCase):
             ):
                 resolved = bgm.resolve_bgm_file("same.mp3")
                 listed = bgm.list_bgm_files()
+                builtin_listed = bgm.list_builtin_bgm_files()
 
             self.assertEqual(
                 resolved, os.path.realpath(os.path.join(uploaded_dir, "same.mp3"))
@@ -345,6 +346,23 @@ class TestBackgroundMusicService(unittest.TestCase):
             self.assertEqual(
                 same_file, os.path.realpath(os.path.join(uploaded_dir, "same.mp3"))
             )
+            self.assertEqual(
+                [os.path.basename(file_path) for file_path in builtin_listed],
+                ["builtin.mp3", "same.mp3"],
+            )
+            with patch.object(bgm.utils, "song_dir", return_value=builtin_dir):
+                self.assertEqual(
+                    bgm.resolve_builtin_bgm_file("same.mp3"),
+                    os.path.realpath(os.path.join(builtin_dir, "same.mp3")),
+                )
+
+                for invalid_path in (
+                    "../same.mp3",
+                    str(Path(uploaded_dir, "user.flac")),
+                ):
+                    with self.subTest(invalid_path=invalid_path):
+                        with self.assertRaises(ValueError):
+                            bgm.resolve_builtin_bgm_file(invalid_path)
 
 
 if __name__ == "__main__":
