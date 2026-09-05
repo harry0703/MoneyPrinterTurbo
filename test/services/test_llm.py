@@ -1718,6 +1718,75 @@ class TestClaudeCodeProvider(unittest.TestCase):
             ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK"],
         )
 
+    def test_every_cloud_provider_switch_is_removed(self):
+        """Bedrock / Vertex / Foundry / Mantle / Gateway 等开关都会改走云厂商计费。"""
+        switches = {
+            "CLAUDE_CODE_USE_BEDROCK": "1",
+            "CLAUDE_CODE_USE_VERTEX": "1",
+            "CLAUDE_CODE_USE_FOUNDRY": "1",
+            "CLAUDE_CODE_USE_MANTLE": "1",
+            "CLAUDE_CODE_USE_GATEWAY": "1",
+            "CLAUDE_CODE_USE_ANTHROPIC_AWS": "1",
+            "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD": "1",
+        }
+        env, removed = llm.build_claude_code_env({"PATH": "/usr/bin", **switches})
+
+        self.assertEqual(env, {"PATH": "/usr/bin"})
+        self.assertCountEqual(removed, list(switches))
+
+    def test_foundry_credentials_are_removed(self):
+        """Foundry 凭证会让 CLI 走 Azure 计费，凭证和开关都必须剔除。"""
+        foundry = {
+            "CLAUDE_CODE_USE_FOUNDRY": "1",
+            "ANTHROPIC_FOUNDRY_API_KEY": "foundry-key",
+            "ANTHROPIC_FOUNDRY_AUTH_TOKEN": "foundry-token",
+            "ANTHROPIC_FOUNDRY_BASE_URL": "https://example.openai.azure.com",
+            "ANTHROPIC_FOUNDRY_RESOURCE": "my-resource",
+            "CLAUDE_CODE_SKIP_FOUNDRY_AUTH": "1",
+        }
+        env, removed = llm.build_claude_code_env(
+            {"PATH": "/usr/bin", "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01", **foundry}
+        )
+
+        for name in foundry:
+            self.assertNotIn(name, env, name)
+        self.assertCountEqual(removed, list(foundry))
+        self.assertEqual(env["CLAUDE_CODE_OAUTH_TOKEN"], "sk-ant-oat01")
+
+    def test_auth_bypass_switches_are_removed(self):
+        """CLAUDE_CODE_SKIP_*_AUTH 会跳过供应商鉴权，同样不能带进子进程。"""
+        bypasses = {
+            "CLAUDE_CODE_SKIP_BEDROCK_AUTH": "1",
+            "CLAUDE_CODE_SKIP_VERTEX_AUTH": "1",
+            "CLAUDE_CODE_SKIP_MANTLE_AUTH": "1",
+            "CLAUDE_CODE_SKIP_ANTHROPIC_AWS_AUTH": "1",
+        }
+        env, removed = llm.build_claude_code_env({"PATH": "/usr/bin", **bypasses})
+        self.assertEqual(env, {"PATH": "/usr/bin"})
+        self.assertCountEqual(removed, list(bypasses))
+
+    def test_credential_location_variables_are_preserved(self):
+        """*_CONFIG_DIR 只指明凭证位置，剔除反而会让已登录的订阅失效。"""
+        preserved = {
+            "ANTHROPIC_CONFIG_DIR": "/home/user/.config/anthropic",
+            "CLAUDE_CONFIG_DIR": "/home/user/.claude",
+            "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01",
+        }
+        env, removed = llm.build_claude_code_env(dict(preserved))
+        self.assertEqual(env, preserved)
+        self.assertEqual(removed, [])
+
+    def test_unrelated_variables_are_never_removed(self):
+        """过滤只针对鉴权和供应商开关，不应影响 PATH、代理等常规变量。"""
+        env, removed = llm.build_claude_code_env(
+            {"PATH": "/usr/bin", "HTTPS_PROXY": "http://proxy:3128", "HOME": "/root"}
+        )
+        self.assertEqual(
+            env,
+            {"PATH": "/usr/bin", "HTTPS_PROXY": "http://proxy:3128", "HOME": "/root"},
+        )
+        self.assertEqual(removed, [])
+
     def test_clean_environment_is_left_unchanged(self):
         env, removed = llm.build_claude_code_env({"PATH": "/usr/bin"})
         self.assertEqual(env, {"PATH": "/usr/bin"})
@@ -1786,6 +1855,25 @@ class TestClaudeCodeProvider(unittest.TestCase):
         ):
             self.assertEqual(llm._generate_response("write something"), "ok")
         self.assertEqual(run.call_args.kwargs["timeout"], 30.0)
+
+    def test_zero_and_false_timeouts_are_rejected_not_defaulted(self):
+        """0 / false 是无效取值，必须报错，而不是被默认值悄悄替换成 300 秒。"""
+        for invalid in (0, False, "0", 0.0):
+            with self.subTest(invalid=invalid):
+                config.app["claude_code_timeout"] = invalid
+                with patch.object(llm.shutil, "which", return_value="/usr/bin/claude"):
+                    response = llm._generate_response("write something")
+                self.assertTrue(response.startswith("Error:"), response)
+                self.assertIn("claude_code_timeout", response)
+
+    def test_field_default_applies_only_to_empty_values(self):
+        """Registry 默认值只在未配置时生效，合法的假值要原样进入校验。"""
+        self.assertEqual(llm._resolve_provider_field_value(None, "300"), "300")
+        self.assertEqual(llm._resolve_provider_field_value("", "300"), "300")
+        self.assertEqual(llm._resolve_provider_field_value("   ", "300"), "300")
+        self.assertEqual(llm._resolve_provider_field_value(0, "300"), 0)
+        self.assertEqual(llm._resolve_provider_field_value(False, "300"), False)
+        self.assertEqual(llm._resolve_provider_field_value("60", "300"), "60")
 
     def test_invalid_timeout_reports_configuration_error(self):
         config.app["claude_code_timeout"] = "soon"

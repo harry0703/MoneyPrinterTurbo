@@ -59,22 +59,36 @@ CLAUDE_CODE_DEFAULT_TIMEOUT = 300.0
 # plugins、MCP 等所有用户级定制，同时保持鉴权、模型选择和权限正常工作。
 # 二者需要较新的 CLI；低版本会以 "unknown option" 退出，由调用处转成明确提示。
 CLAUDE_CODE_MIN_CLI_VERSION = "2.1.260"
-# 这些环境变量会让 CLI 改用 API Key 或第三方供应商，从而绕过订阅登录并产生
-# 额外计费。claude_code Provider 的前提是「只用订阅」，所以调用前必须剔除。
+# 这些环境变量会让 CLI 改用 API Key 或第三方供应商（Bedrock、Vertex、Foundry、
+# Mantle、Gateway 等），从而绕过订阅登录并产生额外计费。逐个列举容易漏项，
+# 而且 CLI 后续还会新增供应商，因此按前缀整类剔除：
+#   ANTHROPIC_*           API Key、Auth Token、Base URL、各家供应商端点和 Profile
+#   CLAUDE_CODE_USE_*     供应商开关
+#   CLAUDE_CODE_SKIP_*_AUTH  跳过供应商鉴权的开关
+CLAUDE_CODE_CONFLICTING_ENV_PREFIXES = ("ANTHROPIC_", "CLAUDE_CODE_USE_")
 CLAUDE_CODE_CONFLICTING_ENV_VARS = (
-    "ANTHROPIC_API_KEY",
-    "ANTHROPIC_AUTH_TOKEN",
-    "ANTHROPIC_BASE_URL",
-    "ANTHROPIC_CUSTOM_HEADERS",
-    "ANTHROPIC_MODEL",
-    "ANTHROPIC_SMALL_FAST_MODEL",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    "CLAUDE_CODE_USE_BEDROCK",
-    "CLAUDE_CODE_USE_VERTEX",
     "AWS_BEARER_TOKEN_BEDROCK",
+    "CLAUDE_CODE_GATEWAY_TOKEN_FILE_DESCRIPTOR",
 )
+# 这两类变量不能剔除：
+#   CLAUDE_CODE_OAUTH_TOKEN 是容器内唯一的订阅鉴权方式（不匹配上面的前缀）；
+#   *_CONFIG_DIR 只是指出凭证存放位置，剔除后反而会让已登录的订阅失效。
+CLAUDE_CODE_PRESERVED_ENV_VARS = (
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_CONFIG_DIR",
+    "CLAUDE_CONFIG_DIR",
+)
+
+
+def _is_conflicting_claude_code_env(name: str) -> bool:
+    """判断某个环境变量是否会把 CLI 从订阅登录切换到别的鉴权方式。"""
+    if name in CLAUDE_CODE_PRESERVED_ENV_VARS:
+        return False
+    if name in CLAUDE_CODE_CONFLICTING_ENV_VARS:
+        return True
+    if name.startswith(CLAUDE_CODE_CONFLICTING_ENV_PREFIXES):
+        return True
+    return name.startswith("CLAUDE_CODE_SKIP_") and name.endswith("_AUTH")
 
 
 def coerce_claude_code_timeout(value, config_key: str = "claude_code_timeout"):
@@ -114,6 +128,21 @@ def coerce_claude_code_timeout(value, config_key: str = "claude_code_timeout"):
     return seconds
 
 
+def _resolve_provider_field_value(raw_value, default_value):
+    """
+    只有「未配置」时才回退到 Registry 默认值。
+
+    之前用 `raw or default_value`，会把 0 和 false 这类合法取值也当成未配置
+    替换掉：`claude_code_timeout = 0` 被静默改成 300，而 `"0"` 却报错。默认值
+    只在 None 或空白字符串时生效，配置校验才能对所有写法保持一致。
+    """
+    if raw_value is None:
+        return default_value
+    if isinstance(raw_value, str) and not raw_value.strip():
+        return default_value
+    return raw_value
+
+
 def build_claude_code_env(base_env=None):
     """
     构造只依赖订阅登录的子进程环境。
@@ -123,7 +152,7 @@ def build_claude_code_env(base_env=None):
     靠它完成订阅鉴权。
     """
     env = dict(os.environ if base_env is None else base_env)
-    removed = [name for name in CLAUDE_CODE_CONFLICTING_ENV_VARS if name in env]
+    removed = sorted(name for name in env if _is_conflicting_claude_code_env(name))
     for name in removed:
         env.pop(name, None)
     return env, removed
@@ -273,9 +302,9 @@ def _generate_response(prompt: str, app_config=None) -> str:
             )
 
         extra_values = {
-            field.config_suffix: (
-                runtime_app_config.get(provider.config_key(field.config_suffix), "")
-                or field.default_value
+            field.config_suffix: _resolve_provider_field_value(
+                runtime_app_config.get(provider.config_key(field.config_suffix)),
+                field.default_value,
             )
             for field in provider.extra_fields
         }
