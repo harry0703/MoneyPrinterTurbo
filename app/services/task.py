@@ -31,6 +31,8 @@ from app.services import (
     voice,
 )
 from app.services import upload_post
+from app.services import postiz  # noqa: F401  # side-effect: registers Postiz in PUBLISHING_PROVIDER_REGISTRY
+from app.services.publishing_base import PUBLISHING_PROVIDER_REGISTRY
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -1057,6 +1059,25 @@ def recover_interrupted_cross_posts(page_size: int = 100) -> int | None:
     return recovered
 
 
+def _extract_cross_post_error(result: dict) -> str:
+    """Prefer a top-level error, then summarize per-platform results[]."""
+    top_level = result.get("error") or result.get("message")
+    if top_level:
+        return str(top_level)
+    nested = result.get("results")
+    if isinstance(nested, list):
+        parts = []
+        for item in nested:
+            if not isinstance(item, dict) or item.get("success"):
+                continue
+            platform = item.get("platform", "unknown")
+            reason = item.get("error") or item.get("message") or "unknown error"
+            parts.append(f"{platform}: {reason}")
+        if parts:
+            return "; ".join(parts)
+    return "unknown upload error"
+
+
 def _run_cross_post(
     task_id: str,
     video_paths: tuple[str, ...],
@@ -1121,28 +1142,26 @@ def _run_cross_post(
             )
 
         for video_path in video_paths:
-            result = upload_post.cross_post_video(
-                video_path=video_path,
-                title=post_title,
-                platforms=list(platforms),
-                youtube_extra=youtube_extra,
-            )
-            if not isinstance(result, dict):
-                result = {
-                    "success": False,
-                    "error": "Upload-Post returned an invalid response",
-                }
-            results.append(result)
+            for provider_name, provider in PUBLISHING_PROVIDER_REGISTRY.items():
+                if provider.is_configured() and getattr(provider, "auto_upload", False):
+                    try:
+                        result = provider.upload_video(
+                            video_path=video_path,
+                            title=post_title,
+                            platforms=list(getattr(provider, "platforms", platforms)),
+                            youtube_extra=youtube_extra,
+                        )
+                    except Exception as e:
+                        logger.error(f"Cross-post via {provider_name} failed: {e}")
+                        result = {"success": False, "error": str(e)}
+                    if not isinstance(result, dict):
+                        result = {"success": False, "error": "Publishing provider returned an invalid response"}
+                    results.append(result)
 
         failures = [result for result in results if not result.get("success")]
         if failures:
             error_messages = [
-                str(
-                    result.get("error")
-                    or result.get("message")
-                    or "unknown upload error"
-                )
-                for result in failures
+                _extract_cross_post_error(result) for result in failures
             ]
             cross_post_state = const.CROSS_POST_STATE_FAILED
             cross_post_error = "; ".join(error_messages)
@@ -1528,15 +1547,18 @@ def _run_pipeline(
 
     # 7. 先完成视频生成任务，再按需提交跨平台发布。第三方上传可能耗时
     # 数分钟，不应阻塞视频结果返回，也不能反向影响已经生成的成片。
-    cross_post_enabled = (
-        upload_post.upload_post_service.is_configured()
-        and upload_post.upload_post_service.auto_upload
-    )
-    platforms = (
-        list(upload_post.upload_post_service.platforms) if cross_post_enabled else []
-    )
-    should_cross_post = cross_post_enabled and bool(platforms)
-    if cross_post_enabled and not platforms:
+    # Determine if any publishing provider is ready for cross-post
+    configured_providers = [
+        p for p in PUBLISHING_PROVIDER_REGISTRY.values()
+        if p.is_configured() and getattr(p, "auto_upload", False)
+    ]
+    any_provider_ready = bool(configured_providers)
+    # Aggregate platforms from all ready providers, deduped
+    platforms = list(dict.fromkeys(
+        [plat for p in configured_providers for plat in getattr(p, "platforms", [])]
+    ))
+    should_cross_post = any_provider_ready and bool(platforms)
+    if any_provider_ready and not platforms:
         logger.warning(
             f"skip cross-post because no platforms are configured, task_id: {task_id}"
         )

@@ -127,6 +127,14 @@ def _sample_config_sections():
             "upload_post_username": "my-username",
             "volcengine_seedance_api_key": "ark-seedance-key",
             "ofox_api_key": "ofox-backup-key",
+            "postiz_api_key": "postiz-key-456",
+            "postiz_youtube_integration_id": "yt-int",
+            "postiz_instagram_integration_id": "ig-int",
+            "postiz_tiktok_integration_id": "tt-int",
+            "postiz_x_integration_id": "x-int",
+            "postiz_linkedin_integration_id": "li-int",
+            "postiz_reddit_integration_id": "rd-int",
+            "postiz_reddit_subreddit": "videos",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key", "model_id": "eleven_v3"},
@@ -261,11 +269,19 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
             "upload_post_username": "my-username",
             "volcengine_seedance_api_key": "ark-seedance-key",
             "ofox_api_key": "ofox-backup-key",
+            "postiz_api_key": "postiz-key-456",
+            "postiz_youtube_integration_id": "yt-int",
+            "postiz_instagram_integration_id": "ig-int",
+            "postiz_tiktok_integration_id": "tt-int",
+            "postiz_x_integration_id": "x-int",
+            "postiz_linkedin_integration_id": "li-int",
+            "postiz_reddit_integration_id": "rd-int",
+            "postiz_reddit_subreddit": "videos",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key"},
     }
-    assert count_backup_keys(backup) == 12
+    assert count_backup_keys(backup) == 20
 
 
 def test_key_backup_carries_llm_provider_extra_fields_with_the_key():
@@ -321,6 +337,15 @@ def test_key_backup_round_trip_restores_every_saved_key():
     assert restored["app"]["upload_post_username"] == "my-username"
     assert restored["app"]["volcengine_seedance_api_key"] == "ark-seedance-key"
     assert restored["app"]["ofox_api_key"] == "ofox-backup-key"
+    # Postiz API key plus integration IDs must round-trip so restore is usable.
+    assert restored["app"]["postiz_api_key"] == "postiz-key-456"
+    assert restored["app"]["postiz_youtube_integration_id"] == "yt-int"
+    assert restored["app"]["postiz_instagram_integration_id"] == "ig-int"
+    assert restored["app"]["postiz_tiktok_integration_id"] == "tt-int"
+    assert restored["app"]["postiz_x_integration_id"] == "x-int"
+    assert restored["app"]["postiz_linkedin_integration_id"] == "li-int"
+    assert restored["app"]["postiz_reddit_integration_id"] == "rd-int"
+    assert restored["app"]["postiz_reddit_subreddit"] == "videos"
 
 
 def test_key_backup_import_ignores_unknown_sections_and_non_key_settings():
@@ -436,5 +461,7 @@ def test_credential_config_key_detection_covers_project_naming():
     assert is_credential_config_key("pexels_api_keys")
     assert is_credential_config_key("loomloom_api_token")
     assert is_credential_config_key("speech_key")
+    assert is_credential_config_key("postiz_api_key")
     assert not is_credential_config_key("openai_base_url")
     assert not is_credential_config_key("ffmpeg_path")
+    assert not is_credential_config_key("postiz_youtube_integration_id")
