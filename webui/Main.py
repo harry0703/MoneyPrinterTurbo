@@ -3118,6 +3118,18 @@ def _render_settings_dialog():
             if postiz_platforms != config.app.get("postiz_platforms", ["youtube", "instagram"]):
                 _set_runtime_config("app", "postiz_platforms", postiz_platforms)
 
+            if "tiktok" in postiz_platforms:
+                postiz_tiktok_auto_add_music_saved = config.app.get("postiz_tiktok_auto_add_music", "no")
+                postiz_tiktok_auto_add_music_options = ["yes", "no"]
+                postiz_tiktok_auto_add_music = st.selectbox(
+                    "Postiz TikTok Auto-Add Music",
+                    options=postiz_tiktok_auto_add_music_options,
+                    index=postiz_tiktok_auto_add_music_options.index(postiz_tiktok_auto_add_music_saved),
+                    key="postiz_tiktok_auto_add_music_selectbox"
+                )
+                if postiz_tiktok_auto_add_music != config.app.get("postiz_tiktok_auto_add_music", "no"):
+                    _set_runtime_config("app", "postiz_tiktok_auto_add_music", postiz_tiktok_auto_add_music)
+
             if "youtube" in postiz_platforms:
                 postiz_yt_saved = config.app.get("postiz_youtube_privacy_status", "public")
                 postiz_yt_status_options = ["public", "unlisted", "private"]

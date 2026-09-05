@@ -144,9 +144,11 @@ class PostizService(PublishingProvider):
 
     @staticmethod
     def _settings_instagram() -> Dict[str, Any]:
+        # Postiz InstagramDto.post_type only allows "post" | "story".
+        # Video attachments are published as feed posts; "reels" is not a valid value.
         return {
             "__type": "instagram",
-            "post_type": "reels",
+            "post_type": "post",
         }
 
     @staticmethod

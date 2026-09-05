@@ -222,7 +222,7 @@ class TestPostizService(unittest.TestCase):
     @patch("app.services.postiz.os.path.exists", return_value=True)
     @patch("builtins.open", mock_open(read_data=b"fake"))
     @patch("app.services.postiz.requests.post")
-    def test_instagram_settings_use_reels_post_type(self, mock_post, _exists):
+    def test_instagram_settings_use_post_post_type(self, mock_post, _exists):
         mock_post.side_effect = _upload_then_post_side_effect()
         service = PostizService()
         result = service.upload_video("/fake/video.mp4", "Reel Title", platforms=["instagram"])
@@ -231,7 +231,8 @@ class TestPostizService(unittest.TestCase):
         payload = self._capture_create_post_payloads(mock_post)[0]
         settings = payload["posts"][0]["settings"]
         self.assertEqual(settings["__type"], "instagram")
-        self.assertEqual(settings["post_type"], "reels")
+        # Postiz InstagramDto only accepts "post" | "story"; "reels" is not valid.
+        self.assertEqual(settings["post_type"], "post")
         self.assertEqual(payload["posts"][0]["integration"]["id"], "ig-int-id")
 
     @patch(
