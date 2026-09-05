@@ -24,6 +24,24 @@ English | [简体中文](README.md) | [日本語](README-ja.md) | [Releases](htt
 
 ![](docs/webui-en.jpg)
 
+## Next.js Studio Workspace (New) ✨
+
+MoneyPrinterTurbo also includes a modern Next.js workspace separated from the Python generation engine. Python continues to handle scripts, footage, voiceover, subtitles, and rendering, while Next.js provides the interactive experience.
+
+- **TypeScript + Next.js + Tailwind CSS** frontend
+- Gemini-style live generation feed with dynamic creative progress
+- Task history, voice preview, completed-video preview, open-file, fullscreen, and download flows
+
+To use the new workspace, run:
+
+```powershell
+.\\webui-next.bat
+```
+
+The workspace runs at `http://127.0.0.1:3000` and the Python API at `http://127.0.0.1:8080`; the original Streamlit workflow remains available through `webui.bat`.
+
+---
+
 <h4 align="center">API</h4>
 
 ![](docs/api.jpg)

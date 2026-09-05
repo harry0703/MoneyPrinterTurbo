@@ -88,6 +88,40 @@ _VIDEO_MUSIC_PROVIDERS = {
 }
 
 
+def append_task_event(
+    task_id: str,
+    message: str,
+    stage: str,
+    progress: int | float | None = None,
+    level: str = "info",
+) -> None:
+    """Append one bounded, user-facing event to a generation task."""
+    try:
+        task = sm.state.get_task(task_id) or {}
+        events = task.get("events") or []
+        if not isinstance(events, list):
+            events = []
+        event = {
+            "id": uuid4().hex[:12],
+            "timestamp": time.time(),
+            "message": str(message).strip(),
+            "stage": stage,
+            "level": level,
+        }
+        if progress is not None:
+            event["progress"] = max(0, min(100, int(progress)))
+        events = (events + [event])[-80:]
+        sm.state.patch_task(
+            task_id,
+            events=events,
+            current_stage=stage,
+            stage_label=event["message"],
+        )
+    except Exception as exc:
+        # Live observability must never interrupt video generation.
+        logger.debug(f"failed to append task event, task_id={task_id}, error={exc}")
+
+
 def _get_video_music_prompt(params: VideoParams) -> str:
     """
     读取当前视频配乐供应商实际使用的提示词。
@@ -283,6 +317,13 @@ def _mark_task_failed(
         failed_stage=failure["failed_stage"],
         error=failure["error"],
         **failure_details,
+    )
+    append_task_event(
+        task_id,
+        f"Generation stopped: {message}",
+        stage,
+        progress,
+        level="error",
     )
     return failure
 
@@ -860,6 +901,12 @@ def generate_final_videos(
         combined_video_path = path.join(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
+        append_task_event(
+            task_id,
+            f"Building video {index} of {params.video_count}",
+            "render",
+            _progress,
+        )
         logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
         video.combine_videos(
             combined_video_path=combined_video_path,
@@ -876,6 +923,12 @@ def generate_final_videos(
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
+        append_task_event(
+            task_id,
+            f"Timeline assembled for video {index}",
+            "render",
+            _progress,
+        )
 
         final_video_path = path.join(utils.task_dir(task_id), f"final-{index}.mp4")
 
@@ -934,6 +987,12 @@ def generate_final_videos(
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
+        append_task_event(
+            task_id,
+            f"Rendered video {index} of {params.video_count}",
+            "render",
+            _progress,
+        )
 
         final_video_paths.append(final_video_path)
         combined_video_paths.append(combined_video_path)
@@ -1291,6 +1350,7 @@ def _run_pipeline(
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+    append_task_event(task_id, "Preparing your generation", "preflight", 5)
 
     if (
         stop_at in {"materials", "video"}
@@ -1392,6 +1452,7 @@ def _run_pipeline(
         )
 
     # 1. Generate script
+    append_task_event(task_id, "Writing the narration script", "script", 5)
     video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
         error = (
@@ -1402,6 +1463,7 @@ def _run_pipeline(
         return _mark_task_failed(task_id, "script", error)
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
+    append_task_event(task_id, "Narration script ready", "script", 10)
 
     if stop_at == "script":
         sm.state.update_task(
@@ -1410,6 +1472,7 @@ def _run_pipeline(
         return {"script": video_script}
 
     # 2. Generate terms
+    append_task_event(task_id, "Planning visual search beats", "terms", 10)
     video_terms = ""
     if params.video_source != "local":
         video_terms = generate_terms(task_id, params, video_script)
@@ -1429,8 +1492,10 @@ def _run_pipeline(
         return {"script": video_script, "terms": video_terms}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
+    append_task_event(task_id, "Visual plan ready", "terms", 20)
 
     # 3. Generate audio
+    append_task_event(task_id, "Creating the voiceover", "audio", 20)
     audio_file, audio_duration, sub_maker = generate_audio(
         task_id,
         params,
@@ -1446,6 +1511,7 @@ def _run_pipeline(
         )
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
+    append_task_event(task_id, "Voiceover created", "audio", 30)
 
     if stop_at == "audio":
         sm.state.update_task(
@@ -1457,6 +1523,7 @@ def _run_pipeline(
         return {"audio_file": audio_file, "audio_duration": audio_duration}
 
     # 4. Generate subtitle
+    append_task_event(task_id, "Designing captions", "subtitle", 30)
     subtitle_path = generate_subtitle(
         task_id, params, video_script, sub_maker, audio_file
     )
@@ -1471,8 +1538,10 @@ def _run_pipeline(
         return {"subtitle_path": subtitle_path}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
+    append_task_event(task_id, "Captions ready", "subtitle", 40)
 
     # 5. Get video materials
+    append_task_event(task_id, "Collecting footage", "materials", 40)
     downloaded_videos = get_video_materials(
         task_id,
         params,
@@ -1497,6 +1566,7 @@ def _run_pipeline(
         return {"materials": downloaded_videos}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
+    append_task_event(task_id, "Footage ready for the timeline", "materials", 50)
 
     # 仅完整视频生成流程才需要处理视频拼接模式；
     # 这样可以避免 /subtitle 和 /audio 这类请求访问不存在的字段。
@@ -1504,6 +1574,7 @@ def _run_pipeline(
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
     # 6. Generate final videos
+    append_task_event(task_id, "Rendering the final video", "render", 50)
     final_video_paths, combined_video_paths, generation_warnings = (
         generate_final_videos(
             task_id,
@@ -1560,6 +1631,7 @@ def _run_pipeline(
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
     )
+    append_task_event(task_id, "Your video is ready", "complete", 100, level="success")
 
     if should_cross_post:
         scheduling_error = _schedule_cross_post(
