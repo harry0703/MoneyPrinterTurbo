@@ -1,0 +1,42 @@
+# 使用 Claude 订阅（Pro / Max / Team）作为 LLM Provider 的运行方式。
+#
+# 与 docker-compose.release.yml 的区别：
+#   1. 构建 Dockerfile.claude，容器内包含 claude CLI；
+#   2. 挂载整个项目目录，使 claude_code Provider 的代码生效；
+#   3. 注入 CLAUDE_CODE_OAUTH_TOKEN，容器内没有 keychain，CLI 只能用
+#      `claude setup-token` 生成的长期令牌完成鉴权。
+#
+# 启动前先导出令牌：
+#   export CLAUDE_CODE_OAUTH_TOKEN="$(claude setup-token)"
+#   docker compose -f docker-compose.claude.yml up -d --build
+
+x-common-build: &common-build
+  context: .
+  dockerfile: Dockerfile.claude
+
+x-common-volumes: &common-volumes
+  - ./:/MoneyPrinterTurbo
+
+x-common-environment: &common-environment
+  # 未设置令牌时直接让 compose 报错，避免容器起来后才在生成阶段失败。
+  CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:?run 'export CLAUDE_CODE_OAUTH_TOKEN="$(claude setup-token)"' first}
+
+services:
+  webui:
+    build: *common-build
+    container_name: "moneyprinterturbo-webui"
+    ports:
+      - "127.0.0.1:8501:8501"
+    command: [ "streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.serverAddress=127.0.0.1", "--server.enableCORS=True", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal", "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False" ]
+    volumes: *common-volumes
+    environment: *common-environment
+    restart: always
+  api:
+    build: *common-build
+    container_name: "moneyprinterturbo-api"
+    ports:
+      - "127.0.0.1:8080:8080"
+    command: [ "python3", "main.py" ]
+    volumes: *common-volumes
+    environment: *common-environment
+    restart: always

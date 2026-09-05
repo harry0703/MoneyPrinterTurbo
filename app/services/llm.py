@@ -1,6 +1,11 @@
 import json
 import logging
+import math
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 from time import perf_counter
 from typing import List
 
@@ -42,6 +47,115 @@ Generate a script for a video, depending on the subject of the video.
 7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
 8. respond in the same language as the video subject.
 """.strip()
+
+# Claude Code CLI 默认使用编码 agent 的系统提示词，其中大量约束与文案写作
+# 无关，会让脚本和关键词生成偏离要求，因此调用时整体替换掉。
+CLAUDE_CODE_SYSTEM_PROMPT = (
+    "You are a concise copywriter. Follow the user's instructions and output "
+    "format exactly, and output nothing else."
+)
+CLAUDE_CODE_DEFAULT_TIMEOUT = 300.0
+# `--tools ""` 关闭全部内置工具，`--safe-mode` 关闭 CLAUDE.md、skills、hooks、
+# plugins、MCP 等所有用户级定制，同时保持鉴权、模型选择和权限正常工作。
+# 二者需要较新的 CLI；低版本会以 "unknown option" 退出，由调用处转成明确提示。
+CLAUDE_CODE_MIN_CLI_VERSION = "2.1.260"
+# 这些环境变量会让 CLI 改用 API Key 或第三方供应商（Bedrock、Vertex、Foundry、
+# Mantle、Gateway 等），从而绕过订阅登录并产生额外计费。逐个列举容易漏项，
+# 而且 CLI 后续还会新增供应商，因此按前缀整类剔除：
+#   ANTHROPIC_*           API Key、Auth Token、Base URL、各家供应商端点和 Profile
+#   CLAUDE_CODE_USE_*     供应商开关
+#   CLAUDE_CODE_SKIP_*_AUTH  跳过供应商鉴权的开关
+CLAUDE_CODE_CONFLICTING_ENV_PREFIXES = ("ANTHROPIC_", "CLAUDE_CODE_USE_")
+CLAUDE_CODE_CONFLICTING_ENV_VARS = (
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "CLAUDE_CODE_GATEWAY_TOKEN_FILE_DESCRIPTOR",
+)
+# 这两类变量不能剔除：
+#   CLAUDE_CODE_OAUTH_TOKEN 是容器内唯一的订阅鉴权方式（不匹配上面的前缀）；
+#   *_CONFIG_DIR 只是指出凭证存放位置，剔除后反而会让已登录的订阅失效。
+CLAUDE_CODE_PRESERVED_ENV_VARS = (
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_CONFIG_DIR",
+    "CLAUDE_CONFIG_DIR",
+)
+
+
+def _is_conflicting_claude_code_env(name: str) -> bool:
+    """判断某个环境变量是否会把 CLI 从订阅登录切换到别的鉴权方式。"""
+    if name in CLAUDE_CODE_PRESERVED_ENV_VARS:
+        return False
+    if name in CLAUDE_CODE_CONFLICTING_ENV_VARS:
+        return True
+    if name.startswith(CLAUDE_CODE_CONFLICTING_ENV_PREFIXES):
+        return True
+    return name.startswith("CLAUDE_CODE_SKIP_") and name.endswith("_AUTH")
+
+
+def coerce_claude_code_timeout(value, config_key: str = "claude_code_timeout"):
+    """
+    把配置里的超时值解析成正的有限秒数。
+
+    TOML 既可能写成 `claude_code_timeout = 300`（int/float），也可能写成
+    `"300"`（字符串），因此不能直接调用 `strip()`。nan / inf 会让
+    `subprocess.run(timeout=...)` 永久阻塞，这里一并拒绝。
+    """
+    if value is None:
+        return CLAUDE_CODE_DEFAULT_TIMEOUT
+
+    if isinstance(value, bool):
+        # bool 是 int 的子类，但 True 秒显然不是用户想要的超时配置。
+        raise ValueError(f"{config_key} must be a number of seconds, got {value!r}")
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return CLAUDE_CODE_DEFAULT_TIMEOUT
+        try:
+            seconds = float(text)
+        except ValueError:
+            raise ValueError(
+                f"{config_key} must be a number of seconds, got {value!r}"
+            ) from None
+    elif isinstance(value, (int, float)):
+        seconds = float(value)
+    else:
+        raise ValueError(f"{config_key} must be a number of seconds, got {value!r}")
+
+    if not math.isfinite(seconds):
+        raise ValueError(f"{config_key} must be a finite number, got {value!r}")
+    if seconds <= 0:
+        raise ValueError(f"{config_key} must be greater than 0, got {value!r}")
+    return seconds
+
+
+def _resolve_provider_field_value(raw_value, default_value):
+    """
+    只有「未配置」时才回退到 Registry 默认值。
+
+    之前用 `raw or default_value`，会把 0 和 false 这类合法取值也当成未配置
+    替换掉：`claude_code_timeout = 0` 被静默改成 300，而 `"0"` 却报错。默认值
+    只在 None 或空白字符串时生效，配置校验才能对所有写法保持一致。
+    """
+    if raw_value is None:
+        return default_value
+    if isinstance(raw_value, str) and not raw_value.strip():
+        return default_value
+    return raw_value
+
+
+def build_claude_code_env(base_env=None):
+    """
+    构造只依赖订阅登录的子进程环境。
+
+    返回 (环境变量字典, 被剔除的变量名列表)。剔除的是会切换鉴权方式或供应商
+    的变量，`CLAUDE_CODE_OAUTH_TOKEN` 必须保留：容器内没有 keychain，CLI 只能
+    靠它完成订阅鉴权。
+    """
+    env = dict(os.environ if base_env is None else base_env)
+    removed = sorted(name for name in env if _is_conflicting_claude_code_env(name))
+    for name in removed:
+        env.pop(name, None)
+    return env, removed
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
@@ -188,9 +302,9 @@ def _generate_response(prompt: str, app_config=None) -> str:
             )
 
         extra_values = {
-            field.config_suffix: (
-                runtime_app_config.get(provider.config_key(field.config_suffix), "")
-                or field.default_value
+            field.config_suffix: _resolve_provider_field_value(
+                runtime_app_config.get(provider.config_key(field.config_suffix)),
+                field.default_value,
             )
             for field in provider.extra_fields
         }
@@ -354,6 +468,118 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 raise Exception(
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
+
+        if adapter == "claude_code":
+            # Claude 订阅（Pro / Max / Team）不签发 API Key，其凭证只能由
+            # Claude Code 官方客户端自己使用。这里不直接请求 Anthropic API，
+            # 而是以 headless 模式调用本机已登录的 claude CLI（`claude -p`），
+            # 由 CLI 完成鉴权，脚本生成只消费它返回的文本。
+            configured_cli = (extra_values.get("cli_path") or "").strip() or "claude"
+            cli_path = shutil.which(configured_cli)
+            if not cli_path and os.path.isfile(configured_cli):
+                cli_path = configured_cli
+            if not cli_path:
+                raise ValueError(
+                    f"{llm_provider}: claude CLI not found ('{configured_cli}'), "
+                    f"install it in the runtime or set "
+                    f"{provider.config_key('cli_path')} in the config.toml file."
+                )
+
+            try:
+                timeout_seconds = coerce_claude_code_timeout(
+                    extra_values.get("timeout"), provider.config_key("timeout")
+                )
+            except ValueError as timeout_error:
+                raise ValueError(f"{llm_provider}: {timeout_error}") from None
+
+            command = [
+                cli_path,
+                "-p",
+                prompt,
+                "--output-format",
+                "json",
+                "--system-prompt",
+                CLAUDE_CODE_SYSTEM_PROMPT,
+                # 关闭全部内置工具，保证只做文本生成。
+                "--tools",
+                "",
+                # 关闭 CLAUDE.md、skills、hooks、plugins、MCP 等用户级定制；
+                # 鉴权与模型选择不受影响（不能用 --bare，它会禁用 OAuth）。
+                "--safe-mode",
+            ]
+            # 模型名留空时沿用 CLI 自己的默认模型，避免这里硬编码的模型 ID
+            # 随订阅可用模型变化而失效。
+            if model_name:
+                command += ["--model", model_name]
+
+            cli_env, removed_env = build_claude_code_env()
+            if removed_env:
+                # 只记录变量名，不记录取值，避免把密钥写进日志。
+                logger.warning(
+                    f"{llm_provider}: ignoring conflicting environment variables "
+                    f"so the subscription login is used: {', '.join(removed_env)}"
+                )
+
+            logger.info(f"invoking claude cli, model: {model_name or 'cli default'}")
+            # CLI 会读取工作目录下的 CLAUDE.md 和项目设置，这些内容会污染
+            # 文案结果，因此固定在一个临时空目录中执行。
+            with tempfile.TemporaryDirectory() as work_dir:
+                try:
+                    completed = subprocess.run(
+                        command,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout_seconds,
+                        cwd=work_dir,
+                        env=cli_env,
+                    )
+                except subprocess.TimeoutExpired:
+                    raise Exception(
+                        f"[{llm_provider}] claude cli timed out after "
+                        f"{timeout_seconds:.0f}s"
+                    )
+
+            # 未登录、用量耗尽这类失败同样会返回 JSON（`is_error` 为真，
+            # `result` 是可读原因），只是退出码非 0。因此先解析 stdout，
+            # 只有在拿不到 JSON 时才回退到退出码和 stderr。
+            stdout = (completed.stdout or "").strip()
+            try:
+                payload = json.loads(stdout) if stdout else None
+            except json.JSONDecodeError:
+                payload = None
+
+            if payload is None:
+                detail = (completed.stderr or stdout or "").strip()
+                if "unknown option" in detail.lower():
+                    raise Exception(
+                        f"[{llm_provider}] the installed claude CLI does not support "
+                        f"the required isolation flags; upgrade to "
+                        f"{CLAUDE_CODE_MIN_CLI_VERSION} or newer: {detail[:300]}"
+                    )
+                if completed.returncode != 0:
+                    raise Exception(
+                        f"[{llm_provider}] claude cli exited with code "
+                        f"{completed.returncode}: {detail[:500]}"
+                    )
+                raise Exception(
+                    f'[{llm_provider}] returned an invalid response: "{detail[:500]}"'
+                )
+
+            if payload.get("is_error") or completed.returncode != 0:
+                reason = str(payload.get("result") or "").strip() or (
+                    f"claude cli exited with code {completed.returncode}"
+                )
+                # 容器里无法执行交互式 /login，这里直接给出可用的鉴权方式。
+                if "login" in reason.lower():
+                    reason += (
+                        " (run `claude setup-token` on the host and pass the token "
+                        "to the container as CLAUDE_CODE_OAUTH_TOKEN)"
+                    )
+                raise Exception(
+                    f'[{llm_provider}] returned an error response: "{reason[:500]}"'
+                )
+
+            return _normalize_text_response(payload.get("result"), llm_provider)
 
         if adapter == "modelscope":
             content = ""
