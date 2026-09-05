@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>影创AI</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #1c1c1e;
+        color: #eaeaea;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+      }
+      .wrap { text-align: center; }
+      .brand { font-size: 30px; font-weight: 700; letter-spacing: 2px; }
+      .sub { margin-top: 10px; font-size: 14px; color: #9a9a9a; }
+      .spinner {
+        margin: 26px auto 0;
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgba(255, 255, 255, 0.2);
+        border-top-color: #4f8cf7;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="brand">影创AI</div>
+      <div class="sub">正在启动本地服务，请稍候…</div>
+      <div class="spinner"></div>
+    </div>
+  </body>
+</html>
