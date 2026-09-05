@@ -1,6 +1,11 @@
 import json
 import logging
+import math
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 from time import perf_counter
 from typing import List
 
@@ -49,12 +54,79 @@ CLAUDE_CODE_SYSTEM_PROMPT = (
     "You are a concise copywriter. Follow the user's instructions and output "
     "format exactly, and output nothing else."
 )
-# 文案生成是一次纯文本请求，不需要任何工具。显式禁用可以避免 CLI 在容器里
-# 尝试读写文件或联网，从而让每次调用都是确定的单轮生成。
-CLAUDE_CODE_DISALLOWED_TOOLS = (
-    "Bash Read Write Edit NotebookEdit Glob Grep WebFetch WebSearch Task"
-)
 CLAUDE_CODE_DEFAULT_TIMEOUT = 300.0
+# `--tools ""` 关闭全部内置工具，`--safe-mode` 关闭 CLAUDE.md、skills、hooks、
+# plugins、MCP 等所有用户级定制，同时保持鉴权、模型选择和权限正常工作。
+# 二者需要较新的 CLI；低版本会以 "unknown option" 退出，由调用处转成明确提示。
+CLAUDE_CODE_MIN_CLI_VERSION = "2.1.260"
+# 这些环境变量会让 CLI 改用 API Key 或第三方供应商，从而绕过订阅登录并产生
+# 额外计费。claude_code Provider 的前提是「只用订阅」，所以调用前必须剔除。
+CLAUDE_CODE_CONFLICTING_ENV_VARS = (
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_CUSTOM_HEADERS",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_SMALL_FAST_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "AWS_BEARER_TOKEN_BEDROCK",
+)
+
+
+def coerce_claude_code_timeout(value, config_key: str = "claude_code_timeout"):
+    """
+    把配置里的超时值解析成正的有限秒数。
+
+    TOML 既可能写成 `claude_code_timeout = 300`（int/float），也可能写成
+    `"300"`（字符串），因此不能直接调用 `strip()`。nan / inf 会让
+    `subprocess.run(timeout=...)` 永久阻塞，这里一并拒绝。
+    """
+    if value is None:
+        return CLAUDE_CODE_DEFAULT_TIMEOUT
+
+    if isinstance(value, bool):
+        # bool 是 int 的子类，但 True 秒显然不是用户想要的超时配置。
+        raise ValueError(f"{config_key} must be a number of seconds, got {value!r}")
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return CLAUDE_CODE_DEFAULT_TIMEOUT
+        try:
+            seconds = float(text)
+        except ValueError:
+            raise ValueError(
+                f"{config_key} must be a number of seconds, got {value!r}"
+            ) from None
+    elif isinstance(value, (int, float)):
+        seconds = float(value)
+    else:
+        raise ValueError(f"{config_key} must be a number of seconds, got {value!r}")
+
+    if not math.isfinite(seconds):
+        raise ValueError(f"{config_key} must be a finite number, got {value!r}")
+    if seconds <= 0:
+        raise ValueError(f"{config_key} must be greater than 0, got {value!r}")
+    return seconds
+
+
+def build_claude_code_env(base_env=None):
+    """
+    构造只依赖订阅登录的子进程环境。
+
+    返回 (环境变量字典, 被剔除的变量名列表)。剔除的是会切换鉴权方式或供应商
+    的变量，`CLAUDE_CODE_OAUTH_TOKEN` 必须保留：容器内没有 keychain，CLI 只能
+    靠它完成订阅鉴权。
+    """
+    env = dict(os.environ if base_env is None else base_env)
+    removed = [name for name in CLAUDE_CODE_CONFLICTING_ENV_VARS if name in env]
+    for name in removed:
+        env.pop(name, None)
+    return env, removed
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
@@ -373,11 +445,6 @@ def _generate_response(prompt: str, app_config=None) -> str:
             # Claude Code 官方客户端自己使用。这里不直接请求 Anthropic API，
             # 而是以 headless 模式调用本机已登录的 claude CLI（`claude -p`），
             # 由 CLI 完成鉴权，脚本生成只消费它返回的文本。
-            import os
-            import shutil
-            import subprocess
-            import tempfile
-
             configured_cli = (extra_values.get("cli_path") or "").strip() or "claude"
             cli_path = shutil.which(configured_cli)
             if not cli_path and os.path.isfile(configured_cli):
@@ -389,23 +456,12 @@ def _generate_response(prompt: str, app_config=None) -> str:
                     f"{provider.config_key('cli_path')} in the config.toml file."
                 )
 
-            configured_timeout = (extra_values.get("timeout") or "").strip()
             try:
-                timeout_seconds = (
-                    float(configured_timeout)
-                    if configured_timeout
-                    else CLAUDE_CODE_DEFAULT_TIMEOUT
+                timeout_seconds = coerce_claude_code_timeout(
+                    extra_values.get("timeout"), provider.config_key("timeout")
                 )
-            except ValueError:
-                raise ValueError(
-                    f"{llm_provider}: {provider.config_key('timeout')} must be a "
-                    f"number of seconds, got '{configured_timeout}'."
-                )
-            if timeout_seconds <= 0:
-                raise ValueError(
-                    f"{llm_provider}: {provider.config_key('timeout')} must be "
-                    "greater than 0."
-                )
+            except ValueError as timeout_error:
+                raise ValueError(f"{llm_provider}: {timeout_error}") from None
 
             command = [
                 cli_path,
@@ -415,14 +471,25 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 "json",
                 "--system-prompt",
                 CLAUDE_CODE_SYSTEM_PROMPT,
-                "--disallowed-tools",
-                CLAUDE_CODE_DISALLOWED_TOOLS,
-                "--strict-mcp-config",
+                # 关闭全部内置工具，保证只做文本生成。
+                "--tools",
+                "",
+                # 关闭 CLAUDE.md、skills、hooks、plugins、MCP 等用户级定制；
+                # 鉴权与模型选择不受影响（不能用 --bare，它会禁用 OAuth）。
+                "--safe-mode",
             ]
             # 模型名留空时沿用 CLI 自己的默认模型，避免这里硬编码的模型 ID
             # 随订阅可用模型变化而失效。
             if model_name:
                 command += ["--model", model_name]
+
+            cli_env, removed_env = build_claude_code_env()
+            if removed_env:
+                # 只记录变量名，不记录取值，避免把密钥写进日志。
+                logger.warning(
+                    f"{llm_provider}: ignoring conflicting environment variables "
+                    f"so the subscription login is used: {', '.join(removed_env)}"
+                )
 
             logger.info(f"invoking claude cli, model: {model_name or 'cli default'}")
             # CLI 会读取工作目录下的 CLAUDE.md 和项目设置，这些内容会污染
@@ -435,6 +502,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
                         text=True,
                         timeout=timeout_seconds,
                         cwd=work_dir,
+                        env=cli_env,
                     )
                 except subprocess.TimeoutExpired:
                     raise Exception(
@@ -453,6 +521,12 @@ def _generate_response(prompt: str, app_config=None) -> str:
 
             if payload is None:
                 detail = (completed.stderr or stdout or "").strip()
+                if "unknown option" in detail.lower():
+                    raise Exception(
+                        f"[{llm_provider}] the installed claude CLI does not support "
+                        f"the required isolation flags; upgrade to "
+                        f"{CLAUDE_CODE_MIN_CLI_VERSION} or newer: {detail[:300]}"
+                    )
                 if completed.returncode != 0:
                     raise Exception(
                         f"[{llm_provider}] claude cli exited with code "
