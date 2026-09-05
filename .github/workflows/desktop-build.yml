@@ -1,0 +1,140 @@
+name: Desktop Build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  # ---------- 后端：Intel (x86_64) ----------
+  backend-x86_64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install system deps
+        run: |
+          brew install ffmpeg imagemagick
+      - name: Install deps
+        run: |
+          python -m pip install uv
+          uv sync
+          uv pip install --python .venv/bin/python pyinstaller
+      - name: Build backend (x86_64)
+        run: |
+          cd desktop/backend
+          ../../.venv/bin/python -m PyInstaller mpt.spec --noconfirm --distpath dist --workpath build
+          # 捆绑 ffmpeg / magick 到 bin/
+          mkdir -p dist/mpt-backend/_internal/bin
+          cp "$(which ffmpeg)" dist/mpt-backend/_internal/bin/
+          cp "$(which magick 2>/dev/null || which convert 2>/dev/null)" dist/mpt-backend/_internal/bin/ || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-x86_64
+          path: desktop/backend/dist/mpt-backend
+
+  # ---------- 后端：Apple Silicon (arm64) ----------
+  backend-aarch64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install system deps
+        run: |
+          brew install ffmpeg imagemagick
+      - name: Install deps
+        run: |
+          python -m pip install uv
+          uv sync
+          uv pip install --python .venv/bin/python pyinstaller
+      - name: Build backend (arm64)
+        run: |
+          cd desktop/backend
+           ../../.venv/bin/python -m PyInstaller mpt.spec --noconfirm --distpath dist --workpath build
+          mkdir -p dist/mpt-backend/_internal/bin
+          cp "$(which ffmpeg)" dist/mpt-backend/_internal/bin/
+          cp "$(which magick 2>/dev/null || which convert 2>/dev/null)" dist/mpt-backend/_internal/bin/ || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-aarch64
+          path: desktop/backend/dist/mpt-backend
+
+  # ---------- 桌面壳 + 打包 Universal2 ----------
+  macos-universal:
+    runs-on: macos-13
+    needs: [backend-x86_64, backend-aarch64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust (both targets)
+        run: |
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Download backends
+        uses: actions/download-artifact@v4
+        with:
+          path: backends
+
+      - name: Build universal shell & inject backends
+        run: |
+          cd desktop
+          npm install
+          # 将两套后端放入待打包资源，Rust 壳按运行架构选择
+          mkdir -p src-tauri/backend-src
+          cp -r ../backends/backend-x86_64 src-tauri/backend-src/backend-x86_64
+          cp -r ../backends/backend-aarch64 src-tauri/backend-src/backend-aarch64
+          # 让 tauri 把这两个目录作为资源打入
+          # （直接构建后在 .app 里补齐）：
+          npm run tauri build -- --target universal-apple-darwin
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/YingChuangAI.app"
+          cp -r src-tauri/backend-src/backend-x86_64  "$APP/Contents/Resources/"
+          cp -r src-tauri/backend-src/backend-aarch64 "$APP/Contents/Resources/"
+      - name: Package dmg (from injected .app)
+        run: |
+          cd desktop
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/YingChuangAI.app"
+          DMG_DIR="src-tauri/target/universal-apple-darwin/release/bundle/dmg"
+          mkdir -p "$DMG_DIR"
+          # 直接对已注入两套后端的 .app 生成 DMG，避免再次 tauri build 覆盖注入
+          STAGING="$(mktemp -d)"
+          cp -R "$APP" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
+          hdiutil create -volname "影创AI" -srcfolder "$STAGING" -ov -format UDZO \
+            "$DMG_DIR/YingChuangAI-universal.dmg"
+          rm -rf "$STAGING"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YingChuangAI-universal-dmg
+          path: desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/YingChuangAI-universal.dmg
+
+  # ---------- Windows (WebView2) ----------
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: |
+          python -m pip install uv
+          uv sync
+          uv pip install --python .venv/Scripts/python.exe pyinstaller
+          rustup target add x86_64-pc-windows-msvc
+      - name: Build backend
+        run: |
+          cd desktop/backend
+          ..\..\.venv\Scripts\python.exe -m PyInstaller mpt.spec --noconfirm --distpath dist --workpath build
+      - name: Build shell
+        run: |
+          cd desktop
+          npm install
+          npm run tauri build

@@ -1,6 +1,6 @@
 ---
 name: moneyprinterturbo-video
-description: Use this skill whenever the user wants to create a finished video from a topic, title, idea, prompt, or script with MoneyPrinterTurbo. This includes short-form, voice-over, educational, marketing, social-media, and stock-footage videos. Also use it when the user mentions MoneyPrinterTurbo, provides this Skill URL, asks an AI agent to install or configure MoneyPrinterTurbo, needs missing API keys identified, wants a failed generation repaired, or wants a generated MP4 located and delivered. Use this skill when the expected outcome is a final video file, not setup instructions.
+description: Use this skill whenever the user wants to create a finished video from a topic, title, idea, prompt, or script with 影创AI. This includes short-form, voice-over, educational, marketing, social-media, and stock-footage videos. Also use it when the user mentions 影创AI, provides this Skill URL, asks an AI agent to install or configure 影创AI, needs missing API keys identified, wants a failed generation repaired, or wants a generated MP4 located and delivered. Use this skill when the expected outcome is a final video file, not setup instructions.
 compatibility: Requires an AI agent with terminal, network, filesystem, and long-running command support. Supports macOS and Windows and uses uv exclusively.
 metadata:
   author: "harry0703@hotmail.com"
@@ -8,7 +8,7 @@ metadata:
   upstream: "https://github.com/harry0703/MoneyPrinterTurbo"
 ---
 
-# MoneyPrinterTurbo Video Generation
+# 影创AI Video Generation
 
 The user only needs to provide a video topic or script. Complete installation, configuration reuse, generation, waiting, and final MP4 delivery automatically. Do not stop after giving instructions or commands.
 
@@ -24,7 +24,7 @@ The user only needs to provide a video topic or script. Complete installation, c
 
 ## Defaults
 
-Unless the user requests otherwise, generate one Chinese `9:16` portrait video with Pexels footage, the default Chinese Edge TTS voice, subtitles, and background music. Install MoneyPrinterTurbo under the user's home directory.
+Unless the user requests otherwise, generate one Chinese `9:16` portrait video with Pexels footage, the default Chinese Edge TTS voice, subtitles, and background music. Install 影创AI under the user's home directory.
 
 ## Execution
 
@@ -142,7 +142,7 @@ Use background mode only if the agent platform cannot wait for a foreground proc
 ## Scope
 
 - Support macOS and Windows only.
-- Use uv and the MoneyPrinterTurbo CLI only.
+- Use uv and the 影创AI CLI only.
 - Do not start Docker, WebUI, or API services.
 - Do not run multiple video jobs concurrently.
 - Pass additional video requirements after `--`. Run `cli.py --help` once only when an unfamiliar option must be verified.

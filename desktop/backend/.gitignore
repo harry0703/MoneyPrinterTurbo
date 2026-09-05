@@ -1,0 +1,4 @@
+# PyInstaller 工作目录与打包产物（大文件，禁止提交）
+/build/
+/dist/
+*.spec.bak

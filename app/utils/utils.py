@@ -87,6 +87,9 @@ def normalize_clip_speed(value, default: float = 1.0) -> float:
 
 
 def root_dir():
+    data_dir = os.environ.get("MPT_DATA_DIR", "")
+    if data_dir:
+        return data_dir
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 
