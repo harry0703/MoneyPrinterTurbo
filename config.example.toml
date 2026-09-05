@@ -1,4 +1,4 @@
-# MoneyPrinterTurbo configuration example.
+# 影创AI configuration example.
 # The app copies this file to config.toml on first run. Keep API keys and other
 # credentials in config.toml; do not commit your local config.toml.
 
@@ -38,7 +38,7 @@ hide_config = false
 # independently generated script candidates. The WebUI integration is optional.
 script_generation_backend = "local"
 
-# LoomLoom Public API settings. The WebUI supports the public MoneyPrinterTurbo
+# LoomLoom Public API settings. The WebUI supports the public 影创AI
 # SkillBot below out of the box. Configure the key in the WebUI or a private
 # config.toml, and never commit a real key. The fixed SkillBot accepts subject,
 # requirements, and candidateIndex for each row

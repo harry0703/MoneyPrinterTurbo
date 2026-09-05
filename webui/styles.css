@@ -173,6 +173,16 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
     display: none !important;
 }
 
+/* 隐藏品牌标题区（项目名 + 版本号 + 可选的更新入口）。品牌列仅包含该标题，
+   收起整列让顶部操作区铺满，避免隐藏后留下空白列。 */
+.mpt-brand {
+    display: none !important;
+}
+
+.st-key-top_bar [data-testid="stColumn"]:has(.mpt-brand) {
+    display: none !important;
+}
+
 /* 顶部任务入口由 st.fragment 定时刷新，Streamlit 会为 Fragment 自动生成一个
    占满整行的 LayoutWrapper。这里只收缩该包装层，保证右侧操作区按内容紧凑排列。 */
 .st-key-top_bar_actions

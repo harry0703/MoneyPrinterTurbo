@@ -1,4 +1,4 @@
-"""检查 MoneyPrinterTurbo 是否存在可用的新正式版本。"""
+"""检查 影创AI 是否存在可用的新正式版本。"""
 
 import threading
 import time
@@ -91,7 +91,7 @@ def get_available_update(current_version: str) -> str | None:
 
     normalized_latest_version = str(latest_version)
     logger.info(
-        "MoneyPrinterTurbo update available: "
+        "影创AI update available: "
         f"current={installed_version}, latest={normalized_latest_version}"
     )
     return normalized_latest_version
@@ -180,7 +180,7 @@ class AsyncUpdateChecker:
             # get_available_update 已处理预期的网络和数据异常。此处是后台线程的
             # 最后保护边界，必须记录完整堆栈，避免意外异常静默终止后永久 pending。
             logger.exception(
-                "unexpected error while checking for a MoneyPrinterTurbo update"
+                "unexpected error while checking for a 影创AI update"
             )
             available_version = None
 

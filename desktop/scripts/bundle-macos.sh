@@ -27,12 +27,12 @@ npm run tauri build
 # 找到构建产物 .app
 APP_PATH=""
 for cand in \
-  "$DESKTOP_DIR/src-tauri/target/${ARCH}-apple-darwin/release/bundle/macos/YingChuangAI.app" \
-  "$DESKTOP_DIR/src-tauri/target/release/bundle/macos/YingChuangAI.app"; do
+  "$DESKTOP_DIR/src-tauri/target/${ARCH}-apple-darwin/release/bundle/macos/影创AI.app" \
+  "$DESKTOP_DIR/src-tauri/target/release/bundle/macos/影创AI.app"; do
   if [ -d "$cand" ]; then APP_PATH="$cand"; break; fi
 done
 if [ -z "$APP_PATH" ]; then
-  echo "ERROR: 未找到构建产物 YingChuangAI.app" >&2
+  echo "ERROR: 未找到构建产物 影创AI.app" >&2
   exit 1
 fi
 echo "==> [2/4] 找到 .app: $APP_PATH"
@@ -52,7 +52,7 @@ echo "==> [4/4] 由注入后的 .app 生成 DMG"
 # 防止再次 tauri build 覆盖注入的后端。
 DMG_DIR="$DESKTOP_DIR/src-tauri/target/release/bundle/dmg"
 mkdir -p "$DMG_DIR"
-DMG_NAME="YingChuangAI_${ARCH}.dmg"
+DMG_NAME="影创AI_${ARCH}.dmg"
 if command -v create-dmg >/dev/null 2>&1; then
   create-dmg \
     --volname "影创AI" \

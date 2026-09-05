@@ -1,6 +1,6 @@
-# MoneyPrinterTurbo Test Directory
+# 影创AI Test Directory
 
-This directory contains unit tests for the **MoneyPrinterTurbo** project.
+This directory contains unit tests for the **影创AI** project.
 
 ## Directory Structure
 
