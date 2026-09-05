@@ -103,13 +103,18 @@ class PostizService(PublishingProvider):
     def _api_base(self) -> str:
         """Build the Public API base URL.
 
-        Strip trailing slashes only. If the URL already ends with
-        ``/public/v1`` (hosted ``.../public/v1`` or self-hosted
-        ``.../api/public/v1``), return it unchanged so a pasted full
-        Public API URL keeps its ``/api`` prefix. Otherwise append
-        ``/public/v1`` — never ``/api/public/v1``.
+        Strip trailing slashes, then normalize to the upstream author
+        spec base ``/public/v1``: check the ``/api/public/v1`` case
+        first and strip a trailing ``/api`` so the base is always
+        ``<host>/public/v1``. A pasted URL ending in ``/api/public/v1``
+        is normalized to ``/public/v1``; a URL already ending in
+        ``/public/v1`` is returned unchanged; otherwise ``/public/v1``
+        is appended. This function NEVER returns a base ending in
+        ``/api/public/v1``.
         """
         base = self.api_url.rstrip("/")
+        if base.endswith("/api/public/v1"):
+            return base[: -len("/api/public/v1")] + "/public/v1"
         if base.endswith("/public/v1"):
             return base
         return f"{base}/public/v1"

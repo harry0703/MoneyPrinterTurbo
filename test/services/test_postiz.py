@@ -76,13 +76,17 @@ class TestPostizService(unittest.TestCase):
             ("https://api.postiz.com/", "https://api.postiz.com/public/v1"),
             ("https://api.postiz.com/public/v1", "https://api.postiz.com/public/v1"),
             ("https://api.postiz.com/public/v1/", "https://api.postiz.com/public/v1"),
+            ("https://host", "https://host/public/v1"),
+            ("https://host/public/v1", "https://host/public/v1"),
+            ("https://host/api/public/v1", "https://host/public/v1"),
+            ("https://host/api/public/v1/", "https://host/public/v1"),
             (
                 "http://localhost:8004/api/public/v1",
-                "http://localhost:8004/api/public/v1",
+                "http://localhost:8004/public/v1",
             ),
             (
                 "http://localhost:8004/api/public/v1/",
-                "http://localhost:8004/api/public/v1",
+                "http://localhost:8004/public/v1",
             ),
         ]
         for api_url, expected in cases:
