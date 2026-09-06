@@ -1,0 +1,15 @@
+---
+description: Project-wide conventions for Cursor
+globs:
+alwaysApply: true
+---
+
+# Project rules
+
+Canonical instructions live in `AGENTS.md` at repo root — read that first.
+
+- Prefer editing existing files over creating new ones.
+- No premature abstraction.
+- Match existing code style in the file being edited.
+- Run `pytest test/` before considering a change done.
+- Never commit secrets, `.env` files, or `config.toml`.
