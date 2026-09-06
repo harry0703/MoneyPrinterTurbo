@@ -13,6 +13,14 @@ from uuid import UUID, uuid4
 
 from loguru import logger
 
+# Windows consoles default stdout/stderr to the system codepage (e.g. cp1252),
+# which cannot encode the Unicode symbols loguru uses in log messages
+# (circled digits, emoji icons). Force UTF-8 before loguru's default handler
+# or app.config's terminal logger binds to these streams.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
+
 if TYPE_CHECKING:
     from app.models.schema import MaterialInfo, VideoParams
 

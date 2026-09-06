@@ -4,6 +4,11 @@ set "CURRENT_DIR=%CD%"
 echo ***** Current directory: %CURRENT_DIR% *****
 set "PYTHONPATH=%CURRENT_DIR%"
 
+rem Windows consoles default stdout/stderr to the system codepage (e.g. cp1252),
+rem which cannot encode the Unicode symbols loguru uses in log messages
+rem (circled digits, emoji icons). Force UTF-8 to avoid UnicodeEncodeError spam.
+set "PYTHONIOENCODING=utf-8"
+
 rem set HF_ENDPOINT=https://hf-mirror.com
 
 if not defined MPT_WEBUI_HOST set "MPT_WEBUI_HOST=127.0.0.1"

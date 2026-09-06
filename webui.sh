@@ -10,6 +10,12 @@
 CURRENT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export PYTHONPATH="$CURRENT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
+# Some terminals (notably Windows consoles reached via WSL/MSYS) default
+# stdout/stderr to a non-UTF-8 codepage, which cannot encode the Unicode
+# symbols loguru uses in log messages (circled digits, emoji icons). Force
+# UTF-8 to avoid UnicodeEncodeError spam.
+export PYTHONIOENCODING=utf-8
+
 # 0.0.0.0 只能表示“监听所有网卡”，不适合作为浏览器访问地址。
 # macOS/Linux 下浏览器打开 http://0.0.0.0:8501 可能会经过代理或网关，
 # 最终出现 502。默认绑定并打开 127.0.0.1，与 Windows 启动脚本保持一致。
