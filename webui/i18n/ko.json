@@ -213,8 +213,6 @@
     "Base Url": "Base Url",
     "Account ID": "계정 ID",
     "Model Name": "모델 이름",
-    "Groq Model List Load Failed": "지금은 Groq 모델 목록을 불러올 수 없습니다. 모델 이름을 직접 입력할 수 있으며, 생성 시 검증됩니다.",
-    "Groq API Key Required for Model List": "사용 가능한 모델을 자동으로 불러오려면 Groq API 키를 추가하세요.",
     "Secret Key": "Secret Key",
     "Please Enter the LLM API Key": "**LLM API 키**를 입력하세요",
     "Please Enter the Pexels API Key": "**Pexels API 키**를 입력하세요",

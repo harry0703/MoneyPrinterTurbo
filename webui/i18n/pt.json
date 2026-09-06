@@ -213,8 +213,6 @@
     "Base Url": "URL Base",
     "Account ID": "ID da Conta (Obter no painel do Cloudflare)",
     "Model Name": "Nome do Modelo",
-    "Groq Model List Load Failed": "Não foi possível carregar a lista de modelos do Groq. Você ainda pode informar um modelo manualmente; ele será validado durante a geração.",
-    "Groq API Key Required for Model List": "Adicione uma chave de API do Groq para carregar automaticamente os modelos disponíveis.",
     "Secret Key": "Chave secreta",
     "Please Enter the LLM API Key": "Por favor, insira a **Chave da API LLM**",
     "Please Enter the Pexels API Key": "Por favor, insira a **Chave da API do Pexels**",

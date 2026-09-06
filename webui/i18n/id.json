@@ -213,8 +213,6 @@
     "Base Url": "URL Dasar",
     "Account ID": "ID Akun (Dapatkan dari dasbor Cloudflare)",
     "Model Name": "Nama Model",
-    "Groq Model List Load Failed": "Daftar model Groq tidak dapat dimuat saat ini. Anda tetap dapat memasukkan nama model secara manual; model akan divalidasi saat pembuatan.",
-    "Groq API Key Required for Model List": "Tambahkan kunci API Groq untuk memuat model yang tersedia secara otomatis.",
     "Secret Key": "Kunci Rahasia",
     "Please Enter the LLM API Key": "Silakan Masukkan **Kunci API LLM**",
     "Please Enter the Pexels API Key": "Silakan Masukkan **Kunci API Pexels**",

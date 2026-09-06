@@ -2376,14 +2376,15 @@ def stable_segmented_control(
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def get_groq_model_ids(api_key: str, base_url: str) -> list[str]:
-    if not api_key:
+def get_openai_compatible_model_ids(api_key: str, base_url: str) -> list[str]:
+    # Registry-driven: any Provider with `supports_model_list=True` reuses this
+    # loader, so a new Provider only needs the flag, not a dedicated fetch
+    # function. Relies on the standard OpenAI-compatible `GET /models` route
+    # with Bearer auth, which both Groq and NVIDIA NIM implement.
+    if not api_key or not base_url:
         return []
 
-    normalized_base_url = (
-        (base_url or "https://api.groq.com/openai/v1").strip().rstrip("/")
-    )
-    models_url = f"{normalized_base_url}/models"
+    models_url = f"{base_url.strip().rstrip('/')}/models"
 
     try:
         response = requests.get(
@@ -2404,7 +2405,7 @@ def get_groq_model_ids(api_key: str, base_url: str) -> list[str]:
 
         return sorted(set(model_ids))
     except Exception as e:
-        logger.warning(f"failed to fetch groq models: {e}")
+        logger.warning(f"failed to fetch model list from {models_url}: {e}")
         return []
 
 
@@ -3194,37 +3195,35 @@ def _render_settings_dialog():
                     disabled=selected_service_endpoint is not None,
                 )
             st_llm_model_name = ""
-            if llm_provider == "groq":
+            if llm_provider_spec.supports_model_list:
                 effective_api_key = st_llm_api_key or llm_api_key
                 effective_base_url = st_llm_base_url or llm_base_url
-                groq_models = get_groq_model_ids(
+                available_models = get_openai_compatible_model_ids(
                     api_key=effective_api_key,
                     base_url=effective_base_url,
                 )
 
-                if groq_models:
+                if available_models:
                     selected_index = 0
-                    if llm_model_name in groq_models:
-                        selected_index = groq_models.index(llm_model_name)
+                    if llm_model_name in available_models:
+                        selected_index = available_models.index(llm_model_name)
 
                     st_llm_model_name = llm_form_panel.selectbox(
                         tr("Model Name"),
-                        options=groq_models,
+                        options=available_models,
                         index=selected_index,
-                        key="groq_model_name_select",
+                        key=f"{llm_provider}_model_name_select",
                     )
                 else:
                     st_llm_model_name = llm_form_panel.text_input(
                         tr("Model Name"),
                         value=llm_model_name,
-                        key="groq_model_name_input",
+                        key=f"{llm_provider}_model_name_input",
                     )
                     if effective_api_key:
-                        llm_form_panel.caption(tr("Groq Model List Load Failed"))
+                        llm_form_panel.caption(tr("Model List Load Failed"))
                     else:
-                        llm_form_panel.caption(
-                            tr("Groq API Key Required for Model List")
-                        )
+                        llm_form_panel.caption(tr("Model List API Key Required"))
             else:
                 st_llm_model_name = llm_form_panel.text_input(
                     tr("Model Name"),

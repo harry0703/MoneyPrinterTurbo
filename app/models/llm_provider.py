@@ -47,6 +47,9 @@ class LLMProviderSpec:
     requires_base_url: bool = True
     show_api_key: bool = True
     show_base_url: bool = True
+    # 支持 `GET {base_url}/models` 的 Provider 可以在 WebUI 里展示模型下拉框，
+    # 而不是仅提供纯文本输入框；调用方需要用当前 API Key 做 Bearer 鉴权。
+    supports_model_list: bool = False
     deprecated_models: tuple[str, ...] = ()
     deprecated_base_urls: tuple[str, ...] = ()
     extra_fields: tuple[LLMProviderField, ...] = ()
@@ -428,6 +431,7 @@ LLM_PROVIDER_REGISTRY = (
         api_key_url="https://console.groq.com/keys",
         default_model="llama-3.3-70b-versatile",
         default_base_url="https://api.groq.com/openai/v1",
+        supports_model_list=True,
     ),
     LLMProviderSpec(
         "pollinations",
@@ -444,6 +448,7 @@ LLM_PROVIDER_REGISTRY = (
         api_key_url="https://build.nvidia.com/",
         default_model="nvidia/nemotron-3-super-120b-a12b",
         default_base_url="https://integrate.api.nvidia.com/v1",
+        supports_model_list=True,
     ),
 )
 

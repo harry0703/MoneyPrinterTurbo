@@ -62,6 +62,8 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Confirm Metaso MiniMax Charge",
         "Confirm Metaso MiniMax Charge Help",
         "Confirm Metaso MiniMax Charge Required",
+        "Model List Load Failed",
+        "Model List API Key Required",
         "Script Generation Method",
         "Script Generation Method Help",
         "Shengsuan Cloud AI Video",

@@ -554,6 +554,18 @@ class TestLiteLLMProvider(unittest.TestCase):
                         f"{language}: {provider.provider_id}",
                     )
 
+    def test_model_list_capable_providers_are_registered(self):
+        """
+        Providers that expose an OpenAI-compatible `GET /models` route opt in
+        via `supports_model_list`, so the WebUI can offer a model dropdown
+        instead of a plain text field. Providers without that capability must
+        default to False, otherwise the WebUI would call a non-existent route.
+        """
+        self.assertTrue(get_llm_provider("groq").supports_model_list)
+        self.assertTrue(get_llm_provider("nvidia_nim").supports_model_list)
+        self.assertFalse(get_llm_provider("openai").supports_model_list)
+        self.assertFalse(get_llm_provider("moonshot").supports_model_list)
+
     def test_service_endpoint_registry_references_valid_stable_ids(self):
         """服务区域必须通过唯一稳定 ID 关联，不能依赖链接或展示文案。"""
         for provider in LLM_PROVIDER_REGISTRY:

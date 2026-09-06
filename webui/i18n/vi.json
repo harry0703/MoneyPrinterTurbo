@@ -213,8 +213,6 @@
     "Base Url": "Url Cơ Bản",
     "Account ID": "ID Tài Khoản (Lấy từ bảng điều khiển Cloudflare)",
     "Model Name": "Tên Mô Hình",
-    "Groq Model List Load Failed": "Hiện không thể tải danh sách mô hình Groq. Bạn vẫn có thể nhập tên mô hình thủ công; mô hình sẽ được xác thực khi tạo video.",
-    "Groq API Key Required for Model List": "Thêm khóa API Groq để tự động tải các mô hình khả dụng.",
     "Secret Key": "Khóa bí mật",
     "Please Enter the LLM API Key": "Vui lòng Nhập **Khóa API LLM**",
     "Please Enter the Pexels API Key": "Vui lòng Nhập **Khóa API Pexels**",

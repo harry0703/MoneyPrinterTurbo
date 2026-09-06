@@ -213,8 +213,6 @@
     "Base Url": "URL de base",
     "Account ID": "ID de compte",
     "Model Name": "Nom du modèle",
-    "Groq Model List Load Failed": "Impossible de charger la liste des modèles Groq pour le moment. Vous pouvez toujours saisir un nom manuellement ; il sera validé lors de la génération.",
-    "Groq API Key Required for Model List": "Ajoutez une clé API Groq pour charger automatiquement les modèles disponibles.",
     "Secret Key": "Clé secrète",
     "Please Enter the LLM API Key": "Veuillez saisir la **Clé API LLM**",
     "Please Enter the Pexels API Key": "Veuillez saisir la **Clé API Pexels**",
