@@ -438,6 +438,13 @@ LLM_PROVIDER_REGISTRY = (
         deprecated_models=("default",),
         deprecated_base_urls=("https://text.pollinations.ai/openai",),
     ),
+    LLMProviderSpec(
+        "nvidia_nim",
+        "NVIDIA NIM",
+        api_key_url="https://build.nvidia.com/",
+        default_model="nvidia/nemotron-3-super-120b-a12b",
+        default_base_url="https://integrate.api.nvidia.com/v1",
+    ),
 )
 
 LLM_PROVIDERS = {provider.provider_id: provider for provider in LLM_PROVIDER_REGISTRY}

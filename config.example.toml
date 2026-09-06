@@ -386,6 +386,12 @@ pollinations_api_key = ""
 pollinations_base_url = ""
 pollinations_model_name = ""
 
+# NVIDIA NIM. Free preview NIM endpoints are rate-limited; see the model
+# catalog: https://build.nvidia.com/models?filters=nimType%3Anim_type_preview
+nvidia_nim_api_key = ""
+nvidia_nim_base_url = ""
+nvidia_nim_model_name = ""
+
 # -----------------------------------------------------------------------------
 # Speech, Subtitles, and Video / 语音、字幕与视频
 # -----------------------------------------------------------------------------

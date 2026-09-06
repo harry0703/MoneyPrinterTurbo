@@ -377,6 +377,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "litellm",
                 "groq",
                 "pollinations",
+                "nvidia_nim",
             ],
         )
         self.assertEqual(
@@ -1594,6 +1595,60 @@ class TestLiteLLMProvider(unittest.TestCase):
             },
         )
         self.assertEqual(result, "hello\nazure")
+
+    def test_nvidia_nim_provider_uses_openai_compatible_client(self):
+        """
+        NVIDIA NIM exposes an OpenAI-compatible Chat Completions API at
+        integrate.api.nvidia.com. This should reuse the generic OpenAI-compatible
+        path like other catalog providers, with no dedicated adapter branch.
+        """
+        config.app["llm_provider"] = "nvidia_nim"
+        config.app["nvidia_nim_api_key"] = "nvidia-nim-key"
+        config.app["nvidia_nim_base_url"] = ""
+        config.app["nvidia_nim_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nnvidia")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        openai_client.assert_called_once_with(
+            api_key="nvidia-nim-key",
+            base_url="https://integrate.api.nvidia.com/v1",
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "nvidia/nemotron-3-super-120b-a12b",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nnvidia")
+
+    def test_nvidia_nim_provider_requires_api_key(self):
+        config.app["llm_provider"] = "nvidia_nim"
+        config.app["nvidia_nim_api_key"] = ""
+        config.app["nvidia_nim_base_url"] = ""
+        config.app["nvidia_nim_model_name"] = ""
+
+        with patch.object(llm, "OpenAI") as openai_client:
+            result = llm._generate_response("test")
+
+        openai_client.assert_not_called()
+        self.assertIn("api_key is not set", result)
 
     def test_unsupported_provider_returns_clear_error(self):
         config.app["llm_provider"] = "g" + "4f"
