@@ -132,6 +132,43 @@ UPLOAD_POST_MANAGE_USERS_URL = "https://app.upload-post.com/manage-users"
 # 后端在 video_codec 未配置时继续采用稳定的 libx264；单独保留该哨兵可以区分
 # “跟随项目默认策略”和“用户明确固定 libx264”，便于未来安全调整默认策略。
 DEFAULT_VIDEO_CODEC_OPTION = "__default__"
+# LoomLoom 的能力接口只返回模型 ID 和展示名，不提供价格。这里仅维护用户确认过
+# 的参考价，用于帮助选择模型；实际扣费始终以该次服务端 Quote 为准。别名同时覆盖
+# 当前展示名和常见模型 ID，未收录的新模型会自然返回空价格，不影响选择或报价。
+LOOMLOOM_VIDEO_MODEL_PRICES = (
+    (("veo31fast", "googleveo31fastpreview"), "￥0.700/秒", "￥0.700/秒"),
+    (
+        (
+            "通义万相22图生视频fastlora",
+            "通义万相22文生视频fastlora",
+            "tongyiwanxiang22i2vfastlora",
+            "tongyiwanxiang22t2vfastlora",
+            "wanx22i2vfastlora",
+            "wanx22t2vfastlora",
+        ),
+        "￥0.350–0.770/条",
+        "￥0.350/条（480P）；￥0.770/条（720P）",
+    ),
+    (("即梦30文生视频720p", "jimeng30t2v720p"), "￥0.230/秒", "￥0.230/秒"),
+    (("即梦30pro视频", "jimeng30pro视频", "jimeng30provideo"), "￥1.000/秒", "￥1.000/秒"),
+    (("veo3", "googleveo3"), "￥1.400/秒", "￥1.400/秒"),
+    (("veo31", "googleveo31"), "￥1.400/秒", "￥1.400/秒"),
+    (
+        ("klingv2", "可灵v2"),
+        "￥10.00–20.00/条",
+        "￥10.00/条（5 秒）；￥20.00/条（10 秒）",
+    ),
+    (
+        ("klingv21master", "可灵v21master"),
+        "￥10.00–20.00/条",
+        "￥10.00/条（5 秒）；￥20.00/条（10 秒）",
+    ),
+    (
+        ("viduq3pro",),
+        "￥0.440–1.000/秒",
+        "￥0.440/秒（540P）；￥0.940/秒（720P）；￥1.000/秒（1080P）",
+    ),
+)
 DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_enabled": True,
     "font_name": "MicrosoftYaHeiBold.ttc",
@@ -620,6 +657,14 @@ def _initialize_session_state():
         "loomloom_video_input_signature": "",
         "loomloom_video_client_request_id": "",
         "loomloom_video_confirm_charge": False,
+        "loomloom_video_capability": None,
+        "loomloom_video_capability_fingerprint": "",
+        "loomloom_video_capability_load_attempt": "",
+        "loomloom_video_capability_error": "",
+        "loomloom_video_model_id": "",
+        # 文案或完整配音刚生成时，在视频数量控件创建前消费这个摘要并自动
+        # 填入推荐素材数；消费后即清空，避免覆盖用户后续手动调整。
+        "loomloom_video_scene_autofill_digest": "",
         "wavespeed_confirm_charge": False,
         "volcengine_seedance_confirm_charge": False,
         "ofox_confirm_charge": False,
@@ -3778,6 +3823,43 @@ def _effective_script_generation_backend():
     return backend if backend in {"local", "loomloom"} else "local"
 
 
+def _render_loomloom_api_token_input(*, show_reuse_notice=True):
+    """仅在未选择胜算云 Provider 时显示独立 LoomLoom 密钥输入。"""
+    app_config_snapshot = config.snapshot_config_with_pending(config.app)
+    if str(app_config_snapshot.get("llm_provider", "") or "").lower() == "shengsuanyun":
+        if show_reuse_notice:
+            st.caption(tr("Shengsuan Cloud API Key Reused"))
+        return loomloom.resolve_api_token(app_config_snapshot)
+
+    configured_token = loomloom.resolve_api_token(app_config_snapshot)
+    st.session_state.setdefault("loomloom_user_api_token", configured_token)
+    api_token = st.text_input(
+        tr("Shengsuan Cloud API Key"),
+        type="password",
+        key="loomloom_user_api_token",
+        help=tr("Shengsuan Cloud API Key Help"),
+        placeholder=tr("Shengsuan Cloud API Key Placeholder"),
+    ).strip()
+    _set_runtime_config("app", "loomloom_api_token", api_token)
+    return _effective_loomloom_api_token()
+
+
+def _script_generation_method_help(selected_backend):
+    """让“文案生成方式”的问号内容严格跟随当前选择。"""
+    if selected_backend != "loomloom":
+        return tr("Script Generation Method Help")
+
+    app_config_snapshot = config.snapshot_config_with_pending(config.app)
+    guidance = [tr("LoomLoom Batch Script Generation Help")]
+    if (
+        str(app_config_snapshot.get("llm_provider", "") or "").strip().lower()
+        == "shengsuanyun"
+    ):
+        guidance.append(tr("Shengsuan Cloud API Key Reused"))
+    guidance.append(tr("Shengsuan Cloud API Key Link"))
+    return "\n\n".join(guidance)
+
+
 def _loomloom_video_scene_prompts(video_terms, subject, scene_count):
     """按素材关键词生成有限数量的场景描述，供视频模型逐段生成素材。"""
     if isinstance(video_terms, str):
@@ -3817,37 +3899,212 @@ def _loomloom_video_signature(batch, credential_fingerprint):
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
+def _load_loomloom_video_capability(token, *, force=False):
+    """按当前凭证缓存 Profile；刷新失败时保留同一凭证最近的成功结果。"""
+    normalized_token = str(token or "").strip()
+    if not normalized_token:
+        return None
+
+    fingerprint = hashlib.sha256(normalized_token.encode("utf-8")).hexdigest()
+    if st.session_state.get("loomloom_video_capability_fingerprint") != fingerprint:
+        st.session_state["loomloom_video_capability"] = None
+        st.session_state["loomloom_video_capability_fingerprint"] = fingerprint
+        st.session_state["loomloom_video_capability_load_attempt"] = ""
+        st.session_state["loomloom_video_capability_error"] = ""
+
+    should_load = force or (
+        st.session_state.get("loomloom_video_capability_load_attempt") != fingerprint
+    )
+    if should_load:
+        st.session_state["loomloom_video_capability_load_attempt"] = fingerprint
+        try:
+            capability = _create_loomloom_video_backend().resolve_video_capability()
+        except (loomloom.LoomLoomError, ValueError) as exc:
+            logger.warning(
+                f"failed to load LoomLoom video capability: error={type(exc).__name__}"
+            )
+            st.session_state["loomloom_video_capability_error"] = str(exc)
+        else:
+            st.session_state["loomloom_video_capability"] = capability
+            st.session_state["loomloom_video_capability_error"] = ""
+
+    capability = st.session_state.get("loomloom_video_capability")
+    return (
+        capability if isinstance(capability, loomloom.LoomLoomVideoCapability) else None
+    )
+
+
+def _normalize_loomloom_model_identifier(value):
+    """统一展示名和模型 ID 的分隔符、大小写，供本地价格表安全匹配。"""
+    return re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(value or "").lower())
+
+
+def _loomloom_video_model_price(model):
+    """返回已知模型的（下拉框短价、选中后完整参考价）；未知模型返回空值。"""
+    identifiers = {
+        _normalize_loomloom_model_identifier(model.model_id),
+        _normalize_loomloom_model_identifier(model.display_name),
+    }
+    for aliases, compact_price, detailed_price in LOOMLOOM_VIDEO_MODEL_PRICES:
+        if identifiers.intersection(aliases):
+            return compact_price, detailed_price
+    return "", ""
+
+
+def _format_loomloom_video_model_option(model):
+    """在模型名右侧展示短价格，避免多档分辨率价格把下拉框撑得过宽。"""
+    compact_price, _ = _loomloom_video_model_price(model)
+    return f"{model.display_name} · {compact_price}" if compact_price else model.display_name
+
+
+def _effective_voice_rate_before_audio_panel():
+    """视频面板位于音频面板之前，需从现有控件状态或配置读取当前语速。"""
+    raw_rate = st.session_state.get(
+        localized_widget_key("voice_rate_select"),
+        config.ui.get("voice_rate", 1.0),
+    )
+    try:
+        rate = float(raw_rate)
+    except (TypeError, ValueError, OverflowError):
+        return 1.0
+    return rate if math.isfinite(rate) and rate > 0 else 1.0
+
+
+def _matching_full_voice_preview_duration(script, voice_rate):
+    """仅在文案、Provider、音色和语速均未变化时采用完整试听的真实时长。"""
+    cached = st.session_state.get("voice_preview_audio")
+    if not isinstance(cached, dict) or cached.get("preview_type") != "full":
+        return None
+    script_digest = hashlib.sha256(str(script or "").encode("utf-8")).hexdigest()
+    if cached.get("content_digest") != script_digest:
+        return None
+
+    current_tts_server = st.session_state.get(
+        localized_widget_key("tts_server_select"),
+        config.ui.get("tts_server", "azure-tts-v1"),
+    )
+    current_voice_name = st.session_state.get(
+        localized_widget_key(f"speech_synthesis_select_{current_tts_server}"),
+        config.ui.get("voice_name", ""),
+    )
+    try:
+        cached_voice_rate = float(cached.get("voice_rate", 0))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if (
+        cached.get("tts_server") != current_tts_server
+        or cached.get("voice_name") != current_voice_name
+        or not math.isfinite(cached_voice_rate)
+        or not math.isclose(cached_voice_rate, voice_rate)
+    ):
+        return None
+
+    duration = cached.get("duration")
+    if (
+        not isinstance(duration, (int, float))
+        or not math.isfinite(duration)
+        or duration <= 0
+    ):
+        return None
+    return float(duration)
+
+
+def _loomloom_video_coverage_plan(params):
+    """按真实或估算旁白时长计算素材数，并保留无法覆盖的黑屏区间。"""
+    script = str(params.video_script or "").strip()
+    if not script:
+        return None
+
+    voice_rate = _effective_voice_rate_before_audio_panel()
+    actual_duration = _matching_full_voice_preview_duration(script, voice_rate)
+    if actual_duration is not None:
+        duration_min = duration_max = actual_duration
+        basis_key = "AI Video Duration Basis Actual"
+    else:
+        estimated = _estimate_voiceover_duration_range(script, voice_rate)
+        if not estimated:
+            return None
+        duration_min, duration_max = estimated
+        basis_key = "AI Video Duration Basis Estimated"
+
+    clip_duration = max(float(params.video_clip_duration or 1), 1.0)
+    needed_min = max(math.ceil(duration_min / clip_duration), 1)
+    needed_max = max(math.ceil(duration_max / clip_duration), needed_min)
+    return {
+        "script_digest": hashlib.sha256(script.encode("utf-8")).hexdigest(),
+        "basis_key": basis_key,
+        "duration_min": float(duration_min),
+        "duration_max": float(duration_max),
+        "clip_duration": clip_duration,
+        "needed_min": needed_min,
+        "needed_max": needed_max,
+        # 推荐值优先覆盖保守上界，但绝不突破服务端允许的付费任务上限。
+        "recommended_count": min(needed_max, loomloom.MAX_VIDEO_SCENES),
+    }
+
+
+def _format_numeric_range(minimum, maximum, digits=1):
+    if math.isclose(float(minimum), float(maximum)):
+        return f"{float(maximum):.{digits}f}"
+    return f"{float(minimum):.{digits}f}–{float(maximum):.{digits}f}"
+
+
+def _selected_loomloom_video_model(capability):
+    """返回仍在当前 Profile 候选中的用户选择，不做静默回退。"""
+    selected_model_id = str(
+        st.session_state.get("loomloom_video_model_id", "") or ""
+    ).strip()
+    eligible_model_ids = {model.model_id for model in capability.models}
+    return selected_model_id if selected_model_id in eligible_model_ids else ""
+
+
 def _current_loomloom_video_quote_context(params):
     """根据当前页面参数构建默认 SkillBot 的视频报价批次。"""
     token = _effective_loomloom_api_token()
+    fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest() if token else ""
+    capability = st.session_state.get("loomloom_video_capability")
+    if (
+        not isinstance(capability, loomloom.LoomLoomVideoCapability)
+        or st.session_state.get("loomloom_video_capability_fingerprint") != fingerprint
+    ):
+        return None, ""
+    model_id = _selected_loomloom_video_model(capability)
     scene_count = int(st.session_state.get("loomloom_video_scene_count", 1) or 1)
     prompts = _loomloom_video_scene_prompts(
         params.video_terms,
         params.video_subject or params.video_script,
         scene_count,
     )
-    if not token or not prompts:
+    aspect_ratio = str(
+        params.video_aspect.value
+        if isinstance(params.video_aspect, VideoAspect)
+        else params.video_aspect
+    )
+    if (
+        not token
+        or not model_id
+        or not prompts
+        or aspect_ratio not in capability.aspect_ratios
+    ):
         return None, ""
     try:
         batch = _create_loomloom_video_backend().prepare_video_batch(
             subject=params.video_subject or params.video_script,
             scene_prompts=prompts,
-            aspect_ratio=str(
-                params.video_aspect.value
-                if isinstance(params.video_aspect, VideoAspect)
-                else params.video_aspect
-            ),
+            model_id=model_id,
+            aspect_ratio=aspect_ratio,
         )
     except (loomloom.LoomLoomError, ValueError):
         return None, ""
-    fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()
     return batch, _loomloom_video_signature(batch, fingerprint)
 
 
 def _render_loomloom_video_settings(params):
     """渲染默认视频 SkillBot 的报价、报价失效和付费确认流程。"""
     st.caption(tr("Shengsuan Cloud AI Video Help"))
-    if (
+    if _effective_script_generation_backend() != "loomloom":
+        _render_loomloom_api_token_input()
+    elif (
         str(
             config.snapshot_config_with_pending(config.app).get("llm_provider", "")
             or ""
@@ -3858,6 +4115,80 @@ def _render_loomloom_video_settings(params):
 
     token = _effective_loomloom_api_token()
 
+    refresh_models = st.button(
+        tr("Refresh AI Video Models"),
+        key="loomloom_refresh_video_models",
+        use_container_width=True,
+        disabled=not token,
+    )
+    capability = _load_loomloom_video_capability(token, force=refresh_models)
+    capability_error = str(
+        st.session_state.get("loomloom_video_capability_error", "") or ""
+    ).strip()
+    if capability_error:
+        st.warning(tr("AI Video Model List Load Failed").format(error=capability_error))
+
+    if capability is not None:
+        models_by_id = {model.model_id: model for model in capability.models}
+        selected_model_id = str(
+            st.session_state.get("loomloom_video_model_id", "") or ""
+        ).strip()
+        if not selected_model_id:
+            selected_model_id = capability.default_model_id
+            st.session_state["loomloom_video_model_id"] = selected_model_id
+
+        model_options = list(models_by_id)
+        if selected_model_id not in models_by_id:
+            # 保留已失效的原选择，让用户明确看到状态并主动重选。直接把控件
+            # 改成新的默认模型会让旧报价与用户认知不一致。
+            model_options.insert(0, selected_model_id)
+
+        selected_model_id = stable_selectbox(
+            tr("AI Video Model"),
+            options=model_options,
+            default_value=selected_model_id,
+            key="loomloom_video_model_select",
+            format_func=lambda model_id: (
+                _format_loomloom_video_model_option(models_by_id[model_id])
+                if model_id in models_by_id
+                else tr("Unavailable AI Video Model").format(model=model_id)
+            ),
+        )
+        st.session_state["loomloom_video_model_id"] = selected_model_id
+        if selected_model_id not in models_by_id:
+            st.error(tr("Selected AI Video Model Unavailable"))
+        else:
+            _, detailed_price = _loomloom_video_model_price(
+                models_by_id[selected_model_id]
+            )
+            if detailed_price:
+                st.caption(
+                    tr("AI Video Model Reference Price").format(price=detailed_price)
+                )
+
+        current_aspect_ratio = str(
+            params.video_aspect.value
+            if isinstance(params.video_aspect, VideoAspect)
+            else params.video_aspect
+        )
+        if current_aspect_ratio not in capability.aspect_ratios:
+            st.error(tr("Selected AI Video Ratio Unavailable"))
+
+    coverage_plan = _loomloom_video_coverage_plan(params)
+    pending_autofill_digest = str(
+        st.session_state.get("loomloom_video_scene_autofill_digest", "") or ""
+    )
+    if (
+        coverage_plan is not None
+        and pending_autofill_digest == coverage_plan["script_digest"]
+    ):
+        # 只在“刚生成文案”或“刚取得完整试听真实时长”时推荐一次。
+        # 消费标记后不再覆盖，用户随后手动调整段数会被完整保留。
+        st.session_state["loomloom_video_scene_count"] = coverage_plan[
+            "recommended_count"
+        ]
+        st.session_state["loomloom_video_scene_autofill_digest"] = ""
+
     scene_count = st.number_input(
         tr("AI Video Scene Count"),
         min_value=1,
@@ -3866,18 +4197,50 @@ def _render_loomloom_video_settings(params):
         key="loomloom_video_scene_count",
     )
     _set_runtime_config("ui", "loomloom_video_scene_count", int(scene_count))
+    if coverage_plan is not None:
+        coverage_seconds = int(scene_count) * coverage_plan["clip_duration"]
+        black_screen_min = max(
+            coverage_plan["duration_min"] - coverage_seconds, 0.0
+        )
+        black_screen_max = max(
+            coverage_plan["duration_max"] - coverage_seconds, 0.0
+        )
+        duration_basis = tr(coverage_plan["basis_key"]).format(
+            duration=_format_numeric_range(
+                coverage_plan["duration_min"], coverage_plan["duration_max"]
+            )
+        )
+        coverage_message = tr("AI Video Material Coverage").format(
+            basis=duration_basis,
+            clip=_format_numeric_range(
+                coverage_plan["clip_duration"], coverage_plan["clip_duration"]
+            ),
+            needed=_format_numeric_range(
+                coverage_plan["needed_min"], coverage_plan["needed_max"], digits=0
+            ),
+            count=int(scene_count),
+            coverage=_format_numeric_range(coverage_seconds, coverage_seconds),
+            black=_format_numeric_range(black_screen_min, black_screen_max),
+        )
+        if black_screen_max > 0:
+            st.warning(coverage_message)
+        else:
+            st.caption(coverage_message)
+
     batch, input_signature = _current_loomloom_video_quote_context(params)
     if not token:
         st.warning(tr("Shengsuan Cloud API Key Required"))
 
-    if st.button(
-        tr("Get LoomLoom Quote"),
-        key="loomloom_quote_videos",
-        use_container_width=True,
-        type="secondary",
-        icon=":material/request_quote:",
-        disabled=not token or batch is None,
-    ):
+    quote_result = st.session_state.get("loomloom_video_quote")
+    quoted_batch = st.session_state.get("loomloom_video_batch")
+    quote_is_current = bool(
+        quote_result is not None
+        and quoted_batch is not None
+        and st.session_state.get("loomloom_video_input_signature") == input_signature
+    )
+    # Quote 不创建任务也不产生费用。输入完整或发生变化时自动刷新报价，避免
+    # 页面额外暴露一个仅用于推进状态的按钮；真正执行仍需用户明确勾选确认。
+    if token and batch is not None and not quote_is_current:
         try:
             quote_result = _create_loomloom_video_backend().quote(batch)
         except (loomloom.LoomLoomError, ValueError) as exc:
@@ -3904,17 +4267,20 @@ def _render_loomloom_video_settings(params):
             quote_result.estimated_buyer_payable_amount
             or f"{quote_result.estimated_buyer_payable_t} T"
         )
-        st.success(
-            tr(
-                "AI Video Quote Summary Singular"
-                if quote_result.task_count == 1
-                else "AI Video Quote Summary"
-            ).format(
-                tasks=quote_result.task_count,
-                amount=display_amount,
-                currency=quote_result.currency,
+        if quote_result.estimated_buyer_payable_t == 0:
+            st.warning(tr("AI Video Quote Estimate Incomplete"))
+        else:
+            st.success(
+                tr(
+                    "AI Video Quote Summary Singular"
+                    if quote_result.task_count == 1
+                    else "AI Video Quote Summary"
+                ).format(
+                    tasks=quote_result.task_count,
+                    amount=display_amount,
+                    currency=quote_result.currency,
+                )
             )
-        )
         quote_is_current = (
             st.session_state.get("loomloom_video_input_signature") == input_signature
         )
@@ -3998,6 +4364,9 @@ def _render_local_script_generation(params):
         else:
             st.session_state["video_script"] = script
             st.session_state["video_terms"] = ", ".join(terms)
+            st.session_state["loomloom_video_scene_autofill_digest"] = (
+                hashlib.sha256(script.encode("utf-8")).hexdigest()
+            )
 
 
 def _render_loomloom_candidates():
@@ -4365,13 +4734,20 @@ def _render_script_settings(panel, params):
                         "local": tr("Local LLM Script Generation"),
                         "loomloom": tr("Shengsuan Cloud Batch Script Generation"),
                     }
+                    script_backend_widget_key = localized_widget_key(
+                        "script_generation_backend_select"
+                    )
+                    current_script_backend = st.session_state.get(
+                        script_backend_widget_key,
+                        _effective_script_generation_backend(),
+                    )
                     script_generation_backend = stable_selectbox(
                         tr("Script Generation Method"),
                         options=script_backend_options,
                         default_value=_effective_script_generation_backend(),
                         key="script_generation_backend_select",
                         format_func=lambda value: script_backend_labels[value],
-                        help=tr("Script Generation Method Help"),
+                        help=_script_generation_method_help(current_script_backend),
                     )
                     _set_runtime_config(
                         "app", "script_generation_backend", script_generation_backend
@@ -4439,22 +4815,17 @@ def _render_script_settings(panel, params):
                             )
                         )
 
-            if _effective_script_generation_backend() == "loomloom":
-                _render_loomloom_script_generation(params)
-            else:
-                _render_local_script_generation(params)
+            # 文案生成统一使用原来的单次按钮流程。即使这里选择胜算云，也直接
+            # 复用“设置 → 大模型提供商”中的胜算云配置，不进入 LoomLoom 报价、
+            # 候选数和批量确认流程。
+            _render_local_script_generation(params)
             params.video_script = st.text_area(
                 tr("Video Script"),
                 help=tr("Video Script Help"),
                 height=180,
                 key="video_script",
             )
-            using_loomloom_scripts = (
-                _effective_script_generation_backend() == "loomloom"
-            )
-            if using_loomloom_scripts:
-                st.caption(tr("LoomLoom Video Terms Reuse Help"))
-            elif st.button(
+            if st.button(
                 tr("Generate Video Keywords"),
                 key="auto_generate_terms",
                 use_container_width=True,
@@ -4529,6 +4900,14 @@ def _render_video_settings(panel, params):
                 on_settings=_open_material_settings_dialog,
             )
             _set_runtime_config("app", "video_source", params.video_source)
+
+            loomloom_video_capability = None
+            if params.video_source == "loomloom":
+                # 尽早读取缓存，使下方画面比例控件直接受当前 Profile 约束。
+                # 首次输入 Key 后 Streamlit 会 rerun，此处随即加载一次。
+                loomloom_video_capability = _load_loomloom_video_capability(
+                    _effective_loomloom_api_token()
+                )
 
             if params.video_source == "wavespeed":
                 st.caption(tr("WaveSpeed AI Video Help"))
@@ -4625,6 +5004,12 @@ def _render_video_settings(panel, params):
                 (tr("Portrait"), VideoAspect.portrait.value),
                 (tr("Landscape"), VideoAspect.landscape.value),
             ]
+            if loomloom_video_capability is not None:
+                ratio_labels = {value: label for label, value in video_aspect_ratios}
+                video_aspect_ratios = [
+                    (ratio_labels[value], value)
+                    for value in loomloom_video_capability.aspect_ratios
+                ]
             # Coverr 库 99% 是 16:9 横屏,默认竖屏会让画面被大量黑边包围。
             # 用 source-specific widget key 让每个 source 各自记忆 aspect 选择:
             #   - 首次切到 coverr → 默认 Landscape(index=1)
@@ -5118,6 +5503,12 @@ def _synthesize_voice_preview(
             "duration": duration,
             "preview_type": preview_type,
             "sub_maker": sub_maker,
+            # 让位于音频面板之前的视频面板只采用与当前设置完全匹配的
+            # 完整试听时长；短试听或旧文案绝不能改变推荐素材数。
+            "content_digest": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "tts_server": selected_tts_server,
+            "voice_name": voice_name,
+            "voice_rate": float(voice_rate),
         }
     finally:
         # 浏览器播放器使用内存字节，文件读取完即可清理，避免频繁试听积累临时文件。
@@ -5231,6 +5622,18 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
                 elif preview_result:
                     preview_result["fingerprint"] = requested_fingerprint
                     st.session_state["voice_preview_audio"] = preview_result
+                    if (
+                        preview_type == "full"
+                        and isinstance(preview_result.get("duration"), (int, float))
+                        and math.isfinite(preview_result["duration"])
+                        and preview_result["duration"] > 0
+                    ):
+                        # 视频设置先于音频设置渲染。完整试听成功后触发一次 rerun，
+                        # 让上方素材数立刻按真实旁白时长重新推荐并刷新覆盖提示。
+                        st.session_state["loomloom_video_scene_autofill_digest"] = (
+                            preview_result["content_digest"]
+                        )
+                        st.rerun()
                 else:
                     st.error(tr("Voice Preview No Audio"))
 

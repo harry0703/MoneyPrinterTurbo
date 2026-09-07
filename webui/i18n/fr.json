@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "LoomLoom génère plusieurs propositions indépendantes de script. Obtenez d'abord un devis ; l'exécution et la facturation ne débutent qu'après confirmation.",
     "Script Candidate Count": "Nombre de propositions de script",
     "Target Script Duration Seconds": "Durée cible du script (secondes)",
-    "Get LoomLoom Quote": "Obtenir un devis LoomLoom",
     "LoomLoom Quote Summary": "Cette exécution va générer {tasks} propositions pour un coût estimé à {amount} {currency}.",
     "LoomLoom Quote Changed Warning": "Le sujet ou les paramètres de génération ont changé. Obtenez un nouveau devis avant de lancer la génération.",
     "Confirm LoomLoom Charge": "Je confirme ce devis et autorise le prélèvement sur le solde du compte",

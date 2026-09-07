@@ -960,6 +960,63 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(write_mock.call_count, 4)
         self.assertEqual(concat_mock.call_args.kwargs["max_duration"], 10.0)
 
+    def test_combine_videos_can_pad_shortfall_without_looping_generated_clips(self):
+        """AI 生成素材不足时只能使用一次，并在末尾补黑屏。"""
+
+        class _FakeAudioClip:
+            duration = 10.0
+
+            def close(self):
+                pass
+
+        class _FakeVideoClip:
+            duration = 3.0
+            size = (1080, 1920)
+            w = 1080
+            h = 1920
+
+            def subclipped(self, start_time, end_time):
+                return self
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+            padding = vd.SubClippedVideoClip(
+                file_path=os.path.join(temp_dir, "temp-black-padding.mp4"),
+                duration=7.1,
+                width=1080,
+                height=1920,
+            )
+            with (
+                patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()),
+                patch.object(
+                    vd, "_open_video_clip_quietly", return_value=_FakeVideoClip()
+                ),
+                patch.object(vd, "_write_videofile_with_codec_fallback"),
+                patch.object(
+                    vd, "_create_black_video_padding", return_value=padding
+                ) as create_padding,
+                patch.object(vd, "concat_video_clips_with_ffmpeg") as concat_mock,
+                patch.object(vd, "delete_files"),
+            ):
+                vd.combine_videos(
+                    combined_video_path=combined_video_path,
+                    video_paths=["generated.mp4"],
+                    audio_file="audio.mp3",
+                    video_concat_mode=vd.VideoConcatMode.sequential,
+                    max_clip_duration=10,
+                    loop_shortfall=False,
+                )
+
+        self.assertAlmostEqual(create_padding.call_args.kwargs["duration"], 7.1)
+        clip_files = concat_mock.call_args.kwargs["clip_files"]
+        self.assertEqual(len(clip_files), 2)
+        self.assertEqual(clip_files[-1], padding.file_path)
+        self.assertEqual(len(set(clip_files)), len(clip_files))
+        self.assertEqual(concat_mock.call_args.kwargs["max_duration"], 10.0)
+
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 

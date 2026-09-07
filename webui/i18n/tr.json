@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "LoomLoom birden fazla bağımsız senaryo adayı oluşturur. Önce fiyat teklifi alın; çalıştırma ve ücretlendirme yalnızca onaydan sonra başlar.",
     "Script Candidate Count": "Senaryo Adayı Sayısı",
     "Target Script Duration Seconds": "Hedef Senaryo Süresi (saniye)",
-    "Get LoomLoom Quote": "LoomLoom Fiyat Teklifi Al",
     "LoomLoom Quote Summary": "Bu çalışma tahmini {amount} {currency} karşılığında {tasks} aday oluşturacak.",
     "LoomLoom Quote Changed Warning": "Konu veya ayarlar değişti. Çalıştırmadan önce yeni bir teklif alın.",
     "Confirm LoomLoom Charge": "Teklifi onaylıyor ve mevcut kullanıcı bakiyesinden ücret alınmasına izin veriyorum",

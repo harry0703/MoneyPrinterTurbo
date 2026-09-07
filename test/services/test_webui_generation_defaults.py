@@ -387,8 +387,8 @@ def test_seedance_source_shows_unchecked_paid_task_confirmation():
     ).value is False
 
 
-def test_loomloom_tuning_survives_restart_without_persisting_payment_state():
-    """Paid-provider tuning is reusable; quotes and confirmations are not."""
+def test_loomloom_video_tuning_survives_restart_without_script_quote_controls():
+    """Video tuning is reusable while script generation keeps its original UI."""
     test_app_config = dict(
         config.app,
         video_source="loomloom",
@@ -416,38 +416,20 @@ def test_loomloom_tuning_survives_restart_without_persisting_payment_state():
     ):
         first_session = _new_app()
         _widget_by_key(
-            first_session.number_input, "loomloom_candidate_count"
-        ).set_value(4)
-        _widget_by_key(
-            first_session.number_input, "loomloom_script_duration_seconds"
-        ).set_value(120)
-        _widget_by_key(
             first_session.number_input, "loomloom_video_scene_count"
         ).set_value(3)
         first_session.run()
 
-        assert {
-            key: test_ui_config.get(key)
-            for key in (
-                "loomloom_candidate_count",
-                "loomloom_script_duration_seconds",
-                "loomloom_video_scene_count",
-            )
-        } == {
-            "loomloom_candidate_count": 4,
-            "loomloom_script_duration_seconds": 120,
-            "loomloom_video_scene_count": 3,
-        }
+        assert test_ui_config.get("loomloom_video_scene_count") == 3
+        assert all(
+            item.key
+            not in {"loomloom_candidate_count", "loomloom_script_duration_seconds"}
+            for item in first_session.number_input
+        )
         assert "loomloom_confirm_charge" not in test_ui_config
         assert "loomloom_video_confirm_charge" not in test_ui_config
 
         second_session = _new_app()
-        assert _widget_by_key(
-            second_session.number_input, "loomloom_candidate_count"
-        ).value == 4
-        assert _widget_by_key(
-            second_session.number_input, "loomloom_script_duration_seconds"
-        ).value == 120
         assert _widget_by_key(
             second_session.number_input, "loomloom_video_scene_count"
         ).value == 3

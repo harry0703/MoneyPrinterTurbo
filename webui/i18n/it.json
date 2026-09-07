@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "LoomLoom genera più proposte di testo indipendenti. Richiedi prima un preventivo; l'esecuzione e l'addebito iniziano solo dopo la conferma.",
     "Script Candidate Count": "Numero di proposte di testo",
     "Target Script Duration Seconds": "Durata prevista del testo (secondi)",
-    "Get LoomLoom Quote": "Ottieni preventivo LoomLoom",
     "LoomLoom Quote Summary": "Questa esecuzione genererà {tasks} candidati per un costo stimato di {amount} {currency}.",
     "LoomLoom Quote Changed Warning": "L'argomento o le impostazioni di generazione sono cambiati. Richiedi un nuovo preventivo prima di procedere.",
     "Confirm LoomLoom Charge": "Confermo questo preventivo e autorizzo l'addebito sul saldo dell'utente corrente",

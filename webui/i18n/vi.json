@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "LoomLoom tạo nhiều phương án kịch bản độc lập. Hãy lấy báo giá trước; việc chạy và tính phí chỉ bắt đầu sau khi xác nhận.",
     "Script Candidate Count": "Số phương án kịch bản",
     "Target Script Duration Seconds": "Thời lượng kịch bản mục tiêu (giây)",
-    "Get LoomLoom Quote": "Lấy báo giá LoomLoom",
     "LoomLoom Quote Summary": "Lần chạy này sẽ tạo {tasks} phương án với chi phí ước tính {amount} {currency}.",
     "LoomLoom Quote Changed Warning": "Chủ đề hoặc cài đặt đã thay đổi. Hãy lấy báo giá mới trước khi chạy.",
     "Confirm LoomLoom Charge": "Tôi xác nhận báo giá và cho phép trừ số dư của người dùng hiện tại",

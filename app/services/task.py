@@ -872,6 +872,9 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             clip_speed=params.video_clip_speed,
+            # 胜算云每一行都是实际付费生成的独立视频。素材不足时补黑屏，
+            # 不循环同一生成镜头；其它来源保持原有循环补齐行为。
+            loop_shortfall=params.video_source != "loomloom",
         )
 
         _progress += 50 / params.video_count / 2

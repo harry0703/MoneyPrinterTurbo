@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "LoomLoom genera varios guiones independientes. Obtén primero un presupuesto; la ejecución y el cobro comienzan solo tras confirmarlo.",
     "Script Candidate Count": "Número de guiones candidatos",
     "Target Script Duration Seconds": "Duración objetivo del guion (segundos)",
-    "Get LoomLoom Quote": "Obtener presupuesto de LoomLoom",
     "LoomLoom Quote Summary": "Esta ejecución generará {tasks} candidatos por un coste estimado de {amount} {currency}.",
     "LoomLoom Quote Changed Warning": "El tema o la configuración cambiaron. Obtén un nuevo presupuesto antes de ejecutar.",
     "Confirm LoomLoom Charge": "Confirmo el presupuesto y autorizo el cargo al saldo del usuario actual",

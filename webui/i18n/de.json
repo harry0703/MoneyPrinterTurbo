@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "LoomLoom erstellt mehrere unabhängige Skriptvarianten. Holen Sie zuerst ein Angebot ein; Ausführung und Abrechnung beginnen erst nach Bestätigung.",
     "Script Candidate Count": "Anzahl der Skriptvarianten",
     "Target Script Duration Seconds": "Zieldauer des Skripts (Sekunden)",
-    "Get LoomLoom Quote": "LoomLoom-Angebot abrufen",
     "LoomLoom Quote Summary": "Dieser Lauf erstellt {tasks} Varianten für voraussichtlich {amount} {currency}.",
     "LoomLoom Quote Changed Warning": "Thema oder Einstellungen wurden geändert. Bitte holen Sie ein neues Angebot ein.",
     "Confirm LoomLoom Charge": "Ich bestätige das Angebot und die Belastung des aktuellen Guthabens",

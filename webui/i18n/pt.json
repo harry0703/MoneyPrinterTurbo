@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "O LoomLoom gera vários roteiros independentes. Obtenha primeiro uma cotação; a execução e a cobrança começam somente após a confirmação.",
     "Script Candidate Count": "Quantidade de roteiros candidatos",
     "Target Script Duration Seconds": "Duração alvo do roteiro (segundos)",
-    "Get LoomLoom Quote": "Obter cotação do LoomLoom",
     "LoomLoom Quote Summary": "Esta execução gerará {tasks} candidatos por um custo estimado de {amount} {currency}.",
     "LoomLoom Quote Changed Warning": "O tema ou as configurações mudaram. Obtenha uma nova cotação antes de executar.",
     "Confirm LoomLoom Charge": "Confirmo a cotação e autorizo a cobrança no saldo do usuário atual",

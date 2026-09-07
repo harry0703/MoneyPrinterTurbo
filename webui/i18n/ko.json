@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "LoomLoom은 독립적인 스크립트 후보를 여러 개 생성합니다. 먼저 견적을 확인하세요. 확인 후에만 실행과 과금이 시작됩니다.",
     "Script Candidate Count": "스크립트 후보 수",
     "Target Script Duration Seconds": "목표 스크립트 길이 (초)",
-    "Get LoomLoom Quote": "LoomLoom 견적 확인",
     "LoomLoom Quote Summary": "이번 실행으로 후보 {tasks}개를 생성하며 예상 비용은 {amount} {currency}입니다.",
     "LoomLoom Quote Changed Warning": "주제 또는 생성 설정이 변경되었습니다. 실행 전에 새 견적을 받으세요.",
     "Confirm LoomLoom Charge": "이 견적을 확인했으며 현재 사용자 잔액에서 결제하는 데 동의합니다",

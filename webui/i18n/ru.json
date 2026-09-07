@@ -27,7 +27,6 @@
     "LoomLoom Batch Script Generation Help": "LoomLoom создаёт несколько независимых вариантов сценария. Сначала получите расчёт; выполнение и списание начнутся только после подтверждения.",
     "Script Candidate Count": "Количество вариантов сценария",
     "Target Script Duration Seconds": "Целевая длительность сценария (секунды)",
-    "Get LoomLoom Quote": "Получить расчёт LoomLoom",
     "LoomLoom Quote Summary": "Будет создано {tasks} вариантов, ориентировочная стоимость — {amount} {currency}.",
     "LoomLoom Quote Changed Warning": "Тема или настройки изменились. Перед запуском получите новый расчёт.",
     "Confirm LoomLoom Charge": "Я подтверждаю расчёт и разрешаю списание с баланса текущего пользователя",
