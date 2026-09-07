@@ -20,7 +20,13 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 from app.config import config
 from app.utils import utils
 
-_DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
+_DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 90.0
+# Hard floor: config.toml values below this are silently raised.
+# Multilingual neural voices (e.g. AndrewMultilingual) need at least 60 s
+# even on fast networks.  The webui's save_config() overwrites config.toml
+# from in-memory state, so a manual edit of edge_tts_timeout gets reverted;
+# the floor here prevents that from causing silent timeouts.
+_MINIMUM_EDGE_TTS_TIMEOUT_SECONDS = 60.0
 
 
 def mktimestamp(time_unit: float) -> str:
@@ -1174,6 +1180,17 @@ def tts(
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
             return None
+    elif is_omnivoice_voice(voice_name):
+        # 格式: omnivoice:profile_id:Display Name
+        parts = voice_name.split(":")
+        if len(parts) >= 2:
+            profile_id = parts[1]
+            return omnivoice_tts(
+                text, profile_id, voice_rate, voice_file, voice_volume
+            )
+        else:
+            logger.error(f"Invalid omnivoice voice name format: {voice_name}")
+            return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
@@ -1321,9 +1338,11 @@ def get_edge_tts_timeout_seconds() -> Union[float, None]:
     默认超时，避免 WebUI 任务长期无反馈。
 
     使用方式：
-    - 默认 30 秒，覆盖常见短视频脚本的首包等待时间；
+    - 默认 90 秒，覆盖常见短视频脚本的首包等待时间；
+      Multilingual 系列音色（如 AndrewMultilingual）服务端合成更慢，
+      30 秒的旧默认值在慢网络下经常超时。
     - 如用户处于慢网络或代理环境，可在 `config.toml` 里设置
-      `edge_tts_timeout = 60`；
+      `edge_tts_timeout = 120`；
     - 设置为 0 或负数表示显式禁用超时，保留完全向后兼容。
     """
     raw_timeout = config.app.get(
@@ -1340,6 +1359,13 @@ def get_edge_tts_timeout_seconds() -> Union[float, None]:
 
     if timeout_seconds <= 0:
         return None
+
+    if timeout_seconds < _MINIMUM_EDGE_TTS_TIMEOUT_SECONDS:
+        logger.info(
+            f"edge_tts_timeout config value ({timeout_seconds:g}s) is below "
+            f"minimum {_MINIMUM_EDGE_TTS_TIMEOUT_SECONDS:g}s — using minimum"
+        )
+        timeout_seconds = _MINIMUM_EDGE_TTS_TIMEOUT_SECONDS
 
     return timeout_seconds
 
@@ -1374,21 +1400,24 @@ def _stream_edge_tts_sync_with_timeout(
     thread = threading.Thread(target=_produce_chunks, daemon=True)
     thread.start()
 
-    deadline = time.monotonic() + timeout_seconds
+    # Use an IDLE timeout, not a total deadline.  A total deadline kills long
+    # scripts that are actively streaming; an idle timeout only fires when no
+    # new chunk has arrived for `timeout_seconds`, which catches truly hung
+    # connections without penalising long narrations.
+    last_chunk_at = time.monotonic()
     while True:
-        remaining_seconds = deadline - time.monotonic()
-        if remaining_seconds <= 0:
+        idle_seconds = time.monotonic() - last_chunk_at
+        if idle_seconds >= timeout_seconds:
             raise TimeoutError(
                 f"edge_tts stream timed out after {timeout_seconds:g}s"
             )
 
         try:
-            item_type, payload = stream_queue.get(
-                timeout=min(0.5, remaining_seconds)
-            )
+            item_type, payload = stream_queue.get(timeout=0.5)
         except queue.Empty:
             continue
 
+        last_chunk_at = time.monotonic()
         if item_type == "chunk":
             on_chunk(payload)
         elif item_type == "error":
@@ -1496,6 +1525,20 @@ def azure_tts_v1(
                         "failed to remove empty tts file: "
                         f"{voice_file}, error: {str(remove_error)}"
                     )
+
+    # All retries with the requested voice failed.  Multilingual variants
+    # (e.g. AndrewMultilingualNeural) route to different Microsoft endpoints
+    # that are sometimes unreachable while the standard variant works fine.
+    # Automatically retry with the non-Multilingual version so generation
+    # succeeds instead of failing the entire task.
+    if "Multilingual" in voice_name:
+        fallback_voice = voice_name.replace("Multilingual", "")
+        logger.warning(
+            f"all retries failed for {voice_name} — "
+            f"falling back to standard variant: {fallback_voice}"
+        )
+        return azure_tts_v1(text, fallback_voice, voice_rate, voice_file)
+
     return None
 
 
@@ -1636,6 +1679,144 @@ def siliconflow_tts(
                 )
         except Exception as e:
             logger.error(f"siliconflow tts failed: {str(e)}")
+
+    return None
+
+
+def get_omnivoice_base_url() -> str:
+    """OmniVoice Studio 本地服务地址（可在 config.toml [omnivoice] 段覆盖）。"""
+    return config.omnivoice.get("base_url", "http://127.0.0.1:3900").rstrip("/")
+
+
+def get_omnivoice_voices() -> list[str]:
+    """获取 OmniVoice Studio 的声音列表（本地克隆的 voice profiles）。
+
+    Returns:
+        ["omnivoice:default:Default Voice", "omnivoice:<profile_id>:<name>", ...]
+        服务未启动时返回空列表（UI 会显示提示）。
+    """
+    voices = ["omnivoice:default:Default Voice"]
+    try:
+        resp = requests.get(f"{get_omnivoice_base_url()}/profiles", timeout=5)
+        if resp.status_code == 200:
+            for p in resp.json():
+                # 跳过演示声音：其参考文本会渗入生成结果
+                if p.get("is_demo"):
+                    continue
+                name = str(p.get("name", "")).replace(":", " ")
+                voices.append(f"omnivoice:{p['id']}:{name}")
+    except requests.RequestException as e:
+        logger.warning(f"OmniVoice Studio not reachable, only default voice offered: {e}")
+    return voices
+
+
+def is_omnivoice_voice(voice_name: str) -> bool:
+    """检查是否是 OmniVoice 的声音"""
+    return voice_name.startswith("omnivoice:")
+
+
+def omnivoice_tts(
+    text: str,
+    profile_id: str,
+    voice_rate: float,
+    voice_file: str,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """使用本地 OmniVoice Studio 生成语音（零成本、离线）。
+
+    Args:
+        text: 要转换为语音的文本
+        profile_id: OmniVoice voice profile id；"default" 表示默认声音
+        voice_rate: 语音速度，OmniVoice 接受 [0.5, 2.0]
+        voice_file: 输出的音频文件路径（写入 WAV 字节，ffmpeg 按内容识别）
+        voice_volume: 保留参数；OmniVoice 端暂不支持增益
+
+    Returns:
+        SubMaker对象或None
+    """
+    text = text.strip()
+    base_url = get_omnivoice_base_url()
+
+    data = {
+        "text": text,
+        "speed": max(0.5, min(2.0, voice_rate)),
+        "num_step": int(config.omnivoice.get("num_step", 16)),
+        "effect_preset": config.omnivoice.get("effect_preset", "broadcast"),
+    }
+    if profile_id and profile_id != "default":
+        data["profile_id"] = profile_id
+    language = config.omnivoice.get("language", "")
+    if language and language.lower() not in ("auto", "auto-detect"):
+        data["language"] = language
+
+    # 本地 MPS 推理较慢：长文按 ~10s/句 估算，给足超时
+    timeout = int(config.omnivoice.get("timeout", 1800))
+
+    for i in range(2):
+        try:
+            logger.info(
+                f"start omnivoice tts, profile: {profile_id or 'default'}, "
+                f"chars: {len(text)}, try: {i + 1}"
+            )
+            response = requests.post(
+                f"{base_url}/generate", data=data, timeout=timeout
+            )
+            if response.status_code != 200:
+                logger.error(
+                    f"omnivoice tts failed with status {response.status_code}: "
+                    f"{response.text[:300]}"
+                )
+                continue
+
+            with open(voice_file, "wb") as f:
+                f.write(response.content)
+
+            # 与 siliconflow 相同的字幕结构：按句子字符数比例分配时长
+            sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            try:
+                audio_duration = float(response.headers.get("X-Audio-Duration", 0))
+                if audio_duration <= 0:
+                    from moviepy import AudioFileClip
+
+                    audio_clip = AudioFileClip(voice_file)
+                    audio_duration = audio_clip.duration
+                    audio_clip.close()
+
+                audio_duration_100ns = int(audio_duration * 10000000)
+                sentences = utils.split_string_by_punctuations(text)
+                if sentences:
+                    total_chars = sum(len(s) for s in sentences)
+                    char_duration = (
+                        audio_duration_100ns / total_chars if total_chars > 0 else 0
+                    )
+                    current_offset = 0
+                    for sentence in sentences:
+                        if not sentence.strip():
+                            continue
+                        sentence_duration = int(len(sentence) * char_duration)
+                        sub_maker.subs.append(sentence)
+                        sub_maker.offset.append(
+                            (current_offset, current_offset + sentence_duration)
+                        )
+                        current_offset += sentence_duration
+                else:
+                    sub_maker.subs = [text]
+                    sub_maker.offset = [(0, audio_duration_100ns)]
+            except Exception as e:
+                logger.warning(f"omnivoice subtitle timeline fallback: {str(e)}")
+                sub_maker.subs = [text]
+                sub_maker.offset = [(0, 10000000)]
+
+            logger.success(f"omnivoice tts succeeded: {voice_file}")
+            return sub_maker
+        except requests.Timeout:
+            logger.error(
+                f"omnivoice tts timed out after {timeout}s — text may be too long "
+                "for local inference; try a shorter script or lower num_step"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"omnivoice tts failed: {str(e)}")
 
     return None
 
@@ -1941,6 +2122,69 @@ def _write_subtitle_items(sub_items: list[str], subtitle_file: str) -> bool:
         if os.path.exists(subtitle_file):
             os.remove(subtitle_file)
         return False
+
+
+def align_subtitle_file_duration(
+    subtitle_file: str,
+    audio_duration_seconds: float,
+    max_drift_seconds: float = 0.12,
+) -> bool:
+    """
+    将字幕整体时间轴对齐到音频的真实时长，降低 TTS/转码带来的累计漂移。
+
+    当字幕总时长与音频时长差异很小，保留原始时间轴，避免无意义重写。
+    当差异超过阈值时，按比例缩放每一段字幕，并显式把最后一段收敛到
+    音频结尾，确保整条字幕轨不会越来越快或越来越慢。
+    """
+    if not subtitle_file or not os.path.exists(subtitle_file):
+        return False
+    if audio_duration_seconds <= 0:
+        return False
+
+    subtitle_items = subtitles.file_to_subtitles(subtitle_file, encoding="utf-8")
+    if not subtitle_items:
+        return False
+
+    subtitle_duration = max(end for ((_, end), _) in subtitle_items)
+    if subtitle_duration <= 0:
+        return False
+
+    drift = abs(audio_duration_seconds - subtitle_duration)
+    if drift <= max_drift_seconds:
+        return False
+
+    formatter = _build_subtitle_formatter()
+    scale_factor = audio_duration_seconds / subtitle_duration
+    rewritten_items: list[str] = []
+    previous_end = 0.0
+
+    for index, ((start_time, end_time), text) in enumerate(subtitle_items, start=1):
+        scaled_start = max(0.0, start_time * scale_factor)
+        scaled_end = max(scaled_start, end_time * scale_factor)
+        if scaled_start < previous_end:
+            scaled_start = previous_end
+        if scaled_end < scaled_start:
+            scaled_end = scaled_start
+        if index == len(subtitle_items):
+            scaled_end = audio_duration_seconds
+
+        rewritten_items.append(
+            formatter(
+                idx=index,
+                start_time=scaled_start * 10000000,
+                end_time=scaled_end * 10000000,
+                sub_text=text.strip(),
+            )
+        )
+        previous_end = scaled_end
+
+    changed = _write_subtitle_items(rewritten_items, subtitle_file)
+    if changed:
+        logger.info(
+            "subtitle timeline aligned to audio duration, "
+            f"subtitle: {subtitle_duration:.3f}s, audio: {audio_duration_seconds:.3f}s"
+        )
+    return changed
 
 
 def _build_subtitle_items_from_edge_cues(

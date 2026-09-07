@@ -16,6 +16,7 @@ from moviepy import (
     CompositeVideoClip,
     ImageClip,
     TextClip,
+    VideoClip,
     VideoFileClip,
     afx,
 )
@@ -30,6 +31,7 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
+from app.services.character_overlay import CharacterOverlayService
 from app.services.utils import video_effects
 from app.utils import utils
 
@@ -55,6 +57,8 @@ audio_codec = "aac"
 audio_bitrate = "192k"
 video_codec = "libx264"
 fps = 30
+
+BGM_EXTENSIONS = ("*.mp3", "*.wav", "*.m4a", "*.aac", "*.ogg", "*.flac")
 
 
 def get_ffmpeg_binary():
@@ -240,15 +244,26 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     if bgm_file and os.path.exists(bgm_file):
         return bgm_file
 
-    if bgm_type == "random":
-        suffix = "*.mp3"
+    if bgm_type in {"random", "catalog"}:
+        # Prefer curated copyright-free tracks for social platforms.
+        curated_song_dir = utils.song_dir("copyright_free")
+        curated_files = []
+        for ext in BGM_EXTENSIONS:
+            curated_files.extend(glob.glob(os.path.join(curated_song_dir, ext)))
+
+        if curated_files:
+            return random.choice(curated_files)
+
+        # Backward-compatible fallback to the legacy songs directory.
         song_dir = utils.song_dir()
-        files = glob.glob(os.path.join(song_dir, suffix))
-        # 当背景音乐目录为空时，直接回退为“不使用 BGM”，避免 random.choice([]) 抛异常。
-        if not files:
-            logger.warning(f"no bgm files found in song directory: {song_dir}")
+        legacy_files = []
+        for ext in BGM_EXTENSIONS:
+            legacy_files.extend(glob.glob(os.path.join(song_dir, ext)))
+
+        if not legacy_files:
+            logger.warning(f"no bgm files found in song directories: {curated_song_dir}, {song_dir}")
             return ""
-        return random.choice(files)
+        return random.choice(legacy_files)
 
     return ""
 
@@ -486,6 +501,7 @@ def generate_video(
     subtitle_path: str,
     output_file: str,
     params: VideoParams,
+    cover_image_path: str = "",
 ):
     aspect = VideoAspect(params.video_aspect)
     video_width, video_height = aspect.to_resolution()
@@ -555,76 +571,171 @@ def generate_video(
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
+        subtitle_margin = 10
+
+        def adjust_for_character_collision(y_position: float) -> float:
+            if not character_layout or not character_layout.avoid_subtitles:
+                return y_position
+            if y_position + _clip.h <= character_layout.y - subtitle_margin:
+                return y_position
+            safe_y = character_layout.y - _clip.h - max(subtitle_margin, int(params.character_margin_y or 0) // 2)
+            return max(subtitle_margin, safe_y)
+
         if params.subtitle_position == "bottom":
-            _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
+            bottom_y = adjust_for_character_collision(video_height * 0.95 - _clip.h)
+            _clip = _clip.with_position(("center", bottom_y))
         elif params.subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
         elif params.subtitle_position == "custom":
             # Ensure the subtitle is fully within the screen bounds
-            margin = 10  # Additional margin, in pixels
-            max_y = video_height - _clip.h - margin
-            min_y = margin
+            max_y = video_height - _clip.h - subtitle_margin
+            min_y = subtitle_margin
             custom_y = (video_height - _clip.h) * (params.custom_position / 100)
             custom_y = max(
                 min_y, min(custom_y, max_y)
             )  # Constrain the y value within the valid range
-            _clip = _clip.with_position(("center", custom_y))
+            _clip = _clip.with_position(("center", adjust_for_character_collision(custom_y)))
         else:  # center
             _clip = _clip.with_position(("center", "center"))
         return _clip
 
-    video_clip = _open_video_clip_quietly(video_path)
-    audio_clip = AudioFileClip(audio_path).with_effects(
-        [afx.MultiplyVolume(params.voice_volume)]
-    )
-
-    def make_textclip(text):
-        return TextClip(
-            text=text,
-            font=font_path,
-            font_size=params.font_size,
+    video_clip = None
+    original_video_clip = None
+    audio_clip = None
+    character_overlay = None
+    cover_intro_clip = None
+    cover_sanitized_temp_file = ""
+    bgm_clip = None
+    text_clips = []
+    try:
+        video_clip = _open_video_clip_quietly(video_path)
+        original_video_clip = video_clip
+        audio_clip = AudioFileClip(audio_path).with_effects(
+            [afx.MultiplyVolume(params.voice_volume)]
         )
+        cover_intro_duration = 2.0 if cover_image_path and os.path.exists(cover_image_path) else 0.0
 
-    if subtitle_path and os.path.exists(subtitle_path):
-        sub = SubtitlesClip(
-            subtitles=subtitle_path, encoding="utf-8", make_textclip=make_textclip
-        )
-        text_clips = []
-        for item in sub.subtitles:
-            clip = create_text_clip(subtitle_item=item)
-            text_clips.append(clip)
-        video_clip = CompositeVideoClip([video_clip, *text_clips])
+        if cover_intro_duration > 0:
+            cover_clip_raw, sanitized_cover_path = _open_image_clip_with_fallback(cover_image_path)
+            if sanitized_cover_path != cover_image_path:
+                cover_sanitized_temp_file = sanitized_cover_path
+            cover_clip_raw_duration = cover_clip_raw.with_duration(cover_intro_duration)
+            cover_w, cover_h = cover_clip_raw_duration.size
+            if cover_w != video_width or cover_h != video_height:
+                cover_ratio = cover_w / cover_h
+                target_ratio = video_width / video_height
+                if cover_ratio == target_ratio:
+                    cover_intro_clip = cover_clip_raw_duration.resized(new_size=(video_width, video_height))
+                else:
+                    if cover_ratio > target_ratio:
+                        scale_factor = video_width / cover_w
+                    else:
+                        scale_factor = video_height / cover_h
+                    resized_w = int(cover_w * scale_factor)
+                    resized_h = int(cover_h * scale_factor)
+                    cover_bg = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(cover_intro_duration)
+                    cover_fg = cover_clip_raw_duration.resized(new_size=(resized_w, resized_h)).with_position("center")
+                    cover_intro_clip = CompositeVideoClip([cover_bg, cover_fg], size=(video_width, video_height)).with_duration(cover_intro_duration)
+            else:
+                cover_intro_clip = cover_clip_raw_duration
 
-    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
-    if bgm_file:
-        try:
-            bgm_clip = AudioFileClip(bgm_file).with_effects(
-                [
-                    afx.MultiplyVolume(params.bgm_volume),
-                    afx.AudioFadeOut(3),
-                    afx.AudioLoop(duration=video_clip.duration),
+            if cover_intro_clip is not None:
+                video_with_intro_layers = [
+                    cover_intro_clip,
+                    video_clip.with_start(cover_intro_duration),
                 ]
-            )
-            audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
-        except Exception as e:
-            logger.error(f"failed to add bgm: {str(e)}")
+                intro_duration = cover_intro_duration + float(video_clip.duration or 0.0)
+                video_clip = CompositeVideoClip(video_with_intro_layers, size=(video_width, video_height)).with_duration(intro_duration)
+                audio_clip = audio_clip.with_start(cover_intro_duration)
 
-    video_clip = video_clip.with_audio(audio_clip)
-    # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
-    # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
-    output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
-    video_clip.write_videofile(
-        output_file,
-        audio_codec=audio_codec,
-        audio_fps=output_audio_fps,
-        audio_bitrate=audio_bitrate,
-        temp_audiofile_path=output_dir,
-        threads=params.n_threads or 2,
-        logger=None,
-        fps=fps,
-    )
-    video_clip.close()
-    del video_clip
+        composition_duration = float(video_clip.duration or audio_clip.duration or 0.0)
+        character_layout = None
+        if params.character_overlay_enabled:
+            character_overlay = CharacterOverlayService().create_overlay(
+                params=params,
+                canvas_size=(video_width, video_height),
+                duration=composition_duration,
+                audio_path=audio_path,
+            )
+            if character_overlay:
+                character_layout = character_overlay.layout
+
+        def make_textclip(text):
+            return TextClip(
+                text=text,
+                font=font_path,
+                font_size=params.font_size,
+            )
+
+        if subtitle_path and os.path.exists(subtitle_path):
+            sub = SubtitlesClip(
+                subtitles=subtitle_path, encoding="utf-8", make_textclip=make_textclip
+            )
+            subtitle_offset = cover_intro_duration if cover_intro_duration > 0 else 0.0
+            for item in sub.subtitles:
+                shifted_item = ((item[0][0] + subtitle_offset, item[0][1] + subtitle_offset), item[1])
+                clip = create_text_clip(subtitle_item=shifted_item)
+                text_clips.append(clip)
+
+        visual_layers = [video_clip]
+        layer_order = str(params.character_layer_order or "behind_subtitles").lower()
+        if character_overlay and layer_order != "front_of_subtitles":
+            visual_layers.append(character_overlay.clip)
+        if text_clips:
+            visual_layers.extend(text_clips)
+        if character_overlay and layer_order == "front_of_subtitles":
+            visual_layers.append(character_overlay.clip)
+        if len(visual_layers) > 1:
+            video_clip = CompositeVideoClip(visual_layers, size=(video_width, video_height)).with_duration(composition_duration)
+
+        bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
+        if bgm_file:
+            try:
+                bgm_clip = AudioFileClip(bgm_file).with_effects(
+                    [
+                        afx.MultiplyVolume(params.bgm_volume),
+                        afx.AudioFadeOut(3),
+                        afx.AudioLoop(duration=max(0.0, video_clip.duration - cover_intro_duration)),
+                    ]
+                )
+                if cover_intro_duration > 0:
+                    bgm_clip = bgm_clip.with_start(cover_intro_duration)
+                audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
+            except Exception as e:
+                logger.error(f"failed to add bgm: {str(e)}")
+
+        video_clip = video_clip.with_audio(audio_clip)
+        # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
+        # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
+        output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
+        video_clip.write_videofile(
+            output_file,
+            audio_codec=audio_codec,
+            audio_fps=output_audio_fps,
+            audio_bitrate=audio_bitrate,
+            temp_audiofile_path=output_dir,
+            threads=params.n_threads or 2,
+            logger=None,
+            fps=fps,
+        )
+    finally:
+        if bgm_clip is not None:
+            bgm_clip.close()
+        if cover_intro_clip is not None:
+            close_clip(cover_intro_clip)
+        if cover_sanitized_temp_file:
+            delete_files(cover_sanitized_temp_file)
+        if character_overlay is not None and getattr(character_overlay.clip, "mask", None) is not None:
+            character_overlay.clip.mask.close()
+        for text_clip in text_clips:
+            text_clip.close()
+        if audio_clip is not None:
+            audio_clip.close()
+        if original_video_clip is not None and original_video_clip is not video_clip:
+            original_video_clip.close()
+        if video_clip is not None:
+            video_clip.close()
+            del video_clip
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
@@ -660,10 +771,9 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             width = clip.size[0]
             height = clip.size[1]
             if width < 480 or height < 480:
-                logger.warning(f"low resolution material: {width}x{height}, minimum 480x480 required")
-                # 探测到低分辨率素材后立即关闭资源，并且不要把该素材返回给后续流程。
-                close_clip(clip)
-                continue
+                logger.warning(
+                    f"low resolution material: {width}x{height}, continuing with upscale-friendly processing"
+                )
 
             if ext in const.FILE_TYPE_IMAGES:
                 logger.info(f"processing image: {material_source_path}")

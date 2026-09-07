@@ -71,18 +71,58 @@ class VideoParams(BaseModel):
     """
 
     video_subject: str
+    content_source: Optional[str] = "text"
     video_script: str = ""  # Script used to generate the video
+    pdf_file: Optional[str] = None
     video_terms: Optional[str | list] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
+    duration_mode: Optional[str] = "manual"
     video_clip_duration: Optional[int] = 5
     video_count: Optional[int] = 1
+    generate_cover: Optional[bool] = True
+    custom_cover_file: Optional[str] = None
 
     video_source: Optional[str] = "pexels"
+    external_provider: Optional[str] = ""
+    external_output_type: Optional[str] = "video"
+    external_metadata: Optional[dict] = None
+    enable_musetalk: Optional[bool] = False
+    enable_cinematic_render: Optional[bool] = False
+    enable_animatediff: Optional[bool] = False
+    avatar_lipsync_mode: Optional[str] = "auto"
+    avatar_image_file: Optional[str] = None
+    avatar_position: Optional[str] = "bottom_right"
+    avatar_offset_x: Optional[int] = 0
+    avatar_offset_y: Optional[int] = 0
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
     )
+    character_overlay_enabled: Optional[bool] = False
+    character_image_file: Optional[str] = None
+    character_remove_background: Optional[bool] = True
+    character_position: Optional[str] = "bottom_right"
+    character_custom_x: Optional[float] = 0.0
+    character_custom_y: Optional[float] = 0.0
+    character_scale: Optional[float] = 0.28
+    character_margin_x: Optional[int] = 36
+    character_margin_y: Optional[int] = 36
+    character_lipsync_enabled: Optional[bool] = True
+    character_lipsync_intensity: Optional[float] = 1.0
+    character_idle_motion_enabled: Optional[bool] = True
+    character_manual_mapping_enabled: Optional[bool] = False
+    character_face_x: Optional[float] = 30.0
+    character_face_y: Optional[float] = 16.0
+    character_face_w: Optional[float] = 40.0
+    character_face_h: Optional[float] = 48.0
+    character_mouth_x: Optional[float] = 40.0
+    character_mouth_y: Optional[float] = 60.0
+    character_mouth_w: Optional[float] = 22.0
+    character_mouth_h: Optional[float] = 14.0
+    character_max_width_ratio: Optional[float] = 0.35
+    character_max_height_ratio: Optional[float] = 0.45
+    character_layer_order: Optional[str] = "behind_subtitles"
     
     custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore video_script and disable subtitle
     video_language: Optional[str] = ""  # auto detect
@@ -184,6 +224,31 @@ class TaskQueryRequest(BaseModel):
     pass
 
 
+class ExternalGenerateRequest(BaseModel):
+    provider: str
+    type: Optional[str] = "video"
+    prompt: Optional[str] = ""
+    imageUrl: Optional[str] = ""
+    script: Optional[str] = ""
+    templateId: Optional[str] = ""
+    aspectRatio: Optional[str] = "9:16"
+    duration: Optional[int] = 5
+    outputType: Optional[str] = "video"
+    metadata: Optional[dict] = None
+    taskId: Optional[str] = ""
+    assets: Optional[list] = None
+
+
+class ExternalRenderFinalRequest(BaseModel):
+    provider: Optional[str] = "shotstack"
+    taskId: Optional[str] = ""
+    templateId: Optional[str] = ""
+    aspectRatio: Optional[str] = "9:16"
+    duration: Optional[int] = 5
+    assets: Optional[list] = None
+    metadata: Optional[dict] = None
+
+
 class VideoScriptRequest(VideoScriptParams, BaseModel):
     pass
 
@@ -222,7 +287,7 @@ class TaskQueryResponse(BaseResponse):
                     "state": 1,
                     "progress": 100,
                     "videos": [
-                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/final-1.mp4"
+                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/mi-titulo-generado-1.mp4"
                     ],
                     "combined_videos": [
                         "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/combined-1.mp4"
@@ -242,7 +307,7 @@ class TaskDeletionResponse(BaseResponse):
                     "state": 1,
                     "progress": 100,
                     "videos": [
-                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/final-1.mp4"
+                        "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/mi-titulo-generado-1.mp4"
                     ],
                     "combined_videos": [
                         "http://127.0.0.1:8080/tasks/6c85c8cc-a77a-42b9-bc30-947815aa0558/combined-1.mp4"
@@ -331,6 +396,28 @@ class VideoMaterialUploadResponse(BaseResponse):
                 "message": "success",
                 "data": {
                     "file": "/MoneyPrinterTurbo/resource/videos/example.mp4",
+                },
+            },
+        }
+
+
+class ExternalGenerateResponse(BaseResponse):
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": 200,
+                "message": "success",
+                "data": {
+                    "success": True,
+                    "provider": "getimg",
+                    "type": "video",
+                    "localPath": "storage/generated/example.mp4",
+                    "remoteUrl": "https://provider.example/video.mp4",
+                    "filename": "example.mp4",
+                    "metadata": {
+                        "generation_id": "abc123",
+                        "status": "completed",
+                    },
                 },
             },
         }

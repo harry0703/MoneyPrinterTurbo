@@ -2,6 +2,7 @@ import unittest
 import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 # add project root to python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -60,6 +61,100 @@ class TestTaskService(unittest.TestCase):
         )
         result = tm.start(task_id=task_id, params=params)
         print(result)
+
+    def test_resolve_effective_clip_duration_returns_manual_value(self):
+        params = VideoParams(
+            video_subject="Manual duration",
+            video_script="Texto corto.",
+            video_clip_duration=7,
+        )
+
+        self.assertEqual(tm.resolve_effective_clip_duration(params, params.video_script, 40), 7)
+
+    def test_resolve_effective_clip_duration_computes_auto_value(self):
+        params = VideoParams(
+            video_subject="Auto duration",
+            video_script="Primera frase. Segunda frase. Tercera frase.",
+            video_clip_duration=0,
+        )
+
+        self.assertEqual(tm.resolve_effective_clip_duration(params, params.video_script, 18), 6)
+
+    def test_build_final_video_filename_uses_sanitized_subject(self):
+        params = VideoParams(
+            video_subject="Hola, Mundo!!! 2026",
+            video_script="",
+            video_count=1,
+        )
+
+        self.assertEqual(tm._build_final_video_filename(params, 1), "hola-mundo-2026.mp4")
+
+    def test_build_final_video_filename_falls_back_when_no_ascii_title(self):
+        params = VideoParams(
+            video_subject="",
+            video_script="你好，世界",
+            video_count=2,
+        )
+
+        self.assertEqual(tm._build_final_video_filename(params, 2), "video-2.mp4")
+
+    @patch("app.services.task.os.path.exists", return_value=True)
+    @patch("app.services.task.generate_with_fallback")
+    @patch("app.services.task.material.download_videos")
+    def test_get_video_materials_uses_external_fallback_when_empty(
+        self, mock_download, mock_fallback, mock_exists
+    ):
+        mock_download.return_value = []
+        mock_fallback.return_value = {
+            "success": True,
+            "localPath": "/tmp/fallback.mp4",
+        }
+
+        params = VideoParams(
+            video_subject="Test subject",
+            video_script="Test script",
+            video_terms="term1, term2",
+            video_source="pexels",
+            external_provider="getimg",
+            external_output_type="video",
+        )
+
+        materials = tm.get_video_materials(
+            task_id="task-1",
+            params=params,
+            video_terms=["term1", "term2"],
+            audio_duration=10,
+        )
+
+        self.assertEqual(materials, ["/tmp/fallback.mp4"])
+        mock_fallback.assert_called_once()
+
+    @patch("app.services.task.generate_with_fallback")
+    @patch("app.services.task.material.download_videos")
+    def test_get_video_materials_returns_empty_when_external_fallback_fails(
+        self, mock_download, mock_fallback
+    ):
+        mock_download.return_value = []
+        mock_fallback.return_value = {"success": False}
+
+        params = VideoParams(
+            video_subject="Test subject",
+            video_script="Test script",
+            video_terms="term1, term2",
+            video_source="pexels",
+            external_provider="getimg",
+            external_output_type="video",
+        )
+
+        materials = tm.get_video_materials(
+            task_id="task-2",
+            params=params,
+            video_terms=["term1", "term2"],
+            audio_duration=10,
+        )
+
+        self.assertEqual(materials, [])
+        mock_fallback.assert_called_once()
     
 
 if __name__ == "__main__":

@@ -6,9 +6,10 @@ hide_config = false
 
 # Azure TTS V1(edge_tts) 单次流式请求超时时间，单位秒。
 # 网络异常、服务端限流或 voice 与文本语言不匹配时，edge_tts 可能长期卡住。
-# 默认 30 秒可避免 WebUI 任务无反馈；慢网络或代理环境可适当调大。
+# 默认 90 秒；Multilingual 系列音色（如 AndrewMultilingual）服务端合成更慢，
+# 旧默认 30 秒在慢网络下经常超时。慢网络或代理环境可调大到 120。
 # 设置为 0 表示禁用超时。
-edge_tts_timeout = 30
+edge_tts_timeout = 90
 
 # 是否校验外部 API 和素材下载的 TLS 证书。
 # 默认必须开启，避免 Pexels/Pixabay API key 和下载素材被中间人攻击篡改。
@@ -200,6 +201,9 @@ subtitle_provider = "edge"
 # endpoint="https://xxxx.com"
 endpoint = ""
 
+# Fixed local server port used by the bundled macOS launcher.
+listen_port = 8080
+
 
 # Video material storage location
 # material_directory = ""                    # Indicates that video materials will be downloaded to the default folder, the default folder is ./storage/cache_videos under the current project
@@ -262,6 +266,19 @@ speech_region = ""
 # SiliconFlow API Key
 # Get your API key at https://siliconflow.cn
 api_key = ""
+
+[omnivoice]
+# Local OmniVoice Studio (zero-cost offline TTS with voice cloning)
+# Start it with: cd ~/OmniVoice && .venv/bin/uvicorn main:app --app-dir backend --port 3900
+base_url = "http://127.0.0.1:3900"
+# Diffusion steps: 8 = fast/light GPU (drafts), 16 = balanced, 32 = high quality
+num_step = 16
+# Audio effect preset: broadcast, cinematic, podcast, raw, warm, bright
+effect_preset = "broadcast"
+# Language hint: empty = auto-detect; or "en", "es", "fr", ...
+language = ""
+# Seconds to wait for generation (long scripts on local inference are slow)
+timeout = 1800
 
 [ui]
 # UI related settings

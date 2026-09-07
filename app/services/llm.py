@@ -519,6 +519,9 @@ Generate {amount} search terms for stock videos, depending on the subject of a v
 3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
 4. the search terms must be related to the subject of the video.
 5. reply with english search terms only.
+6. each search term must describe something concrete and visually depictable (a person, place, object, or action) that actually appears in or is directly implied by the Video Script below — do not invent topics that are not in the script.
+7. prefer concrete nouns drawn from the script over abstract or generic terms (e.g. for a script about saving money, prefer "counting coins", "piggy bank", "stock market chart" over generic terms like "success" or "lifestyle").
+8. do not output near-duplicate terms; each term should target a visually distinct shot.
 
 ## Output Example:
 ["search term 1", "search term 2", "search term 3","search term 4","search term 5"]

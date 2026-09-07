@@ -1,10 +1,11 @@
 import json
 import locale
 import os
+import re
 from pathlib import Path
 import threading
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from loguru import logger
 
@@ -86,10 +87,102 @@ def resource_dir(sub_dir: str = ""):
 def task_dir(sub_dir: str = ""):
     d = os.path.join(storage_dir(), "tasks")
     if sub_dir:
-        d = os.path.join(d, sub_dir)
+        if is_uuid(sub_dir):
+            d = os.path.join(d, resolve_task_storage_name(sub_dir))
+        else:
+            d = os.path.join(d, sub_dir)
     if not os.path.exists(d):
         os.makedirs(d)
     return d
+
+
+def is_uuid(value: str) -> bool:
+    try:
+        UUID(str(value))
+        return True
+    except Exception:
+        return False
+
+
+def slugify_task_title(title: str, max_length: int = 64) -> str:
+    title = (title or "").strip()
+    if not title:
+        return "video-task"
+
+    title = title.lower()
+    title = re.sub(r"[^\w\s-]", "", title, flags=re.UNICODE)
+    title = re.sub(r"[-\s]+", "-", title, flags=re.UNICODE).strip("-_")
+    if not title:
+        return "video-task"
+    return title[:max_length].rstrip("-_") or "video-task"
+
+
+def build_task_title(
+    video_subject: str = "", video_script: str = "", fallback_title: str = ""
+) -> str:
+    if video_subject and video_subject.strip():
+        return video_subject.strip()
+
+    script_lines = split_string_by_punctuations(video_script or "")
+    if script_lines:
+        return script_lines[0].strip()
+
+    if fallback_title and fallback_title.strip():
+        return fallback_title.strip()
+
+    return "video-task"
+
+
+def resolve_task_storage_name(task_id: str, task_title: str = "") -> str:
+    normalized_task_id = str(UUID(str(task_id)))
+    tasks_root = os.path.join(storage_dir(), "tasks")
+    direct_name = normalized_task_id
+    direct_path = os.path.join(tasks_root, direct_name)
+    if os.path.isdir(direct_path):
+        return direct_name
+
+    suffix = f"__{normalized_task_id}"
+    if os.path.isdir(tasks_root):
+        for entry in os.listdir(tasks_root):
+            if entry.endswith(suffix) and os.path.isdir(os.path.join(tasks_root, entry)):
+                return entry
+
+    if task_title:
+        return f"{slugify_task_title(task_title)}__{normalized_task_id}"
+
+    return direct_name
+
+
+def ensure_task_dir(task_id: str, task_title: str = "") -> str:
+    d = os.path.join(storage_dir(), "tasks", resolve_task_storage_name(task_id, task_title))
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def rename_task_dir(task_id: str, task_title: str = "") -> str:
+    if not task_title:
+        return ensure_task_dir(task_id)
+
+    normalized_task_id = str(UUID(str(task_id)))
+    tasks_root = os.path.join(storage_dir(), "tasks")
+    current_name = resolve_task_storage_name(normalized_task_id)
+    target_name = f"{slugify_task_title(task_title)}__{normalized_task_id}"
+    current_path = os.path.join(tasks_root, current_name)
+    target_path = os.path.join(tasks_root, target_name)
+
+    if current_name == target_name:
+        os.makedirs(target_path, exist_ok=True)
+        return target_path
+
+    if not os.path.exists(current_path):
+        os.makedirs(target_path, exist_ok=True)
+        return target_path
+
+    if os.path.exists(target_path):
+        return target_path
+
+    os.replace(current_path, target_path)
+    return target_path
 
 
 def font_dir(sub_dir: str = ""):

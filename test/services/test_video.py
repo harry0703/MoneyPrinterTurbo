@@ -77,8 +77,14 @@ class TestVideoService(unittest.TestCase):
         `audio_found: False` 误判为最终视频没有音频。
         """
         video_path = os.path.join(resources_dir, "1.png.mp4")
+        created_for_test = False
         if not os.path.exists(video_path):
-            self.fail(f"test video not found: {video_path}")
+            material = MaterialInfo(provider="local", url=self.test_img_path, duration=0)
+            materials = vd.preprocess_video([material], clip_duration=4)
+            if not materials or not os.path.exists(materials[0].url):
+                self.fail(f"test video not found: {video_path}")
+            video_path = materials[0].url
+            created_for_test = True
 
         stdout = StringIO()
         with redirect_stdout(stdout):
@@ -90,6 +96,8 @@ class TestVideoService(unittest.TestCase):
             self.assertGreater(clip.duration, 0)
         finally:
             vd.close_clip(clip)
+            if created_for_test and os.path.exists(video_path):
+                os.remove(video_path)
     
     def test_wrap_text(self):
         """test text wrapping function"""

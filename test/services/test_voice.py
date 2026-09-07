@@ -14,6 +14,7 @@ from app.utils import utils
 from app.services import voice as vs
 from app.services import task as task_service
 from pydub import AudioSegment
+from moviepy.video.tools import subtitles as moviepy_subtitles
 
 temp_dir = utils.storage_dir("temp")
 
@@ -312,6 +313,29 @@ class TestVoiceService(unittest.TestCase):
             subtitle_content = Path(subtitle_path).read_text(encoding="utf-8")
             self.assertIn("Gemini subtitle generation should work now", subtitle_content)
             self.assertIn("Testing multiple lines", subtitle_content)
+
+    def test_align_subtitle_file_duration_scales_timeline_to_audio(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_path = Path(tmp_dir) / "sync.srt"
+            subtitle_path.write_text(
+                "1\n00:00:00,000 --> 00:00:01,000\nHola\n\n"
+                "2\n00:00:01,000 --> 00:00:02,000\nMundo\n\n",
+                encoding="utf-8",
+            )
+
+            changed = vs.align_subtitle_file_duration(
+                subtitle_file=str(subtitle_path),
+                audio_duration_seconds=4.0,
+            )
+
+            subtitle_items = moviepy_subtitles.file_to_subtitles(str(subtitle_path), encoding="utf-8")
+
+        self.assertTrue(changed)
+        self.assertEqual(len(subtitle_items), 2)
+        self.assertAlmostEqual(subtitle_items[0][0][0], 0.0, places=2)
+        self.assertAlmostEqual(subtitle_items[0][0][1], 2.0, places=2)
+        self.assertAlmostEqual(subtitle_items[1][0][0], 2.0, places=2)
+        self.assertAlmostEqual(subtitle_items[1][0][1], 4.0, places=2)
 
 if __name__ == "__main__":
     # python -m unittest test.services.test_voice.TestVoiceService.test_azure_tts_v1

@@ -9,6 +9,25 @@ root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fi
 config_file = f"{root_dir}/config.toml"
 
 
+def load_dotenv_file(dotenv_path: str):
+    if not os.path.isfile(dotenv_path):
+        return
+
+    with open(dotenv_path, "r", encoding="utf-8") as file_handle:
+        for line in file_handle:
+            raw = line.strip()
+            if not raw or raw.startswith("#") or "=" not in raw:
+                continue
+            key, value = raw.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_dotenv_file(os.path.join(root_dir, ".env"))
+
+
 def load_config():
     # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurbo/config.toml'
     if os.path.isdir(config_file):
@@ -47,6 +66,7 @@ whisper = _cfg.get("whisper", {})
 proxy = _cfg.get("proxy", {})
 azure = _cfg.get("azure", {})
 siliconflow = _cfg.get("siliconflow", {})
+omnivoice = _cfg.get("omnivoice", {})
 ui = _cfg.get(
     "ui",
     {
@@ -64,7 +84,7 @@ project_description = _cfg.get(
     "project_description",
     "<a href='https://github.com/harry0703/MoneyPrinterTurbo'>https://github.com/harry0703/MoneyPrinterTurbo</a>",
 )
-project_version = _cfg.get("project_version", "1.2.7")
+project_version = _cfg.get("project_version", "1.3.17")
 reload_debug = False
 
 app["redis_host"] = os.getenv(

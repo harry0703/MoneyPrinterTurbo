@@ -36,6 +36,8 @@ from app.utils import utils
 # router = new_router(dependencies=[Depends(base.verify_token)])
 router = new_router()
 
+_ALLOWED_BGM_EXTENSIONS = ("mp3", "wav", "m4a", "aac", "ogg", "flac")
+
 _enable_redis = config.app.get("enable_redis", False)
 _redis_host = config.app.get("redis_host", "localhost")
 _redis_port = config.app.get("redis_port", 6379)
@@ -230,9 +232,12 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
     "/musics", response_model=BgmRetrieveResponse, summary="Retrieve local BGM files"
 )
 def get_bgm_list(request: Request):
-    suffix = "*.mp3"
     song_dir = utils.song_dir()
-    files = glob.glob(os.path.join(song_dir, suffix))
+    files = []
+    for ext in _ALLOWED_BGM_EXTENSIONS:
+        files.extend(glob.glob(os.path.join(song_dir, f"*.{ext}")))
+        files.extend(glob.glob(os.path.join(song_dir, "copyright_free", f"*.{ext}")))
+    files.sort(key=lambda file_path: os.path.basename(file_path).lower())
     bgm_list = []
     for file in files:
         bgm_list.append(
@@ -254,11 +259,11 @@ def get_bgm_list(request: Request):
 def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     request_id = base.get_task_id(request)
     safe_filename = _sanitize_upload_filename(file.filename, request_id)
+    file_ext = pathlib.Path(safe_filename).suffix.lower().lstrip(".")
     # check file ext
-    if safe_filename.lower().endswith("mp3"):
+    if file_ext in _ALLOWED_BGM_EXTENSIONS:
         song_dir = utils.song_dir()
         save_path = os.path.join(song_dir, safe_filename)
-        # save file
         with open(save_path, "wb+") as buffer:
             # If the file already exists, it will be overwritten
             file.file.seek(0)
@@ -267,7 +272,7 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
         return utils.get_response(200, response)
 
     raise HttpException(
-        "", status_code=400, message=f"{request_id}: Only *.mp3 files can be uploaded"
+        "", status_code=400, message=f"{request_id}: Only music files can be uploaded ({', '.join(_ALLOWED_BGM_EXTENSIONS)})"
     )
 
 @router.get(
