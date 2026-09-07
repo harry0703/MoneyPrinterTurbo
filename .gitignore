@@ -34,3 +34,27 @@ debug_*.py
 test_*.py
 !test/services/test_*.py
 streamlit.log
+
+# Generated audio / video outputs — never commit these
+*.mp4
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.ogg
+*.flac
+# Allow test fixture videos (small reference clips committed intentionally)
+!test/resources/*.mp4
+
+# Runtime logs
+*.log
+tts-service.log
+omnivoice-studio.log
+webui.log
+
+# Tool / IDE dirs
+.agents/
+.serena/
+skills-lock.json
+omnivoice-studio/
+tts-service/
