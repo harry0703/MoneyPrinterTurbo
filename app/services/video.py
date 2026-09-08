@@ -10,7 +10,7 @@ import tempfile
 import unicodedata
 from contextlib import ExitStack, redirect_stdout
 from functools import lru_cache
-from typing import List
+from typing import List, Literal, Union
 from loguru import logger
 import numpy as np
 from moviepy import (
@@ -685,7 +685,7 @@ def combine_videos(
     video_aspect: VideoAspect = VideoAspect.portrait,
     video_concat_mode: VideoConcatMode = VideoConcatMode.random,
     video_transition_mode: VideoTransitionMode = None,
-    max_clip_duration: int = 5,
+    max_clip_duration: Union[int, Literal["full"]] = 5,
     threads: int = 2,
     clip_speed: float = 1.0,
     video_fit_mode: VideoFitMode = VideoFitMode.cover,
@@ -712,10 +712,8 @@ def combine_videos(
         # 只记录一次最终生效值，既方便定位 API 越界参数被归一化的问题，
         # 也避免在逐片段热路径中重复输出相同日志。
         logger.info(f"clip playback speed: {normalized_clip_speed:.2f}x")
-    # "full" (przekazywane z WebUI jako string) oznacza: nie dziel materiału
-    # na fragmenty, użyj każdego pobranego pliku w całości. W pozostałych
-    # przypadkach max_clip_duration to liczba sekund i zachowujemy
-    # dotychczasowe cięcie na fragmenty o tej długości.
+    # "full"（目前只从本地素材源的 WebUI 传入）表示不切分素材，直接使用
+    # 每个下载/本地文件的完整时长；其余情况下 max_clip_duration 仍是秒数。
     use_full_clip = isinstance(max_clip_duration, str) and (
         max_clip_duration.strip().lower() == "full"
     )
@@ -742,8 +740,6 @@ def combine_videos(
         close_clip(clip)
 
         if use_full_clip:
-            # Używamy całego materiału źródłowego zamiast dzielić go na
-            # fragmenty o długości max_clip_duration.
             subclipped_items.append(
                 SubClippedVideoClip(
                     file_path=video_path,
@@ -762,7 +758,7 @@ def combine_videos(
             end_time = min(start_time + source_clip_duration, clip_duration)
 
             # 保留所有有效分段。
-            # 这样既不会丢掉"整段视频本身就短于 max_clip_duration"的素材，
+            # 这样既不会丢掉“整段视频本身就短于 max_clip_duration”的素材，
             # 也不会吞掉长视频最后剩下的一小段尾部内容。
             if end_time > start_time:
                 subclipped_items.append(
