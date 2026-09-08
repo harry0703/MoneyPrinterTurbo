@@ -41,7 +41,7 @@ Adds an option to use each source clip in full instead of always splitting it in
 
 
 
-##Tests: 
+## Tests: 
 
 python -m pytest test/services/test_video.py -k "clip_duration or full_option or ClipDurationValidation" -v
 ================================================= test session starts =================================================
