@@ -1,24 +1,3 @@
-                                              **Summary of Changes**
-
-**1. `app/services/video.py` — `combine_videos()**`
-
-* **Goal:** Allow the use of the entire downloaded footage instead of splitting it into fixed-length segments, controlled by the `"full"` value passed from the UI.
-* Added flag: `use_full_clip = isinstance(max_clip_duration, str) and max_clip_duration.strip().lower() == "full"`.
-* Loop building `subclipped_items`: if `use_full_clip` → adds the entire clip (`start_time=0`, `end_time=clip_duration`) without splitting. Otherwise, the original logic splitting into segments of `source_clip_duration` seconds applies (restored from the version prior to our first change).
-* Second location trimming an individual clip: `if not use_full_clip and clip.duration > max_clip_duration: clip = clip.subclipped(0, max_clip_duration)` — trimming only applies when `"full"` is not selected.
-
-**2. `webui/Main.py**`
-
-* **Goal:** Add a "use full clip" option in the UI alongside existing numerical values.
-* Options list (~line 4634): `[2, 3, 4, 5, 6, 7, 8, 9, 10]` → `[2, 3, 4, 5, 6, 7, 8, 9, 10, "full"]` (only for sources other than `metaso_minimax` — MiniMax retains its own time range).
-* `format_func` in `stable_selectbox` for `video_clip_duration_select` — displays `"Full clip / Unlimited"` instead of `"full"`, and the rest as `"X sec"`.
-* New helper function `_resolve_estimate_clip_duration(video_clip_duration)` — safely converts the value to an integer, with a fallback to `5` when the value is `"full"` or invalid.
-* Replaced `clip_duration = max(int(params.video_clip_duration or 1), 1)` with `clip_duration = _resolve_estimate_clip_duration(params.video_clip_duration)` in four locations: `_render_wavespeed_video_settings`, `_render_seedance_video_settings`, `_render_ofox_video_settings`, and `_render_metaso_minimax_video_settings` — without this, selecting `"full"` for these sources would trigger a `ValueError` (as `int("full")` throws an exception).
-
-<img width="1920" height="931" alt="Bez tytułu" src="https://github.com/user-attachments/assets/f0c42947-09ef-42ff-8863-ffe92b6c61af" />
-
-
-
 <div align="center">
 
 # MoneyPrinterTurbo 💸
