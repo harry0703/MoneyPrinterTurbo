@@ -229,6 +229,7 @@ CREDENTIAL_COMPANION_KEYS = {
 NON_LLM_COMPANION_KEYS = {
     "app": (
         "upload_post_username",
+        "postiz_api_url",
         "postiz_youtube_integration_id",
         "postiz_instagram_integration_id",
         "postiz_tiktok_integration_id",
@@ -2610,6 +2611,11 @@ def _normalize_backup_value(value):
 
 def _collect_key_backup(config_sections):
     """从运行期配置分区中收集所有已填写的密钥及其配套配置项。"""
+    # Companion values equal to the built-in default carry no user info;
+    # skipping them keeps backups free of placeholder noise. Kept local
+    # (not module-global) because the transfer-helper tests exec-extract
+    # this function in isolation without module globals.
+    _skip_defaults = {("app", "postiz_api_url"): "http://localhost:8004"}
     backup = {}
     for section_name, section in config_sections.items():
         if section_name in KEY_BACKUP_EXCLUDED_SECTIONS:
@@ -2619,8 +2625,11 @@ def _collect_key_backup(config_sections):
             if not _is_backup_config_key(section_name, key):
                 continue
             normalized_value = _normalize_backup_value(value)
-            if normalized_value is not None:
-                entries[key] = normalized_value
+            if normalized_value is None:
+                continue
+            if _skip_defaults.get((section_name, key)) == normalized_value:
+                continue
+            entries[key] = normalized_value
         if entries:
             backup[section_name] = entries
     return backup

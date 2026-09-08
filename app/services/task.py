@@ -30,7 +30,7 @@ from app.services import (
     volcengine_seedance,
     voice,
 )
-from app.services import upload_post
+from app.services import upload_post  # noqa: F401  # side-effect: registers Upload-Post in PUBLISHING_PROVIDER_REGISTRY
 from app.services import postiz  # noqa: F401  # side-effect: registers Postiz in PUBLISHING_PROVIDER_REGISTRY
 from app.services.publishing_base import PUBLISHING_PROVIDER_REGISTRY
 from app.services import state as sm
@@ -1078,7 +1078,257 @@ def _extract_cross_post_error(result: dict) -> str:
     return "unknown upload error"
 
 
-def _run_cross_post(
+def _snapshot_publishing_targets() -> list[dict]:
+    """Capture queue-time per-provider destinations + privacy settings.
+
+    Called once at queue time (in ``_run_pipeline``). Each entry is a plain
+    JSON-serializable dict with at minimum: provider name, platforms list
+    copy, youtube_privacy_status, and provider-specific extras (Postiz:
+    tiktok_auto_add_music + reddit_subreddit + integration IDs per platform;
+    upload_post: privacy_level). The background worker must use the snapshot
+    exclusively and never re-read live provider/config values at execution.
+
+    Frozen at queue time: destinations (provider + platforms), privacy
+    settings (youtube_privacy_status + provider extras), and integration IDs.
+    Intentionally NOT frozen (still read live at execution): credentials
+    (API keys/usernames) and endpoints (api_url/API_BASE), which the
+    provider's ``upload_video`` resolves from config at call time.
+    """
+    snapshots: list[dict] = []
+    for name, provider in PUBLISHING_PROVIDER_REGISTRY.items():
+        try:
+            configured = provider.is_configured()
+        except Exception as exc:
+            logger.debug(
+                f"skip publishing snapshot for {name}: "
+                f"is_configured check failed: {exc}",
+                exc_info=True,
+            )
+            continue
+        if not configured or not getattr(provider, "auto_upload", False):
+            continue
+        try:
+            snapshotter = getattr(provider, "snapshot_targets", None)
+            if callable(snapshotter):
+                entry = snapshotter()
+            else:
+                # Fail-open fallback for legacy providers without a
+                # snapshot_targets contract (see publishing_base): freeze
+                # only the generic destinations + privacy fields. Warn so a
+                # missing contract is visible instead of silently drifting.
+                logger.warning(
+                    f"publishing provider {name} has no snapshot_targets; "
+                    "using generic live-read fallback (destinations may drift)"
+                )
+                entry = {
+                    "provider": name,
+                    "platforms": list(getattr(provider, "platforms", []) or []),
+                    "youtube_privacy_status": str(
+                        getattr(provider, "youtube_privacy_status", "public")
+                        or "public"
+                    ),
+                    "extra": {},
+                }
+        except Exception as exc:
+            logger.warning(f"skip publishing snapshot for {name}: {exc}")
+            continue
+        try:
+            frozen = {
+                "provider": str(entry.get("provider", name)),
+                "platforms": list(entry.get("platforms", []) or []),
+                "youtube_privacy_status": str(
+                    entry.get("youtube_privacy_status", "public") or "public"
+                ),
+                "extra": dict(entry.get("extra", {}) or {}),
+            }
+        except Exception as exc:
+            logger.warning(f"skip malformed publishing snapshot for {name}: {exc}")
+            continue
+        if not frozen["platforms"]:
+            continue
+        extra = dict(frozen["extra"])
+        if isinstance(extra.get("integration_ids"), dict):
+            extra["integration_ids"] = dict(extra["integration_ids"])
+        frozen["extra"] = extra
+        snapshots.append(frozen)
+    return snapshots
+
+
+def _build_cross_post_title_and_metadata(
+    video_subject: str,
+    video_script: str,
+    video_language: str,
+    aggregate_platforms: list[str],
+    default_youtube_privacy: str,
+) -> tuple[str, dict | None]:
+    """Generate shared social metadata + a shared youtube_extra template.
+
+    The template carries ``default_youtube_privacy``; snapshot execution
+    re-stamps ``privacyStatus`` per provider from its own snapshot entry.
+    """
+    post_title = video_subject or "Check out this video! #shorts #viral"
+    youtube_extra = None
+    if aggregate_platforms:
+        has_youtube = any(
+            platform.startswith("youtube") for platform in aggregate_platforms
+        )
+        social_platform = "youtube_shorts"
+        if not has_youtube:
+            first = (aggregate_platforms[0] or "").strip().lower()
+            # llm.py resolves unknown ids to its default platform.
+            social_platform = _CROSS_POST_SOCIAL_PLATFORMS.get(first, first)
+        metadata = llm.generate_social_metadata(
+            video_subject=video_subject,
+            video_script=video_script,
+            language=video_language or "",
+            platform=social_platform,
+        )
+        if has_youtube:
+            youtube_extra = {
+                "youtube_title": metadata.get("title", video_subject),
+                "youtube_description": metadata.get("caption", ""),
+                "tags": metadata.get("hashtags", []),
+                "privacyStatus": default_youtube_privacy,
+                "containsSyntheticMedia": True,
+            }
+        post_title = (
+            metadata.get("caption")
+            or metadata.get("title")
+            or video_subject
+            or "Check out this video! #shorts #viral"
+        )
+    return post_title, youtube_extra
+
+
+def _run_cross_post_from_snapshot(
+    task_id: str,
+    video_paths: tuple[str, ...],
+    video_subject: str,
+    video_script: str,
+    video_language: str,
+    publishing_snapshot: list[dict],
+    results: list[dict],
+) -> None:
+    """Snapshot-exclusive execution: no live provider/config reads.
+
+    Uses only the queue-time snapshot for provider selection, platforms,
+    privacy, and provider extras (destinations + privacy + IDs frozen at
+    queue time; credentials/endpoints intentionally live inside each
+    provider's ``upload_video``). The only external calls are the state
+    transitions (handled by the caller), ``llm.generate_social_metadata``
+    for shared copy, and each provider's ``upload_video`` method with
+    explicit snapshot values.
+    """
+    frozen = [
+        {
+            "provider": str(entry.get("provider", "")),
+            "platforms": list(entry.get("platforms", []) or []),
+            "youtube_privacy_status": str(
+                entry.get("youtube_privacy_status", "public") or "public"
+            ),
+            "extra": dict(entry.get("extra", {}) or {}),
+        }
+        for entry in (publishing_snapshot or [])
+        if entry.get("provider") and entry.get("platforms")
+    ]
+    aggregate_platforms: list[str] = []
+    for entry in frozen:
+        for platform in entry["platforms"]:
+            if platform not in aggregate_platforms:
+                aggregate_platforms.append(platform)
+    logger.info(
+        f"cross-post started, task_id: {task_id}, platforms: "
+        f"{', '.join(aggregate_platforms)}"
+    )
+    default_privacy = (
+        frozen[0]["youtube_privacy_status"] if frozen else "public"
+    )
+    post_title, youtube_extra_template = _build_cross_post_title_and_metadata(
+        video_subject,
+        video_script,
+        video_language,
+        aggregate_platforms,
+        default_privacy,
+    )
+
+    for video_path in video_paths:
+        for entry in frozen:
+            provider_name = entry["provider"]
+            provider = PUBLISHING_PROVIDER_REGISTRY.get(provider_name)
+            if provider is None:
+                logger.error(f"Cross-post provider missing: {provider_name}")
+                results.append(
+                    {
+                        "success": False,
+                        "error": f"Unknown publishing provider: {provider_name}",
+                    }
+                )
+                continue
+            entry_platforms = list(entry["platforms"])
+            entry_privacy = entry["youtube_privacy_status"]
+            extra = entry["extra"]
+            youtube_extra = None
+            if youtube_extra_template is not None and any(
+                p.startswith("youtube") for p in entry_platforms
+            ):
+                youtube_extra = dict(youtube_extra_template)
+                youtube_extra["privacyStatus"] = entry_privacy
+            elif youtube_extra_template is not None and any(
+                p.startswith("youtube") for p in aggregate_platforms
+            ):
+                # Shared copy was built for YouTube but this provider has no
+                # YouTube destination: upload_post ignores youtube_extra
+                # without youtube platforms, Postiz ignores it as well.
+                youtube_extra = None
+            try:
+                if provider_name == "postiz":
+                    integration_ids = extra.get("integration_ids")
+                    result = provider.upload_video(
+                        video_path=video_path,
+                        title=post_title,
+                        platforms=entry_platforms,
+                        youtube_privacy_status=entry_privacy,
+                        tiktok_auto_add_music=extra.get(
+                            "tiktok_auto_add_music", "no"
+                        ),
+                        reddit_subreddit=extra.get("reddit_subreddit", ""),
+                        integration_ids=(
+                            dict(integration_ids)
+                            if isinstance(integration_ids, dict)
+                            else None
+                        ),
+                        youtube_extra=youtube_extra,
+                    )
+                elif provider_name == "upload_post":
+                    result = provider.upload_video(
+                        video_path=video_path,
+                        title=post_title,
+                        platforms=entry_platforms,
+                        privacy_level=str(
+                            extra.get("privacy_level", "PUBLIC_TO_EVERYONE")
+                        ),
+                        youtube_extra=youtube_extra,
+                        skip_config_check=True,
+                    )
+                else:
+                    result = provider.upload_video(
+                        video_path=video_path,
+                        title=post_title,
+                        platforms=entry_platforms,
+                        youtube_extra=youtube_extra,
+                    )
+            except Exception as e:
+                logger.error(f"Cross-post via {provider_name} failed: {e}")
+                result = {"success": False, "error": str(e)}
+            if not isinstance(result, dict):
+                result = {
+                    "success": False,
+                    "error": "Publishing provider returned an invalid response",
+                }
+            results.append(result)
+
+
+def _run_cross_post_legacy(
     task_id: str,
     video_paths: tuple[str, ...],
     video_subject: str,
@@ -1086,8 +1336,75 @@ def _run_cross_post(
     video_language: str,
     platforms: tuple[str, ...],
     youtube_privacy_status: str,
+    results: list[dict],
 ) -> None:
-    """后台执行跨平台发布，并只补充发布相关的任务字段。"""
+    """Legacy live-read execution for backward-compatible direct callers.
+
+    .. deprecated::
+        Prefer the queue-time snapshot path (``publishing_snapshot`` is not
+        ``None``). This legacy worker re-reads live provider/config values
+        at execution, so a config edit between queue time and execution can
+        change what gets published. Kept only for backward-compatible
+        direct callers; new code must pass ``publishing_snapshot``.
+    """
+    logger.info(
+        f"cross-post started, task_id: {task_id}, platforms: {', '.join(platforms)}"
+    )
+    post_title, youtube_extra = _build_cross_post_title_and_metadata(
+        video_subject,
+        video_script,
+        video_language,
+        list(platforms or []),
+        youtube_privacy_status,
+    )
+
+    for video_path in video_paths:
+        for provider_name, provider in PUBLISHING_PROVIDER_REGISTRY.items():
+            if provider.is_configured() and getattr(provider, "auto_upload", False):
+                try:
+                    result = provider.upload_video(
+                        video_path=video_path,
+                        title=post_title,
+                        platforms=list(getattr(provider, "platforms", platforms)),
+                        youtube_extra=youtube_extra,
+                    )
+                except Exception as e:
+                    logger.error(f"Cross-post via {provider_name} failed: {e}")
+                    result = {"success": False, "error": str(e)}
+                if not isinstance(result, dict):
+                    result = {
+                        "success": False,
+                        "error": "Publishing provider returned an invalid response",
+                    }
+                results.append(result)
+
+
+def _run_cross_post(
+    task_id: str,
+    video_paths: tuple[str, ...],
+    video_subject: str,
+    video_script: str,
+    video_language: str,
+    platforms: tuple[str, ...] = (),
+    youtube_privacy_status: str = "public",
+    publishing_snapshot: list[dict] | None = None,
+) -> None:
+    """后台执行跨平台发布，并只补充发布相关的任务字段。
+
+    When ``publishing_snapshot`` is provided (the queue-time snapshot from
+    ``_snapshot_publishing_targets``), the worker uses it exclusively: no
+    calls to ``provider.is_configured`` / ``provider.auto_upload`` /
+    ``provider.platforms`` / ``provider.youtube_privacy_status`` /
+    ``config.app.get`` for publishing destinations or privacy. A ``None``
+    snapshot keeps the legacy live-read path for backward compatibility with
+    existing direct callers.
+
+    .. deprecated:: legacy ``None`` path
+        ``publishing_snapshot=None`` selects the deprecated legacy worker
+        (see ``_run_cross_post_legacy``). New callers must pass a snapshot
+        (possibly empty); ``None`` remains only for backward-compatible
+        direct callers.
+    """
     results = []
     try:
         state_updated = _patch_cross_post_state(
@@ -1108,55 +1425,27 @@ def _run_cross_post(
                 )
             return
 
-        logger.info(
-            f"cross-post started, task_id: {task_id}, platforms: {', '.join(platforms)}"
-        )
-        youtube_extra = None
-        post_title = video_subject or "Check out this video! #shorts #viral"
-        if platforms:
-            has_youtube = any(platform.startswith("youtube") for platform in platforms)
-            social_platform = "youtube_shorts"
-            if not has_youtube:
-                first = (platforms[0] or "").strip().lower()
-                # llm.py resolves unknown ids to its default platform.
-                social_platform = _CROSS_POST_SOCIAL_PLATFORMS.get(first, first)
-            metadata = llm.generate_social_metadata(
-                video_subject=video_subject,
-                video_script=video_script,
-                language=video_language or "",
-                platform=social_platform,
+        if publishing_snapshot is not None:
+            _run_cross_post_from_snapshot(
+                task_id,
+                video_paths,
+                video_subject,
+                video_script,
+                video_language,
+                publishing_snapshot,
+                results,
             )
-            if has_youtube:
-                youtube_extra = {
-                    "youtube_title": metadata.get("title", video_subject),
-                    "youtube_description": metadata.get("caption", ""),
-                    "tags": metadata.get("hashtags", []),
-                    "privacyStatus": youtube_privacy_status,
-                    "containsSyntheticMedia": True,
-                }
-            post_title = (
-                metadata.get("caption")
-                or metadata.get("title")
-                or video_subject
-                or "Check out this video! #shorts #viral"
+        else:
+            _run_cross_post_legacy(
+                task_id,
+                video_paths,
+                video_subject,
+                video_script,
+                video_language,
+                platforms,
+                youtube_privacy_status,
+                results,
             )
-
-        for video_path in video_paths:
-            for provider_name, provider in PUBLISHING_PROVIDER_REGISTRY.items():
-                if provider.is_configured() and getattr(provider, "auto_upload", False):
-                    try:
-                        result = provider.upload_video(
-                            video_path=video_path,
-                            title=post_title,
-                            platforms=list(getattr(provider, "platforms", platforms)),
-                            youtube_extra=youtube_extra,
-                        )
-                    except Exception as e:
-                        logger.error(f"Cross-post via {provider_name} failed: {e}")
-                        result = {"success": False, "error": str(e)}
-                    if not isinstance(result, dict):
-                        result = {"success": False, "error": "Publishing provider returned an invalid response"}
-                    results.append(result)
 
         failures = [result for result in results if not result.get("success")]
         if failures:
@@ -1254,8 +1543,20 @@ def _schedule_cross_post(
     video_script: str,
     platforms: list[str],
     youtube_privacy_status: str,
+    publishing_snapshot: list[dict] | None = None,
 ) -> str | None:
-    """提交后台发布任务；成功返回 None，调度失败返回可查询的错误原因。"""
+    """提交后台发布任务；成功返回 None，调度失败返回可查询的错误原因。
+
+    ``publishing_snapshot`` is the queue-time snapshot from
+    ``_snapshot_publishing_targets``. When provided it is passed through to
+    the worker, which uses it exclusively. ``None`` keeps the legacy
+    live-read worker path for backward-compatible direct callers.
+
+    .. deprecated:: legacy ``None`` path
+        New callers must pass a snapshot (possibly empty); ``None`` selects
+        the deprecated legacy worker and remains only for backward
+        compatibility.
+    """
     if not _cross_post_slots.acquire(blocking=False):
         error = "cross-post queue is full; publishing was skipped"
         logger.warning(
@@ -1280,6 +1581,7 @@ def _schedule_cross_post(
             params.video_language or "",
             tuple(platforms),
             youtube_privacy_status,
+            publishing_snapshot,
         )
         _register_cross_post_future(task_id, future)
         future.add_done_callback(partial(_finalize_cross_post_future, task_id))
@@ -1547,21 +1849,34 @@ def _run_pipeline(
 
     # 7. 先完成视频生成任务，再按需提交跨平台发布。第三方上传可能耗时
     # 数分钟，不应阻塞视频结果返回，也不能反向影响已经生成的成片。
-    # Determine if any publishing provider is ready for cross-post
-    configured_providers = [
-        p for p in PUBLISHING_PROVIDER_REGISTRY.values()
-        if p.is_configured() and getattr(p, "auto_upload", False)
-    ]
-    any_provider_ready = bool(configured_providers)
-    # Aggregate platforms from all ready providers, deduped
+    # Queue-time snapshot: freeze each provider's destinations + privacy
+    # settings NOW so later config edits cannot change what gets published.
+    publishing_snapshot = _snapshot_publishing_targets()
+    any_provider_ready = bool(publishing_snapshot)
+    # Aggregate platforms from the snapshot (deduped, order-preserving).
     platforms = list(dict.fromkeys(
-        [plat for p in configured_providers for plat in getattr(p, "platforms", [])]
+        [plat for entry in publishing_snapshot for plat in entry.get("platforms", [])]
     ))
     should_cross_post = any_provider_ready and bool(platforms)
     if any_provider_ready and not platforms:
         logger.warning(
             f"skip cross-post because no platforms are configured, task_id: {task_id}"
         )
+    # Legacy youtube_privacy_status arg is only a fallback for the legacy
+    # worker path; snapshot execution uses per-provider snapshot privacy.
+    # Prefer the upload_post entry to preserve historical default behavior.
+    default_youtube_privacy = "public"
+    for entry in publishing_snapshot:
+        if entry.get("provider") == "upload_post":
+            default_youtube_privacy = entry.get(
+                "youtube_privacy_status", "public"
+            ) or "public"
+            break
+    else:
+        if publishing_snapshot:
+            default_youtube_privacy = publishing_snapshot[0].get(
+                "youtube_privacy_status", "public"
+            ) or "public"
     cross_post_state = const.CROSS_POST_STATE_PENDING if should_cross_post else None
 
     kwargs = {
@@ -1590,9 +1905,8 @@ def _run_pipeline(
             params=params,
             video_script=video_script,
             platforms=platforms,
-            youtube_privacy_status=(
-                upload_post.upload_post_service.youtube_privacy_status
-            ),
+            youtube_privacy_status=default_youtube_privacy,
+            publishing_snapshot=publishing_snapshot,
         )
         # 队列满或线程池关闭属于同步可知的调度失败。任务状态已经由调度函数
         # 更新，这里同步修正返回快照，避免调用方收到与后续查询不一致的 pending。

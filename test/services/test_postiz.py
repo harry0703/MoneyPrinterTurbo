@@ -368,6 +368,54 @@ class TestPostizService(unittest.TestCase):
         self.assertFalse(result.get("success"))
         self.assertIn("unreachable", result.get("error", ""))
 
+    @patch("app.services.postiz.config.app", _BASE_CONFIG)
+    @patch("app.services.postiz.requests.get")
+    def test_check_status_reads_state_field_from_list(self, mock_get):
+        """Documented Postiz entries carry `state`; ERROR must surface."""
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = [{"postId": "x", "state": "ERROR"}]
+        mock_get.return_value = mock_resp
+
+        service = PostizService()
+        result = service.check_status("x")
+
+        self.assertTrue(result.get("success"))
+        self.assertEqual(result.get("status"), "ERROR")
+
+    @patch("app.services.postiz.config.app", _BASE_CONFIG)
+    @patch("app.services.postiz.requests.get")
+    def test_check_status_reads_state_field_from_posts_dict(self, mock_get):
+        """The {"posts": [...]} envelope shape must also use `state`."""
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "posts": [{"postId": "y", "state": "PUBLISHED"}]
+        }
+        mock_get.return_value = mock_resp
+
+        service = PostizService()
+        result = service.check_status("y")
+
+        self.assertTrue(result.get("success"))
+        self.assertEqual(result.get("status"), "PUBLISHED")
+
+    @patch("app.services.postiz.config.app", _BASE_CONFIG)
+    @patch("app.services.postiz.requests.get")
+    def test_check_status_state_takes_precedence_over_status(self, mock_get):
+        """When both fields exist, `state` wins; legacy `status` is fallback."""
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = [
+            {"postId": "z", "state": "ERROR", "status": "published"}
+        ]
+        mock_get.return_value = mock_resp
+
+        service = PostizService()
+        result = service.check_status("z")
+
+        self.assertEqual(result.get("status"), "ERROR")
+
     # ---------------------------------------------------------------------
     # Authorization header – ensure raw key without Bearer prefix
     # ---------------------------------------------------------------------

@@ -215,36 +215,102 @@ class PostizService(PublishingProvider):
         }
 
     def _build_platform_settings(
-        self, platform: str, title: str
+        self,
+        platform: str,
+        title: str,
+        *,
+        youtube_privacy_status: Optional[str] = None,
+        tiktok_auto_add_music: Any = None,
+        reddit_subreddit: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Return the provider-specific settings dict for *platform*."""
+        """Return the provider-specific settings dict for *platform*.
+
+        Snapshot overrides (from the queue-time publishing snapshot) take
+        precedence over live config reads so background execution never
+        observes a config change made after queue time.
+        """
         if platform == "youtube":
-            return self._settings_youtube(title, self.youtube_privacy_status)
+            privacy = (
+                youtube_privacy_status
+                if youtube_privacy_status is not None
+                else self.youtube_privacy_status
+            )
+            return self._settings_youtube(title, privacy)
         if platform == "instagram":
             return self._settings_instagram()
         if platform == "tiktok":
-            auto_add_music = self._coerce_auto_add_music(
-                config.app.get("postiz_tiktok_auto_add_music", "no")
-            )
+            if tiktok_auto_add_music is None:
+                tiktok_auto_add_music = config.app.get(
+                    "postiz_tiktok_auto_add_music", "no"
+                )
+            auto_add_music = self._coerce_auto_add_music(tiktok_auto_add_music)
             return self._settings_tiktok(title, auto_add_music)
         if platform == "x":
             return self._settings_x()
         if platform == "linkedin":
             return self._settings_linkedin()
         if platform == "reddit":
-            subreddit = config.app.get("postiz_reddit_subreddit", "")
+            subreddit = (
+                reddit_subreddit
+                if reddit_subreddit is not None
+                else config.app.get("postiz_reddit_subreddit", "")
+            )
             return self._settings_reddit(title, subreddit)
         # Fallback: bare type marker
         return {"__type": _POSTIZ_PLATFORM_MAP.get(platform, {}).get("__type", platform)}
+
+    def snapshot_targets(self) -> Dict[str, Any]:
+        """Capture queue-time publishing destinations + privacy settings.
+
+        Called once at queue time by the task pipeline. The returned dict is
+        JSON-serializable and passed into the background worker, which must
+        use it exclusively instead of re-reading live config at execution.
+
+        Frozen here: platforms, youtube_privacy_status, tiktok_auto_add_music,
+        reddit_subreddit, and per-platform integration IDs. Intentionally NOT
+        frozen (read live at execution): API key and api_url/endpoint, which
+        ``upload_video`` resolves from config at call time.
+        """
+        platforms = list(self.platforms or [])
+        integration_ids = {}
+        for platform in platforms:
+            try:
+                integration_ids[platform] = self._get_integration_id(platform)
+            except Exception as exc:
+                logger.debug(
+                    f"Postiz snapshot: coerce integration ID to empty string "
+                    f"for platform={platform!r}: {exc}",
+                    exc_info=True,
+                )
+                integration_ids[platform] = ""
+        return {
+            "provider": "postiz",
+            "platforms": platforms,
+            "youtube_privacy_status": self.youtube_privacy_status,
+            "extra": {
+                "tiktok_auto_add_music": config.app.get(
+                    "postiz_tiktok_auto_add_music", "no"
+                ),
+                "reddit_subreddit": config.app.get("postiz_reddit_subreddit", ""),
+                "integration_ids": integration_ids,
+            },
+        }
 
     def upload_video(
         self,
         video_path: str,
         title: str,
         platforms: Optional[List[str]] = None,
+        youtube_privacy_status: Optional[str] = None,
+        tiktok_auto_add_music: Any = None,
+        reddit_subreddit: Optional[str] = None,
+        integration_ids: Optional[Dict[str, Optional[str]]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
-        if not self.is_configured():
+        # Snapshot-provided integration IDs bypass the live config lookup so
+        # execution uses queue-time destinations even if config changed.
+        use_snapshot_integrations = integration_ids is not None
+        if not use_snapshot_integrations and not self.is_configured():
             logger.warning("Postiz is not configured. Skipping cross-post.")
             return {"success": False, "error": "Postiz not configured"}
 
@@ -289,7 +355,10 @@ class PostizService(PublishingProvider):
                 results.append({"platform": platform, "success": False, "error": f"Unsupported platform: {platform}"})
                 continue
 
-            integration_id = self._get_integration_id(platform)
+            if use_snapshot_integrations:
+                integration_id = (integration_ids or {}).get(platform)
+            else:
+                integration_id = self._get_integration_id(platform)
             if not integration_id:
                 logger.warning(f"No Postiz integration ID configured for platform: {platform}")
                 results.append({"platform": platform, "success": False, "error": f"No integration ID for {platform}"})
@@ -297,13 +366,22 @@ class PostizService(PublishingProvider):
 
             # Reddit requires a non-empty subreddit
             if platform == "reddit":
-                subreddit = config.app.get("postiz_reddit_subreddit", "")
+                if reddit_subreddit is not None:
+                    subreddit = reddit_subreddit
+                else:
+                    subreddit = config.app.get("postiz_reddit_subreddit", "")
                 if not subreddit:
                     logger.warning("Postiz reddit_subreddit is empty, skipping Reddit")
                     results.append({"platform": platform, "success": False, "error": "No reddit subreddit configured"})
                     continue
 
-            settings = self._build_platform_settings(platform, title)
+            settings = self._build_platform_settings(
+                platform,
+                title,
+                youtube_privacy_status=youtube_privacy_status,
+                tiktok_auto_add_music=tiktok_auto_add_music,
+                reddit_subreddit=reddit_subreddit,
+            )
 
             post_payload: Dict[str, Any] = {
                 "type": "now",
@@ -383,10 +461,14 @@ class PostizService(PublishingProvider):
                     matched = entry
                     break
             if matched is not None:
+                # Documented Postiz list-posts entries carry `state`
+                # (e.g. "ERROR"); keep the `status` return key for API
+                # compat but source its value state-first.
+                status_value = matched.get("state", matched.get("status", "unknown"))
                 return {
                     "success": True,
                     "request_id": request_id,
-                    "status": matched.get("status", "..."),
+                    "status": status_value,
                     "posts": [matched],
                 }
             return {

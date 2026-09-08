@@ -128,6 +128,7 @@ def _sample_config_sections():
             "volcengine_seedance_api_key": "ark-seedance-key",
             "ofox_api_key": "ofox-backup-key",
             "postiz_api_key": "postiz-key-456",
+            "postiz_api_url": "http://self-hosted:8004",
             "postiz_youtube_integration_id": "yt-int",
             "postiz_instagram_integration_id": "ig-int",
             "postiz_tiktok_integration_id": "tt-int",
@@ -270,6 +271,7 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
             "volcengine_seedance_api_key": "ark-seedance-key",
             "ofox_api_key": "ofox-backup-key",
             "postiz_api_key": "postiz-key-456",
+            "postiz_api_url": "http://self-hosted:8004",
             "postiz_youtube_integration_id": "yt-int",
             "postiz_instagram_integration_id": "ig-int",
             "postiz_tiktok_integration_id": "tt-int",
@@ -281,7 +283,7 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key"},
     }
-    assert count_backup_keys(backup) == 20
+    assert count_backup_keys(backup) == 21
 
 
 def test_key_backup_carries_llm_provider_extra_fields_with_the_key():
@@ -339,6 +341,7 @@ def test_key_backup_round_trip_restores_every_saved_key():
     assert restored["app"]["ofox_api_key"] == "ofox-backup-key"
     # Postiz API key plus integration IDs must round-trip so restore is usable.
     assert restored["app"]["postiz_api_key"] == "postiz-key-456"
+    assert restored["app"]["postiz_api_url"] == "http://self-hosted:8004"
     assert restored["app"]["postiz_youtube_integration_id"] == "yt-int"
     assert restored["app"]["postiz_instagram_integration_id"] == "ig-int"
     assert restored["app"]["postiz_tiktok_integration_id"] == "tt-int"

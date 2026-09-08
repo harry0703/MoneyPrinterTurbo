@@ -42,15 +42,45 @@ class UploadPostService(PublishingProvider):
     def is_configured(self) -> bool:
         return bool(self.api_key and self.username and self.enabled)
 
+    def snapshot_targets(self) -> dict:
+        """Capture queue-time publishing destinations + privacy settings.
+
+        Called once at queue time by the task pipeline. The returned dict is
+        JSON-serializable and passed into the background worker, which must
+        use it exclusively instead of re-reading live config at execution.
+
+        Frozen here: platforms, youtube_privacy_status, and privacy_level.
+        Intentionally NOT frozen (read live at execution): API key/username
+        and API_BASE endpoint, which ``upload_video`` resolves at call time.
+        """
+        return {
+            "provider": "upload_post",
+            "platforms": list(self.platforms or []),
+            "youtube_privacy_status": self.youtube_privacy_status,
+            "extra": {
+                # No WebUI selector exists for this (webui/Main.py only
+                # exposes a youtube_privacy_status selectbox for
+                # upload_post); the upstream API default is
+                # PUBLIC_TO_EVERYONE, so the constant is frozen here
+                # intentionally rather than threaded from config.
+                "privacy_level": "PUBLIC_TO_EVERYONE",
+            },
+        }
+
     def upload_video(
         self,
         video_path: str,
         title: str,
         platforms: Optional[list] = None,
+        # No WebUI selector for privacy_level (only youtube_privacy_status
+        # has one); keep the upstream API default as the constant default.
         privacy_level: str = "PUBLIC_TO_EVERYONE",
         youtube_extra: Optional[dict] = None,
+        skip_config_check: bool = False,
     ) -> dict:
-        if not self.is_configured():
+        # Snapshot execution passes skip_config_check=True so queue-time
+        # destinations survive a config change before the worker runs.
+        if not skip_config_check and not self.is_configured():
             logger.warning("Upload-Post is not configured. Skipping cross-post.")
             return {"success": False, "error": "Upload-Post not configured"}
 
