@@ -712,12 +712,20 @@ def combine_videos(
         # 只记录一次最终生效值，既方便定位 API 越界参数被归一化的问题，
         # 也避免在逐片段热路径中重复输出相同日志。
         logger.info(f"clip playback speed: {normalized_clip_speed:.2f}x")
-    # max_clip_duration 约束的是成片里的最终播放时长，而不是源视频读取时长。
-    # MoviePy 以 0.5 倍速播放 1.5 秒源画面会得到 3 秒片段，以 2 倍速播放
-    # 6 秒源画面同样会得到 3 秒片段。因此切片前必须按速度反推源时长；如果
-    # 仍固定读取 3 秒再慢放、裁剪，下一段却从源视频第 3 秒开始，会跳过中间
-    # 1.5 秒画面。该计算同时保证不同速度下的源时间线连续且无重叠。
-    source_clip_duration = max_clip_duration * normalized_clip_speed
+    # "full" (przekazywane z WebUI jako string) oznacza: nie dziel materiału
+    # na fragmenty, użyj każdego pobranego pliku w całości. W pozostałych
+    # przypadkach max_clip_duration to liczba sekund i zachowujemy
+    # dotychczasowe cięcie na fragmenty o tej długości.
+    use_full_clip = isinstance(max_clip_duration, str) and (
+        max_clip_duration.strip().lower() == "full"
+    )
+    if not use_full_clip:
+        # max_clip_duration 约束的是成片里的最终播放时长，而不是源视频读取时长。
+        # MoviePy 以 0.5 倍速播放 1.5 秒源画面会得到 3 秒片段，以 2 倍速播放
+        # 6 秒源画面同样会得到 3 秒片段。因此切片前必须按速度反推源时长；如果
+        # 仍固定读取 3 秒再慢放、裁剪，下一段却从源视频第 3 秒开始，会跳过中间
+        # 1.5 秒画面。该计算同时保证不同速度下的源时间线连续且无重叠。
+        source_clip_duration = float(max_clip_duration) * normalized_clip_speed
     output_dir = os.path.dirname(combined_video_path)
 
     aspect = VideoAspect(video_aspect)
@@ -732,14 +740,29 @@ def combine_videos(
         clip_duration = clip.duration
         clip_w, clip_h = clip.size
         close_clip(clip)
-        
+
+        if use_full_clip:
+            # Używamy całego materiału źródłowego zamiast dzielić go na
+            # fragmenty o długości max_clip_duration.
+            subclipped_items.append(
+                SubClippedVideoClip(
+                    file_path=video_path,
+                    start_time=0,
+                    end_time=clip_duration,
+                    width=clip_w,
+                    height=clip_h,
+                    source_file_path=video_path,
+                )
+            )
+            continue
+
         start_time = 0
 
         while start_time < clip_duration:
             end_time = min(start_time + source_clip_duration, clip_duration)
 
             # 保留所有有效分段。
-            # 这样既不会丢掉“整段视频本身就短于 max_clip_duration”的素材，
+            # 这样既不会丢掉"整段视频本身就短于 max_clip_duration"的素材，
             # 也不会吞掉长视频最后剩下的一小段尾部内容。
             if end_time > start_time:
                 subclipped_items.append(
@@ -832,7 +855,7 @@ def combine_videos(
                 shuffle_transition = random.choice(transition_funcs)
                 clip = shuffle_transition(clip)
 
-            if clip.duration > max_clip_duration:
+            if not use_full_clip and clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
                 
             # wirte clip to temp file
