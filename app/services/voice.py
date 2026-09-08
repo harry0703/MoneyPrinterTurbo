@@ -638,7 +638,7 @@ def convert_rate_to_percent(rate: float) -> str:
         rate = float(rate)
     except (TypeError, ValueError):
         rate = 1.0
-    if rate <= 0:
+    if not math.isfinite(rate) or rate <= 0:
         rate = 1.0
     percent = round((rate - 1.0) * 100)
     if percent >= 0:

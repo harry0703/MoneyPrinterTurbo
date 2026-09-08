@@ -1352,6 +1352,8 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(vs.convert_rate_to_percent(0.0), "+0%")
         self.assertEqual(vs.convert_rate_to_percent(None), "+0%")
         self.assertEqual(vs.convert_rate_to_percent(""), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(float("nan")), "+0%")
+        self.assertEqual(vs.convert_rate_to_percent(float("inf")), "+0%")
 
 
 class TestElevenLabsVoice(unittest.TestCase):
