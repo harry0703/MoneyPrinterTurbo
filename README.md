@@ -1,4 +1,4 @@
-                                                            **Summary of Changes**
+                                              **Summary of Changes**
 
 **1. `app/services/video.py` — `combine_videos()**`
 
