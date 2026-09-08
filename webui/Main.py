@@ -4631,7 +4631,16 @@ def _render_video_settings(panel, params):
                     )
                 )
                 if params.video_source == "metaso_minimax"
-                else [2, 3, 4, 5, 6, 7, 8, 9, 10, "full"]
+                else (
+                    # "full" 只对本地素材开放：云端生成源（WaveSpeed /
+                    # Seedance / OFox / MiniMax）按固定时长生成素材，服务端
+                    # 会校验 clip_duration 必须是正整数，选择 "full" 会被
+                    # 直接拒绝。后续如果要扩展到 Pexels/Pixabay/Coverr 等
+                    # 下载类素材源，需要单独验证后再开放。
+                    [2, 3, 4, 5, 6, 7, 8, 9, 10, "full"]
+                    if params.video_source == "local"
+                    else [2, 3, 4, 5, 6, 7, 8, 9, 10]
+                )
             )
             params.video_clip_duration = stable_selectbox(
                 tr("Clip Duration"),
@@ -4731,12 +4740,12 @@ def _render_video_settings(panel, params):
 
 
 def _resolve_estimate_clip_duration(video_clip_duration):
-    """把 UI 上的片段时长值转换成计费预估用的正整数秒数。
+    """把片段时长值安全转换成计费预估用的正整数秒数。
 
-    生成式素材源（WaveSpeed / Seedance / OFox / MiniMax）总是按固定时长
-    生成素材，"full"（使用完整下载素材）这个选项只对普通下载素材源有
-    意义。如果这里遇到 "full" 或其它非数值，退回到默认值，避免
-    int() 抛出异常导致页面崩溃。
+    "full" 现在只应从本地素材源的 UI 传入，云端生成源（WaveSpeed /
+    Seedance / OFox / MiniMax）不会展示这个选项。这里保留一层防御：
+    如果旧预设或直接调用 API 传入了 "full" 或其它非数值，退回到默认
+    值，避免 int() 抛出异常导致页面崩溃。
     """
     try:
         return max(int(video_clip_duration), 1)
