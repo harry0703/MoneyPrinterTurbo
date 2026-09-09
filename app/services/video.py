@@ -22,6 +22,7 @@ from moviepy import (
     TextClip,
     VideoFileClip,
     afx,
+    concatenate_videoclips,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import Image, ImageDraw, ImageFont
@@ -435,6 +436,10 @@ def concat_video_clips_with_ffmpeg(
             concat_list_file,
             "-c:v",
             codec,
+            "-c:a",
+            "aac",
+            "-b:a",
+            audio_bitrate,
             "-threads",
             str(threads or 2),
             "-pix_fmt",
@@ -902,6 +907,271 @@ def combine_videos(
             
     logger.info("video combining completed")
     return combined_video_path
+
+
+def _apply_scene_transition(
+    input_path: str,
+    output_path: str,
+    transition: VideoTransitionMode,
+):
+    """Apply a transition effect to the beginning of a video file.
+
+    Used to create visual transitions between scenes. The transition visual
+    effect is applied to the first ~1 second of the video.
+    """
+    transition_value = getattr(transition, "value", transition)
+    if transition_value in (None, VideoTransitionMode.none.value):
+        return
+
+    clip = _open_video_clip_quietly(input_path, audio=True)
+    try:
+        transition_duration = min(1.0, clip.duration * 0.15)
+        if transition_duration <= 0:
+            return
+
+        shuffle_side = random.choice(["left", "right", "top", "bottom"])
+
+        if transition_value == VideoTransitionMode.fade_in.value:
+            clip = video_effects.fadein_transition(clip, transition_duration)
+        elif transition_value == VideoTransitionMode.fade_out.value:
+            clip = video_effects.fadeout_transition(clip, transition_duration)
+        elif transition_value == VideoTransitionMode.slide_in.value:
+            clip = video_effects.slidein_transition(clip, transition_duration, shuffle_side)
+        elif transition_value == VideoTransitionMode.slide_out.value:
+            clip = video_effects.slideout_transition(clip, transition_duration, shuffle_side)
+        elif transition_value == VideoTransitionMode.zoom_in.value:
+            clip = video_effects.zoomin_transition(clip, transition_duration)
+        elif transition_value == VideoTransitionMode.zoom_out.value:
+            clip = video_effects.zoomout_transition(clip, transition_duration)
+        elif transition_value == VideoTransitionMode.shuffle.value:
+            transition_funcs = [
+                lambda c: video_effects.fadein_transition(c, transition_duration),
+                lambda c: video_effects.fadeout_transition(c, transition_duration),
+                lambda c: video_effects.slidein_transition(c, transition_duration, shuffle_side),
+                lambda c: video_effects.slideout_transition(c, transition_duration, shuffle_side),
+                lambda c: video_effects.zoomin_transition(c, transition_duration),
+                lambda c: video_effects.zoomout_transition(c, transition_duration),
+            ]
+            clip = random.choice(transition_funcs)(clip)
+        else:
+            logger.warning(f"unsupported scene transition: {transition_value}")
+            return
+
+        _write_videofile_with_codec_fallback(
+            clip,
+            output_path,
+            codec=_get_configured_video_codec(),
+            logger=None,
+            fps=fps,
+        )
+        logger.info(
+            f"applied scene transition={transition_value} "
+            f"(duration={transition_duration:.2f}s) to {os.path.basename(input_path)}"
+        )
+    finally:
+        close_clip(clip)
+
+
+def concat_scene_videos_with_transitions(
+    scene_video_paths: List[str],
+    output_file: str,
+    scene_transitions: List[VideoTransitionMode | None] | None = None,
+    bgm_file_override: str | None = None,
+    bgm_type: str = "",
+    bgm_file: str = "",
+    bgm_volume: float = 0.0,
+    threads: int = 2,
+):
+    """Concatenate fully assembled scene videos into the final output.
+
+    Uses MoviePy for the entire pipeline (open → transitions → concatenate
+    → BGM → write) to ensure compatibility across scenes with different
+    resolutions, sample rates, or codecs.  Mirrors how generate_video()
+    handles its clips.
+
+    Args:
+        scene_video_paths: Paths to assembled scene videos, in order.
+        output_file: Path for the final output video.
+        scene_transitions: Per-scene transition list. Index 0 is for scene 1
+            (usually None), index 1 for scene 2 (transition into scene 2), etc.
+            If None, no transitions are applied.
+        bgm_file_override: BGM resolution strategy.
+            - None  → resolve from bgm_type (random/custom)
+            - ""    → explicitly disable BGM for this video
+            - path? → use this specific BGM file
+        bgm_type: BGM type for resolution when bgm_file_override is None.
+        bgm_file: User's bgm file path (for custom BGM).
+        bgm_volume: Background music volume (0.0 = silent, 1.0 = full).
+        threads: FFmpeg thread count (used for final write).
+    """
+    if not scene_video_paths:
+        logger.warning("no scene videos to concatenate")
+        return
+
+    output_dir = os.path.dirname(output_file)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Resolve BGM file (same contract as generate_video):
+    #   bgm_file_override=None  → resolve from bgm_type
+    #   bgm_file_override=""    → no BGM
+    #   bgm_file_override=path  → use this file
+    bgm_resolved = ""
+    if bgm_volume > 0 and bgm_file_override is not None:
+        bgm_resolved = bgm_file_override if bgm_file_override else ""
+    elif bgm_volume > 0 and bgm_service.should_use_bgm(bgm_type, bgm_volume):
+        bgm_resolved = get_bgm_file(bgm_type=bgm_type, bgm_file=bgm_file)
+
+    if bgm_resolved and not os.path.isfile(bgm_resolved):
+        logger.warning(f"BGM file not found: {bgm_resolved}")
+        bgm_resolved = ""
+
+    logger.info(
+        f"concatenating {len(scene_video_paths)} scene videos "
+        f"(BGM={'yes' if bgm_resolved else 'no'})"
+    )
+
+    scene_clips = []
+    with ExitStack() as clip_stack:
+        for i, video_path in enumerate(scene_video_paths):
+            clip = clip_stack.enter_context(
+                _open_video_clip_quietly(video_path, audio=True)
+            )
+
+            # Apply scene transition (if any) to scenes 2+
+            transition = (
+                scene_transitions[i]
+                if scene_transitions and i < len(scene_transitions)
+                else None
+            )
+            if transition and i > 0:
+                transition_value = getattr(transition, "value", transition)
+                if transition_value not in (None, VideoTransitionMode.none.value):
+                    duration = min(1.0, clip.duration * 0.15)
+                    if duration > 0:
+                        side = random.choice(["left", "right", "top", "bottom"])
+                        if transition_value == VideoTransitionMode.fade_in.value:
+                            clip = video_effects.fadein_transition(clip, duration)
+                        elif transition_value == VideoTransitionMode.fade_out.value:
+                            clip = video_effects.fadeout_transition(clip, duration)
+                        elif transition_value == VideoTransitionMode.slide_in.value:
+                            clip = video_effects.slidein_transition(clip, duration, side)
+                        elif transition_value == VideoTransitionMode.slide_out.value:
+                            clip = video_effects.slideout_transition(clip, duration, side)
+                        elif transition_value == VideoTransitionMode.zoom_in.value:
+                            clip = video_effects.zoomin_transition(clip, duration)
+                        elif transition_value == VideoTransitionMode.zoom_out.value:
+                            clip = video_effects.zoomout_transition(clip, duration)
+                        elif transition_value == VideoTransitionMode.shuffle.value:
+                            transition_funcs = [
+                                lambda c: video_effects.fadein_transition(c, duration),
+                                lambda c: video_effects.fadeout_transition(c, duration),
+                                lambda c: video_effects.slidein_transition(c, duration, side),
+                                lambda c: video_effects.slideout_transition(c, duration, side),
+                                lambda c: video_effects.zoomin_transition(c, duration),
+                                lambda c: video_effects.zoomout_transition(c, duration),
+                            ]
+                            clip = random.choice(transition_funcs)(clip)
+
+            scene_clips.append(clip)
+
+        if not scene_clips:
+            logger.warning("no valid scene clips to concatenate")
+            return
+
+        # Concatenate all scenes — MoviePy handles resolution/audio mismatch
+        logger.info(f"concatenating {len(scene_clips)} scene clips with MoviePy")
+        final_clip = concatenate_videoclips(scene_clips, method="compose")
+        clip_stack.callback(final_clip.close)
+
+        final_audio = final_clip.audio
+
+        # Overlay BGM if resolved (same pattern as generate_video)
+        # Only loop BGM for random/custom sources — provider-generated BGM
+        # (sonilo/elevenlabs) is already sized to the video duration.
+        if bgm_resolved:
+            bgm_effects = [
+                afx.MultiplyVolume(bgm_volume),
+                afx.AudioFadeOut(3),
+            ]
+            if bgm_file_override is None:
+                # Random/custom BGM may be shorter than the video — loop it
+                bgm_effects.append(afx.AudioLoop(duration=final_clip.duration))
+            bgm_source = clip_stack.enter_context(AudioFileClip(bgm_resolved))
+            bgm_clip = bgm_source.with_effects(bgm_effects)
+            final_audio = CompositeAudioClip([final_audio, bgm_clip])
+            logger.info(f"BGM overlaid: {bgm_resolved}")
+
+        final_clip = final_clip.with_audio(final_audio)
+        clip_stack.callback(final_clip.close)
+
+        output_audio_fps = int(getattr(final_audio, "fps", 0) or 44100)
+        _write_videofile_with_codec_fallback(
+            final_clip,
+            output_file=output_file,
+            codec=_get_configured_video_codec(),
+            audio_codec=audio_codec,
+            audio_fps=output_audio_fps,
+            audio_bitrate=audio_bitrate,
+            temp_audiofile_path=_get_temp_audio_dir(output_dir),
+            threads=threads or 2,
+            logger=None,
+            fps=fps,
+        )
+
+    logger.info(f"final scene concatenation complete: {output_file}")
+    return bool(bgm_resolved)
+
+
+def _overlay_bgm_on_video(
+    video_path: str,
+    bgm_file: str,
+    bgm_volume: float,
+    output_path: str,
+    threads: int = 2,
+):
+    """Overlay background music onto a video file.
+
+    Uses MoviePy CompositeAudioClip — the same approach as generate_video().
+    The video's existing audio (voice narrations) is kept and the BGM is
+    layered on top with the specified volume. BGM is looped to match the
+    video duration and faded out over the last 3 seconds.
+    """
+    output_dir = os.path.dirname(output_path)
+    with ExitStack() as clip_stack:
+        video_clip = clip_stack.enter_context(
+            _open_video_clip_quietly(video_path, audio=True)
+        )
+
+        # Keep existing audio (voice) as-is
+        original_audio = video_clip.audio
+
+        # Load BGM, loop it, and mix with voice — identical to generate_video()
+        bgm_effects = [
+            afx.MultiplyVolume(bgm_volume),
+            afx.AudioFadeOut(3),
+            afx.AudioLoop(duration=video_clip.duration),
+        ]
+        bgm_source_clip = clip_stack.enter_context(AudioFileClip(bgm_file))
+        bgm_clip = bgm_source_clip.with_effects(bgm_effects)
+        mixed_audio = CompositeAudioClip([original_audio, bgm_clip])
+
+        final_clip = video_clip.with_audio(mixed_audio)
+        clip_stack.callback(final_clip.close)
+
+        output_audio_fps = int(getattr(mixed_audio, "fps", 0) or 44100)
+        _write_videofile_with_codec_fallback(
+            final_clip,
+            output_file=output_path,
+            codec=_get_configured_video_codec(),
+            audio_codec=audio_codec,
+            audio_fps=output_audio_fps,
+            audio_bitrate=audio_bitrate,
+            temp_audiofile_path=_get_temp_audio_dir(output_dir),
+            threads=threads or 2,
+            logger=None,
+            fps=fps,
+        )
+    logger.info(f"BGM overlay completed: {bgm_file}")
 
 
 def wrap_text(text, max_width, font="Arial", fontsize=60):

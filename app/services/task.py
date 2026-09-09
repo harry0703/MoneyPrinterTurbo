@@ -10,10 +10,11 @@ from os import path
 from uuid import uuid4
 
 from loguru import logger
+from moviepy import AudioFileClip
 
 from app.config import config
 from app.models import const
-from app.models.schema import VideoConcatMode, VideoParams
+from app.models.schema import SceneConfig, VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
     elevenlabs_music,
@@ -27,8 +28,8 @@ from app.services import (
     task_artifacts,
     twelvelabs,
     video,
-    volcengine_seedance,
     voice,
+    volcengine_seedance,
 )
 from app.services import upload_post
 from app.services import state as sm
@@ -348,6 +349,231 @@ def generate_terms(task_id, params, video_script):
         )
 
     return video_terms
+
+
+def generate_scenes(task_id, params, video_script):
+    """Process scene definitions and generate keywords for each scene.
+
+    For each scene in params.scenes:
+    - If scene.script is empty, use the full video_script
+    - If scene.search_terms is empty, generate them via LLM
+    - Auto-assign scene_id if it's 0
+
+    Returns a list of processed SceneConfig objects, or None on failure.
+    """
+    if not params.scenes:
+        return None
+
+    logger.info(f"\n\n## processing {len(params.scenes)} scenes")
+    processed_scenes = []
+
+    for index, scene in enumerate(params.scenes):
+        # Auto-assign scene_id if not set
+        scene_id = scene.scene_id if scene.scene_id > 0 else index + 1
+
+        # Use full script if scene script is empty
+        scene_script = scene.script.strip() if scene.script else video_script
+        if not scene_script:
+            logger.warning(f"scene {scene_id} has no script, using full video script")
+            scene_script = video_script
+
+        # Generate search terms if not provided
+        search_terms = scene.search_terms
+        if not search_terms and not scene.materials:
+            logger.info(f"generating search terms for scene {scene_id}")
+            try:
+                search_terms = llm.generate_terms(
+                    video_subject=params.video_subject,
+                    video_script=scene_script,
+                    amount=3,
+                    match_script_order=True,
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"failed to generate terms for scene {scene_id}: {exc}"
+                )
+                search_terms = []
+
+        processed_scene = SceneConfig(
+            scene_id=scene_id,
+            script=scene_script,
+            search_terms=search_terms,
+            materials=scene.materials,
+            duration=scene.duration,
+            transition=scene.transition,
+            clip_transition=scene.clip_transition,
+        )
+        processed_scenes.append(processed_scene)
+        logger.info(
+            f"scene {scene_id}: script_len={len(scene_script)}, "
+            f"terms={len(search_terms or [])}, "
+            f"materials={len(scene.materials or [])}, "
+            f"duration={scene.duration}"
+        )
+
+    return processed_scenes
+
+
+def _generate_single_scene(
+    task_id: str,
+    scene: SceneConfig,
+    params: VideoParams,
+    scene_index: int,
+    allow_server_file_input: bool = False,
+) -> str | None:
+    """Build a single scene as a self-contained video.
+
+    Each scene goes through the full mini-pipeline:
+    1. Determine script (from scene.script)
+    2. Generate audio (TTS or silent) → audio_duration defines scene length
+    3. Generate subtitles for this scene's audio
+    4. Download or use materials for this scene
+    5. combine_videos(materials, audio, clip_transition) → combined scene video
+    6. generate_video(combined, audio, subtitles) → final scene video
+       (audio and subtitles are burned into the scene video)
+
+    Returns the path to the assembled scene video, or None on failure.
+    """
+    scene_dir = os.path.join(utils.task_dir(task_id), f"scene-{scene_index}")
+    os.makedirs(scene_dir, exist_ok=True)
+
+    script = scene.script.strip()
+    if not script:
+        logger.warning(f"scene {scene.scene_id}: empty script, skipping")
+        return None
+
+    # Step 1: Generate audio (TTS or silent for no-voice mode)
+    audio_file = os.path.join(scene_dir, "audio.mp3")
+    logger.info(f"scene {scene.scene_id}: generating audio")
+    sub_maker = voice.tts(
+        text=script,
+        voice_name=voice.parse_voice_name(params.voice_name),
+        voice_rate=params.voice_rate,
+        voice_file=audio_file,
+    )
+    if not sub_maker and not voice.is_no_voice(params.voice_name):
+        logger.error(f"scene {scene.scene_id}: TTS failed")
+        return None
+
+    # Determine scene duration from audio
+    try:
+        audio_clip = AudioFileClip(audio_file)
+        audio_duration = audio_clip.duration
+        audio_clip.close()
+    except Exception as exc:
+        logger.error(f"scene {scene.scene_id}: failed to read audio duration: {exc}")
+        return None
+    logger.info(f"scene {scene.scene_id}: audio duration = {audio_duration:.2f}s")
+
+    # Step 2: Generate subtitles for this scene
+    subtitle_path = ""
+    if params.subtitle_enabled and sub_maker:
+        subtitle_path = os.path.join(scene_dir, "subtitle.srt")
+        logger.info(f"scene {scene.scene_id}: generating subtitles")
+        subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
+        if subtitle_provider == "edge":
+            voice.create_subtitle(
+                text=script, sub_maker=sub_maker, subtitle_file=subtitle_path,
+            )
+            if not os.path.exists(subtitle_path):
+                logger.warning(f"scene {scene.scene_id}: edge subtitle generation failed")
+                subtitle_path = ""
+        elif subtitle_provider == "whisper":
+            subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
+            if subtitle_path:
+                subtitle.correct(subtitle_file=subtitle_path, video_script=script)
+
+    # Step 3: Get materials for this scene
+    if scene.materials:
+        # Validate local materials through the same path as the standard pipeline
+        processed = video.preprocess_video(
+            materials=scene.materials,
+            clip_duration=params.video_clip_duration,
+        )
+        if not processed:
+            logger.warning(f"scene {scene.scene_id}: no valid local materials after preprocessing")
+            return None
+        downloaded_videos = [m.url for m in processed if m.url]
+        logger.info(f"scene {scene.scene_id}: using {len(downloaded_videos)} local materials")
+    elif scene.search_terms:
+        logger.info(f"scene {scene.scene_id}: downloading materials for {len(scene.search_terms)} terms")
+        downloaded_videos = material.download_videos(
+            task_id=task_id,
+            search_terms=scene.search_terms,
+            source=params.video_source,
+            video_aspect=params.video_aspect,
+            video_concat_mode=VideoConcatMode.sequential,
+            audio_duration=audio_duration,
+            max_clip_duration=params.video_clip_duration,
+            match_script_order=True,
+        )
+    else:
+        logger.info(f"scene {scene.scene_id}: generating search terms from script")
+        try:
+            terms = llm.generate_terms(
+                video_subject=params.video_subject,
+                video_script=script,
+                amount=3,
+                match_script_order=True,
+            )
+        except Exception as exc:
+            logger.warning(f"scene {scene.scene_id}: failed to generate terms: {exc}")
+            terms = []
+        if terms:
+            downloaded_videos = material.download_videos(
+                task_id=task_id,
+                search_terms=terms,
+                source=params.video_source,
+                video_aspect=params.video_aspect,
+                video_concat_mode=VideoConcatMode.sequential,
+                audio_duration=audio_duration,
+                max_clip_duration=params.video_clip_duration,
+                match_script_order=True,
+            )
+        else:
+            downloaded_videos = []
+
+    if not downloaded_videos:
+        logger.warning(f"scene {scene.scene_id}: no materials found, skipping scene")
+        return None
+    logger.info(f"scene {scene.scene_id}: got {len(downloaded_videos)} video segments")
+
+    # Step 4: Combine materials into scene video
+    # combine_videos reads audio_duration from the audio file to determine
+    # the target video length — so scene.duration vs audio_duration conflict
+    # does not exist here. The audio file IS the scene's audio.
+    combined_path = os.path.join(scene_dir, "combined.mp4")
+    logger.info(f"scene {scene.scene_id}: combining video segments")
+    video.combine_videos(
+        combined_video_path=combined_path,
+        video_paths=downloaded_videos,
+        audio_file=audio_file,
+        video_aspect=params.video_aspect,
+        video_concat_mode=VideoConcatMode.sequential,
+        video_transition_mode=scene.clip_transition or params.clip_transition,
+        max_clip_duration=params.video_clip_duration,
+        threads=params.n_threads,
+        clip_speed=params.video_clip_speed,
+    )
+
+    # Step 5: Burn audio + subtitles into the scene video.
+    # BGM must NOT be applied here — it is overlaid once on the final
+    # concatenated video in concat_scene_videos_with_transitions().  We
+    # pass an explicit empty override so generate_video skips BGM.
+    #   - None  = "resolve BGM from params.bgm_type" (we do NOT want this)
+    #   - ""    = "explicitly disable BGM for this video"  (correct choice)
+    scene_video_path = os.path.join(scene_dir, "scene.mp4")
+    logger.info(f"scene {scene.scene_id}: generating final scene video")
+    video.generate_video(
+        video_path=combined_path,
+        audio_path=audio_file,
+        subtitle_path=subtitle_path,
+        output_file=scene_video_path,
+        params=params,
+        bgm_file_override="",
+    )
+    logger.success(f"scene {scene.scene_id}: scene video ready at {scene_video_path}")
+    return scene_video_path
 
 
 def save_script_data(task_id, video_script, video_terms, params):
@@ -844,6 +1070,7 @@ def generate_final_videos(
         video_music_provider is not None
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
     )
+
     # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
     # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
     if params.match_materials_to_script:
@@ -861,6 +1088,7 @@ def generate_final_videos(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
         logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
+
         video.combine_videos(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
@@ -1392,7 +1620,15 @@ def _run_pipeline(
         )
 
     # 1. Generate script
-    video_script = generate_script(task_id, params)
+    # In scene mode each scene carries its own script, so a global script
+    # is unnecessary.  We still need *something* in video_script for task
+    # artifacts; concatenate scene scripts instead of calling the LLM.
+    video_script = ""
+    if params.scenes:
+        scene_scripts = [s.script.strip() for s in params.scenes if s.script.strip()]
+        video_script = "\n\n".join(scene_scripts)
+    if not video_script:
+        video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
         error = (
             video_script.removeprefix("Error: ").strip()
@@ -1409,9 +1645,25 @@ def _run_pipeline(
         )
         return {"script": video_script}
 
-    # 2. Generate terms
+    # 2. Generate terms (or process scenes)
     video_terms = ""
-    if params.video_source != "local":
+    processed_scenes = None
+
+    if params.scenes:
+        # Scene-based mode: process each scene independently
+        processed_scenes = generate_scenes(task_id, params, video_script)
+        if not processed_scenes:
+            return _mark_task_failed(
+                task_id,
+                "terms",
+                "failed to process video scenes",
+            )
+        # Collect all search terms from scenes for backward compatibility
+        video_terms = []
+        for scene in processed_scenes:
+            if scene.search_terms:
+                video_terms.extend(scene.search_terms)
+    elif params.video_source != "local":
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             return _mark_task_failed(
@@ -1429,6 +1681,197 @@ def _run_pipeline(
         return {"script": video_script, "terms": video_terms}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
+
+    # === SCENE MODE: Build each scene independently then concatenate ===
+    if processed_scenes and stop_at == "video":
+        logger.info(f"\n\n## scene mode: building {len(processed_scenes)} scenes independently")
+
+        # TODO(future): Parallelize scene processing
+        # Each scene (download materials + combine video) is independent.
+        # Current code processes scenes sequentially for simplicity.
+        # Future: use ThreadPoolExecutor to process multiple scenes concurrently.
+        #   with ThreadPoolExecutor(max_workers=???) as executor:
+        #       futures = {
+        #           executor.submit(_generate_single_scene, task_id, scene, params, i): i
+        #           for i, scene in enumerate(processed_scenes, 1)
+        #       }
+        #       for future in as_completed(futures):
+        #           ...
+
+        scene_video_paths = []
+        scene_transitions = []
+        scene_warnings = []
+        for i, scene in enumerate(processed_scenes):
+            scene_index = i + 1
+            sm.state.update_task(
+                task_id,
+                state=const.TASK_STATE_PROCESSING,
+                progress=20 + int(60 * i / len(processed_scenes)),
+            )
+            scene_video = _generate_single_scene(
+                task_id=task_id,
+                scene=scene,
+                params=params,
+                scene_index=scene_index,
+                allow_server_file_input=allow_server_file_input,
+            )
+            if scene_video:
+                scene_video_paths.append(scene_video)
+                # Scene 1 has no transition INTO it (there's no previous scene).
+                # Scene N (N>1) uses the transition defined on that scene or the
+                # global fallback.
+                if i == 0:
+                    scene_transitions.append(None)
+                else:
+                    scene_transitions.append(
+                        scene.transition or params.scene_transition
+                    )
+                logger.info(f"scene {scene.scene_id}: ready ({scene_video})")
+            else:
+                logger.warning(f"scene {scene.scene_id}: generation failed, skipping")
+                scene_warnings.append({
+                    "code": "scene_generation_failed",
+                    "scene_id": scene.scene_id,
+                })
+
+        if not scene_video_paths:
+            return _mark_task_failed(
+                task_id, "video", "no scene videos were generated successfully"
+            )
+
+        sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=85)
+
+        # Resolve BGM override for the final video.
+        # - bgm_file_override=None → concat function resolves from bgm_type
+        #   (same as generate_video does for the standard pipeline)
+        # - For AI-generated BGM (sonilo/elevenlabs), generate it now and
+        #   pass the path as override.
+        bgm_file_override = None
+        video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
+        video_music_requested = (
+            video_music_provider is not None
+            and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
+        )
+        if video_music_requested:
+            service = video_music_provider["service"]
+            generated_bgm_path = path.join(
+                utils.task_dir(task_id),
+                f"{params.bgm_type}-bgm{video_music_provider['suffix']}",
+            )
+            # Compute total duration from scene videos for BGM providers
+            # that need it (sonilo, elevenlabs).
+            total_scene_duration = 0.0
+            for svp in scene_video_paths:
+                try:
+                    clip = AudioFileClip(svp)
+                    total_scene_duration += clip.duration
+                    clip.close()
+                except Exception:
+                    pass
+            try:
+                service.generate_bgm(
+                    video_path=scene_video_paths[0],
+                    output_path=generated_bgm_path,
+                    video_duration=total_scene_duration,
+                    prompt=_get_video_music_prompt(params),
+                )
+                bgm_file_override = generated_bgm_path
+            except video_music_provider["error_type"] as exc:
+                logger.warning(
+                    f"{video_music_provider['display_name']} BGM generation failed: "
+                    f"task_id={task_id}, error={exc}"
+                )
+                bgm_file_override = ""
+
+        # Concatenate scene videos and overlay BGM on the final result.
+        # Scene transitions are applied before concatenation.
+        final_video_path = path.join(utils.task_dir(task_id), "final-1.mp4")
+        logger.info(
+            f"\n\n## concatenating {len(scene_video_paths)} scenes + BGM"
+        )
+        video.concat_scene_videos_with_transitions(
+            scene_video_paths=scene_video_paths,
+            output_file=final_video_path,
+            scene_transitions=scene_transitions,
+            bgm_file_override=bgm_file_override,
+            bgm_type=params.bgm_type,
+            bgm_file=params.bgm_file or "",
+            bgm_volume=params.bgm_volume,
+            threads=params.n_threads,
+        )
+
+        final_video_paths = [final_video_path]
+        generation_warnings = scene_warnings
+        combined_video_paths = []
+
+        logger.success(
+            f"task {task_id} finished (scene mode), generated {len(final_video_paths)} videos."
+        )
+
+        sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=95)
+
+        # Cross-posting (same as standard mode)
+        cross_post_enabled = (
+            upload_post.upload_post_service.is_configured()
+            and upload_post.upload_post_service.auto_upload
+        )
+        platforms = (
+            list(upload_post.upload_post_service.platforms) if cross_post_enabled else []
+        )
+        should_cross_post = cross_post_enabled and bool(platforms)
+        if cross_post_enabled and not platforms:
+            logger.warning(
+                f"skip cross-post because no platforms are configured, task_id: {task_id}"
+            )
+        cross_post_state = const.CROSS_POST_STATE_PENDING if should_cross_post else None
+
+        audio_duration_sum = 0.0
+        try:
+            for svp in scene_video_paths:
+                clip = AudioFileClip(svp)
+                audio_duration_sum += clip.duration
+                clip.close()
+        except Exception:
+            audio_duration_sum = 0.0
+
+        kwargs = {
+            "videos": final_video_paths,
+            "combined_videos": combined_video_paths,
+            "script": video_script,
+            "terms": video_terms,
+            "audio_file": "",
+            "audio_duration": audio_duration_sum,
+            "subtitle_path": "",
+            "materials": [],
+            "cross_post_state": cross_post_state,
+            "cross_post_results": None,
+            "cross_post_error": None,
+            "cross_post_owner": _cross_post_process_owner if should_cross_post else None,
+            "warnings": generation_warnings or None,
+        }
+        sm.state.update_task(
+            task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
+        )
+
+        if should_cross_post:
+            scheduling_error = _schedule_cross_post(
+                task_id=task_id,
+                video_paths=final_video_paths,
+                params=params,
+                video_script=video_script,
+                platforms=platforms,
+                youtube_privacy_status=(
+                    upload_post.upload_post_service.youtube_privacy_status
+                ),
+            )
+            if scheduling_error:
+                kwargs["cross_post_state"] = const.CROSS_POST_STATE_FAILED
+                kwargs["cross_post_error"] = scheduling_error
+                kwargs["cross_post_owner"] = None
+
+        return kwargs
+
+    # === STANDARD MODE (non-scene or intermediate stop_at) ===
 
     # 3. Generate audio
     audio_file, audio_duration, sub_maker = generate_audio(
@@ -1471,6 +1914,17 @@ def _run_pipeline(
         return {"subtitle_path": subtitle_path}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
+
+    # Scene mode only supports stop_at="video".  Intermediate stages
+    # (audio, subtitle, materials) don't make sense because each scene
+    # handles its own audio/subtitles/materials internally.
+    if processed_scenes:
+        return _mark_task_failed(
+            task_id,
+            stop_at,
+            f"scene mode does not support stop_at={stop_at}; "
+            "use stop_at=video to generate full scene videos",
+        )
 
     # 5. Get video materials
     downloaded_videos = get_video_materials(
