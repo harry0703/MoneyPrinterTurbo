@@ -154,10 +154,10 @@ def test_ai_video_settings_prioritize_sponsors_and_own_shengsuan_key():
         markdown_values = [str(item.value) for item in app.markdown]
         provider_titles = [
             "**Metaso · MiniMax H3**",
+            "**OfoxAI**",
             "**Shengsuan Cloud AI Video**",
             "**Volcano Engine Ark · Seedance**",
             "**WaveSpeed**",
-            "**OFox**",
         ]
         provider_positions = [
             next(

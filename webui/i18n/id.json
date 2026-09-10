@@ -1,6 +1,7 @@
 {
   "Language": "Bahasa Indonesia",
   "Translation": {
+    "Batch Material Reuse Warning": "Video {index} menggunakan kembali {count} klip sumber dari video sebelumnya: materi yang tersedia tidak cukup untuk menghindari pengulangan dengan urutan dan durasi saat ini.",
     "YouTube Audience": "Audiens YouTube",
     "Made for Kids": "Ya, dibuat untuk anak-anak",
     "Not Made for Kids": "Tidak, bukan untuk anak-anak",

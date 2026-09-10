@@ -1,6 +1,7 @@
 {
   "Language": "Türkçe",
   "Translation": {
+    "Batch Material Reuse Warning": "{index}. videoda önceki videolardan {count} kaynak klip yeniden kullanıldı: mevcut materyaller, geçerli sıralama ve süre koşullarında tekrarı tamamen önlemek için yetersiz.",
     "YouTube Audience": "YouTube kitlesi",
     "Made for Kids": "Evet, çocuklara özel",
     "Not Made for Kids": "Hayır, çocuklara özel değil",

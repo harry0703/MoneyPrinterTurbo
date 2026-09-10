@@ -1,6 +1,7 @@
 {
   "Language": "Azərbaycan dili",
   "Translation": {
+    "Batch Material Reuse Warning": "{index}-ci videoda əvvəlki videolardan {count} mənbə klipi təkrar istifadə olundu: mövcud materiallar cari ardıcıllıq və müddət tələblərinə uyğun olaraq təkrarsız video yaratmaq üçün kifayət etmir.",
     "YouTube Audience": "YouTube auditoriyası",
     "Made for Kids": "Bəli, uşaqlar üçün nəzərdə tutulub",
     "Not Made for Kids": "Xeyr, uşaqlar üçün nəzərdə tutulmayıb",

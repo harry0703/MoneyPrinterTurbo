@@ -1,6 +1,7 @@
 {
   "Language": "한국어",
   "Translation": {
+    "Batch Material Reuse Warning": "{index}번째 영상에서 이전 영상의 원본 클립 {count}개를 재사용했습니다. 현재 순서와 길이 조건에서는 준비된 소재만으로 중복을 완전히 피할 수 없습니다.",
     "YouTube Audience": "YouTube 시청자층",
     "Made for Kids": "예, 아동용입니다",
     "Not Made for Kids": "아니요, 아동용이 아닙니다",

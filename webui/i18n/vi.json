@@ -1,6 +1,7 @@
 {
   "Language": "Tiếng Việt",
   "Translation": {
+    "Batch Material Reuse Warning": "Video {index} đã sử dụng lại {count} clip nguồn từ các video trước: tư liệu hiện có không đủ để tránh hoàn toàn việc sử dụng lại với thứ tự và thời lượng hiện tại.",
     "YouTube Audience": "Đối tượng người xem YouTube",
     "Made for Kids": "Có, dành cho trẻ em",
     "Not Made for Kids": "Không, không dành cho trẻ em",

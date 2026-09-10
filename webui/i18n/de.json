@@ -1,6 +1,7 @@
 {
   "Language": "Deutsch",
   "Translation": {
+    "Batch Material Reuse Warning": "Video {index} verwendet {count} Quellclips aus vorherigen Videos erneut. Die verfügbaren Materialien reichen bei der aktuellen Reihenfolge und Dauer nicht aus, um Wiederholungen vollständig zu vermeiden.",
     "YouTube Audience": "YouTube-Zielgruppe",
     "Made for Kids": "Ja, speziell für Kinder",
     "Not Made for Kids": "Nein, nicht speziell für Kinder",

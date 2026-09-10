@@ -1,6 +1,7 @@
 {
   "Language": "Español",
   "Translation": {
+    "Batch Material Reuse Warning": "El vídeo {index} reutilizó {count} clips de vídeos anteriores: los materiales disponibles no bastan para evitar repeticiones con el orden y la duración actuales.",
     "YouTube Audience": "Audiencia de YouTube",
     "Made for Kids": "Sí, creado para niños",
     "Not Made for Kids": "No, no está creado para niños",
