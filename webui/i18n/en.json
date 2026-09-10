@@ -161,6 +161,7 @@
     "Sonilo Connection Test Succeeded": "Sonilo connection succeeded.",
     "Sonilo Connection Test Failed": "Sonilo connection failed: {error}",
     "Sonilo BGM Fallback Warning": "Video {index} was generated without Sonilo background music because the music request failed.",
+    "Batch Material Reuse Warning": "Video {index} reused {count} source clips from earlier videos because the available candidates could not fill this video without reuse under the current ordering and duration settings.",
     "ElevenLabs Background Music": "Automatic Video-Matched Music (ElevenLabs AI)",
     "ElevenLabs Music API Key": "ElevenLabs API Key ([Get API Key](https://elevenlabs.io/app/settings/api-keys))",
     "ElevenLabs API Key Help": "This key is shared with ElevenLabs TTS. It is masked and saved in your local config.toml.",

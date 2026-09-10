@@ -198,6 +198,8 @@ def is_material_resolution_acceptable(width: int, height: int) -> bool:
 def _prioritize_unique_source_clips(
     subclipped_items: List[SubClippedVideoClip],
     concat_mode: VideoConcatMode,
+    source_usage: dict[str, int] | None = None,
+    source_groups: dict[str, str] | None = None,
 ) -> List[SubClippedVideoClip]:
     """
     优先让每个源素材只出现一次，降低成片里同一素材反复出现的概率。
@@ -214,7 +216,26 @@ def _prioritize_unique_source_clips(
 
     concat_mode_value = getattr(concat_mode, "value", concat_mode)
     if concat_mode_value != VideoConcatMode.random.value:
-        return subclipped_items
+        if source_usage is None:
+            return subclipped_items
+        if not source_groups:
+            return sorted(
+                subclipped_items,
+                key=lambda item: source_usage.get(item.source_file_path, 0),
+            )
+        # Keep keyword rounds in order while rotating candidates within each keyword.
+        groups = {}
+        for item in subclipped_items:
+            key = source_groups.get(item.source_file_path, item.source_file_path)
+            groups.setdefault(key, []).append(item)
+        for items in groups.values():
+            items.sort(key=lambda item: source_usage.get(item.source_file_path, 0))
+        return [
+            item
+            for row in itertools.zip_longest(*groups.values())
+            for item in row
+            if item is not None
+        ]
 
     grouped_items: dict[str, list[SubClippedVideoClip]] = {}
     for item in subclipped_items:
@@ -229,6 +250,10 @@ def _prioritize_unique_source_clips(
 
     random.shuffle(primary_items)
     random.shuffle(overflow_items)
+    if source_usage is not None:
+        # Stable sorting retains randomness among equally used sources.
+        primary_items.sort(key=lambda item: source_usage.get(item.source_file_path, 0))
+        overflow_items.sort(key=lambda item: source_usage.get(item.source_file_path, 0))
     logger.info(
         "prioritized unique video materials, "
         f"sources: {len(grouped_items)}, "
@@ -689,6 +714,9 @@ def combine_videos(
     threads: int = 2,
     clip_speed: float = 1.0,
     video_fit_mode: VideoFitMode = VideoFitMode.cover,
+    source_usage: dict[str, int] | None = None,
+    source_groups: dict[str, str] | None = None,
+    used_video_paths: List[str] | None = None,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -760,6 +788,8 @@ def combine_videos(
     subclipped_items = _prioritize_unique_source_clips(
         subclipped_items=subclipped_items,
         concat_mode=video_concat_mode,
+        **({"source_usage": source_usage, "source_groups": source_groups}
+           if source_usage is not None else {}),
     )
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
@@ -896,6 +926,14 @@ def combine_videos(
         output_dir=output_dir,
         max_duration=audio_duration,
     )
+    if used_video_paths is not None:
+        # Exclude safety-margin clips that FFmpeg trims entirely from the output.
+        elapsed = 0.0
+        for clip in processed_clips:
+            if elapsed >= audio_duration:
+                break
+            used_video_paths.append(clip.source_file_path)
+            elapsed += clip.duration
     
     # clean temp files
     delete_files(clip_files)

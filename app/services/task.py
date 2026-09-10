@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import re
@@ -833,19 +834,52 @@ def _record_loomloom_run_reference(
     return None
 
 
+def _get_material_source_groups(task_id: str, video_paths: list[str]) -> dict[str, str]:
+    """Recover keyword groups from the downloaded material manifest."""
+    try:
+        with open(path.join(utils.task_dir(task_id), "script.json"), encoding="utf-8") as file:
+            payload = json.load(file)
+        groups = {
+            record["local_file"]: record["search_term"]
+            for record in payload.get("material_sources", [])
+            if isinstance(record, dict)
+            and isinstance(record.get("local_file"), str)
+            and isinstance(record.get("search_term"), str)
+            and record["search_term"]
+        }
+        return {
+            file: groups[path.basename(file)]
+            for file in video_paths
+            if path.basename(file) in groups
+        }
+    except (OSError, ValueError, AttributeError, TypeError) as exc:
+        logger.warning(f"Cannot read material keyword groups: task_id={task_id}, error={exc}")
+        return {}
+
+
 def generate_final_videos(
     task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
 ):
     final_video_paths = []
     combined_video_paths = []
     warnings = []
+    allocate_batch_materials = params.video_count > 1 and params.video_source in {
+        "pexels", "pixabay", "coverr", "local"
+    }
+    source_usage = {}
+    material_selections = []
+    source_groups = (
+        _get_material_source_groups(task_id, downloaded_videos)
+        if (allocate_batch_materials and params.match_materials_to_script
+            and params.video_source != "local")
+        else {}
+    )
     video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
     video_music_requested = (
         video_music_provider is not None
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
     )
-    # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
-    # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
+    # Matching preserves keyword order; batch allocation varies each keyword's candidates.
     if params.match_materials_to_script:
         video_concat_mode = VideoConcatMode.sequential
     elif params.video_count == 1:
@@ -861,6 +895,15 @@ def generate_final_videos(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
         logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
+        used_video_paths = []
+        batch_options = (
+            {
+                "source_usage": source_usage,
+                "source_groups": source_groups,
+                "used_video_paths": used_video_paths,
+            }
+            if allocate_batch_materials else {}
+        )
         video.combine_videos(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
@@ -872,7 +915,29 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             clip_speed=params.video_clip_speed,
+            **batch_options,
         )
+        if allocate_batch_materials:
+            selected_sources = list(dict.fromkeys(used_video_paths))
+            reused_sources = [file for file in selected_sources if source_usage.get(file, 0)]
+            for file in selected_sources:
+                source_usage[file] = source_usage.get(file, 0) + 1
+            material_selections.append({
+                "video_index": index,
+                "local_files": [path.basename(file) for file in used_video_paths],
+                "reused_files": [path.basename(file) for file in reused_sources],
+            })
+            task_artifacts.patch_script_data(task_id, material_selections=material_selections)
+            logger.info(
+                f"Batch material allocation: video_index={index}, "
+                f"sources={len(selected_sources)}, reused_sources={len(reused_sources)}"
+            )
+            if reused_sources:
+                warnings.append({
+                    "code": "batch_materials_reused",
+                    "video_index": index,
+                    "count": len(reused_sources),
+                })
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)

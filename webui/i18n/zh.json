@@ -161,6 +161,7 @@
     "Sonilo Connection Test Succeeded": "Sonilo 连接成功。",
     "Sonilo Connection Test Failed": "Sonilo 连接失败：{error}",
     "Sonilo BGM Fallback Warning": "第 {index} 条视频的 Sonilo 配乐生成失败，已降级生成无背景音乐的视频。",
+    "Batch Material Reuse Warning": "第 {index} 条视频复用了前面成片中的 {count} 个素材：现有候选素材在当前顺序和时长要求下不足以完全错开。",
     "ElevenLabs Background Music": "根据画面自动配乐（ElevenLabs AI）",
     "ElevenLabs Music API Key": "ElevenLabs API 密钥（[点击获取](https://elevenlabs.io/app/settings/api-keys)）",
     "ElevenLabs API Key Help": "该 Key 与 ElevenLabs 配音共用，输入内容会以密码形式显示，并保存到本机 config.toml。",
