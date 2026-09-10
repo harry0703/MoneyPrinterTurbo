@@ -1,6 +1,10 @@
 {
   "Language": "Bahasa Indonesia",
   "Translation": {
+    "YouTube Audience": "Audiens YouTube",
+    "Made for Kids": "Ya, dibuat untuk anak-anak",
+    "Not Made for Kids": "Tidak, bukan untuk anak-anak",
+    "YouTube Audience Help": "Pilih sesuai target audiens video. Pernyataan ini dikirim saat mengunggah ke YouTube dan tidak mengubah konten yang dihasilkan.",
     "Kokoro Base URL": "URL Dasar Kokoro",
     "Kokoro API Key": "Kunci API Kokoro (opsional; [Panduan Konfigurasi](https://github.com/remsky/Kokoro-FastAPI))",
     "Kokoro Model": "Model Kokoro",

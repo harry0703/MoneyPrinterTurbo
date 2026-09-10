@@ -1065,6 +1065,7 @@ def _run_cross_post(
     video_language: str,
     platforms: tuple[str, ...],
     youtube_privacy_status: str,
+    youtube_made_for_kids: bool = False,
 ) -> None:
     """后台执行跨平台发布，并只补充发布相关的任务字段。"""
     results = []
@@ -1111,6 +1112,7 @@ def _run_cross_post(
                     "youtube_description": metadata.get("caption", ""),
                     "tags": metadata.get("hashtags", []),
                     "privacyStatus": youtube_privacy_status,
+                    "selfDeclaredMadeForKids": youtube_made_for_kids,
                     "containsSyntheticMedia": True,
                 }
             post_title = (
@@ -1235,6 +1237,7 @@ def _schedule_cross_post(
     video_script: str,
     platforms: list[str],
     youtube_privacy_status: str,
+    youtube_made_for_kids: bool = False,
 ) -> str | None:
     """提交后台发布任务；成功返回 None，调度失败返回可查询的错误原因。"""
     if not _cross_post_slots.acquire(blocking=False):
@@ -1261,6 +1264,7 @@ def _schedule_cross_post(
             params.video_language or "",
             tuple(platforms),
             youtube_privacy_status,
+            youtube_made_for_kids,
         )
         _register_cross_post_future(task_id, future)
         future.add_done_callback(partial(_finalize_cross_post_future, task_id))
@@ -1570,6 +1574,10 @@ def _run_pipeline(
             platforms=platforms,
             youtube_privacy_status=(
                 upload_post.upload_post_service.youtube_privacy_status
+            ),
+            # 固定排队时的受众选择，之后修改 WebUI 不应改变已排队视频的声明。
+            youtube_made_for_kids=(
+                upload_post.upload_post_service.youtube_made_for_kids
             ),
         )
         # 队列满或线程池关闭属于同步可知的调度失败。任务状态已经由调度函数

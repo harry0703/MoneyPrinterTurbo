@@ -1,6 +1,10 @@
 {
   "Language": "Tiếng Việt",
   "Translation": {
+    "YouTube Audience": "Đối tượng người xem YouTube",
+    "Made for Kids": "Có, dành cho trẻ em",
+    "Not Made for Kids": "Không, không dành cho trẻ em",
+    "YouTube Audience Help": "Chọn theo đối tượng người xem mục tiêu của video. Khai báo này được gửi khi tải lên YouTube và không thay đổi nội dung đã tạo.",
     "Kokoro Base URL": "URL cơ sở Kokoro",
     "Kokoro API Key": "Khóa API Kokoro (không bắt buộc; [Hướng dẫn cấu hình](https://github.com/remsky/Kokoro-FastAPI))",
     "Kokoro Model": "Mô hình Kokoro",

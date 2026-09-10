@@ -1,6 +1,10 @@
 {
   "Language": "Azərbaycan dili",
   "Translation": {
+    "YouTube Audience": "YouTube auditoriyası",
+    "Made for Kids": "Bəli, uşaqlar üçün nəzərdə tutulub",
+    "Not Made for Kids": "Xeyr, uşaqlar üçün nəzərdə tutulmayıb",
+    "YouTube Audience Help": "Videonun nəzərdə tutulduğu auditoriyaya uyğun seçim edin. Bu bəyanat YouTube-a video yüklənərkən göndərilir və yaradılan məzmunu dəyişmir.",
     "Kokoro Voices Unavailable": "Kokoro səsləri yüklənə bilmədi. Əvvəlki seçiminiz saxlanılıb. Əlaqəni yoxlamaq və ya səsləri əl ilə daxil etmək lazımdır.",
     "Login Required": "Giriş tələb olunur",
     "Please login to access settings": "Parametrlərə daxil olmaq üçün giriş etmək lazımdır",

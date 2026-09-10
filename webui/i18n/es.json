@@ -1,6 +1,10 @@
 {
   "Language": "Español",
   "Translation": {
+    "YouTube Audience": "Audiencia de YouTube",
+    "Made for Kids": "Sí, creado para niños",
+    "Not Made for Kids": "No, no está creado para niños",
+    "YouTube Audience Help": "Elige según el público al que va dirigido el vídeo. Esta declaración se envía al subirlo a YouTube y no modifica el contenido generado.",
     "Kokoro Base URL": "URL base de Kokoro",
     "Kokoro API Key": "Clave API de Kokoro (opcional; [Configuración](https://github.com/remsky/Kokoro-FastAPI))",
     "Kokoro Model": "Modelo de Kokoro",

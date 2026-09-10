@@ -3136,6 +3136,22 @@ def _render_settings_dialog():
                 if upload_post_youtube_privacy_status != config.app.get("upload_post_youtube_privacy_status", "public"):
                     _set_runtime_config("app", "upload_post_youtube_privacy_status", upload_post_youtube_privacy_status)
 
+                # 受众声明只影响 YouTube 发布，不改变生成内容或其它平台的请求。
+                # 使用真正的布尔选项，避免把展示文字或字符串当成 API 参数。
+                saved_audience = config.app.get("upload_post_youtube_made_for_kids", False)
+                audience_labels = {False: tr("Not Made for Kids"), True: tr("Made for Kids")}
+                made_for_kids = st.selectbox(
+                    tr("YouTube Audience"),
+                    options=[False, True],
+                    # 非法配置保持未选择，不在打开设置时擅自改成非儿童声明。
+                    index=int(saved_audience) if isinstance(saved_audience, bool) else None,
+                    format_func=audience_labels.get,
+                    help=tr("YouTube Audience Help"),
+                    key="upload_post_youtube_made_for_kids_selectbox",
+                )
+                if isinstance(made_for_kids, bool):
+                    _set_runtime_config("app", "upload_post_youtube_made_for_kids", made_for_kids)
+
         # 左侧面板 - 日志设置
         with left_config_panel:
             hide_log = st.checkbox(

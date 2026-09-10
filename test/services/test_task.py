@@ -1432,6 +1432,7 @@ class TestTaskService(unittest.TestCase):
             patch.object(type(service), "auto_upload", new_callable=PropertyMock, return_value=True),
             patch.object(type(service), "platforms", new_callable=PropertyMock, return_value=["youtube"]),
             patch.object(type(service), "youtube_privacy_status", new_callable=PropertyMock, return_value="unlisted"),
+            patch.object(type(service), "youtube_made_for_kids", new_callable=PropertyMock, return_value=True),
             patch.object(
                 tm.llm,
                 "generate_social_metadata",
@@ -1465,6 +1466,7 @@ class TestTaskService(unittest.TestCase):
             "youtube_description": "A better morning.",
             "tags": ["coffee", "shorts"],
             "privacyStatus": "unlisted",
+            "selfDeclaredMadeForKids": True,
             "containsSyntheticMedia": True,
         }
         self.assertEqual(cross_post.call_count, 2)
@@ -1897,6 +1899,7 @@ class TestTaskService(unittest.TestCase):
             "youtube_description": "A better morning.",
             "tags": ["#coffee", "#shorts"],
             "privacyStatus": "unlisted",
+            "selfDeclaredMadeForKids": False,
             "containsSyntheticMedia": True,
         }
         self.assertEqual(cross_post.call_count, 2)

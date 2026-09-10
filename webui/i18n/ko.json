@@ -1,6 +1,10 @@
 {
   "Language": "한국어",
   "Translation": {
+    "YouTube Audience": "YouTube 시청자층",
+    "Made for Kids": "예, 아동용입니다",
+    "Not Made for Kids": "아니요, 아동용이 아닙니다",
+    "YouTube Audience Help": "영상의 실제 대상 시청자에 맞게 선택하세요. 이 설정은 YouTube 업로드 시 전달되며 생성된 콘텐츠를 변경하지 않습니다.",
     "Kokoro Base URL": "Kokoro 기본 URL",
     "Kokoro API Key": "Kokoro API 키 (선택 사항; [설정 안내](https://github.com/remsky/Kokoro-FastAPI))",
     "Kokoro Model": "Kokoro 모델",

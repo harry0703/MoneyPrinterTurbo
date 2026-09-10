@@ -1,6 +1,10 @@
 {
   "Language": "Türkçe",
   "Translation": {
+    "YouTube Audience": "YouTube kitlesi",
+    "Made for Kids": "Evet, çocuklara özel",
+    "Not Made for Kids": "Hayır, çocuklara özel değil",
+    "YouTube Audience Help": "Videonun hedef kitlesine göre seçin. Bu beyan YouTube yüklemesiyle gönderilir ve oluşturulan içeriği değiştirmez.",
     "Kokoro Base URL": "Kokoro Temel URL",
     "Kokoro API Key": "Kokoro API Anahtarı (isteğe bağlı; [Kurulum](https://github.com/remsky/Kokoro-FastAPI))",
     "Kokoro Model": "Kokoro Modeli",

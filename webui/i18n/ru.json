@@ -1,6 +1,10 @@
 {
   "Language": "Русский",
   "Translation": {
+    "YouTube Audience": "Аудитория YouTube",
+    "Made for Kids": "Да, видео для детей",
+    "Not Made for Kids": "Нет, видео не для детей",
+    "YouTube Audience Help": "Выберите в соответствии с целевой аудиторией видео. Эта информация передаётся при загрузке на YouTube и не меняет созданный контент.",
     "Kokoro Base URL": "Базовый URL Kokoro",
     "Kokoro API Key": "API-ключ Kokoro (необязательно; [Настройка](https://github.com/remsky/Kokoro-FastAPI))",
     "Kokoro Model": "Модель Kokoro",

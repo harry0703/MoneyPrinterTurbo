@@ -451,6 +451,13 @@ upload_post_platforms = ["tiktok", "instagram"]
 upload_post_auto_upload = false
 # YouTube privacy: "public", "unlisted", or "private".
 upload_post_youtube_privacy_status = "public"
+# Declare whether the video is made for children. Choose based on its audience.
+# If unset, future YouTube uploads explicitly declare "not made for kids".
+# Set true for children's content. Previously uploaded videos are not changed.
+# 是否面向儿童：请根据视频实际受众设置，必须使用 TOML 布尔值 true / false。
+# 未配置时，后续 YouTube 上传默认声明为非面向儿童；儿童内容请显式设置为 true。
+# 与旧版省略声明字段不同，此设置不会修改已上传的视频。
+upload_post_youtube_made_for_kids = false
 # Maximum number of running and queued cross-post jobs per process. When the
 # limit is reached, video generation still succeeds and only cross-posting is
 # rejected.

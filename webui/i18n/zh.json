@@ -1,6 +1,10 @@
 {
   "Language": "简体中文",
   "Translation": {
+    "YouTube Audience": "YouTube 受众",
+    "Made for Kids": "是，面向儿童",
+    "Not Made for Kids": "否，不面向儿童",
+    "YouTube Audience Help": "请根据视频实际目标受众选择。该声明随 YouTube 上传请求发送，不会改变生成内容。",
     "Kokoro Voices Unavailable": "暂时无法获取 Kokoro 音色，已保留原有选择。请检查服务连接，或手动填写音色。",
     "Login Required": "需要登录",
     "Please login to access settings": "请登录后访问配置设置 (:gray[默认用户名: admin, 密码: admin, 您可以在 config.toml 中修改])",

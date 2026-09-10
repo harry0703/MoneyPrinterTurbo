@@ -1,6 +1,10 @@
 {
   "Language": "English",
   "Translation": {
+    "YouTube Audience": "YouTube audience",
+    "Made for Kids": "Yes, made for kids",
+    "Not Made for Kids": "No, not made for kids",
+    "YouTube Audience Help": "Choose based on the video's intended audience. This declaration is sent with YouTube uploads; it does not change the generated content.",
     "Kokoro Voices Unavailable": "Could not load Kokoro voices. Your previous selection is retained. Check the connection or enter voices manually.",
     "Login Required": "Login Required",
     "Please login to access settings": "Please login to access settings",
