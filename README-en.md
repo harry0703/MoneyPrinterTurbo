@@ -105,6 +105,19 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money"><img src="docs/sponsors/astraflow-logo.png" alt="AstraFlow" height="56"></a><br>
+      <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money"><strong>AstraFlow</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">AstraFlow</a> for sponsoring this project!<br>
+      🎬 <strong>One platform for leading video models</strong>: access MiniMax-H3, Seedance-2.5, and more. Generate scripts and videos in one place, without separate accounts or integrations.<br>
+      🚀 <strong>200+ AI models, with new models available on release day</strong>: access DeepSeek V4.1, Kimi K3, Qwen 3.8 Max, GLM 5.3, GPT-6, Claude, and more through a single platform.<br>
+      💰 <strong>Built by publicly listed UCloud, with transparent billing and cost control</strong>: track costs by API key and view detailed usage records.<br>
+      🎁 <strong>Exclusive offer for MoneyPrinterTurbo users</strong>: register through <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">our referral link</a> to receive new-user credits and get started right away! <a href="https://f.howxm.com/xs/u/HVFW5X8EIYV1">Claim CNY 50 in compute credits</a>.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com"><strong>RecCloud</strong></a>
     </td>
@@ -128,9 +141,9 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 <p align="center">
   <a href="https://mangodisk.app">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/en/dark-01-deep-cleanup.jpg">
-      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg">
-      <img src="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg" width="900" alt="MangoDisk Deep Cleanup interface">
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/en/dark-01-deep-cleanup.jpg?ver=1.1.0">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=1.1.0">
+      <img src="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=1.1.0" width="900" alt="MangoDisk Deep Cleanup interface">
     </picture>
   </a>
 </p>

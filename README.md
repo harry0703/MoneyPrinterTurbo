@@ -105,6 +105,19 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money"><img src="docs/sponsors/astraflow-logo.png" alt="星图 AstraFlow" height="56"></a><br>
+      <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money"><strong>星图 AstraFlow</strong></a>
+    </td>
+    <td align="left">
+      感谢 <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">星图 AstraFlow</a> 赞助本项目！<br>
+      🎬 <strong>视频模型一站式调用</strong>：聚合 MiniMax-H3，Seedance-2.5 等主流视频生成模型，文案生成 + 视频生成一个平台全搞定，无需多端注册、多处对接<br>
+      🚀 <strong>200+ 大模型一键调用，新模型当日上架</strong>：聚合 DeepSeek V4.1、Kimi K3、Qwen 3.8 Max、GLM 5.3、GPT-6、Claude 等 200+ 主流大模型，新模型上线当天即可接入<br>
+      💰 <strong>UCloud 上市公司出品，调用计费透明可控</strong>：按 Key 级别计费，调用明细全程可查<br>
+      🎁 <strong>MoneyPrinterTurbo 用户专属福利</strong>：通过<a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">专属推广链接</a>注册，即享新用户赠送额度，开箱即用！<a href="https://f.howxm.com/xs/u/HVFW5X8EIYV1">点击领取 50 元算力金</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn"><strong>录咖 AI</strong></a>
     </td>
@@ -128,9 +141,9 @@
 <p align="center">
   <a href="https://mangodisk.app/zh">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/zh/dark-01-deep-cleanup.jpg">
-      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/zh/light-01-deep-cleanup.jpg">
-      <img src="https://assets.mangodisk.app/images/screenshots/zh/light-01-deep-cleanup.jpg" width="900" alt="MangoDisk 深度清理界面">
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/zh/dark-01-deep-cleanup.jpg?ver=1.1.0">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/zh/light-01-deep-cleanup.jpg?ver=1.1.0">
+      <img src="https://assets.mangodisk.app/images/screenshots/zh/light-01-deep-cleanup.jpg?ver=1.1.0" width="900" alt="MangoDisk 深度清理界面">
     </picture>
   </a>
 </p>
