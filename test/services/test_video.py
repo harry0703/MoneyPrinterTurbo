@@ -9,6 +9,8 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
 from moviepy import (
     ImageClip,
     VideoFileClip,
@@ -18,7 +20,7 @@ from moviepy import (
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
-from app.models.schema import MaterialInfo
+from app.models.schema import MaterialInfo, VideoParams
 from app.services import video as vd
 from app.utils import utils
 
@@ -899,6 +901,46 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(source_ranges, [(0, 6.0)])
         self.assertEqual(written_durations, [3.0])
 
+    def test_combine_videos_full_option_uses_entire_source_without_splitting(self):
+        """max_clip_duration="full" 时应使用完整源素材，不再按秒数切分。"""
+
+        source_ranges, written_durations = self._capture_source_ranges_for_clip_speed(
+            source_duration=37.0,
+            audio_duration=45.0,
+            clip_speed=1.0,
+            max_clip_duration="full",
+        )
+
+        # 只应出现一个覆盖整段源素材的片段，而不是若干个固定长度的分段。
+        self.assertEqual(source_ranges, [(0, 37.0)])
+        self.assertEqual(written_durations, [37.0])
+
+    def test_combine_videos_full_option_is_case_and_whitespace_insensitive(self):
+        """"Full"/" full " 等写法也应被识别为完整素材模式。"""
+
+        for raw_value in ("Full", "  full  ", "FULL"):
+            with self.subTest(max_clip_duration=raw_value):
+                source_ranges, _ = self._capture_source_ranges_for_clip_speed(
+                    source_duration=12.0,
+                    audio_duration=20.0,
+                    clip_speed=1.0,
+                    max_clip_duration=raw_value,
+                )
+                self.assertEqual(source_ranges, [(0, 12.0)])
+
+    def test_combine_videos_numeric_duration_still_splits_when_not_full(self):
+        """回归保护：数值型 max_clip_duration 必须继续保留原有切分行为。"""
+
+        source_ranges, written_durations = self._capture_source_ranges_for_clip_speed(
+            source_duration=7.0,
+            audio_duration=20.0,
+            clip_speed=1.0,
+            max_clip_duration=3,
+        )
+
+        self.assertEqual(source_ranges, [(0, 3.0), (3.0, 6.0), (6.0, 7.0)])
+        self.assertEqual(written_durations, [3.0, 3.0, 1.0])
+
     def test_combine_videos_keeps_small_duration_safety_margin(self):
         """
         音频和素材累计时长刚好相等时，仍应继续追加一个短片段作为安全余量。
@@ -1322,6 +1364,65 @@ class TestVideoService(unittest.TestCase):
                 with patch("sys.platform", platform):
                     result = vd._get_temp_audio_dir("/some/output/dir")
                     self.assertEqual(result, "/some/output/dir")
+
+
+class TestVideoClipDurationValidation(unittest.TestCase):
+    """`VideoParams.video_clip_duration` 校验：正整数秒数，或字面量 "full"。"""
+
+    def test_accepts_positive_integer(self):
+        params = VideoParams(video_subject="test", video_clip_duration=7)
+        self.assertEqual(params.video_clip_duration, 7)
+
+    def test_accepts_full_literal(self):
+        params = VideoParams(video_subject="test", video_clip_duration="full")
+        self.assertEqual(params.video_clip_duration, "full")
+
+    def test_normalizes_case_and_whitespace_for_full(self):
+        for raw_value in ("Full", "  full  ", "FULL"):
+            with self.subTest(raw_value=raw_value):
+                params = VideoParams(
+                    video_subject="test", video_clip_duration=raw_value
+                )
+                self.assertEqual(params.video_clip_duration, "full")
+
+    def test_accepts_numeric_string(self):
+        """表单/查询参数可能把数字以字符串形式传入，例如 "5"。"""
+        params = VideoParams(video_subject="test", video_clip_duration="5")
+        self.assertEqual(params.video_clip_duration, 5)
+
+    def test_rejects_zero(self):
+        with self.assertRaises(ValidationError):
+            VideoParams(video_subject="test", video_clip_duration=0)
+
+    def test_rejects_negative_integer(self):
+        with self.assertRaises(ValidationError):
+            VideoParams(video_subject="test", video_clip_duration=-3)
+
+    def test_rejects_arbitrary_string(self):
+        with self.assertRaises(ValidationError):
+            VideoParams(video_subject="test", video_clip_duration="max")
+
+    def test_rejects_boolean(self):
+        """`bool` 是 `int` 子类，必须显式排除，否则 True/False 会被当成 1/0。"""
+        with self.assertRaises(ValidationError):
+            VideoParams(video_subject="test", video_clip_duration=True)
+
+    def test_preset_round_trip_preserves_full(self):
+        """预设保存/回填（model_dump → model_validate）应完整保留 "full"。"""
+        original = VideoParams(video_subject="test", video_clip_duration="full")
+        dumped = original.model_dump(mode="json")
+        self.assertEqual(dumped["video_clip_duration"], "full")
+
+        restored = VideoParams.model_validate(dumped)
+        self.assertEqual(restored.video_clip_duration, "full")
+
+    def test_preset_round_trip_preserves_numeric_value(self):
+        original = VideoParams(video_subject="test", video_clip_duration=8)
+        dumped = original.model_dump(mode="json")
+        self.assertEqual(dumped["video_clip_duration"], 8)
+
+        restored = VideoParams.model_validate(dumped)
+        self.assertEqual(restored.video_clip_duration, 8)
 
 
 class TestMaterialResolutionTolerance(unittest.TestCase):

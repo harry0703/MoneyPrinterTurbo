@@ -97,10 +97,6 @@ locales = utils.load_locales(i18n_dir)
 DEFAULT_CHATTERBOX_BASE_URL = "http://127.0.0.1:4123/v1"
 DEFAULT_CHATTERBOX_MODEL = "chatterbox"
 DEFAULT_CHATTERBOX_VOICES = ["default-Female"]
-DEFAULT_KOKORO_BASE_URL = "http://127.0.0.1:8880/v1"
-DEFAULT_KOKORO_MODEL = "kokoro"
-# empty = ask the server for its voice list (GET {base_url}/audio/voices)
-DEFAULT_KOKORO_VOICES: list[str] = []
 ONBOARDING_TOUR_KEY = "mpt-onboarding-v1"
 CUSTOM_LLM_ENDPOINT_ID = "custom"
 VOICE_MODE_TTS = "tts"
@@ -132,43 +128,6 @@ UPLOAD_POST_MANAGE_USERS_URL = "https://app.upload-post.com/manage-users"
 # 后端在 video_codec 未配置时继续采用稳定的 libx264；单独保留该哨兵可以区分
 # “跟随项目默认策略”和“用户明确固定 libx264”，便于未来安全调整默认策略。
 DEFAULT_VIDEO_CODEC_OPTION = "__default__"
-# LoomLoom 的能力接口只返回模型 ID 和展示名，不提供价格。这里仅维护用户确认过
-# 的参考价，用于帮助选择模型；最终费用按实际模型调用结算。别名同时覆盖
-# 当前展示名和常见模型 ID，未收录的新模型会自然返回空价格，不影响选择或报价。
-LOOMLOOM_VIDEO_MODEL_PRICES = (
-    (("veo31fast", "googleveo31fastpreview"), "￥0.700/秒", "￥0.700/秒"),
-    (
-        (
-            "通义万相22图生视频fastlora",
-            "通义万相22文生视频fastlora",
-            "tongyiwanxiang22i2vfastlora",
-            "tongyiwanxiang22t2vfastlora",
-            "wanx22i2vfastlora",
-            "wanx22t2vfastlora",
-        ),
-        "￥0.350–0.770/条",
-        "￥0.350/条（480P）；￥0.770/条（720P）",
-    ),
-    (("即梦30文生视频720p", "jimeng30t2v720p"), "￥0.230/秒", "￥0.230/秒"),
-    (("即梦30pro视频", "jimeng30pro视频", "jimeng30provideo"), "￥1.000/秒", "￥1.000/秒"),
-    (("veo3", "googleveo3"), "￥1.400/秒", "￥1.400/秒"),
-    (("veo31", "googleveo31"), "￥1.400/秒", "￥1.400/秒"),
-    (
-        ("klingv2", "可灵v2"),
-        "￥10.00–20.00/条",
-        "￥10.00/条（5 秒）；￥20.00/条（10 秒）",
-    ),
-    (
-        ("klingv21master", "可灵v21master"),
-        "￥10.00–20.00/条",
-        "￥10.00/条（5 秒）；￥20.00/条（10 秒）",
-    ),
-    (
-        ("viduq3pro",),
-        "￥0.440–1.000/秒",
-        "￥0.440/秒（540P）；￥0.940/秒（720P）；￥1.000/秒（1080P）",
-    ),
-)
 DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_enabled": True,
     "font_name": "MicrosoftYaHeiBold.ttc",
@@ -219,7 +178,6 @@ _RUNTIME_CONFIG_SECTIONS = {
     "app": config.app,
     "azure": config.azure,
     "chatterbox": config.chatterbox,
-    "kokoro": config.kokoro,
     "elevenlabs": config.elevenlabs,
     "minimax_tts": config.minimax_tts,
     "siliconflow": config.siliconflow,
@@ -470,82 +428,6 @@ def _sync_chatterbox_config_from_session_state():
     )
 
 
-def _sync_kokoro_config_from_session_state():
-    # 音色目录先于设置输入框渲染，先同步浏览器状态，确保本次 rerun 就使用
-    # 新端点和手工音色配置，不必再操作一次控件。
-    _set_runtime_config(
-        "kokoro",
-        "base_url",
-        (
-            st.session_state.get(
-                "kokoro_base_url_input",
-                config.kokoro.get("base_url") or DEFAULT_KOKORO_BASE_URL,
-            )
-            or ""
-        ).strip(),
-    )
-    _set_runtime_config(
-        "kokoro",
-        "api_key",
-        st.session_state.get(
-            "kokoro_api_key_input", config.kokoro.get("api_key", "")
-        ),
-    )
-    _set_runtime_config(
-        "kokoro",
-        "model_id",
-        (
-            st.session_state.get(
-                "kokoro_model_input",
-                config.kokoro.get("model_id") or DEFAULT_KOKORO_MODEL,
-            )
-            or DEFAULT_KOKORO_MODEL
-        ).strip(),
-    )
-    _set_runtime_config(
-        "kokoro",
-        "voices",
-        _parse_chatterbox_voices(
-            st.session_state.get(
-                "kokoro_voices_input",
-                config.kokoro.get("voices") or DEFAULT_KOKORO_VOICES,
-            )
-        ),
-    )
-
-
-def _get_kokoro_voice_options(saved_voice_name: str) -> list[str]:
-    """会话内短缓存远端目录，断线时保留上次选择，不把故障当成用户改音色。"""
-    if config.kokoro.get("voices"):
-        return voice.get_kokoro_voices()
-
-    # 仅保留当前服务的一条缓存。更换端点/凭据立即重查，缓存不保存明文 Key；
-    # 30 秒内的其他 UI 操作不重复阻塞 5 秒等待一个已知离线的服务。
-    signature = (
-        (config.kokoro.get("base_url") or "").strip().rstrip("/"),
-        _credential_signature(config.kokoro.get("api_key", "")),
-    )
-    catalog = st.session_state.get("kokoro_voice_catalog", {})
-    if catalog.get("signature") != signature:
-        catalog = {"signature": signature, "voices": [], "checked_at": None}
-    now = time.monotonic()
-    if catalog["checked_at"] is None or now - catalog["checked_at"] >= 30:
-        fetched = voice.get_kokoro_voices(fallback=False)
-        catalog.update(checked_at=now, available=bool(fetched))
-        if fetched:
-            catalog["voices"] = fetched
-        st.session_state["kokoro_voice_catalog"] = catalog
-
-    options = list(catalog["voices"])
-    if not catalog["available"]:
-        st.warning(tr("Kokoro Voices Unavailable"))
-        # 首次打开时可能没有缓存，仍保留配置文件中的真实选择；恢复连接后
-        # 只有成功返回的新目录才能判定某个旧音色确实已被服务器删除。
-        if voice.is_kokoro_voice(saved_voice_name) and saved_voice_name not in options:
-            options.insert(0, saved_voice_name)
-    return options or [f"kokoro:{voice.KOKORO_DEFAULT_VOICE}"]
-
-
 def _detect_audio_mime(audio_file: str, audio_bytes: bytes) -> str:
     # 有些 OpenAI-compatible TTS 服务，例如 travisvn/chatterbox-tts-api，
     # 即使请求 response_format=mp3，也会返回 WAV 内容。WebUI 试听如果固定
@@ -686,16 +568,6 @@ def _initialize_session_state():
         "loomloom_video_input_signature": "",
         "loomloom_video_client_request_id": "",
         "loomloom_video_confirm_charge": False,
-        "loomloom_video_quote_error_signature": "",
-        "loomloom_video_quote_error": "",
-        "loomloom_video_capability": None,
-        "loomloom_video_capability_fingerprint": "",
-        "loomloom_video_capability_load_attempt": "",
-        "loomloom_video_capability_error": "",
-        "loomloom_video_model_id": "",
-        # 文案或完整配音刚生成时，在视频数量控件创建前消费这个摘要并自动
-        # 填入推荐素材数；消费后即清空，避免覆盖用户后续手动调整。
-        "loomloom_video_scene_autofill_digest": "",
         "wavespeed_confirm_charge": False,
         "volcengine_seedance_confirm_charge": False,
         "ofox_confirm_charge": False,
@@ -1398,8 +1270,6 @@ def _infer_tts_server_from_voice(voice_name):
         return "elevenlabs"
     if voice.is_chatterbox_voice(voice_name):
         return "chatterbox"
-    if voice.is_kokoro_voice(voice_name):
-        return "kokoro"
     if voice.is_fish_audio_voice(voice_name):
         return "fish_audio"
     if voice.is_azure_v2_voice(voice_name):
@@ -3854,24 +3724,6 @@ def _effective_script_generation_backend():
     return backend if backend in {"local", "loomloom"} else "local"
 
 
-
-
-def _script_generation_method_help(selected_backend):
-    """让“文案生成方式”的问号内容严格跟随当前选择。"""
-    if selected_backend != "loomloom":
-        return tr("Script Generation Method Help")
-
-    app_config_snapshot = config.snapshot_config_with_pending(config.app)
-    guidance = [tr("LoomLoom Batch Script Generation Help")]
-    if (
-        str(app_config_snapshot.get("llm_provider", "") or "").strip().lower()
-        == "shengsuanyun"
-    ):
-        guidance.append(tr("Shengsuan Cloud API Key Reused"))
-    guidance.append(tr("Shengsuan Cloud API Key Link"))
-    return "\n\n".join(guidance)
-
-
 def _loomloom_video_scene_prompts(video_terms, subject, scene_count):
     """按素材关键词生成有限数量的场景描述，供视频模型逐段生成素材。"""
     if isinstance(video_terms, str):
@@ -3911,219 +3763,31 @@ def _loomloom_video_signature(batch, credential_fingerprint):
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
-def _loomloom_video_account_signature(token):
-    """服务地址和凭据共同隔离模型目录及报价，不能跨端点复用已确认状态。"""
-    values = config.snapshot_config_with_pending(config.app)
-    base_url = str(values.get("loomloom_base_url") or loomloom.DEFAULT_BASE_URL).strip().rstrip("/")
-    payload = json.dumps([base_url, str(token or "").strip()])
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def _load_loomloom_video_capability(token, *, force=False):
-    """按当前凭证缓存 Profile；刷新失败时保留同一凭证最近的成功结果。"""
-    normalized_token = str(token or "").strip()
-    if not normalized_token:
-        return None
-
-    fingerprint = _loomloom_video_account_signature(normalized_token)
-    if st.session_state.get("loomloom_video_capability_fingerprint") != fingerprint:
-        st.session_state["loomloom_video_capability"] = None
-        st.session_state["loomloom_video_capability_fingerprint"] = fingerprint
-        st.session_state["loomloom_video_capability_load_attempt"] = ""
-        st.session_state["loomloom_video_capability_error"] = ""
-
-    should_load = force or (
-        st.session_state.get("loomloom_video_capability_load_attempt") != fingerprint
-    )
-    if should_load:
-        st.session_state["loomloom_video_capability_load_attempt"] = fingerprint
-        try:
-            capability = _create_loomloom_video_backend().resolve_video_capability()
-        except (loomloom.LoomLoomError, ValueError) as exc:
-            logger.warning(
-                f"failed to load LoomLoom video capability: error={type(exc).__name__}"
-            )
-            st.session_state["loomloom_video_capability_error"] = str(exc)
-        else:
-            st.session_state["loomloom_video_capability"] = capability
-            st.session_state["loomloom_video_capability_error"] = ""
-
-    capability = st.session_state.get("loomloom_video_capability")
-    return (
-        capability if isinstance(capability, loomloom.LoomLoomVideoCapability) else None
-    )
-
-
-def _normalize_loomloom_model_identifier(value):
-    """统一展示名和模型 ID 的分隔符、大小写，供本地价格表安全匹配。"""
-    return re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", str(value or "").lower())
-
-
-def _loomloom_video_model_price(model):
-    """返回已知模型的（下拉框短价、选中后完整参考价）；未知模型返回空值。"""
-    identifiers = {
-        _normalize_loomloom_model_identifier(model.model_id),
-        _normalize_loomloom_model_identifier(model.display_name),
-    }
-    for aliases, compact_price, detailed_price in LOOMLOOM_VIDEO_MODEL_PRICES:
-        if identifiers.intersection(aliases):
-            return compact_price, detailed_price
-    return "", ""
-
-
-def _format_loomloom_video_model_option(model):
-    """在模型名右侧展示短价格，避免多档分辨率价格把下拉框撑得过宽。"""
-    compact_price, _ = _loomloom_video_model_price(model)
-    return f"{model.display_name} · {compact_price}" if compact_price else model.display_name
-
-
-def _effective_voice_rate_before_audio_panel():
-    """视频面板位于音频面板之前，需从现有控件状态或配置读取当前语速。"""
-    raw_rate = st.session_state.get(
-        localized_widget_key("voice_rate_select"),
-        config.ui.get("voice_rate", 1.0),
-    )
-    try:
-        rate = float(raw_rate)
-    except (TypeError, ValueError, OverflowError):
-        return 1.0
-    return rate if math.isfinite(rate) and rate > 0 else 1.0
-
-
-def _matching_full_voice_preview_duration(script, voice_rate):
-    """仅在文案、Provider、音色和语速均未变化时采用完整试听的真实时长。"""
-    cached = st.session_state.get("voice_preview_audio")
-    if not isinstance(cached, dict) or cached.get("preview_type") != "full":
-        return None
-    script_digest = hashlib.sha256(str(script or "").encode("utf-8")).hexdigest()
-    if cached.get("content_digest") != script_digest:
-        return None
-
-    current_tts_server = st.session_state.get(
-        localized_widget_key("tts_server_select"),
-        config.ui.get("tts_server", "azure-tts-v1"),
-    )
-    current_voice_name = st.session_state.get(
-        localized_widget_key(f"speech_synthesis_select_{current_tts_server}"),
-        config.ui.get("voice_name", ""),
-    )
-    try:
-        cached_voice_rate = float(cached.get("voice_rate", 0))
-    except (TypeError, ValueError, OverflowError):
-        return None
-    if (
-        cached.get("tts_server") != current_tts_server
-        or cached.get("voice_name") != current_voice_name
-        or not math.isfinite(cached_voice_rate)
-        or not math.isclose(cached_voice_rate, voice_rate)
-    ):
-        return None
-
-    duration = cached.get("duration")
-    if (
-        not isinstance(duration, (int, float))
-        or not math.isfinite(duration)
-        or duration <= 0
-    ):
-        return None
-    return float(duration)
-
-
-def _loomloom_video_coverage_plan(params):
-    """按真实或估算旁白时长推荐素材数；不足部分仍由原有循环逻辑补齐。"""
-    script = str(params.video_script or "").strip()
-    if not script:
-        return None
-
-    voice_rate = _effective_voice_rate_before_audio_panel()
-    actual_duration = _matching_full_voice_preview_duration(script, voice_rate)
-    if actual_duration is not None:
-        duration_min = duration_max = actual_duration
-        basis_key = "AI Video Duration Basis Actual"
-    else:
-        estimated = _estimate_voiceover_duration_range(script, voice_rate)
-        if not estimated:
-            return None
-        duration_min, duration_max = estimated
-        basis_key = "AI Video Duration Basis Estimated"
-
-    clip_duration = max(float(params.video_clip_duration or 1), 1.0)
-    needed_min = max(math.ceil(duration_min / clip_duration), 1)
-    needed_max = max(math.ceil(duration_max / clip_duration), needed_min)
-    return {
-        "script_digest": hashlib.sha256(script.encode("utf-8")).hexdigest(),
-        "basis_key": basis_key,
-        "duration_min": float(duration_min),
-        "duration_max": float(duration_max),
-        "clip_duration": clip_duration,
-        "needed_min": needed_min,
-        "needed_max": needed_max,
-        # 推荐值优先覆盖保守上界，但绝不突破服务端允许的付费任务上限。
-        "recommended_count": min(needed_max, loomloom.MAX_VIDEO_SCENES),
-    }
-
-
-def _format_numeric_range(minimum, maximum, digits=1):
-    if math.isclose(float(minimum), float(maximum)):
-        return f"{float(maximum):.{digits}f}"
-    return f"{float(minimum):.{digits}f}–{float(maximum):.{digits}f}"
-
-
-def _selected_loomloom_video_model(capability):
-    """返回仍在当前 Profile 候选中的用户选择，不做静默回退。"""
-    selected_model_id = str(
-        st.session_state.get("loomloom_video_model_id", "") or ""
-    ).strip()
-    eligible_model_ids = {model.model_id for model in capability.models}
-    return selected_model_id if selected_model_id in eligible_model_ids else ""
-
-
 def _current_loomloom_video_quote_context(params):
     """根据当前页面参数构建默认 SkillBot 的视频报价批次。"""
     token = _effective_loomloom_api_token()
-    fingerprint = _loomloom_video_account_signature(token) if token else ""
-    capability = st.session_state.get("loomloom_video_capability")
-    if (
-        not isinstance(capability, loomloom.LoomLoomVideoCapability)
-        or st.session_state.get("loomloom_video_capability_fingerprint") != fingerprint
-    ):
-        return None, ""
-    model_id = _selected_loomloom_video_model(capability)
     scene_count = int(st.session_state.get("loomloom_video_scene_count", 1) or 1)
     prompts = _loomloom_video_scene_prompts(
         params.video_terms,
         params.video_subject or params.video_script,
         scene_count,
     )
-    aspect_ratio = str(
-        params.video_aspect.value
-        if isinstance(params.video_aspect, VideoAspect)
-        else params.video_aspect
-    )
-    if (
-        not token
-        or not model_id
-        or not prompts
-        or aspect_ratio not in capability.aspect_ratios
-    ):
+    if not token or not prompts:
         return None, ""
     try:
         batch = _create_loomloom_video_backend().prepare_video_batch(
             subject=params.video_subject or params.video_script,
             scene_prompts=prompts,
-            model_id=model_id,
-            aspect_ratio=aspect_ratio,
+            aspect_ratio=str(
+                params.video_aspect.value
+                if isinstance(params.video_aspect, VideoAspect)
+                else params.video_aspect
+            ),
         )
     except (loomloom.LoomLoomError, ValueError):
         return None, ""
+    fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()
     return batch, _loomloom_video_signature(batch, fingerprint)
-
-
-def _retry_loomloom_video_quote():
-    """用户主动重试时解除失败锁；不沿用之前的付费确认。"""
-    st.session_state["loomloom_video_quote_error_signature"] = ""
-    st.session_state["loomloom_video_quote_error"] = ""
-    st.session_state["loomloom_video_confirm_charge"] = False
 
 
 def _render_loomloom_video_settings(params):
@@ -4140,80 +3804,6 @@ def _render_loomloom_video_settings(params):
 
     token = _effective_loomloom_api_token()
 
-    refresh_models = st.button(
-        tr("Refresh AI Video Models"),
-        key="loomloom_refresh_video_models",
-        use_container_width=True,
-        disabled=not token,
-    )
-    capability = _load_loomloom_video_capability(token, force=refresh_models)
-    capability_error = str(
-        st.session_state.get("loomloom_video_capability_error", "") or ""
-    ).strip()
-    if capability_error:
-        st.warning(tr("AI Video Model List Load Failed").format(error=capability_error))
-
-    if capability is not None:
-        models_by_id = {model.model_id: model for model in capability.models}
-        selected_model_id = str(
-            st.session_state.get("loomloom_video_model_id", "") or ""
-        ).strip()
-        if not selected_model_id:
-            selected_model_id = capability.default_model_id
-            st.session_state["loomloom_video_model_id"] = selected_model_id
-
-        model_options = list(models_by_id)
-        if selected_model_id not in models_by_id:
-            # 保留已失效的原选择，让用户明确看到状态并主动重选。直接把控件
-            # 改成新的默认模型会让旧报价与用户认知不一致。
-            model_options.insert(0, selected_model_id)
-
-        selected_model_id = stable_selectbox(
-            tr("AI Video Model"),
-            options=model_options,
-            default_value=selected_model_id,
-            key="loomloom_video_model_select",
-            format_func=lambda model_id: (
-                _format_loomloom_video_model_option(models_by_id[model_id])
-                if model_id in models_by_id
-                else tr("Unavailable AI Video Model").format(model=model_id)
-            ),
-        )
-        st.session_state["loomloom_video_model_id"] = selected_model_id
-        if selected_model_id not in models_by_id:
-            st.error(tr("Selected AI Video Model Unavailable"))
-        else:
-            _, detailed_price = _loomloom_video_model_price(
-                models_by_id[selected_model_id]
-            )
-            if detailed_price:
-                st.caption(
-                    tr("AI Video Model Reference Price").format(price=detailed_price)
-                )
-
-        current_aspect_ratio = str(
-            params.video_aspect.value
-            if isinstance(params.video_aspect, VideoAspect)
-            else params.video_aspect
-        )
-        if current_aspect_ratio not in capability.aspect_ratios:
-            st.error(tr("Selected AI Video Ratio Unavailable"))
-
-    coverage_plan = _loomloom_video_coverage_plan(params)
-    pending_autofill_digest = str(
-        st.session_state.get("loomloom_video_scene_autofill_digest", "") or ""
-    )
-    if (
-        coverage_plan is not None
-        and pending_autofill_digest == coverage_plan["script_digest"]
-    ):
-        # 只在“刚生成文案”或“刚取得完整试听真实时长”时推荐一次。
-        # 消费标记后不再覆盖，用户随后手动调整段数会被完整保留。
-        st.session_state["loomloom_video_scene_count"] = coverage_plan[
-            "recommended_count"
-        ]
-        st.session_state["loomloom_video_scene_autofill_digest"] = ""
-
     scene_count = st.number_input(
         tr("AI Video Scene Count"),
         min_value=1,
@@ -4222,62 +3812,23 @@ def _render_loomloom_video_settings(params):
         key="loomloom_video_scene_count",
     )
     _set_runtime_config("ui", "loomloom_video_scene_count", int(scene_count))
-    if coverage_plan is not None:
-        coverage_seconds = int(scene_count) * coverage_plan["clip_duration"]
-        shortfall_min = max(
-            coverage_plan["duration_min"] - coverage_seconds, 0.0
-        )
-        shortfall_max = max(
-            coverage_plan["duration_max"] - coverage_seconds, 0.0
-        )
-        duration_basis = tr(coverage_plan["basis_key"]).format(
-            duration=_format_numeric_range(
-                coverage_plan["duration_min"], coverage_plan["duration_max"]
-            )
-        )
-        coverage_message = tr("AI Video Material Coverage").format(
-            basis=duration_basis,
-            clip=_format_numeric_range(
-                coverage_plan["clip_duration"], coverage_plan["clip_duration"]
-            ),
-            needed=_format_numeric_range(
-                coverage_plan["needed_min"], coverage_plan["needed_max"], digits=0
-            ),
-            count=int(scene_count),
-            coverage=_format_numeric_range(coverage_seconds, coverage_seconds),
-            shortfall=_format_numeric_range(shortfall_min, shortfall_max),
-        )
-        if shortfall_max > 0:
-            st.warning(coverage_message)
-        else:
-            st.caption(coverage_message)
-
     batch, input_signature = _current_loomloom_video_quote_context(params)
     if not token:
         st.warning(tr("Shengsuan Cloud API Key Required"))
 
-    quote_result = st.session_state.get("loomloom_video_quote")
-    quoted_batch = st.session_state.get("loomloom_video_batch")
-    quote_is_current = bool(
-        quote_result is not None
-        and quoted_batch is not None
-        and st.session_state.get("loomloom_video_input_signature") == input_signature
-    )
-    # 同一组参数失败后暂停自动请求，避免普通页面交互反复等待服务超时。
-    # 签名包含账号、端点与全部计费输入；参数变化或用户主动重试后再询价。
-    if st.session_state.get("loomloom_video_quote_error_signature") != input_signature:
-        st.session_state["loomloom_video_quote_error_signature"] = ""
-        st.session_state["loomloom_video_quote_error"] = ""
-    quote_failed = bool(st.session_state.get("loomloom_video_quote_error"))
-    # Quote 不创建付费任务，真正执行仍需用户明确勾选确认。
-    if token and batch is not None and not quote_is_current and not quote_failed:
-        st.session_state["loomloom_video_confirm_charge"] = False
+    if st.button(
+        tr("Get LoomLoom Quote"),
+        key="loomloom_quote_videos",
+        use_container_width=True,
+        type="secondary",
+        icon=":material/request_quote:",
+        disabled=not token or batch is None,
+    ):
         try:
             quote_result = _create_loomloom_video_backend().quote(batch)
         except (loomloom.LoomLoomError, ValueError) as exc:
             logger.warning(f"failed to quote LoomLoom videos: error={exc}")
-            st.session_state["loomloom_video_quote_error_signature"] = input_signature
-            st.session_state["loomloom_video_quote_error"] = str(exc) or type(exc).__name__
+            st.error(str(exc))
         else:
             st.session_state["loomloom_video_batch"] = batch
             st.session_state["loomloom_video_quote"] = quote_result
@@ -4292,14 +3843,6 @@ def _render_loomloom_video_settings(params):
                 f"estimated_payable_t={quote_result.estimated_buyer_payable_t}"
             )
 
-    if st.session_state.get("loomloom_video_quote_error"):
-        st.error(st.session_state["loomloom_video_quote_error"])
-        st.button(
-            tr("Retry AI Video Quote"),
-            key="loomloom_retry_video_quote",
-            on_click=_retry_loomloom_video_quote,
-        )
-
     quote_result = st.session_state.get("loomloom_video_quote")
     quoted_batch = st.session_state.get("loomloom_video_batch")
     if quote_result is not None and quoted_batch is not None:
@@ -4307,20 +3850,17 @@ def _render_loomloom_video_settings(params):
             quote_result.estimated_buyer_payable_amount
             or f"{quote_result.estimated_buyer_payable_t} T"
         )
-        if quote_result.estimated_buyer_payable_t == 0:
-            st.warning(tr("AI Video Quote Estimate Incomplete"))
-        else:
-            st.success(
-                tr(
-                    "AI Video Quote Summary Singular"
-                    if quote_result.task_count == 1
-                    else "AI Video Quote Summary"
-                ).format(
-                    tasks=quote_result.task_count,
-                    amount=display_amount,
-                    currency=quote_result.currency,
-                )
+        st.success(
+            tr(
+                "AI Video Quote Summary Singular"
+                if quote_result.task_count == 1
+                else "AI Video Quote Summary"
+            ).format(
+                tasks=quote_result.task_count,
+                amount=display_amount,
+                currency=quote_result.currency,
             )
+        )
         quote_is_current = (
             st.session_state.get("loomloom_video_input_signature") == input_signature
         )
@@ -4404,9 +3944,6 @@ def _render_local_script_generation(params):
         else:
             st.session_state["video_script"] = script
             st.session_state["video_terms"] = ", ".join(terms)
-            st.session_state["loomloom_video_scene_autofill_digest"] = (
-                hashlib.sha256(script.strip().encode("utf-8")).hexdigest()
-            )
 
 
 def _render_loomloom_candidates():
@@ -4443,10 +3980,6 @@ def _render_loomloom_candidates():
     ):
         st.session_state["video_script"] = selected.script
         st.session_state["video_terms"] = ", ".join(selected.video_terms)
-        # 与普通大模型生成文案保持一致：应用新候选后仅推荐一次素材数量。
-        st.session_state["loomloom_video_scene_autofill_digest"] = (
-            hashlib.sha256(selected.script.strip().encode("utf-8")).hexdigest()
-        )
         st.toast(tr("LoomLoom Candidate Applied"))
 
 
@@ -4778,20 +4311,13 @@ def _render_script_settings(panel, params):
                         "local": tr("Local LLM Script Generation"),
                         "loomloom": tr("Shengsuan Cloud Batch Script Generation"),
                     }
-                    script_backend_widget_key = localized_widget_key(
-                        "script_generation_backend_select"
-                    )
-                    current_script_backend = st.session_state.get(
-                        script_backend_widget_key,
-                        _effective_script_generation_backend(),
-                    )
                     script_generation_backend = stable_selectbox(
                         tr("Script Generation Method"),
                         options=script_backend_options,
                         default_value=_effective_script_generation_backend(),
                         key="script_generation_backend_select",
                         format_func=lambda value: script_backend_labels[value],
-                        help=_script_generation_method_help(current_script_backend),
+                        help=tr("Script Generation Method Help"),
                     )
                     _set_runtime_config(
                         "app", "script_generation_backend", script_generation_backend
@@ -4859,7 +4385,6 @@ def _render_script_settings(panel, params):
                             )
                         )
 
-            # 模型发现只增强视频素材，不改变用户明确选择的文案 Provider。
             if _effective_script_generation_backend() == "loomloom":
                 _render_loomloom_script_generation(params)
             else:
@@ -4870,7 +4395,10 @@ def _render_script_settings(panel, params):
                 height=180,
                 key="video_script",
             )
-            if _effective_script_generation_backend() == "loomloom":
+            using_loomloom_scripts = (
+                _effective_script_generation_backend() == "loomloom"
+            )
+            if using_loomloom_scripts:
                 st.caption(tr("LoomLoom Video Terms Reuse Help"))
             elif st.button(
                 tr("Generate Video Keywords"),
@@ -4947,14 +4475,6 @@ def _render_video_settings(panel, params):
                 on_settings=_open_material_settings_dialog,
             )
             _set_runtime_config("app", "video_source", params.video_source)
-
-            loomloom_video_capability = None
-            if params.video_source == "loomloom":
-                # 尽早读取缓存，使下方画面比例控件直接受当前 Profile 约束。
-                # 首次输入 Key 后 Streamlit 会 rerun，此处随即加载一次。
-                loomloom_video_capability = _load_loomloom_video_capability(
-                    _effective_loomloom_api_token()
-                )
 
             if params.video_source == "wavespeed":
                 st.caption(tr("WaveSpeed AI Video Help"))
@@ -5051,12 +4571,6 @@ def _render_video_settings(panel, params):
                 (tr("Portrait"), VideoAspect.portrait.value),
                 (tr("Landscape"), VideoAspect.landscape.value),
             ]
-            if loomloom_video_capability is not None:
-                ratio_labels = {value: label for label, value in video_aspect_ratios}
-                video_aspect_ratios = [
-                    (ratio_labels[value], value)
-                    for value in loomloom_video_capability.aspect_ratios
-                ]
             # Coverr 库 99% 是 16:9 横屏,默认竖屏会让画面被大量黑边包围。
             # 用 source-specific widget key 让每个 source 各自记忆 aspect 选择:
             #   - 首次切到 coverr → 默认 Landscape(index=1)
@@ -5117,7 +4631,16 @@ def _render_video_settings(panel, params):
                     )
                 )
                 if params.video_source == "metaso_minimax"
-                else [2, 3, 4, 5, 6, 7, 8, 9, 10]
+                else (
+                    # "full" 只对本地素材开放：云端生成源（WaveSpeed /
+                    # Seedance / OFox / MiniMax）按固定时长生成素材，服务端
+                    # 会校验 clip_duration 必须是正整数，选择 "full" 会被
+                    # 直接拒绝。后续如果要扩展到 Pexels/Pixabay/Coverr 等
+                    # 下载类素材源，需要单独验证后再开放。
+                    [2, 3, 4, 5, 6, 7, 8, 9, 10, "full"]
+                    if params.video_source == "local"
+                    else [2, 3, 4, 5, 6, 7, 8, 9, 10]
+                )
             )
             params.video_clip_duration = stable_selectbox(
                 tr("Clip Duration"),
@@ -5128,6 +4651,11 @@ def _render_video_settings(panel, params):
                     5 if params.video_source == "metaso_minimax" else 3,
                 ),
                 key="video_clip_duration_select",
+                format_func=lambda value: (
+                    tr("Full clip / Unlimited")
+                    if value == "full"
+                    else f"{value} sec"
+                ),
                 help=tr("Clip Duration Help"),
             )
             _set_runtime_config(
@@ -5211,6 +4739,20 @@ def _render_video_settings(panel, params):
     return uploaded_files
 
 
+def _resolve_estimate_clip_duration(video_clip_duration):
+    """把片段时长值安全转换成计费预估用的正整数秒数。
+
+    "full" 现在只应从本地素材源的 UI 传入，云端生成源（WaveSpeed /
+    Seedance / OFox / MiniMax）不会展示这个选项。这里保留一层防御：
+    如果旧预设或直接调用 API 传入了 "full" 或其它非数值，退回到默认
+    值，避免 int() 抛出异常导致页面崩溃。
+    """
+    try:
+        return max(int(video_clip_duration), 1)
+    except (TypeError, ValueError):
+        return 5
+
+
 def _render_wavespeed_video_settings(params):
     """
     渲染 WaveSpeed 生成数量估算与计费确认。
@@ -5220,7 +4762,7 @@ def _render_wavespeed_video_settings(params):
     本身按需逐段生成、凑够所需时长即停，因此实际生成数以运行时为准，
     估算只用于量级提示，不参与任务执行。
     """
-    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    clip_duration = _resolve_estimate_clip_duration(params.video_clip_duration)
     video_count = max(int(params.video_count or 1), 1)
     estimated_range = _estimate_voiceover_duration_range(
         str(params.video_script or ""),
@@ -5245,7 +4787,7 @@ def _render_wavespeed_video_settings(params):
 
 def _render_seedance_video_settings(params):
     """展示预计付费任务数量，并要求用户明确确认方舟生成费用。"""
-    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    clip_duration = _resolve_estimate_clip_duration(params.video_clip_duration)
     video_count = max(int(params.video_count or 1), 1)
     estimated_range = _estimate_voiceover_duration_range(
         str(params.video_script or ""), params.voice_rate
@@ -5271,7 +4813,7 @@ def _render_seedance_video_settings(params):
 
 def _render_ofox_video_settings(params):
     """展示预计付费任务数量，并要求用户明确确认 OFox 生成费用。"""
-    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    clip_duration = _resolve_estimate_clip_duration(params.video_clip_duration)
     video_count = max(int(params.video_count or 1), 1)
     estimated_range = _estimate_voiceover_duration_range(
         str(params.video_script or ""), params.voice_rate
@@ -5295,7 +4837,7 @@ def _render_ofox_video_settings(params):
 
 def _render_metaso_minimax_video_settings(params):
     """展示预计付费任务数量，并要求用户确认秘塔 MiniMax 生成费用。"""
-    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    clip_duration = _resolve_estimate_clip_duration(params.video_clip_duration)
     video_count = max(int(params.video_count or 1), 1)
     voice_mode = st.session_state.get(
         localized_widget_key("voice_mode_control"),
@@ -5480,12 +5022,6 @@ def _get_voice_preview_provider_signature(tts_server: str) -> dict:
             "model_id": config.chatterbox.get("model_id", ""),
             "credential": _credential_signature(config.chatterbox.get("api_key", "")),
         }
-    if tts_server == "kokoro":
-        return {
-            "base_url": config.kokoro.get("base_url", ""),
-            "model_id": config.kokoro.get("model_id", ""),
-            "credential": _credential_signature(config.kokoro.get("api_key", "")),
-        }
     return {}
 
 
@@ -5501,8 +5037,6 @@ def _synthesize_voice_preview(
     """生成一次试听并转为内存缓存，临时文件不会跨会话长期保留。"""
     if selected_tts_server == "chatterbox":
         _sync_chatterbox_config_from_session_state()
-    if selected_tts_server == "kokoro":
-        _sync_kokoro_config_from_session_state()
 
     temp_dir = utils.storage_dir("temp", create=True)
     audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
@@ -5550,12 +5084,6 @@ def _synthesize_voice_preview(
             "duration": duration,
             "preview_type": preview_type,
             "sub_maker": sub_maker,
-            # 让位于音频面板之前的视频面板只采用与当前设置完全匹配的
-            # 完整试听时长；短试听或旧文案绝不能改变推荐素材数。
-            "content_digest": hashlib.sha256(content.encode("utf-8")).hexdigest(),
-            "tts_server": selected_tts_server,
-            "voice_name": voice_name,
-            "voice_rate": float(voice_rate),
         }
     finally:
         # 浏览器播放器使用内存字节，文件读取完即可清理，避免频繁试听积累临时文件。
@@ -5669,19 +5197,6 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
                 elif preview_result:
                     preview_result["fingerprint"] = requested_fingerprint
                     st.session_state["voice_preview_audio"] = preview_result
-                    if (
-                        preview_type == "full"
-                        and params.video_source == "loomloom"
-                        and isinstance(preview_result.get("duration"), (int, float))
-                        and math.isfinite(preview_result["duration"])
-                        and preview_result["duration"] > 0
-                    ):
-                        # 视频设置先于音频设置渲染。完整试听成功后触发一次 rerun，
-                        # 让上方素材数立刻按真实旁白时长重新推荐并刷新覆盖提示。
-                        st.session_state["loomloom_video_scene_autofill_digest"] = (
-                            preview_result["content_digest"]
-                        )
-                        st.rerun()
                 else:
                     st.error(tr("Voice Preview No Audio"))
 
@@ -6327,7 +5842,6 @@ def _render_audio_settings(panel, params):
                 ("minimax-tts", "MiniMax TTS"),
                 ("elevenlabs", "ElevenLabs TTS"),
                 ("chatterbox", "Chatterbox TTS"),
-                ("kokoro", "Kokoro TTS"),
                 ("fish_audio", "Fish Audio TTS"),
             ]
 
@@ -6398,10 +5912,6 @@ def _render_audio_settings(panel, params):
                 # 自托管 Chatterbox 服务的预置音色（来自 [chatterbox] voices 配置）
                 _sync_chatterbox_config_from_session_state()
                 filtered_voices = voice.get_chatterbox_voices()
-            elif selected_tts_server == "kokoro":
-                # 自托管 Kokoro 服务的音色：[kokoro] voices 为空时从服务端 /audio/voices 读取
-                _sync_kokoro_config_from_session_state()
-                filtered_voices = _get_kokoro_voice_options(saved_voice_name)
             elif selected_tts_server == "fish_audio":
                 filtered_voices = voice.get_fish_audio_voices()
             else:
@@ -6425,7 +5935,7 @@ def _render_audio_settings(panel, params):
                 if voice.is_elevenlabs_voice(v):
                     parts = v.split(":", 2)
                     return parts[2] if len(parts) >= 3 else v
-                if voice.is_chatterbox_voice(v) or voice.is_kokoro_voice(v):
+                if voice.is_chatterbox_voice(v):
                     name = v.split(":", 1)[1] if ":" in v else v
                     return name.replace("-Female", "").replace("-Male", "")
                 if voice.is_minimax_voice(v):
@@ -6709,59 +6219,6 @@ def _render_audio_settings(panel, params):
                     "chatterbox",
                     "voices",
                     _parse_chatterbox_voices(chatterbox_voices),
-                )
-
-            # Kokoro API settings section (self-hosted, OpenAI-compatible; voices listed from the server when left empty)
-            if tts_mode_enabled and (
-                selected_tts_server == "kokoro"
-                or (voice_name and voice.is_kokoro_voice(voice_name))
-            ):
-                kokoro_base_url = st.text_input(
-                    tr("Kokoro Base URL"),
-                    value=config.kokoro.get("base_url")
-                    or DEFAULT_KOKORO_BASE_URL,
-                    key="kokoro_base_url_input",
-                    placeholder=tr("Kokoro Base URL Placeholder"),
-                )
-                _set_runtime_config(
-                    "kokoro", "base_url", (kokoro_base_url or "").strip()
-                )
-
-                kokoro_api_key = st.text_input(
-                    tr("Kokoro API Key"),
-                    value=config.kokoro.get("api_key", ""),
-                    type="password",
-                    key="kokoro_api_key_input",
-                )
-                _set_runtime_config("kokoro", "api_key", kokoro_api_key)
-
-                kokoro_model = st.text_input(
-                    tr("Kokoro Model"),
-                    value=config.kokoro.get("model_id") or DEFAULT_KOKORO_MODEL,
-                    key="kokoro_model_input",
-                )
-                _set_runtime_config(
-                    "kokoro",
-                    "model_id",
-                    (kokoro_model or DEFAULT_KOKORO_MODEL).strip(),
-                )
-
-                _saved_kokoro_voices = (
-                    _parse_chatterbox_voices(config.kokoro.get("voices"))
-                    or DEFAULT_KOKORO_VOICES
-                )
-                if isinstance(_saved_kokoro_voices, list):
-                    _saved_kokoro_voices = ", ".join(_saved_kokoro_voices)
-                kokoro_voices = st.text_input(
-                    tr("Kokoro Voices"),
-                    value=str(_saved_kokoro_voices or ""),
-                    key="kokoro_voices_input",
-                    placeholder=tr("Kokoro Voices Placeholder"),
-                )
-                _set_runtime_config(
-                    "kokoro",
-                    "voices",
-                    _parse_chatterbox_voices(kokoro_voices),
                 )
 
             # 三种模式只渲染当前任务真正需要的控件。自动配音可调音量和语速；

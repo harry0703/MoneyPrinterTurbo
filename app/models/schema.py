@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, List, Literal, Optional, Union
 
 import pydantic
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.config import config
 
@@ -110,7 +110,7 @@ class VideoParams(BaseModel):
     video_fit_mode: VideoFitMode = VideoFitMode.cover
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
-    video_clip_duration: int = Field(default=5, ge=1)
+    video_clip_duration: Union[int, Literal["full"]] = Field(default=5)
     video_clip_speed: Optional[float] = 1.0
     match_materials_to_script: bool = False
     video_count: int = Field(default=1, ge=1)
@@ -159,6 +159,35 @@ class VideoParams(BaseModel):
     paragraph_number: int = Field(default=1, ge=1, le=10)
     video_script_prompt: str = Field(default="", max_length=2000)
     custom_system_prompt: str = Field(default="", max_length=8000)
+
+    @field_validator("video_clip_duration", mode="before")
+    @classmethod
+    def _normalize_video_clip_duration(cls, value):
+        """接受正整数秒数，或字面量 "full"（使用完整素材，不做切分）。
+
+        WebUI 目前只对本地素材源展示 "full" 选项，但这里的校验对所有
+        调用方（API、CLI、预设回填）保持一致，避免出现只有 UI 才受限
+        的隐藏假设。大小写、首尾空白会被归一化；其它非数值字符串、
+        0、负数、布尔值均视为非法输入。
+        """
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized == "full":
+                return "full"
+            # 兼容表单/查询参数把数字传成字符串的情况，例如 "5"。
+            try:
+                value = int(normalized)
+            except ValueError:
+                raise ValueError(
+                    'video_clip_duration must be a positive integer or "full"'
+                )
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(
+                'video_clip_duration must be a positive integer or "full"'
+            )
+        if value < 1:
+            raise ValueError("video_clip_duration must be >= 1")
+        return value
 
 
 class SubtitleRequest(BaseModel):
