@@ -182,6 +182,7 @@ def test_completed_task_renders_subject_named_video_download(
             self.session_state = {}
             self.downloads = []
             self.videos = []
+            self.warnings = []
 
         def columns(self, count):
             return [FakeColumn() for _ in range(count)]
@@ -195,8 +196,8 @@ def test_completed_task_renders_subject_named_video_download(
         def success(self, _message):
             pass
 
-        def warning(self, _message):
-            pass
+        def warning(self, message):
+            self.warnings.append(message)
 
         def error(self, _message):
             pass
@@ -215,7 +216,10 @@ def test_completed_task_renders_subject_named_video_download(
         "os": os,
         "re": re,
         "st": fake_st,
-        "tr": lambda key: key,
+        "tr": lambda key: (
+            "Video {index} reused {count} source clips."
+            if key == "Batch Material Reuse Warning" else key
+        ),
         "_render_generation_logs": lambda _task_id: None,
     }
     module = ast.fix_missing_locations(ast.Module(body=selected_nodes, type_ignores=[]))
@@ -227,12 +231,15 @@ def test_completed_task_renders_subject_named_video_download(
             "state": const.TASK_STATE_COMPLETE,
             "progress": 100,
             "videos": [str(video_path)],
-            "warnings": [],
+            "warnings": [
+                {"code": "batch_materials_reused", "video_index": 2, "count": 3}
+            ],
             "video_subject": "A day: in / Shanghai?",
         },
     )
 
     assert fake_st.videos == [str(video_path)]
+    assert fake_st.warnings == ["Video 2 reused 3 source clips."]
     assert fake_st.downloads == [
         (
             "Download Video",

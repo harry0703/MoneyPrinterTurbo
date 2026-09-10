@@ -1930,7 +1930,13 @@ def _render_generation_task_snapshot(task_id, task):
 
     st.success(tr("Video Generation Completed"))
     for warning in task.get("warnings") or []:
-        if isinstance(warning, Mapping) and warning.get("code") == "sonilo_bgm_failed":
+        if isinstance(warning, Mapping) and warning.get("code") == "batch_materials_reused":
+            st.warning(
+                tr("Batch Material Reuse Warning").format(
+                    index=warning.get("video_index", ""), count=warning.get("count", 0)
+                )
+            )
+        elif isinstance(warning, Mapping) and warning.get("code") == "sonilo_bgm_failed":
             st.warning(
                 tr("Sonilo BGM Fallback Warning").format(
                     index=warning.get("video_index", "")
