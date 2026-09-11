@@ -569,6 +569,16 @@ voices = []
 # windows (e.g. through August 2026).  There is no SLA.  Please check
 # https://fish.audio/pricing for current availability and commercial terms.
 
+[voxcpm]
+# ModelBest VoxCPM cloud TTS. Create an API Key and select a model with the
+# `speech_synthesis` capability at https://platform.modelbest.cn/console/
+# The Audio Speech API returns a streaming WAV response; MoneyPrinterTurbo
+# converts it to its internal MP3 voiceover format automatically.
+base_url = "https://api.modelbest.cn/v1"
+api_key = ""
+model_id = ""
+voice_id = "default"
+
 # =============================================================================
 # WebUI Preferences / WebUI 偏好
 # =============================================================================

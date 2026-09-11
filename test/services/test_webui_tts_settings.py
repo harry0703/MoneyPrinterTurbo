@@ -24,6 +24,7 @@ TTS_API_KEY_LABELS = {
     "MiniMax TTS API Key": "platform.minimaxi.com",
     "ElevenLabs API Key": "elevenlabs.io/app/settings/api-keys",
     "Chatterbox API Key": "github.com/travisvn/chatterbox-tts-api",
+    "VoxCPM API Key": "platform.modelbest.cn/console/keys",
 }
 
 TTS_PROVIDER_WIDGETS = {
@@ -34,6 +35,7 @@ TTS_PROVIDER_WIDGETS = {
     "minimax-tts": ("minimax_tts_api_key_input", "MiniMax TTS API Key"),
     "elevenlabs": ("elevenlabs_api_key_input", "ElevenLabs API Key"),
     "chatterbox": ("chatterbox_api_key_input", "Chatterbox API Key"),
+    "voxcpm": ("voxcpm_api_key_input", "VoxCPM API Key"),
 }
 
 
@@ -96,6 +98,40 @@ def test_tts_provider_inputs_render_the_standardized_labels():
             assert api_key_input.proto.type == api_key_input.proto.PASSWORD
             assert not getattr(api_key_input.proto, "help", "")
 
+    assert [str(item.value) for item in app.exception] == []
+
+
+def test_voxcpm_settings_render_model_and_endpoint_fields():
+    test_config = dict(
+        config.voxcpm,
+        api_key="",
+        model_id="speech-model",
+        base_url=voice.VOXCPM_DEFAULT_BASE_URL,
+        voice_id=voice.VOXCPM_DEFAULT_VOICE,
+    )
+    test_ui = dict(
+        config.ui,
+        voice_mode="tts",
+        tts_server="voxcpm",
+        voice_name="voxcpm:default",
+    )
+
+    with (
+        patch.object(config, "voxcpm", test_config),
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "en"
+        app.run()
+
+    api_key_input = _widget_by_key(app.text_input, "voxcpm_api_key_input")
+    assert api_key_input.proto.type == api_key_input.proto.PASSWORD
+    assert _widget_by_key(app.text_input, "voxcpm_model_id_input").value == "speech-model"
+    assert (
+        _widget_by_key(app.text_input, "voxcpm_base_url_input").value
+        == voice.VOXCPM_DEFAULT_BASE_URL
+    )
     assert [str(item.value) for item in app.exception] == []
 
 
