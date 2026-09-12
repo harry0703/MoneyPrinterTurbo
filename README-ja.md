@@ -266,6 +266,10 @@ GitHub Releases から最新の Windows 用ワンクリックパッケージを�
 
 - [最新の Windows 用ワンクリックパッケージをダウンロード](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 
+> 同ページの **Assets** から `.7z` ファイルをダウンロードしてください。GitHub が
+> 自動生成する `Source code (zip)` / `Source code (tar.gz)` はソースコードのみで、
+> 展開しても `webui.bat` だけが現れ、`start.bat` と `update.bat` は含まれません。
+
 ダウンロード後は、まず `update.bat` を**ダブルクリック**して**最新のコード**に更新し、その後 `start.bat` をダブルクリックして起動することを推奨します
 
 起動するとブラウザーが自動的に開きます（真っ白な画面になる場合は **Chrome** または **Edge** の利用を推奨します）

@@ -287,6 +287,10 @@
 
 - [下载最新 Windows 一键启动包](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 
+> 请在页面下方的 **Assets** 区域下载 `.7z` 压缩包。GitHub 自动生成的
+> `Source code (zip)` / `Source code (tar.gz)` 只是源码，解压后只有 `webui.bat`，
+> 不含 `start.bat` 和 `update.bat`。
+
 下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
 
 启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
