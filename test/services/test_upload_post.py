@@ -222,3 +222,35 @@ class TestUploadPostServiceDynamicConfig(unittest.TestCase):
             test_app_config["upload_post_enabled"] = False
             self.assertFalse(service.enabled)
             self.assertFalse(service.is_configured())
+
+
+class TestUploadPostUsernameSnapshot(unittest.TestCase):
+    """The username selects the destination account: queue-time wins."""
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    def test_snapshot_targets_freezes_username(self):
+        snapshot = UploadPostService().snapshot_targets()
+        self.assertEqual(snapshot["extra"]["username"], "testuser")
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_snapshot_username_overrides_live_config(self, mock_post, _exists):
+        """A username change after queuing must not redirect the publish."""
+        mock_post.return_value = _mock_response()
+        live = dict(_CONFIG_BASE)
+        with patch("app.services.upload_post.config.app", live):
+            svc = UploadPostService()
+            # Live config changed after queue time; snapshot value given.
+            live["upload_post_username"] = "changed-user"
+            svc.upload_video(
+                "/fake/v.mp4",
+                "T",
+                platforms=["tiktok"],
+                username="queued-user",
+                skip_config_check=True,
+            )
+
+        data = mock_post.call_args[1]["data"]
+        self.assertEqual(_get(data, "user"), "queued-user")

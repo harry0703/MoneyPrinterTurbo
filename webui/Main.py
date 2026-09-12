@@ -277,7 +277,17 @@ CREDENTIAL_COMPANION_KEYS = {
 }
 
 NON_LLM_COMPANION_KEYS = {
-    "app": ("upload_post_username",)
+    "app": (
+        "upload_post_username",
+        "postiz_api_url",
+        "postiz_youtube_integration_id",
+        "postiz_instagram_integration_id",
+        "postiz_tiktok_integration_id",
+        "postiz_x_integration_id",
+        "postiz_linkedin_integration_id",
+        "postiz_reddit_integration_id",
+        "postiz_reddit_subreddit",
+    )
 }
 # 同一个密钥在不同面板可能使用各自的控件 key：音频面板直接编辑 Gemini 和
 # MiMo 的 LLM 密钥。恢复备份时必须清除每一个别名，否则遗留的旧值
@@ -2747,6 +2757,11 @@ def _normalize_backup_value(value):
 
 def _collect_key_backup(config_sections):
     """从运行期配置分区中收集所有已填写的密钥及其配套配置项。"""
+    # Companion values equal to the built-in default carry no user info;
+    # skipping them keeps backups free of placeholder noise. Kept local
+    # (not module-global) because the transfer-helper tests exec-extract
+    # this function in isolation without module globals.
+    _skip_defaults = {("app", "postiz_api_url"): "http://localhost:8004"}
     backup = {}
     for section_name, section in config_sections.items():
         if section_name in KEY_BACKUP_EXCLUDED_SECTIONS:
@@ -2756,8 +2771,11 @@ def _collect_key_backup(config_sections):
             if not _is_backup_config_key(section_name, key):
                 continue
             normalized_value = _normalize_backup_value(value)
-            if normalized_value is not None:
-                entries[key] = normalized_value
+            if normalized_value is None:
+                continue
+            if _skip_defaults.get((section_name, key)) == normalized_value:
+                continue
+            entries[key] = normalized_value
         if entries:
             backup[section_name] = entries
     return backup
@@ -3167,6 +3185,133 @@ def _render_settings_dialog():
                 )
                 if isinstance(made_for_kids, bool):
                     _set_runtime_config("app", "upload_post_youtube_made_for_kids", made_for_kids)
+
+            # --- Postiz publishing ---
+            st.write("Postiz — self-hosted social media publishing")
+            postiz_is_enabled = config.app.get("postiz_enabled", False)
+            postiz_is_auto = config.app.get("postiz_auto_upload", False)
+
+            postiz_enabled = st.checkbox(
+                "Enable Postiz Integration",
+                value=postiz_is_enabled,
+                key="postiz_enabled_checkbox"
+            )
+            if postiz_enabled != postiz_is_enabled:
+                _set_runtime_config("app", "postiz_enabled", postiz_enabled)
+
+            postiz_auto_upload = st.checkbox(
+                "Auto-upload after generation",
+                value=postiz_is_auto,
+                key="postiz_auto_upload_checkbox"
+            )
+            if postiz_auto_upload != postiz_is_auto:
+                _set_runtime_config("app", "postiz_auto_upload", postiz_auto_upload)
+
+            postiz_api_url = st.text_input(
+                "Postiz API URL",
+                value=config.app.get("postiz_api_url", "http://localhost:8004"),
+                key="postiz_api_url_input"
+            )
+            if postiz_api_url != config.app.get("postiz_api_url", "http://localhost:8004"):
+                _set_runtime_config("app", "postiz_api_url", postiz_api_url)
+
+            postiz_api_key = st.text_input(
+                "Postiz API Key",
+                value=config.app.get("postiz_api_key", ""),
+                type="password",
+                key="postiz_api_key_input"
+            )
+            if postiz_api_key != config.app.get("postiz_api_key", ""):
+                _set_runtime_config("app", "postiz_api_key", postiz_api_key)
+
+            postiz_youtube_integration_id = st.text_input(
+                "Postiz YouTube Integration ID",
+                value=config.app.get("postiz_youtube_integration_id", ""),
+                key="postiz_youtube_integration_id_input"
+            )
+            if postiz_youtube_integration_id != config.app.get("postiz_youtube_integration_id", ""):
+                _set_runtime_config("app", "postiz_youtube_integration_id", postiz_youtube_integration_id)
+
+            postiz_instagram_integration_id = st.text_input(
+                "Postiz Instagram Integration ID",
+                value=config.app.get("postiz_instagram_integration_id", ""),
+                key="postiz_instagram_integration_id_input"
+            )
+            if postiz_instagram_integration_id != config.app.get("postiz_instagram_integration_id", ""):
+                _set_runtime_config("app", "postiz_instagram_integration_id", postiz_instagram_integration_id)
+
+            postiz_tiktok_integration_id = st.text_input(
+                "Postiz TikTok Integration ID",
+                value=config.app.get("postiz_tiktok_integration_id", ""),
+                key="postiz_tiktok_integration_id_input"
+            )
+            if postiz_tiktok_integration_id != config.app.get("postiz_tiktok_integration_id", ""):
+                _set_runtime_config("app", "postiz_tiktok_integration_id", postiz_tiktok_integration_id)
+
+            postiz_x_integration_id = st.text_input(
+                "Postiz X Integration ID",
+                value=config.app.get("postiz_x_integration_id", ""),
+                key="postiz_x_integration_id_input"
+            )
+            if postiz_x_integration_id != config.app.get("postiz_x_integration_id", ""):
+                _set_runtime_config("app", "postiz_x_integration_id", postiz_x_integration_id)
+
+            postiz_linkedin_integration_id = st.text_input(
+                "Postiz LinkedIn Integration ID",
+                value=config.app.get("postiz_linkedin_integration_id", ""),
+                key="postiz_linkedin_integration_id_input"
+            )
+            if postiz_linkedin_integration_id != config.app.get("postiz_linkedin_integration_id", ""):
+                _set_runtime_config("app", "postiz_linkedin_integration_id", postiz_linkedin_integration_id)
+
+            postiz_reddit_integration_id = st.text_input(
+                "Postiz Reddit Integration ID",
+                value=config.app.get("postiz_reddit_integration_id", ""),
+                key="postiz_reddit_integration_id_input"
+            )
+            if postiz_reddit_integration_id != config.app.get("postiz_reddit_integration_id", ""):
+                _set_runtime_config("app", "postiz_reddit_integration_id", postiz_reddit_integration_id)
+
+            postiz_reddit_subreddit = st.text_input(
+                "Postiz Reddit Subreddit",
+                value=config.app.get("postiz_reddit_subreddit", ""),
+                key="postiz_reddit_subreddit_input"
+            )
+            if postiz_reddit_subreddit != config.app.get("postiz_reddit_subreddit", ""):
+                _set_runtime_config("app", "postiz_reddit_subreddit", postiz_reddit_subreddit)
+
+            postiz_platforms = st.multiselect(
+                "Postiz Platforms",
+                options=["youtube", "instagram", "tiktok", "x", "linkedin", "reddit"],
+                default=config.app.get("postiz_platforms", ["youtube", "instagram"]),
+                key="postiz_platforms_multiselect"
+            )
+            if postiz_platforms != config.app.get("postiz_platforms", ["youtube", "instagram"]):
+                _set_runtime_config("app", "postiz_platforms", postiz_platforms)
+
+            if "tiktok" in postiz_platforms:
+                postiz_tiktok_auto_add_music_saved = config.app.get("postiz_tiktok_auto_add_music", "no")
+                postiz_tiktok_auto_add_music_options = ["yes", "no"]
+                postiz_tiktok_auto_add_music = st.selectbox(
+                    "Postiz TikTok Auto-Add Music",
+                    options=postiz_tiktok_auto_add_music_options,
+                    index=postiz_tiktok_auto_add_music_options.index(postiz_tiktok_auto_add_music_saved),
+                    key="postiz_tiktok_auto_add_music_selectbox"
+                )
+                if postiz_tiktok_auto_add_music != config.app.get("postiz_tiktok_auto_add_music", "no"):
+                    _set_runtime_config("app", "postiz_tiktok_auto_add_music", postiz_tiktok_auto_add_music)
+
+            if "youtube" in postiz_platforms:
+                postiz_yt_saved = config.app.get("postiz_youtube_privacy_status", "public")
+                postiz_yt_status_options = ["public", "unlisted", "private"]
+                postiz_youtube_privacy_status = st.selectbox(
+                    "Postiz YouTube Privacy Status",
+                    options=postiz_yt_status_options,
+                    index=postiz_yt_status_options.index(postiz_yt_saved),
+                    key="postiz_youtube_privacy_status_selectbox"
+                )
+                if postiz_youtube_privacy_status != config.app.get("postiz_youtube_privacy_status", "public"):
+                    _set_runtime_config("app", "postiz_youtube_privacy_status", postiz_youtube_privacy_status)
 
         # 左侧面板 - 日志设置
         with left_config_panel:

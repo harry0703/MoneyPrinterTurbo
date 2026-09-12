@@ -89,6 +89,8 @@ def test_other_platforms_ignore_youtube_audience(tmp_path, upload_config):
 def test_queued_audience_survives_config_change(upload_config, selected):
     """延迟执行真实工作函数，验证队列等待期间配置变化不会串到已提交任务。"""
     upload_config["upload_post_youtube_made_for_kids"] = selected
+    # Legacy live-read path only serves providers with auto-upload enabled.
+    upload_config["upload_post_auto_upload"] = True
     state = MemoryState()
     state.update_task("audience-snapshot", state=task.const.TASK_STATE_COMPLETE)
     future = Future()
@@ -99,8 +101,11 @@ def test_queued_audience_survives_config_change(upload_config, selected):
             task._cross_post_executor, "submit", return_value=future
         ) as submit,
         patch.object(task.llm, "generate_social_metadata", return_value={}),
+        # Merged design routes workers through the provider registry, so the
+        # pre-refactor module-level cross_post_video is no longer called;
+        # the queue-time kids flag is stamped onto youtube_extra instead.
         patch.object(
-            task.upload_post, "cross_post_video", return_value={"success": True}
+            UploadPostService, "upload_video", return_value={"success": True}
         ) as upload,
     ):
         assert (
@@ -111,7 +116,11 @@ def test_queued_audience_survives_config_change(upload_config, selected):
                 "test",
                 ["youtube"],
                 "private",
-                UploadPostService().youtube_made_for_kids,
+                # kwarg: the merged _schedule_cross_post signature carries the
+                # snapshot in the 7th positional slot, so the audience flag
+                # must be named (a bare positional bool would land in the
+                # snapshot slot and select the empty-snapshot path).
+                youtube_made_for_kids=UploadPostService().youtube_made_for_kids,
             )
             is None
         )
