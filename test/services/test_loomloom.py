@@ -23,6 +23,45 @@ from app.services.loomloom import (
 )
 
 
+def _video_capability_payload(
+    *, models=None, default_model_id="model-a", include_target_profile=True
+):
+    matches = [
+        {
+            "profile": {
+                "profileId": "unrelated.profile",
+                "operations": {"defaultModelId": "wrong-model"},
+            },
+            "eligibleModels": [
+                {"modelId": "wrong-model", "displayName": "Wrong Model"}
+            ],
+        }
+    ]
+    if include_target_profile:
+        matches.append(
+            {
+                "profile": {
+                    "profileId": "video.text-to-video.aspect-ratio.v1",
+                    "operations": {"defaultModelId": default_model_id},
+                    "definition": {
+                        "constraints": {
+                            "ports": {"aspect_ratio": {"enum": ["16:9", "9:16"]}}
+                        }
+                    },
+                },
+                "eligibleModels": (
+                    [
+                        {"modelId": "model-a", "displayName": "Model A"},
+                        {"modelId": "model-b", "displayName": "Model B"},
+                    ]
+                    if models is None
+                    else models
+                ),
+            }
+        )
+    return {"matches": matches}
+
+
 class _Response:
     def __init__(self, status_code, payload):
         self.status_code = status_code
@@ -103,6 +142,10 @@ class TestLoomLoomSettings(unittest.TestCase):
         )
 
         self.assertEqual(settings.market_listing_id, DEFAULT_VIDEO_MARKET_LISTING_ID)
+        self.assertEqual(
+            settings.market_listing_id,
+            "01a06563-7331-773a-b9b2-25989a0dd70e",
+        )
         self.assertEqual(settings.run_timeout_seconds, 1800)
 
 
@@ -438,31 +481,164 @@ class TestLoomLoomScriptBackend(unittest.TestCase):
 
         self.assertNotIn("do-not-copy", str(captured.exception))
 
+    def test_api_error_redacts_bearer_token_echoed_by_server(self):
+        self.session.request.return_value = _Response(
+            400,
+            {"error": "invalid credential test-token"},
+        )
+        batch = self.backend.prepare_script_batch(subject="主题", candidate_count=1)
+
+        with self.assertRaises(LoomLoomAPIError) as captured:
+            self.backend.quote(batch)
+
+        self.assertNotIn("test-token", str(captured.exception))
+        self.assertIn("[redacted]", str(captured.exception))
+
 
 class TestLoomLoomVideoBackend(unittest.TestCase):
     def setUp(self):
         self.settings = LoomLoomSettings(
             base_url="https://example.test/loom/v1",
             api_token="test-token",
-            market_listing_id=DEFAULT_SCRIPT_MARKET_LISTING_ID,
+            market_listing_id=DEFAULT_VIDEO_MARKET_LISTING_ID,
             result_port_name="output",
         )
         self.session = MagicMock()
         self.backend = LoomLoomVideoBackend(self.settings, session=self.session)
+
+    def test_resolves_exact_video_profile_and_ignores_other_profiles(self):
+        self.session.request.return_value = _Response(200, _video_capability_payload())
+
+        capability = self.backend.resolve_video_capability()
+
+        self.assertEqual(
+            [(model.model_id, model.display_name) for model in capability.models],
+            [("model-a", "Model A"), ("model-b", "Model B")],
+        )
+        self.assertEqual(capability.default_model_id, "model-a")
+        self.assertEqual(capability.aspect_ratios, ("16:9", "9:16"))
+        request = self.session.request.call_args
+        self.assertEqual(
+            request.args,
+            (
+                "GET",
+                "https://example.test/loom/v1/authoringCapabilities:resolve",
+            ),
+        )
+        self.assertEqual(
+            request.kwargs["params"],
+            {"inputModality": "text", "outputModality": "video"},
+        )
+
+    def test_resolver_rejects_missing_empty_or_invalid_default_profile(self):
+        cases = (
+            (
+                _video_capability_payload(include_target_profile=False),
+                "profile .* is unavailable",
+            ),
+            (_video_capability_payload(models=[]), "no eligible models"),
+            (
+                _video_capability_payload(default_model_id="removed-model"),
+                "default model is not eligible",
+            ),
+        )
+        for payload, error in cases:
+            with self.subTest(error=error):
+                self.session.request.return_value = _Response(200, payload)
+                with self.assertRaisesRegex(LoomLoomConfigurationError, error):
+                    self.backend.resolve_video_capability()
+
+    def test_resolver_rejects_non_string_model_fields(self):
+        """服务返回 null/数值时应在目录阶段报错，不把伪 ID 传进付费请求。"""
+        for field in ("modelId", "displayName"):
+            for value in (None, 123, {}, []):
+                with self.subTest(field=field, value=value):
+                    model = {"modelId": "model-a", "displayName": "Model A"}
+                    model[field] = value
+                    self.session.request.return_value = _Response(
+                        200, _video_capability_payload(models=[model])
+                    )
+                    with self.assertRaisesRegex(LoomLoomAPIError, "must be strings"):
+                        self.backend.resolve_video_capability()
 
     def test_prepares_one_video_row_per_scene(self):
         """默认 SkillBot 必须按场景逐行报价，并携带固定的视频安全要求。"""
         batch = self.backend.prepare_video_batch(
             subject="AI 办公效率",
             scene_prompts=["office worker", "AI assistant"],
+            model_id="google/veo3.1-fast-preview",
             aspect_ratio="9:16",
         )
 
         self.assertEqual(len(batch.input_rows), 2)
         self.assertEqual(batch.input_rows[0]["aspectRatio"], "9:16")
-        self.assertEqual(batch.input_rows[1]["sceneIndex"], "2")
-        self.assertIn("office worker", batch.input_rows[0]["scenePrompt"])
-        self.assertIn("No text", batch.input_rows[0]["scenePrompt"])
+        self.assertEqual(
+            {row["modelChoice"] for row in batch.input_rows},
+            {"google/veo3.1-fast-preview"},
+        )
+        self.assertIn("office worker", batch.input_rows[0]["prompt"])
+        self.assertIn("Scene 2", batch.input_rows[1]["prompt"])
+        self.assertIn("No text", batch.input_rows[0]["prompt"])
+        self.assertNotIn("scenePrompt", batch.input_rows[0])
+        self.assertNotIn("sceneIndex", batch.input_rows[0])
+
+    def test_video_batch_accepts_only_supported_aspect_ratios(self):
+        for aspect_ratio in ("16:9", "9:16"):
+            with self.subTest(aspect_ratio=aspect_ratio):
+                batch = self.backend.prepare_video_batch(
+                    subject="subject",
+                    scene_prompts=["scene"],
+                    model_id="model-a",
+                    aspect_ratio=aspect_ratio,
+                )
+                self.assertEqual(batch.input_rows[0]["aspectRatio"], aspect_ratio)
+
+        with self.assertRaisesRegex(ValueError, "aspect_ratio"):
+            self.backend.prepare_video_batch(
+                subject="subject",
+                scene_prompts=["scene"],
+                model_id="model-a",
+                aspect_ratio="1:1",
+            )
+
+    def test_video_quote_uses_new_listing_and_public_input_contract(self):
+        self.session.request.return_value = _Response(
+            200,
+            {
+                "quoteId": "quote-1",
+                "listingVersionId": "listing-version-1",
+                "currency": "CNY",
+                "taskCount": 1,
+                "estimatedBuyerPayableT": 0,
+            },
+        )
+        batch = self.backend.prepare_video_batch(
+            subject="subject",
+            scene_prompts=["scene"],
+            model_id="model-a",
+            aspect_ratio="16:9",
+        )
+
+        self.backend.quote(batch)
+
+        request = self.session.request.call_args
+        self.assertEqual(
+            request.args[1],
+            "https://example.test/loom/v1/marketListings/"
+            "01a06563-7331-773a-b9b2-25989a0dd70e:quote",
+        )
+        self.assertEqual(
+            request.kwargs["json"],
+            {
+                "inputRows": [
+                    {
+                        "prompt": batch.input_rows[0]["prompt"],
+                        "modelChoice": "model-a",
+                        "aspectRatio": "16:9",
+                    }
+                ]
+            },
+        )
 
     def test_downloads_video_artifact_without_forwarding_api_key(self):
         """签名产物地址无需 Bearer Key，避免把账户凭证泄漏给对象存储。"""

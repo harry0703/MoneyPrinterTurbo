@@ -390,7 +390,7 @@ Batch manifests:
             "[ui].voice_mode of 'none' or 'upload' resolves to no-voice "
             "instead, unless this option is given. "
             "Use 'no-voice' for silent output. Provider-specific identifiers "
-            "use prefixes such as gemini:, mimo:, elevenlabs:, and chatterbox:"
+            "use prefixes such as gemini:, mimo:, elevenlabs:, chatterbox:, and kokoro:"
         ),
     )
     audio_group.add_argument(

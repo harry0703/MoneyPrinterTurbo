@@ -497,7 +497,9 @@ def save_config():
         config_to_save["minimax_tts"] = dict(minimax_tts)
         config_to_save["elevenlabs"] = dict(elevenlabs)
         config_to_save["chatterbox"] = dict(chatterbox)
+        config_to_save["kokoro"] = dict(kokoro)
         config_to_save["fish_audio"] = dict(fish_audio)
+        config_to_save["voxcpm"] = dict(voxcpm)
         config_to_save["ui"] = dict(ui)
         serialized_config = toml.dumps(config_to_save)
 
@@ -553,7 +555,9 @@ siliconflow = _SynchronizedConfig(_cfg.get("siliconflow", {}))
 minimax_tts = _SynchronizedConfig(_cfg.get("minimax_tts", {}))
 elevenlabs = _SynchronizedConfig(_cfg.get("elevenlabs", {}))
 chatterbox = _SynchronizedConfig(_cfg.get("chatterbox", {}))
+kokoro = _SynchronizedConfig(_cfg.get("kokoro", {}))
 fish_audio = _SynchronizedConfig(_cfg.get("fish_audio", {}))
+voxcpm = _SynchronizedConfig(_cfg.get("voxcpm", {}))
 ui = _SynchronizedConfig(
     _cfg.get(
         "ui",

@@ -1,6 +1,7 @@
 from unittest.mock import patch
 from pathlib import Path
 from streamlit.testing.v1 import AppTest
+import pytest
 
 from app.config import config
 
@@ -90,3 +91,36 @@ def test_webui_upload_post_youtube_privacy_fallback_to_public():
         # The selectbox should be rendered and its value should fallback to "public"
         yt_privacy_selectbox = _widget_by_key(app.selectbox, "upload_post_youtube_privacy_status_selectbox")
         assert yt_privacy_selectbox.value == "public"
+
+
+@pytest.mark.parametrize("saved", [False, True, "false"])
+def test_youtube_audience_selection_persists_on_first_change(saved):
+    """真实运行 Streamlit 控件，验证布尔值、非法配置及第一次切换的持久化。"""
+    values = dict(config.app, upload_post_platforms=["youtube"],
+                  upload_post_youtube_made_for_kids=saved)
+    with patch.object(config, "app", values), patch.object(config, "try_save_config", return_value=True):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60).run()
+        app.session_state["settings_dialog_open"] = True
+        app.run()
+        assert not app.exception
+        selector = _widget_by_key(app.selectbox, "upload_post_youtube_made_for_kids_selectbox")
+        assert selector.value is (saved if isinstance(saved, bool) else None)
+        assert values["upload_post_youtube_made_for_kids"] == saved
+        for value in (True, False):
+            _widget_by_key(app.selectbox, "upload_post_youtube_made_for_kids_selectbox").set_value(value)
+            app.run()
+            assert not app.exception
+            assert values["upload_post_youtube_made_for_kids"] is value
+
+
+def test_youtube_audience_hidden_for_other_platforms():
+    """不选择 YouTube 时不显示受众项，也不覆写已保存的声明。"""
+    values = dict(config.app, upload_post_platforms=["tiktok", "instagram"],
+                  upload_post_youtube_made_for_kids=True)
+    with patch.object(config, "app", values), patch.object(config, "try_save_config", return_value=True):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60).run()
+        app.session_state["settings_dialog_open"] = True
+        app.run()
+        assert not app.exception
+        assert not any(item.key == "upload_post_youtube_made_for_kids_selectbox" for item in app.selectbox)
+        assert values["upload_post_youtube_made_for_kids"] is True

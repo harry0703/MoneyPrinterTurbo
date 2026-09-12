@@ -13,7 +13,7 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
 TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
-SECONDARY_LOCALES = ("de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
+SECONDARY_LOCALES = ("az", "de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
@@ -24,8 +24,15 @@ ENGLISH_FALLBACK_KEYS = frozenset(
     {
         "AI Video Quote Required",
         "AI Video Quote Retained For Retry",
+        "AI Video Quote Estimate Incomplete",
         "AI Video Quote Summary",
         "AI Video Quote Summary Singular",
+        "AI Video Model",
+        "AI Video Model Reference Price",
+        "AI Video Model List Load Failed",
+        "AI Video Duration Basis Actual",
+        "AI Video Duration Basis Estimated",
+        "AI Video Material Coverage",
         "AI Video Scene Count",
         "Confirm AI Video Charge",
         "Confirm AI Video Charge Help",
@@ -44,6 +51,8 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "LoomLoom Poll Retry Pending",
         "LoomLoom Poll Retry Warning",
         "Resume LoomLoom Status Check",
+        "Refresh AI Video Models",
+        "Retry AI Video Quote",
         "LoomLoom Quote Summary Singular",
         "LoomLoom Video Terms Reuse Help",
         "Metaso MiniMax H3",
@@ -68,12 +77,17 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Shengsuan Cloud AI Video Help",
         "Shengsuan Cloud API Key",
         "Shengsuan Cloud API Key Help",
+        "Shengsuan Cloud API Key Link",
         "Shengsuan Cloud API Key Placeholder",
         "Shengsuan Cloud API Key Required",
         "Shengsuan Cloud API Key Reused",
         "Shengsuan Cloud Batch Script Generation",
+        "Selected AI Video Model Unavailable",
+        "Selected AI Video Ratio Unavailable",
         "Stop Tracking LoomLoom Run",
         "Stop Tracking LoomLoom Run Help",
+        "Unavailable AI Video Model",
+        "VoxCPM Speed Not Supported",
     }
 )
 FORMAT_PLACEHOLDER_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")

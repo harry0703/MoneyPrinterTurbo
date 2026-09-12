@@ -63,6 +63,12 @@ class TestConfigPersistence:
         assert "loomloom_market_listing_id" not in app_config
         assert "loomloom_video_market_listing_id" not in app_config
         assert app_config["shengsuanyun_api_key"] == ""
+        assert example_config["voxcpm"] == {
+            "base_url": "https://api.modelbest.cn/v1",
+            "api_key": "",
+            "model_id": "",
+            "voice_id": "default",
+        }
         assert example_config["whisper"]["device"] == "cpu"
 
     def test_example_config_covers_llm_provider_registry(self):

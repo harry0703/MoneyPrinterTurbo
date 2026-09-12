@@ -357,8 +357,11 @@ class TestPostizConfigurations(unittest.TestCase):
 
         self.assertIsNone(error)
         submit.assert_called_once()
-        submitted_snapshot = submit.call_args.args[-1]
+        # Merged submit order is (..., privacy, snapshot, kids): the snapshot
+        # is second-to-last now that the upstream audience flag trails it.
+        submitted_snapshot = submit.call_args.args[-2]
         self.assertEqual(submitted_snapshot, snapshot)
+        self.assertIsInstance(submit.call_args.args[-1], bool)
 
     def test_snapshot_builder_captures_postiz_integration_ids(self):
         """Queue-time builder must freeze platforms, privacy, and extras."""
