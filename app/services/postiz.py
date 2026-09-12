@@ -148,14 +148,53 @@ class PostizService(PublishingProvider):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _settings_youtube(title: str, youtube_privacy_status: str) -> Dict[str, Any]:
-        return {
+    def _coerce_kids_flag(value: Any) -> Optional[str]:
+        """Coerce an upstream made-for-kids declaration to ``"yes"``/``"no"``.
+
+        COPPA note (security M1): a missing or unrecognised value returns
+        ``None`` (explicit absent — the caller omits the field) and NEVER
+        silently falls back to ``"no"``. Falsely asserting "not for kids"
+        is the compliance violation this guards against.
+        """
+        if isinstance(value, bool):
+            return "yes" if value else "no"
+        if isinstance(value, str):
+            text = value.strip().lower()
+            if text in {"yes", "y", "true", "1"}:
+                return "yes"
+            if text in {"no", "n", "false", "0"}:
+                return "no"
+        return None
+
+    @staticmethod
+    def _settings_youtube(
+        title: str,
+        youtube_privacy_status: str,
+        *,
+        made_for_kids: Any = None,
+    ) -> Dict[str, Any]:
+        """Build YouTube provider settings.
+
+        ``made_for_kids`` is the upstream audience declaration (bool
+        preferred; ``"yes"``/``"no"`` strings tolerated). When it is
+        absent/invalid the ``selfDeclaredMadeForKids`` key is OMITTED
+        (explicit absent) — never hardcoded to ``"no"`` (COPPA M1).
+        """
+        settings: Dict[str, Any] = {
             "__type": "youtube",
             "title": title[:100],
             "type": youtube_privacy_status,
-            "selfDeclaredMadeForKids": "no",
             "tags": [],
         }
+        kids_flag = PostizService._coerce_kids_flag(made_for_kids)
+        if kids_flag is not None:
+            settings["selfDeclaredMadeForKids"] = kids_flag
+        else:
+            logger.warning(
+                "Postiz YouTube audience declaration absent/invalid; omitting "
+                "selfDeclaredMadeForKids instead of asserting 'no' (COPPA)."
+            )
+        return settings
 
     @staticmethod
     def _settings_instagram() -> Dict[str, Any]:
@@ -232,12 +271,20 @@ class PostizService(PublishingProvider):
         youtube_privacy_status: Optional[str] = None,
         tiktok_auto_add_music: Any = None,
         reddit_subreddit: Optional[str] = None,
+        youtube_made_for_kids: Any = None,
+        youtube_extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Return the provider-specific settings dict for *platform*.
 
         Snapshot overrides (from the queue-time publishing snapshot) take
         precedence over live config reads so background execution never
         observes a config change made after queue time.
+
+        YouTube kids-flag merge (COPPA M1, both-sides): the snapshot-stamped
+        ``youtube_extra["selfDeclaredMadeForKids"]`` is PRIMARY; the explicit
+        ``youtube_made_for_kids`` kwarg (queue-time upstream flag) is the
+        fallback. When both are absent the declaration is omitted (explicit
+        absent), never defaulted to ``"no"``.
         """
         if platform == "youtube":
             privacy = (
@@ -245,7 +292,14 @@ class PostizService(PublishingProvider):
                 if youtube_privacy_status is not None
                 else self.youtube_privacy_status
             )
-            return self._settings_youtube(title, privacy)
+            kids_raw: Any = None
+            if isinstance(youtube_extra, dict):
+                extra_kids = youtube_extra.get("selfDeclaredMadeForKids")
+                if extra_kids is not None:
+                    kids_raw = extra_kids
+            if kids_raw is None and youtube_made_for_kids is not None:
+                kids_raw = youtube_made_for_kids
+            return self._settings_youtube(title, privacy, made_for_kids=kids_raw)
         if platform == "instagram":
             return self._settings_instagram()
         if platform == "tiktok":
@@ -283,6 +337,14 @@ class PostizService(PublishingProvider):
         same identity: a config change mid-operation must not send the upload
         to instance A and the create-post (carrying A's media/integration
         IDs) to instance B.
+
+        YouTube audience declaration (COPPA M1) is NOT frozen here: Postiz has
+        no provider-local kids knob — the single upstream declaration (the
+        ``upload_post_youtube_made_for_kids`` flag) is stamped per-entry by
+        the task pipeline into ``extra["youtube_made_for_kids"]`` at snapshot
+        time and re-stamped onto ``youtube_extra`` at execution. Both travel
+        as explicit kwargs into :meth:`upload_video`, which merges them
+        (snapshot ``youtube_extra`` primary, explicit flag fallback).
         """
         platforms = list(self.platforms or [])
         integration_ids = {}
@@ -324,8 +386,21 @@ class PostizService(PublishingProvider):
         integration_ids: Optional[Dict[str, Optional[str]]] = None,
         api_url: Optional[str] = None,
         api_key: Optional[str] = None,
+        *,
+        youtube_made_for_kids: Any = None,
+        youtube_extra: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
+        """Upload via Postiz and create one post per platform.
+
+        ``youtube_made_for_kids`` / ``youtube_extra`` are kwarg-only
+        (positional rule: the snapshot occupies the positional slots, so the
+        audience flag must be named). Merge is snapshot-primary: an explicit
+        ``youtube_extra["selfDeclaredMadeForKids"]`` wins over
+        ``youtube_made_for_kids``; both absent omits the declaration (COPPA
+        M1 — never asserts ``"no"``). Extra ``**kwargs`` are ignored for
+        backward compatibility.
+        """
         # Endpoint + credentials are resolved ONCE here and reused for the
         # upload request and every create-post request below, so a config
         # change mid-operation cannot split one publish across instances.
@@ -409,6 +484,8 @@ class PostizService(PublishingProvider):
                 youtube_privacy_status=youtube_privacy_status,
                 tiktok_auto_add_music=tiktok_auto_add_music,
                 reddit_subreddit=reddit_subreddit,
+                youtube_made_for_kids=youtube_made_for_kids,
+                youtube_extra=youtube_extra,
             )
 
             post_payload: Dict[str, Any] = {

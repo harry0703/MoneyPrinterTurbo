@@ -1158,7 +1158,20 @@ def _snapshot_publishing_targets() -> list[dict]:
     and endpoint/credentials (Postiz api_url/api_key, upload_post username)
     so one publish operation keeps a single instance/identity even if live
     config changes before or during execution.
+
+    YouTube audience declaration (COPPA M1): the single upstream flag
+    (``upload_post_youtube_made_for_kids``) is stamped per-entry into
+    ``extra["youtube_made_for_kids"]`` — carried like ``api_url``/``username``.
+    Execution re-stamps it onto ``youtube_extra`` per YouTube entry and also
+    passes it as an explicit kwarg to Postiz; Postiz merges snapshot-primary
+    (``youtube_extra`` wins, explicit flag is fallback). A stamp read failure
+    stores ``None`` so Postiz omits the declaration instead of asserting "no".
     """
+    try:
+        _upstream_kids_flag: bool | None = upload_post.upload_post_service.youtube_made_for_kids
+    except Exception as exc:
+        logger.debug(f"snapshot kids flag unreadable, storing absent: {exc}")
+        _upstream_kids_flag = None
     snapshots: list[dict] = []
     for name, provider in PUBLISHING_PROVIDER_REGISTRY.items():
         try:
@@ -1214,6 +1227,10 @@ def _snapshot_publishing_targets() -> list[dict]:
         extra = dict(frozen["extra"])
         if isinstance(extra.get("integration_ids"), dict):
             extra["integration_ids"] = dict(extra["integration_ids"])
+        # Per-entry COPPA stamp (queue-time upstream declaration, like
+        # api_url/username): snapshot value is PRIMARY at execution; the
+        # explicit worker arg is only a fallback for legacy snapshots.
+        extra["youtube_made_for_kids"] = _upstream_kids_flag
         frozen["extra"] = extra
         snapshots.append(frozen)
     return snapshots
@@ -1340,10 +1357,14 @@ def _run_cross_post_from_snapshot(
             ):
                 youtube_extra = dict(youtube_extra_template)
                 youtube_extra["privacyStatus"] = entry_privacy
-                # Queue-time audience declaration (upstream made-for-kids
-                # flag) travels alongside the snapshot so a config edit
-                # between queue time and execution cannot change it.
-                youtube_extra["selfDeclaredMadeForKids"] = youtube_made_for_kids
+                # Queue-time audience declaration (COPPA M1, snapshot primary):
+                # the per-entry snapshot stamp wins so a config edit between
+                # queue time and execution cannot change it; the explicit
+                # worker arg covers legacy/manual snapshots without the stamp.
+                _entry_kids = extra.get("youtube_made_for_kids")
+                youtube_extra["selfDeclaredMadeForKids"] = (
+                    _entry_kids if _entry_kids is not None else youtube_made_for_kids
+                )
             elif youtube_extra_template is not None and any(
                 p.startswith("youtube") for p in aggregate_platforms
             ):
@@ -1354,6 +1375,15 @@ def _run_cross_post_from_snapshot(
             try:
                 if provider_name == "postiz":
                     integration_ids = extra.get("integration_ids")
+                    # Both-sides COPPA merge (snapshot primary + kids flag):
+                    # the queue-time snapshot stamp wins; the explicit worker
+                    # arg covers legacy/manual snapshots without the stamp.
+                    snapshot_kids = extra.get("youtube_made_for_kids")
+                    resolved_kids = (
+                        snapshot_kids
+                        if snapshot_kids is not None
+                        else youtube_made_for_kids
+                    )
                     result = provider.upload_video(
                         video_path=video_path,
                         title=post_title,
@@ -1373,6 +1403,9 @@ def _run_cross_post_from_snapshot(
                         # None (legacy/manual snapshots) falls back to live.
                         api_url=extra.get("api_url"),
                         api_key=extra.get("api_key"),
+                        # Kwarg-only per positional rule: a bare positional
+                        # bool would land in the snapshot slot.
+                        youtube_made_for_kids=resolved_kids,
                         youtube_extra=youtube_extra,
                     )
                 elif provider_name == "upload_post":
