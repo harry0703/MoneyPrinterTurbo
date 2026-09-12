@@ -287,6 +287,11 @@ Download the latest Windows one-click package from GitHub Releases, then extract
 
 - [Download the latest Windows one-click package](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 
+> Download the `.7z` archive from the **Assets** section of that page. The
+> auto-generated `Source code (zip)` / `Source code (tar.gz)` archives contain
+> source code only: after extracting them you get `webui.bat` but no `start.bat`
+> or `update.bat`.
+
 After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
 
 After launching, the browser will open automatically (if it opens blank, it is recommended to use **Chrome** or **Edge**)
