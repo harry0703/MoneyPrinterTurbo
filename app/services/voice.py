@@ -77,6 +77,8 @@ GEMINI_TTS_VOICES = (
 _MINIMAX_TTS_MAX_AUDIO_HEX_CHARS = 100 * 1024 * 1024
 VOXCPM_DEFAULT_BASE_URL = "https://api.modelbest.cn/v1"
 VOXCPM_DEFAULT_VOICE = "default"
+_VOXCPM_NON_RETRYABLE_STATUS_CODES = {400, 401, 403, 404, 422}
+_VOXCPM_RETRY_DELAY_SECONDS = (1.0, 2.0)
 NO_VOICE_NAME = "no-voice"
 # `none` 是 PR #981 里曾使用过的无配音标识。这里短期兼容这个值，避免
 # 已经手动调用过该分支的 API 用户升级后立即失效；WebUI 和新代码统一使用
@@ -2525,6 +2527,10 @@ def voxcpm_tts(
                     f"VoxCPM TTS failed with status {response.status_code}: "
                     f"{response.text[:200]}"
                 )
+                if response.status_code in _VOXCPM_NON_RETRYABLE_STATUS_CODES:
+                    return None
+                if attempt < 2:
+                    time.sleep(_VOXCPM_RETRY_DELAY_SECONDS[attempt])
                 continue
 
             audio_chunks = []
@@ -2579,8 +2585,15 @@ def voxcpm_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
+        except requests.RequestException as exc:
+            logger.error(f"VoxCPM TTS request failed: {exc}")
+            if attempt < 2:
+                time.sleep(_VOXCPM_RETRY_DELAY_SECONDS[attempt])
         except Exception as exc:
+            # Invalid SSE/WAV data and local conversion failures are deterministic;
+            # retrying the same response cannot repair them.
             logger.error(f"VoxCPM TTS failed: {exc}")
+            return None
         finally:
             close_response = getattr(response, "close", None)
             if callable(close_response):

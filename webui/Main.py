@@ -5968,6 +5968,26 @@ def _sync_elevenlabs_api_key_input():
     return entered_key
 
 
+def _sync_voxcpm_api_key_input():
+    """恢复 VoxCPM 密码控件在重连时被 Streamlit 重放的空状态。"""
+    widget_key = "voxcpm_api_key_input"
+    configured_key = str(config.voxcpm.get("api_key", "") or "").strip()
+    had_widget_state = widget_key in st.session_state
+    entered_key = str(st.session_state.get(widget_key, "") or "").strip()
+
+    if not entered_key and configured_key:
+        # 浏览器重连可能重放空密码状态。保留已保存凭据，避免本次 rerun
+        # 通过 _set_runtime_config 把 config.toml 中的有效 Key 覆盖为空。
+        st.session_state[widget_key] = configured_key
+        entered_key = configured_key
+        if had_widget_state:
+            logger.debug("restored VoxCPM API key after empty session replay")
+    elif not had_widget_state:
+        st.session_state[widget_key] = entered_key
+
+    return entered_key
+
+
 def _render_elevenlabs_api_key_input(label_key):
     """
     渲染 ElevenLabs TTS 与配乐共用的唯一 API Key 输入状态。
@@ -6683,9 +6703,9 @@ def _render_audio_settings(panel, params):
                 selected_tts_server == "voxcpm"
                 or (voice_name and voice.is_voxcpm_voice(voice_name))
             ):
+                _sync_voxcpm_api_key_input()
                 voxcpm_api_key = st.text_input(
                     tr("VoxCPM API Key"),
-                    value=config.voxcpm.get("api_key", ""),
                     type="password",
                     key="voxcpm_api_key_input",
                 )
@@ -6843,6 +6863,10 @@ def _render_audio_settings(panel, params):
                     )
 
                 with voice_control_cols[1]:
+                    is_voxcpm = bool(
+                        selected_tts_server == "voxcpm"
+                        or (voice_name and voice.is_voxcpm_voice(voice_name))
+                    )
                     params.voice_rate = stable_selectbox(
                         tr("Voiceover Speed"),
                         options=voice_rate_options,
@@ -6851,7 +6875,12 @@ def _render_audio_settings(panel, params):
                         ),
                         key="voice_rate_select",
                         format_func=lambda value: f"{value:.1f}×",
-                        help=tr("Voiceover Speed Help"),
+                        help=(
+                            tr("VoxCPM Speed Not Supported")
+                            if is_voxcpm
+                            else tr("Voiceover Speed Help")
+                        ),
+                        disabled=is_voxcpm,
                     )
                 _set_runtime_config("ui", "voice_volume", params.voice_volume)
                 _set_runtime_config("ui", "voice_rate", params.voice_rate)

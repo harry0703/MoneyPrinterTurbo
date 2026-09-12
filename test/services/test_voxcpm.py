@@ -138,7 +138,7 @@ def test_voxcpm_tts_failure_never_overwrites_existing_audio(
 
     assert voice.voxcpm_tts("Hello", "default", str(output)) is None
     assert output.read_bytes() == b"previous-audio"
-    assert post.call_count == 3
+    assert post.call_count == 1
 
 
 def test_voxcpm_requires_key_and_model_without_making_requests(monkeypatch, tmp_path):
@@ -162,9 +162,35 @@ def test_voxcpm_http_error_is_retried_and_preserves_output(
     )
     post = Mock(return_value=response)
     monkeypatch.setattr(voice.requests, "post", post)
+    sleep = Mock()
+    monkeypatch.setattr(voice.time, "sleep", sleep)
     output = tmp_path / "existing.mp3"
     output.write_bytes(b"previous-audio")
 
     assert voice.voxcpm_tts("Hello", "default", str(output)) is None
     assert output.read_bytes() == b"previous-audio"
     assert post.call_count == 3
+    assert sleep.call_args_list == [((1.0,),), ((2.0,),)]
+
+
+@pytest.mark.parametrize("status_code", [400, 401, 403, 404, 422])
+def test_voxcpm_auth_and_invalid_parameter_errors_fail_without_retry(
+    monkeypatch, tmp_path, voxcpm_config, status_code
+):
+    response = SimpleNamespace(
+        status_code=status_code,
+        text="invalid request",
+        close=lambda: None,
+    )
+    post = Mock(return_value=response)
+    monkeypatch.setattr(voice.requests, "post", post)
+    sleep = Mock()
+    monkeypatch.setattr(voice.time, "sleep", sleep)
+
+    output = tmp_path / "existing.mp3"
+    output.write_bytes(b"previous-audio")
+
+    assert voice.voxcpm_tts("Hello", "default", str(output)) is None
+    assert output.read_bytes() == b"previous-audio"
+    post.assert_called_once()
+    sleep.assert_not_called()

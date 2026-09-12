@@ -125,6 +125,7 @@
     "Voiceover Volume Help": "调整自动配音或上传音频的音量，100% 为原始音量。",
     "Voiceover Speed": "配音语速",
     "Voiceover Speed Help": "仅对自动配音生效，1.0× 为正常语速。",
+    "VoxCPM Speed Not Supported": "VoxCPM 暂不支持数值语速调节。",
     "Upload Voiceover File": "上传配音文件",
     "Upload Voiceover File Help": "上传后直接使用该音频，不再生成自动配音。",
     "Please Upload Voiceover File First": "请先上传配音文件",

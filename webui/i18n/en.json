@@ -125,6 +125,7 @@
     "Voiceover Volume Help": "Adjusts automatic or uploaded voiceover volume. 100% keeps the original level.",
     "Voiceover Speed": "Voiceover Speed",
     "Voiceover Speed Help": "Applies only to automatic voiceover. 1.0× is the normal speed.",
+    "VoxCPM Speed Not Supported": "VoxCPM does not support numeric speed adjustment.",
     "Upload Voiceover File": "Upload Voiceover File",
     "Upload Voiceover File Help": "The uploaded audio is used directly instead of generating a voiceover.",
     "Please Upload Voiceover File First": "Please upload a voiceover file first",
