@@ -592,6 +592,55 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertTrue(fresh_path.exists())
         self.assertTrue(unrelated_path.exists())
 
+    def test_cleanup_removes_orphaned_temp_files(self):
+        """
+        进程被强制终止时，NamedTemporaryFile(delete=False) 留下的中间文件没有
+        机会被 os.replace 消费，也不会触发异常兜底删除。它必须和过期缓存一起
+        回收，否则每次异常中断都会在缓存目录里永久累积一个残留文件。
+        """
+        orphan_path = Path(self.temp_dir.name) / (
+            f".{self._cache_path().stem}-m429jzwe.tmp"
+        )
+        orphan_path.write_text('{"version":2,"items":[]}', encoding="utf-8")
+        unrelated_path = Path(self.temp_dir.name) / "notes.tmp"
+        unrelated_path.write_text("keep", encoding="utf-8")
+
+        now = 2_000_000_000.0
+        stale_mtime = now - material_cache.MATERIAL_SEARCH_CACHE_TTL_SECONDS - 1
+        os.utime(orphan_path, (stale_mtime, stale_mtime))
+        os.utime(unrelated_path, (stale_mtime, stale_mtime))
+
+        deleted = material_cache.cleanup_expired_material_search_cache(
+            now=now,
+            force=True,
+        )
+
+        self.assertEqual(deleted, 1)
+        self.assertFalse(orphan_path.exists())
+        # 前缀不匹配的其它文件属于用户，不能被清理逻辑删除。
+        self.assertTrue(unrelated_path.exists())
+
+    def test_cleanup_keeps_recent_temp_files(self):
+        """
+        并发搜索时另一个进程可能正在写临时文件。清理必须复用缓存的过期判定，
+        让尚未超期的中间文件保持原样，避免删掉正在等待 os.replace 的文件。
+        """
+        in_flight_path = Path(self.temp_dir.name) / (
+            f".{self._cache_path().stem}-m429jzwe.tmp"
+        )
+        in_flight_path.write_text('{"version":2,"items":', encoding="utf-8")
+
+        now = 2_000_000_000.0
+        os.utime(in_flight_path, (now - 1, now - 1))
+
+        deleted = material_cache.cleanup_expired_material_search_cache(
+            now=now,
+            force=True,
+        )
+
+        self.assertEqual(deleted, 0)
+        self.assertTrue(in_flight_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
