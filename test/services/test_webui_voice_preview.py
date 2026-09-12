@@ -91,6 +91,12 @@ def test_provider_signature_changes_when_api_key_changes():
             "base_url": "http://127.0.0.1:4123/v1",
             "model_id": "chatterbox",
         },
+        voxcpm={
+            "api_key": "old-voxcpm",
+            "base_url": "https://api.modelbest.cn/v1",
+            "model_id": "speech-model",
+            "voice_id": "default",
+        },
     )
     provider_signature = _load_provider_signature(test_config)
 
@@ -101,6 +107,29 @@ def test_provider_signature_changes_when_api_key_changes():
     assert old_signature != new_signature
     assert "old-elevenlabs" not in str(old_signature)
     assert "new-elevenlabs" not in str(new_signature)
+
+
+def test_voxcpm_preview_signature_tracks_endpoint_model_and_credentials():
+    test_config = SimpleNamespace(
+        app={}, azure={}, siliconflow={}, elevenlabs={}, chatterbox={}, kokoro={},
+        voxcpm={
+            "api_key": "old-key",
+            "base_url": "https://api.modelbest.cn/v1",
+            "model_id": "speech-model-a",
+            "voice_id": "default",
+        },
+    )
+    provider_signature = _load_provider_signature(test_config)
+
+    original = provider_signature("voxcpm")
+    test_config.voxcpm["model_id"] = "speech-model-b"
+    changed_model = provider_signature("voxcpm")
+    test_config.voxcpm["api_key"] = "new-key"
+    changed_key = provider_signature("voxcpm")
+
+    assert original != changed_model != changed_key
+    assert "old-key" not in str(original)
+    assert "new-key" not in str(changed_key)
 
 
 def test_full_voiceover_preview_is_disabled_until_script_exists():
