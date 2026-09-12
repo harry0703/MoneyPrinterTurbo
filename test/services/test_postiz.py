@@ -427,5 +427,171 @@ class TestPostizService(unittest.TestCase):
         self.assertFalse(headers.get("Authorization").startswith("Bearer "))
 
 
+class TestPostizEndpointConsistency(unittest.TestCase):
+    """Reviewer repro: endpoint + auth must stay consistent for one publish.
+
+    With mocked HTTP, changing the URL during media upload must NOT send the
+    upload to instance A and the create-post (carrying A's media and
+    integration IDs) to instance B.
+    """
+
+    def test_upload_and_create_share_frozen_endpoint_and_auth(self):
+        live = {
+            **_BASE_CONFIG,
+            "postiz_api_url": "http://instance-a:8004",
+            "postiz_api_key": "key-a",
+        }
+        calls = []
+
+        def post_side_effect(url, headers=None, files=None, json=None, *args, **kwargs):
+            calls.append({"url": url, "headers": dict(headers or {})})
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            if url.endswith("/upload"):
+                # Config changes mid-operation (reviewer repro): the rest of
+                # this publish must still use instance A / key-a.
+                live["postiz_api_url"] = "http://instance-b:8004"
+                live["postiz_api_key"] = "key-b"
+                resp.json.return_value = {"id": "media123", "path": "/media/path/video.mp4"}
+            elif url.endswith("/posts"):
+                resp.json.return_value = [{"postId": "post456"}]
+            else:
+                resp.json.return_value = {}
+            return resp
+
+        with (
+            patch("app.services.postiz.config.app", live),
+            patch("app.services.postiz.os.path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=b"fake video data")),
+            patch("app.services.postiz.requests.post", side_effect=post_side_effect),
+        ):
+            service = PostizService()
+            result = service.upload_video("/fake/video.mp4", "Test Title")
+
+        self.assertTrue(result.get("success"))
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            self.assertTrue(
+                call["url"].startswith("http://instance-a:8004/public/v1"),
+                f"request leaked to wrong instance: {call['url']}",
+            )
+            self.assertEqual(call["headers"].get("Authorization"), "key-a")
+
+    def test_snapshot_kwargs_override_live_config(self):
+        """Queue-time snapshot values win over live config at execution."""
+        live = {
+            **_BASE_CONFIG,
+            "postiz_api_url": "http://instance-b:8004",
+            "postiz_api_key": "key-b",
+        }
+        calls = []
+
+        def post_side_effect(url, headers=None, files=None, json=None, *args, **kwargs):
+            calls.append({"url": url, "headers": dict(headers or {})})
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            if url.endswith("/upload"):
+                resp.json.return_value = {"id": "media123", "path": "/media/path/video.mp4"}
+            elif url.endswith("/posts"):
+                resp.json.return_value = [{"postId": "post456"}]
+            else:
+                resp.json.return_value = {}
+            return resp
+
+        with (
+            patch("app.services.postiz.config.app", live),
+            patch("app.services.postiz.os.path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=b"fake video data")),
+            patch("app.services.postiz.requests.post", side_effect=post_side_effect),
+        ):
+            service = PostizService()
+            result = service.upload_video(
+                "/fake/video.mp4",
+                "Test Title",
+                api_url="http://instance-a:8004",
+                api_key="key-a",
+                integration_ids={"youtube": "yt-int-id"},
+            )
+
+        self.assertTrue(result.get("success"))
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            self.assertTrue(call["url"].startswith("http://instance-a:8004/public/v1"))
+            self.assertEqual(call["headers"].get("Authorization"), "key-a")
+
+    def test_snapshot_targets_freezes_endpoint_and_credentials(self):
+        cfg = {
+            **_BASE_CONFIG,
+            "postiz_api_url": "http://self-hosted:8004",
+            "postiz_api_key": "frozen-key",
+        }
+        with patch("app.services.postiz.config.app", cfg):
+            snapshot = PostizService().snapshot_targets()
+        self.assertEqual(snapshot["extra"]["api_url"], "http://self-hosted:8004")
+        self.assertEqual(snapshot["extra"]["api_key"], "frozen-key")
+
+    def test_check_status_snapshot_kwargs_override_live_config(self):
+        live = {
+            **_BASE_CONFIG,
+            "postiz_api_url": "http://instance-b:8004",
+            "postiz_api_key": "key-b",
+        }
+        with (
+            patch("app.services.postiz.config.app", live),
+            patch("app.services.postiz.requests.get") as mock_get,
+        ):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status = MagicMock()
+            mock_resp.json.return_value = [{"postId": "x", "state": "PUBLISHED"}]
+            mock_get.return_value = mock_resp
+
+            service = PostizService()
+            result = service.check_status(
+                "x", api_url="http://instance-a:8004", api_key="key-a"
+            )
+
+        self.assertTrue(result.get("success"))
+        called_url = mock_get.call_args[0][0]
+        called_headers = mock_get.call_args[1]["headers"]
+        self.assertTrue(called_url.startswith("http://instance-a:8004/public/v1"))
+        self.assertEqual(called_headers.get("Authorization"), "key-a")
+
+
+class TestPostizEmptyPostId(unittest.TestCase):
+    """A response of [{}] must not report success with an empty post_id."""
+
+    @patch("app.services.postiz.config.app", _BASE_CONFIG)
+    @patch("app.services.postiz.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake video data"))
+    @patch("app.services.postiz.requests.post")
+    def test_empty_dict_response_is_failure(self, mock_post, _exists):
+        mock_post.side_effect = _upload_then_post_side_effect(post_json=[{}])
+
+        service = PostizService()
+        result = service.upload_video("/fake/video.mp4", "Test Title")
+
+        self.assertFalse(result.get("success"))
+        self.assertEqual(len(result.get("results", [])), 1)
+        platform_result = result["results"][0]
+        self.assertFalse(platform_result.get("success"))
+        self.assertFalse(platform_result.get("post_id", ""))
+        self.assertIn("empty postId", platform_result.get("error", ""))
+
+    @patch("app.services.postiz.config.app", _BASE_CONFIG)
+    @patch("app.services.postiz.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake video data"))
+    @patch("app.services.postiz.requests.post")
+    def test_empty_string_post_id_is_failure(self, mock_post, _exists):
+        mock_post.side_effect = _upload_then_post_side_effect(
+            post_json=[{"postId": ""}]
+        )
+
+        service = PostizService()
+        result = service.upload_video("/fake/video.mp4", "Test Title")
+
+        self.assertFalse(result.get("success"))
+        self.assertFalse(result["results"][0].get("success"))
+
+
 if __name__ == "__main__":
     unittest.main()

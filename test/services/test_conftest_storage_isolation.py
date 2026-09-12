@@ -21,6 +21,13 @@ def test_storage_redirect_is_active_during_test():
     assert "mpt_test_storage_" in utils.task_dir()
 
 
+def test_storage_root_is_canonical_no_symlink():
+    """Temp root must be realpath'd (macOS /var -> /private/var parity)."""
+    assert conftest_module._test_storage_root == os.path.realpath(
+        conftest_module._test_storage_root
+    )
+
+
 def test_production_originals_are_preserved_for_restore():
     """Originals captured at import must point at the real repo storage."""
     prod_storage = conftest_module._production_storage_dir()

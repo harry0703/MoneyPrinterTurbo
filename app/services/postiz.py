@@ -100,6 +100,20 @@ class PostizService(PublishingProvider):
         """Return headers with raw API key (no Bearer prefix)."""
         return {"Authorization": self.api_key}
 
+    @staticmethod
+    def _normalize_api_base(api_url: str) -> str:
+        """Normalize *api_url* to the upstream author spec base ``/public/v1``.
+
+        Pure function of its argument (no config reads) so a snapshot-frozen
+        URL and the live config URL go through identical normalization.
+        """
+        base = (api_url or "").rstrip("/")
+        if base.endswith("/api/public/v1"):
+            return base[: -len("/api/public/v1")] + "/public/v1"
+        if base.endswith("/public/v1"):
+            return base
+        return f"{base}/public/v1"
+
     def _api_base(self) -> str:
         """Build the Public API base URL.
 
@@ -110,14 +124,10 @@ class PostizService(PublishingProvider):
         is normalized to ``/public/v1``; a URL already ending in
         ``/public/v1`` is returned unchanged; otherwise ``/public/v1``
         is appended. This function NEVER returns a base ending in
-        ``/api/public/v1``.
+        ``/api/public/v1``. Delegates to :meth:`_normalize_api_base` so
+        snapshot-frozen URLs normalize identically to live config.
         """
-        base = self.api_url.rstrip("/")
-        if base.endswith("/api/public/v1"):
-            return base[: -len("/api/public/v1")] + "/public/v1"
-        if base.endswith("/public/v1"):
-            return base
-        return f"{base}/public/v1"
+        return self._normalize_api_base(self.api_url)
 
     def _get_integration_id(self, platform: str) -> Optional[str]:
         platform_info = _POSTIZ_PLATFORM_MAP.get(platform)
@@ -267,9 +277,12 @@ class PostizService(PublishingProvider):
         use it exclusively instead of re-reading live config at execution.
 
         Frozen here: platforms, youtube_privacy_status, tiktok_auto_add_music,
-        reddit_subreddit, and per-platform integration IDs. Intentionally NOT
-        frozen (read live at execution): API key and api_url/endpoint, which
-        ``upload_video`` resolves from config at call time.
+        reddit_subreddit, per-platform integration IDs, AND the endpoint +
+        credentials (``api_url`` + ``api_key``). Freezing endpoint/auth keeps
+        every request of one publish operation on the same instance with the
+        same identity: a config change mid-operation must not send the upload
+        to instance A and the create-post (carrying A's media/integration
+        IDs) to instance B.
         """
         platforms = list(self.platforms or [])
         integration_ids = {}
@@ -293,6 +306,10 @@ class PostizService(PublishingProvider):
                 ),
                 "reddit_subreddit": config.app.get("postiz_reddit_subreddit", ""),
                 "integration_ids": integration_ids,
+                # Endpoint + credentials frozen at queue time so one publish
+                # operation stays on a single instance with a single identity.
+                "api_url": self.api_url,
+                "api_key": self.api_key,
             },
         }
 
@@ -305,8 +322,19 @@ class PostizService(PublishingProvider):
         tiktok_auto_add_music: Any = None,
         reddit_subreddit: Optional[str] = None,
         integration_ids: Optional[Dict[str, Optional[str]]] = None,
+        api_url: Optional[str] = None,
+        api_key: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
+        # Endpoint + credentials are resolved ONCE here and reused for the
+        # upload request and every create-post request below, so a config
+        # change mid-operation cannot split one publish across instances.
+        # Snapshot-provided values (queue-time) win when given; otherwise
+        # fall back to live config for backward-compatible direct callers.
+        resolved_api_url = self.api_url if api_url is None else api_url
+        resolved_api_key = self.api_key if api_key is None else api_key
+        api_base = self._normalize_api_base(resolved_api_url)
+        auth_headers = {"Authorization": resolved_api_key}
         # Snapshot-provided integration IDs bypass the live config lookup so
         # execution uses queue-time destinations even if config changed.
         use_snapshot_integrations = integration_ids is not None
@@ -328,8 +356,8 @@ class PostizService(PublishingProvider):
             with open(video_path, "rb") as video_file:
                 files = {"file": video_file}
                 upload_resp = requests.post(
-                    f"{self._api_base()}/upload",
-                    headers=self._auth_headers(),
+                    f"{api_base}/upload",
+                    headers=auth_headers,
                     files=files,
                     timeout=300,
                 )
@@ -404,15 +432,29 @@ class PostizService(PublishingProvider):
 
             try:
                 post_resp = requests.post(
-                    f"{self._api_base()}/posts",
-                    headers={**self._auth_headers(), "Content-Type": "application/json"},
+                    f"{api_base}/posts",
+                    headers={**auth_headers, "Content-Type": "application/json"},
                     json=post_payload,
                     timeout=300,
                 )
                 post_resp.raise_for_status()
                 post_json = post_resp.json()
                 if isinstance(post_json, list) and len(post_json) > 0:
-                    post_id = post_json[0].get("postId", "")
+                    first = post_json[0] if isinstance(post_json[0], dict) else {}
+                    post_id = first.get("postId", "")
+                    if not post_id:
+                        logger.warning(
+                            f"Postiz returned an empty postId for {platform}: {post_json}"
+                        )
+                        results.append(
+                            {
+                                "platform": platform,
+                                "success": False,
+                                "error": "Postiz returned an empty postId",
+                                "response": post_json,
+                            }
+                        )
+                        continue
                     logger.info(f"Postiz post created for {platform}: postId={post_id}")
                     results.append({"platform": platform, "success": True, "post_id": post_id})
                 else:
@@ -433,8 +475,22 @@ class PostizService(PublishingProvider):
             payload["error"] = _summarize_platform_failures(results)
         return payload
 
-    def check_status(self, request_id: str) -> Dict[str, Any]:
-        """Check status via GET /posts with required date range."""
+    def check_status(
+        self,
+        request_id: str,
+        api_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Check status via GET /posts with required date range.
+
+        ``api_url``/``api_key`` are optional queue-time snapshot overrides;
+        when omitted the live config is used. Either way the endpoint + auth
+        are resolved once and reused for the whole call.
+        """
+        resolved_api_url = self.api_url if api_url is None else api_url
+        resolved_api_key = self.api_key if api_key is None else api_key
+        api_base = self._normalize_api_base(resolved_api_url)
+        auth_headers = {"Authorization": resolved_api_key}
         try:
             now = datetime.now(timezone.utc)
             params = {
@@ -442,8 +498,8 @@ class PostizService(PublishingProvider):
                 "endDate": now.isoformat(),
             }
             resp = requests.get(
-                f"{self._api_base()}/posts",
-                headers=self._auth_headers(),
+                f"{api_base}/posts",
+                headers=auth_headers,
                 params=params,
                 timeout=30,
             )

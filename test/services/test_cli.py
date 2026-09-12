@@ -576,7 +576,11 @@ class TestCli(unittest.TestCase):
                 os.path.isabs(result[0].url),
                 f"material url should be absolute path, got: {result[0].url}",
             )
-            self.assertEqual(result[0].url, test_filepath)
+            # preprocess_video returns the realpath'd (symlink-resolved)
+            # form via resolve_path_within_directory; the temp storage root
+            # may itself sit behind a symlink (macOS /var -> /private/var),
+            # so both sides are canonicalized before comparing.
+            self.assertEqual(os.path.realpath(result[0].url), os.path.realpath(test_filepath))
         finally:
             if os.path.exists(test_filepath):
                 os.remove(test_filepath)

@@ -14,11 +14,13 @@ class PublishingProvider(ABC):
         Contract: return a JSON-serializable dict with at least ``provider``,
         ``platforms`` (list copy), ``youtube_privacy_status``, and an
         ``extra`` dict for provider-specific values (e.g. Postiz integration
-        IDs; upload_post privacy_level). Freeze destinations + privacy + IDs;
-        leave credentials/endpoints live (the provider's ``upload_video``
-        resolves those from config at call time). The task pipeline calls
-        this once at queue time and the background worker uses it
-        exclusively instead of re-reading live config at execution.
+        IDs + api_url/api_key; upload_post privacy_level + username). Freeze
+        destinations + privacy + IDs + endpoint/credentials: the task worker
+        passes snapshot values back into ``upload_video`` as explicit kwargs
+        so one publish operation keeps a single instance/identity even if
+        live config changes mid-operation. Providers must accept those
+        kwargs with a ``None`` default that falls back to live config for
+        backward-compatible direct callers.
 
         The default implementation returns ``None`` for backward
         compatibility with legacy providers; the caller then uses a generic

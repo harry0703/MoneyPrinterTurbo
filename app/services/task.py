@@ -1089,10 +1089,10 @@ def _snapshot_publishing_targets() -> list[dict]:
     exclusively and never re-read live provider/config values at execution.
 
     Frozen at queue time: destinations (provider + platforms), privacy
-    settings (youtube_privacy_status + provider extras), and integration IDs.
-    Intentionally NOT frozen (still read live at execution): credentials
-    (API keys/usernames) and endpoints (api_url/API_BASE), which the
-    provider's ``upload_video`` resolves from config at call time.
+    settings (youtube_privacy_status + provider extras), integration IDs,
+    and endpoint/credentials (Postiz api_url/api_key, upload_post username)
+    so one publish operation keeps a single instance/identity even if live
+    config changes before or during execution.
     """
     snapshots: list[dict] = []
     for name, provider in PUBLISHING_PROVIDER_REGISTRY.items():
@@ -1212,12 +1212,13 @@ def _run_cross_post_from_snapshot(
     """Snapshot-exclusive execution: no live provider/config reads.
 
     Uses only the queue-time snapshot for provider selection, platforms,
-    privacy, and provider extras (destinations + privacy + IDs frozen at
-    queue time; credentials/endpoints intentionally live inside each
-    provider's ``upload_video``). The only external calls are the state
-    transitions (handled by the caller), ``llm.generate_social_metadata``
-    for shared copy, and each provider's ``upload_video`` method with
-    explicit snapshot values.
+    privacy, provider extras (destinations + privacy + IDs frozen at queue
+    time), AND endpoint/credentials (Postiz ``api_url``/``api_key`` and
+    upload_post ``username`` frozen at queue time so one publish operation
+    stays on a single instance/account). The only external calls are the
+    state transitions (handled by the caller),
+    ``llm.generate_social_metadata`` for shared copy, and each provider's
+    ``upload_video`` method with explicit snapshot values.
     """
     frozen = [
         {
@@ -1297,6 +1298,11 @@ def _run_cross_post_from_snapshot(
                             if isinstance(integration_ids, dict)
                             else None
                         ),
+                        # Queue-time endpoint + credentials: one publish
+                        # operation stays on a single instance/identity.
+                        # None (legacy/manual snapshots) falls back to live.
+                        api_url=extra.get("api_url"),
+                        api_key=extra.get("api_key"),
                         youtube_extra=youtube_extra,
                     )
                 elif provider_name == "upload_post":
@@ -1309,6 +1315,9 @@ def _run_cross_post_from_snapshot(
                         ),
                         youtube_extra=youtube_extra,
                         skip_config_check=True,
+                        # Queue-time destination account (None falls back
+                        # to live for legacy/manual snapshots).
+                        username=extra.get("username"),
                     )
                 else:
                     result = provider.upload_video(

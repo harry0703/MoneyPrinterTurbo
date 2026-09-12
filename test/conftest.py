@@ -14,6 +14,15 @@ CLI material-path and task download-URL tests, which assert on real
 production locations. The fixture keeps the root-owned ``storage/``
 workaround working while guaranteeing no leak between tests, and production
 code paths outside tests are never modified.
+
+Symlink note (macOS /var vs /private/var): ``tempfile.mkdtemp`` may return
+a path through a symlink (macOS TMPDIR lives under ``/var``, which links
+to ``/private/var``). The root is canonicalized with ``os.path.realpath``
+at creation so every test-scoped path is already in canonical form; that
+matches what ``file_security.resolve_path_within_directory`` returns
+(it realpaths) and keeps ``relpath``-based URL building consistent.
+Path-sensitive assertions must still compare ``os.path.realpath`` on BOTH
+sides — never assume the temp path is already canonical.
 """
 import os
 import shutil
@@ -23,7 +32,7 @@ import pytest
 
 from app.utils import utils
 
-_test_storage_root = tempfile.mkdtemp(prefix="mpt_test_storage_")
+_test_storage_root = os.path.realpath(tempfile.mkdtemp(prefix="mpt_test_storage_"))
 
 # Capture production originals at import time so the fixture can restore them.
 _ORIGINAL_STORAGE_DIR = utils.storage_dir

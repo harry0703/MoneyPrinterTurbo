@@ -395,6 +395,132 @@ class TestPostizConfigurations(unittest.TestCase):
             self.assertEqual(list(postiz_service.platforms), list(live_platforms))
             self.assertNotEqual(entry["platforms"], live_platforms)
 
+    def test_snapshot_builder_freezes_endpoint_credentials_and_username(self):
+        """Endpoint/auth/account are queue-time values, not live reads."""
+        postiz_service = tm.PUBLISHING_PROVIDER_REGISTRY["postiz"]
+        upload_service = tm.upload_post.upload_post_service
+        with (
+            patch.object(postiz_service, "is_configured", return_value=True),
+            patch.object(type(postiz_service), "auto_upload", new_callable=PropertyMock, return_value=True),
+            patch.object(type(postiz_service), "platforms", new_callable=PropertyMock, return_value=["youtube"]),
+            patch.object(upload_service, "is_configured", return_value=True),
+            patch.object(type(upload_service), "auto_upload", new_callable=PropertyMock, return_value=True),
+            patch.object(type(upload_service), "platforms", new_callable=PropertyMock, return_value=["tiktok"]),
+            patch.dict(
+                tm.config.app,
+                {
+                    "postiz_api_url": "http://instance-a:8004",
+                    "postiz_api_key": "key-a",
+                    "postiz_youtube_integration_id": "yt-int-id",
+                    "upload_post_username": "queued-user",
+                },
+                clear=False,
+            ),
+        ):
+            snapshots = tm._snapshot_publishing_targets()
+
+        by_provider = {entry["provider"]: entry for entry in snapshots}
+        self.assertEqual(by_provider["postiz"]["extra"]["api_url"], "http://instance-a:8004")
+        self.assertEqual(by_provider["postiz"]["extra"]["api_key"], "key-a")
+        self.assertEqual(by_provider["upload_post"]["extra"]["username"], "queued-user")
+
+    def test_worker_passes_frozen_endpoint_credentials_and_username(self):
+        """Live config changes before execution must not reach the providers."""
+        postiz_service = tm.PUBLISHING_PROVIDER_REGISTRY["postiz"]
+        upload_service = tm.upload_post.upload_post_service
+        snapshot = [
+            {
+                "provider": "postiz",
+                "platforms": ["youtube"],
+                "youtube_privacy_status": "private",
+                "extra": {
+                    "tiktok_auto_add_music": "no",
+                    "reddit_subreddit": "",
+                    "integration_ids": {"youtube": "yt-A"},
+                    "api_url": "http://instance-a:8004",
+                    "api_key": "key-a",
+                },
+            },
+            {
+                "provider": "upload_post",
+                "platforms": ["tiktok"],
+                "youtube_privacy_status": "public",
+                "extra": {
+                    "privacy_level": "PUBLIC_TO_EVERYONE",
+                    "username": "queued-user",
+                },
+            },
+        ]
+        results: list = []
+        with (
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "Coffee", "caption": "Sip.", "hashtags": []},
+            ),
+            patch.object(
+                postiz_service, "upload_video", return_value={"success": True}
+            ) as postiz_upload,
+            patch.object(
+                upload_service, "upload_video", return_value={"success": True}
+            ) as upload_post_upload,
+        ):
+            tm._run_cross_post_from_snapshot(
+                "frozen-endpoint",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                snapshot,
+                results,
+            )
+
+        postiz_kwargs = postiz_upload.call_args[1]
+        self.assertEqual(postiz_kwargs.get("api_url"), "http://instance-a:8004")
+        self.assertEqual(postiz_kwargs.get("api_key"), "key-a")
+        upload_kwargs = upload_post_upload.call_args[1]
+        self.assertEqual(upload_kwargs.get("username"), "queued-user")
+
+    def test_worker_legacy_snapshot_without_frozen_keys_falls_back_live(self):
+        """Snapshots built before the freeze (no new keys) keep working."""
+        postiz_service = tm.PUBLISHING_PROVIDER_REGISTRY["postiz"]
+        snapshot = [
+            {
+                "provider": "postiz",
+                "platforms": ["youtube"],
+                "youtube_privacy_status": "public",
+                "extra": {
+                    "tiktok_auto_add_music": "no",
+                    "reddit_subreddit": "",
+                    "integration_ids": {"youtube": "yt-int-id"},
+                },
+            }
+        ]
+        results: list = []
+        with (
+            patch.object(
+                tm.llm,
+                "generate_social_metadata",
+                return_value={"title": "Coffee", "caption": "Sip.", "hashtags": []},
+            ),
+            patch.object(
+                postiz_service, "upload_video", return_value={"success": True}
+            ) as postiz_upload,
+        ):
+            tm._run_cross_post_from_snapshot(
+                "legacy-snapshot",
+                ("final.mp4",),
+                "Coffee",
+                "A short coffee story.",
+                "en",
+                snapshot,
+                results,
+            )
+
+        postiz_kwargs = postiz_upload.call_args[1]
+        self.assertIsNone(postiz_kwargs.get("api_url"))
+        self.assertIsNone(postiz_kwargs.get("api_key"))
+
 
 if __name__ == "__main__":
     unittest.main()
