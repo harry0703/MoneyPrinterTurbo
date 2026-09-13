@@ -32,6 +32,9 @@ SUPPORTED_SOURCES = {
     "volcengine_seedance",
     "ofox",
     "metaso_minimax",
+    # Keep this list aligned with ``_CLI_VIDEO_SOURCES`` in cli.py. A source that
+    # the CLI accepts must not be rejected here as unsupported.
+    "openai_image",
     "local",
 }
 VOLCENGINE_ARK_API_KEY_URL = (
@@ -382,6 +385,13 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("metaso_minimax_api_key")
         if not has_cli_option(cli_args, "--confirm-metaso-minimax-charge"):
             missing.append("confirm_metaso_minimax_charge")
+    elif source == "openai_image":
+        # 与运行时的 is_openai_image_enabled() 保持一致：文生图素材源只要求端点
+        # 与模型名。完全本地的 ComfyUI/SD 网关允许不配置 API Key，因此这里不
+        # 能把 openai_image_api_keys 当作必填项。
+        for field in ("openai_image_base_url", "openai_image_model"):
+            if not _has_configured_value(_plain_config_value(text, field)):
+                missing.append(field)
     elif source != "local":
         value = _plain_config_value(text, f"{source}_api_keys")
         if not _has_configured_value(value):
@@ -416,6 +426,12 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print(
             "OPENAI_COMPATIBLE_REQUIRED="
             "API key, API base URL, model name"
+        )
+    if any(field.startswith("openai_image_") for field in missing):
+        print(
+            "OPENAI_IMAGE_REQUIRED="
+            "openai_image_base_url, openai_image_model (the API key is optional "
+            "for local gateways)"
         )
     if "pexels_api_keys" in missing:
         print(f"PEXELS_API_KEY_URL={PEXELS_API_KEY_URL}")
