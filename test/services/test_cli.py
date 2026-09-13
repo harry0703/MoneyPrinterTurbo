@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import cli
 from app.config import config as app_config
+from app.models.schema import VideoTransitionMode
 
 
 class TestCli(unittest.TestCase):
@@ -49,6 +50,26 @@ class TestCli(unittest.TestCase):
 
         self.assertEqual(default_params.video_fit_mode.value, "cover")
         self.assertEqual(contain_params.video_fit_mode.value, "contain")
+
+    def test_zoom_transition_modes_are_reachable_from_the_cli(self):
+        # Every transition the render pipeline understands must also be
+        # selectable from the CLI. Deriving the expectation from the enum stops
+        # the two lists from drifting apart again.
+        cli_modes = set(cli._TRANSITION_MODE_VALUES.values()) - {None}
+        pipeline_modes = {
+            mode.value
+            for mode in VideoTransitionMode
+            if mode is not VideoTransitionMode.none
+        }
+        self.assertEqual(cli_modes, pipeline_modes)
+
+        zoom_params = cli.build_video_params(
+            cli.parse_args(
+                ["--video-subject", "test", "--video-transition-mode", "zoom-in"]
+            )
+        )
+
+        self.assertEqual(zoom_params.video_transition_mode.value, "ZoomIn")
 
     def test_complete_script_can_replace_video_subject(self):
         args = cli.parse_args(["--video-script", "完整的视频文案"])
