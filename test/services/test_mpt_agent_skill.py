@@ -31,6 +31,9 @@ coverr_api_keys = []
 volcengine_seedance_api_key = ""
 ofox_api_key = ""
 metaso_minimax_api_key = ""
+openai_image_base_url = ""
+openai_image_model = ""
+openai_image_api_keys = []
 oneapi_api_key = ""
 oneapi_base_url = ""
 oneapi_model_name = ""
@@ -147,6 +150,55 @@ class TestMptAgentSkill(unittest.TestCase):
 
             self.assertEqual(default_missing, ["pexels_api_keys"])
             self.assertEqual(pixabay_missing, [])
+
+    def test_openai_image_source_accepts_keyless_local_gateway(self):
+        """文生图素材源只需要端点与模型名，本地网关允许不配置 API Key。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                )
+                .replace(
+                    'openai_image_base_url = ""',
+                    'openai_image_base_url = "http://127.0.0.1:7860/v1"',
+                )
+                .replace(
+                    'openai_image_model = ""', 'openai_image_model = "local-sd"'
+                ),
+                encoding="utf-8",
+            )
+
+            _, missing = mpt_agent.missing_config(
+                config_path, ["--video-source", "openai_image"]
+            )
+
+            self.assertEqual(missing, [])
+
+    def test_missing_openai_image_inputs_report_endpoint_and_model(self):
+        """端点或模型名缺失时必须回报字段名，且不能把可选的 Key 当作缺失。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            _, missing = mpt_agent.missing_config(
+                config_path, ["--video-source", "openai_image"]
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = mpt_agent.report_missing_config("moonshot", missing)
+
+            self.assertEqual(
+                missing, ["openai_image_base_url", "openai_image_model"]
+            )
+            self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+            self.assertIn("OPENAI_IMAGE_REQUIRED=", output.getvalue())
+            self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", output.getvalue())
 
     def test_ofox_source_requires_key_and_explicit_charge_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
