@@ -2,6 +2,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import types
 import unittest
 from contextlib import redirect_stdout
@@ -983,6 +984,59 @@ class TestVideoService(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertEqual(command[command.index("-t") + 1], "10.000")
         self.assertLess(command.index("-t"), command.index(output_file))
+
+    def test_concat_video_clips_logs_heartbeat_while_ffmpeg_runs(self):
+        """
+        拼接时 subprocess.run 会阻塞到 ffmpeg 退出，期间项目不再产生任何日志，用户
+        无法区分仍在编码与已经卡死（issue #1342）。等待期间必须记录存活信息。
+        """
+
+        def slow_run(command, capture_output, text, check):
+            # 模拟一次耗时拼接：这段窗口内心跳线程应至少记录一次存活日志。
+            time.sleep(0.2)
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+            Path(output_file).write_bytes(b"x" * 2048)
+
+            with patch.object(vd, "_FFMPEG_CONCAT_HEARTBEAT_SECONDS", 0.02):
+                with patch.object(vd.subprocess, "run", side_effect=slow_run):
+                    with patch.object(vd.logger, "info") as info_mock:
+                        vd.concat_video_clips_with_ffmpeg(
+                            clip_files=[clip_file],
+                            output_file=output_file,
+                            threads=1,
+                            output_dir=temp_dir,
+                        )
+
+        heartbeats = [
+            str(call.args[0])
+            for call in info_mock.call_args_list
+            if "still running" in str(call.args[0])
+        ]
+        self.assertTrue(heartbeats, "耗时拼接期间必须记录存活日志")
+        self.assertRegex(heartbeats[0], r"elapsed=\d+s, output size: 0\.00 MB")
+
+    def test_concat_video_clips_heartbeat_tolerates_missing_output_file(self):
+        """
+        拼接刚开始时输出文件尚未创建，心跳描述必须安全降级；若探测文件大小的异常
+        穿透到拼接调用，本可正常完成的任务会变成失败。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.assertIn(
+                "not available",
+                vd._describe_concat_output_progress(
+                    os.path.join(temp_dir, "absent.mp4")
+                ),
+            )
+            existing = os.path.join(temp_dir, "present.mp4")
+            Path(existing).write_bytes(b"x" * 2048)
+            self.assertIn(
+                "output size: 0.00 MB", vd._describe_concat_output_progress(existing)
+            )
 
     def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
         """
