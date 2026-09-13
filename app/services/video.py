@@ -7,6 +7,8 @@ import gc
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unicodedata
 from contextlib import ExitStack, redirect_stdout
 from functools import lru_cache
@@ -82,6 +84,9 @@ _MIN_MATERIAL_DIMENSION = 480
 # 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
 _MIN_DIMENSION_TOLERANCE = 10
 _DEFAULT_VIDEO_CODEC = "libx264"
+# ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
+# 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
+_FFMPEG_CONCAT_HEARTBEAT_SECONDS = 30.0
 _SUBTITLE_SPRING_DURATION_SECONDS = 0.18
 _MIN_SUBTITLE_SPRING_SCALE = 0.05
 _MAX_SUBTITLE_SPRING_SCALE = 1.35
@@ -436,6 +441,42 @@ def _format_ffmpeg_concat_path(file_path: str) -> str:
     return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
 
 
+def _describe_concat_output_progress(output_file: str) -> str:
+    """返回输出文件当前大小的可读描述，用于拼接心跳日志。"""
+    try:
+        size = os.path.getsize(output_file)
+    except OSError:
+        # 输出文件尚未创建时同样要安全降级，不能影响拼接本身。
+        return "output size not available"
+    return f"output size: {size / (1024 * 1024):.2f} MB"
+
+
+def _run_concat_with_heartbeat(command: list[str], output_file: str):
+    """
+    阻塞等待 ffmpeg 完成，期间按间隔记录存活日志。
+
+    ffmpeg 串联片段时没有阶段日志，`subprocess.run` 又把输出缓冲到进程退出，耗时拼接
+    在日志上表现为“无输出”。记录已等待时长与输出文件大小，便于区分仍在编码与已经卡死。
+    """
+    started_at = time.monotonic()
+    stop_event = threading.Event()
+
+    def log_heartbeat() -> None:
+        while not stop_event.wait(_FFMPEG_CONCAT_HEARTBEAT_SECONDS):
+            logger.info(
+                "ffmpeg concat still running: "
+                f"elapsed={time.monotonic() - started_at:.0f}s, "
+                f"{_describe_concat_output_progress(output_file)}"
+            )
+
+    reporter = threading.Thread(target=log_heartbeat, daemon=True)
+    reporter.start()
+    try:
+        return subprocess.run(command, capture_output=True, text=True, check=False)
+    finally:
+        stop_event.set()
+
+
 def concat_video_clips_with_ffmpeg(
     clip_files: List[str],
     output_file: str,
@@ -473,13 +514,8 @@ def concat_video_clips_with_ffmpeg(
     def run_concat(codec: str):
         command = build_command(codec)
         # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
-        # 从而降低画质劣化与颜色偏移风险。
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        # 从而降低画质劣化与颜色偏移风险。阻塞等待期间由心跳日志体现任务仍在运行。
+        result = _run_concat_with_heartbeat(command, output_file)
         if result.returncode != 0:
             error_message = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(error_message or "ffmpeg concat failed")
