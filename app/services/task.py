@@ -13,7 +13,7 @@ from uuid import uuid4
 from loguru import logger
 
 from app.config import config
-from app.models import const
+from app.models import const, video_sources
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
@@ -642,7 +642,11 @@ def get_video_materials(
     audio_duration,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
 ):
-    if params.video_source == "local":
+    source_spec = video_sources.get_video_source(params.video_source)
+    if (
+        source_spec is not None
+        and source_spec.kind is video_sources.VideoSourceKind.local
+    ):
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
             materials=params.video_materials, clip_duration=params.video_clip_duration
@@ -863,15 +867,24 @@ def generate_final_videos(
     final_video_paths = []
     combined_video_paths = []
     warnings = []
-    allocate_batch_materials = params.video_count > 1 and params.video_source in {
-        "pexels", "pixabay", "coverr", "local"
-    }
+    # 可按关键词分配素材的来源由注册表声明：库存搜索与本地素材复用不额外
+    # 付费，生成型按量计费必须排除，否则同一个关键词会被重复下单。
+    source_spec = video_sources.get_video_source(params.video_source)
+    is_local_source = (
+        source_spec is not None
+        and source_spec.kind is video_sources.VideoSourceKind.local
+    )
+    allocate_batch_materials = (
+        params.video_count > 1
+        and source_spec is not None
+        and source_spec.batch_allocatable
+    )
     source_usage = {}
     material_selections = []
     source_groups = (
         _get_material_source_groups(task_id, downloaded_videos)
         if (allocate_batch_materials and params.match_materials_to_script
-            and params.video_source != "local")
+            and not is_local_source)
         else {}
     )
     video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
@@ -1479,8 +1492,11 @@ def _run_pipeline(
         return {"script": video_script}
 
     # 2. Generate terms
+    # 本地素材直接使用用户选择的文件，没有关键词检索阶段；未知来源沿用历史
+    # 行为（照常生成关键词）。
+    terms_spec = video_sources.get_video_source(params.video_source)
     video_terms = ""
-    if params.video_source != "local":
+    if terms_spec is None or terms_spec.requires_search_terms:
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             return _mark_task_failed(

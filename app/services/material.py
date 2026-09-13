@@ -16,6 +16,7 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 from PIL import Image, UnidentifiedImageError
 
 from app.config import config
+from app.models import video_sources
 from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
     material_cache,
@@ -1086,6 +1087,14 @@ OPENAI_IMAGE_MAX_ATTEMPTS = 3
 OPENAI_IMAGE_RETRY_BACKOFF_SECONDS = (5, 15, 30)
 # 同步生成接口可能需要数十秒才返回图片，读超时给足余量。
 OPENAI_IMAGE_REQUEST_TIMEOUT = (30, 300)
+# 内置 prompt 风格模板：当用户未配置 openai_image_prompt_template 时，
+# 按 openai_image_prompt_style 选取内置模板，自动为关键词附加风格修饰，
+# 显著提升文生图画质。style 设为 "none" 或留空则退回关键词原文。
+BUILTIN_PROMPT_TEMPLATES = {
+    "cinematic": "cinematic photo of {term}, dramatic lighting, 8k uhd, high quality, detailed",
+    "photorealistic": "photorealistic image of {term}, sharp focus, high resolution, detailed",
+    "illustration": "digital illustration of {term}, vibrant colors, detailed, trending on artstation",
+}
 # 图片已按张计费后的下载重试：优先重试原地址，而不是重新生成同一张图。
 OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS = 3
 OPENAI_IMAGE_DOWNLOAD_BACKOFF_SECONDS = 2
@@ -1145,24 +1154,36 @@ def _openai_image_prompt(search_term: str) -> str:
     """
     把脚本关键词包装成最终提示词。
 
-    可选配置 ``openai_image_prompt_template`` 支持 ``{term}`` 占位符，
-    用于统一附加风格修饰（如画质、构图、镜头语言），提升图文匹配度：
+    优先级：
+    1. 用户配置了 ``openai_image_prompt_template`` 且含 ``{term}`` 占位符
+       → 使用自定义模板（完全由用户控制风格）。
+    2. 用户配置了 ``openai_image_prompt_style``（默认 ``cinematic``）
+       → 按风格选取内置模板，自动附加画质/构图修饰。
+    3. style 设为 ``none`` 或空 → 退回关键词原文，行为与旧版本一致。
 
-    .. code-block:: toml
-
-        openai_image_prompt_template = "cinematic photo of {term}, photorealistic"
-
-    留空或不含占位符时退回关键词原文，行为与旧版本完全一致。占位符
-    替换失败（如模板误写了格式化语法）也回退原文，不让配置错误中断
+    占位符替换失败（如模板误写了格式化语法）也回退原文，不让配置错误中断
     整个生成任务。
     """
+    # 优先级 1：用户自定义模板
     template = str(config.app.get("openai_image_prompt_template", "") or "").strip()
-    if not template or "{term}" not in template:
-        return search_term
-    try:
-        return template.replace("{term}", search_term)
-    except Exception:
-        return search_term
+    if template and "{term}" in template:
+        try:
+            return template.replace("{term}", search_term)
+        except Exception:
+            return search_term
+
+    # 优先级 2：内置风格模板
+    style = str(
+        config.app.get("openai_image_prompt_style", "cinematic") or "cinematic"
+    ).strip().lower()
+    if style and style != "none" and style in BUILTIN_PROMPT_TEMPLATES:
+        try:
+            return BUILTIN_PROMPT_TEMPLATES[style].replace("{term}", search_term)
+        except Exception:
+            return search_term
+
+    # 优先级 3：退回关键词原文
+    return search_term
 
 
 def _response_json_safely(response: Any) -> Any:
@@ -1665,14 +1686,51 @@ def download_videos(
     max_clip_duration: int = 5,
     match_script_order: bool = False,
 ) -> List[str]:
-    provider = "pexels"
-    remote_search_videos = search_videos_pexels
-    if source == "pixabay":
-        provider = "pixabay"
-        remote_search_videos = search_videos_pixabay
-    elif source == "coverr":
-        provider = "coverr"
-        remote_search_videos = search_videos_coverr
+    # 来源身份由 app.models.video_sources 注册表声明，这里只把“获取方式”
+    # 映射到具体实现，不再各写一份来源清单。未知取值沿用历史行为退回默认
+    # 库存源，不让一个拼错的配置中断整个任务。
+    spec = video_sources.get_video_source(source)
+    if spec is None:
+        logger.warning(
+            f"unknown video_source {source!r}, fall back to "
+            f"{video_sources.DEFAULT_VIDEO_SOURCE}"
+        )
+        spec = video_sources.get_video_source(video_sources.DEFAULT_VIDEO_SOURCE)
+
+    material_directory = config.app.get("material_directory", "").strip()
+    if material_directory == "task":
+        material_directory = utils.task_dir(task_id)
+    elif material_directory and not os.path.isdir(material_directory):
+        material_directory = ""
+
+    if spec.kind is video_sources.VideoSourceKind.generated:
+        # AI 生成按条计费，不能沿用库存源“先为全部关键词取回候选、再挑选”
+        # 的流程，否则会为用不到的片段付费：生成源改为逐段按需生成，凑够
+        # 所需时长立即停止，也不参与 24 小时搜索缓存（产物是会过期的签名
+        # 地址，且复用缓存会让不同任务反复得到同一段生成视频）。
+        downloader = _GENERATED_DOWNLOADERS.get(spec.id)
+        if downloader is None:
+            # 注册表声明为生成型却没有分发实现属于编程错误。这里直接失败，
+            # 而不是静默退化成库存搜索——那会为一个付费来源返回无关素材。
+            raise ValueError(
+                f"generated video source {spec.id!r} has no downloader registered"
+            )
+        return downloader(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
+
+    provider = spec.id
+    remote_search_videos = _STOCK_SEARCHERS.get(spec.id)
+    if remote_search_videos is None:
+        # local / loomloom 由 task 层提前分发，正常不会走到这里；真被直接
+        # 调用时保持与历史一致的库存默认行为。
+        provider = video_sources.DEFAULT_VIDEO_SOURCE
+        remote_search_videos = _STOCK_SEARCHERS[provider]
 
     def search_videos(
         search_term: str,
@@ -1685,73 +1743,6 @@ def download_videos(
             search_term=search_term,
             minimum_duration=minimum_duration,
             video_aspect=video_aspect,
-        )
-
-    material_directory = config.app.get("material_directory", "").strip()
-    if material_directory == "task":
-        material_directory = utils.task_dir(task_id)
-    elif material_directory and not os.path.isdir(material_directory):
-        material_directory = ""
-
-    if source == "wavespeed":
-        # AI 生成按条计费，不能沿用库存源"先为全部关键词取回候选、再挑选"
-        # 的流程，否则会为用不到的片段付费。生成源改为逐段按需生成，凑够
-        # 所需时长立即停止；也不参与 24 小时搜索缓存——产物 URL 是会过期
-        # 的签名地址，且复用缓存会让不同任务反复得到同一段生成视频。
-        return _download_videos_wavespeed_on_demand(
-            task_id=task_id,
-            search_terms=search_terms,
-            video_aspect=video_aspect,
-            audio_duration=audio_duration,
-            max_clip_duration=max_clip_duration,
-            material_directory=material_directory,
-        )
-    if source == "volcengine_seedance":
-        # 与 WaveSpeed 相同，方舟官方接口会创建异步付费任务。必须按需逐段
-        # 生成，只购买当前配音时长真正需要的素材。
-        return _download_videos_seedance_on_demand(
-            task_id=task_id,
-            search_terms=search_terms,
-            video_aspect=video_aspect,
-            audio_duration=audio_duration,
-            max_clip_duration=max_clip_duration,
-            material_directory=material_directory,
-        )
-    if source == "ofox":
-        # 与 WaveSpeed/方舟相同的按需付费语义：OFox 网关的 /v1/videos 会创建
-        # 异步付费任务，必须逐段生成、凑够所需时长立即停止；产物地址是会过
-        # 期的临时直链，也不参与 24 小时搜索缓存。
-        return _download_videos_ofox_on_demand(
-            task_id=task_id,
-            search_terms=search_terms,
-            video_aspect=video_aspect,
-            audio_duration=audio_duration,
-            max_clip_duration=max_clip_duration,
-            material_directory=material_directory,
-        )
-    if source == "metaso_minimax":
-        # 秘塔 MiniMax 同样按远端异步任务计费。它与火山方舟的请求体相似，
-        # 但任务查询路径和响应结构不同，因此只共享本地按需生成语义，不复用
-        # 供应商客户端，避免协议差异渗入素材编排层。
-        return _download_videos_metaso_minimax_on_demand(
-            task_id=task_id,
-            search_terms=search_terms,
-            video_aspect=video_aspect,
-            audio_duration=audio_duration,
-            max_clip_duration=max_clip_duration,
-            material_directory=material_directory,
-        )
-    if source == "openai_image":
-        # 与 WaveSpeed 相同的按需付费语义：文生图按张计费，逐段生成、凑够
-        # 所需时长立即停止。生成结果是一次性的本地图片文件，也不参与 24
-        # 小时搜索缓存——缓存会让不同任务反复拿到同一张图。
-        return _download_videos_openai_image_on_demand(
-            task_id=task_id,
-            search_terms=search_terms,
-            video_aspect=video_aspect,
-            audio_duration=audio_duration,
-            max_clip_duration=max_clip_duration,
-            material_directory=material_directory,
         )
 
     if match_script_order:
@@ -2344,6 +2335,33 @@ def _download_videos_by_script_order(
     logger.success(f"downloaded {len(video_paths)} ordered videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
+
+
+# =============================================================================
+# 素材源分发表
+# =============================================================================
+# download_videos 依赖的“来源 → 实现”映射集中放在模块末尾，因为这些实现要在
+# download_videos 之后才定义。键必须与 app/models/video_sources.py 注册表声明
+# 一致，由 test/services/test_video_sources_registry.py 逐项校验，避免再次出现
+# “注册表新增来源、分发链漏改”的静默退化。
+#
+# 库存搜索型：取回候选集合，参与 24 小时搜索缓存，可参与批量素材分配。
+_STOCK_SEARCHERS: dict[str, Callable[..., List[MaterialInfo]]] = {
+    "pexels": search_videos_pexels,
+    "pixabay": search_videos_pixabay,
+    "coverr": search_videos_coverr,
+}
+
+# AI 生成型：均为按量计费的远端接口，必须逐段生成、凑够配音时长立即停止。
+# 各实现刻意不共用供应商客户端，只共享“按需生成”语义，避免协议差异渗入
+# 素材编排层（例如秘塔与火山方舟请求体相似，但查询路径与响应结构不同）。
+_GENERATED_DOWNLOADERS: dict[str, Callable[..., List[str]]] = {
+    "wavespeed": _download_videos_wavespeed_on_demand,
+    "volcengine_seedance": _download_videos_seedance_on_demand,
+    "ofox": _download_videos_ofox_on_demand,
+    "metaso_minimax": _download_videos_metaso_minimax_on_demand,
+    "openai_image": _download_videos_openai_image_on_demand,
+}
 
 
 if __name__ == "__main__":
