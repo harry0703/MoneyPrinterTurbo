@@ -16,6 +16,7 @@ ENV PYTHONPATH="/MoneyPrinterTurbo"
 RUN apt-get update && apt-get install -y --no-install-recommends \
         software-properties-common \
         git \
+        libraqm0 \
         ffmpeg \
         curl \
         && add-apt-repository ppa:deadsnakes/ppa \
