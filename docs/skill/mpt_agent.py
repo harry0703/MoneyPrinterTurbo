@@ -68,7 +68,13 @@ RECOMMENDED_LLM_PROVIDERS = {
         "https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call",
     ),
 }
-KEYLESS_LLM_PROVIDERS = {"ollama", "litellm"}
+# Providers that generate without an API key stored in config.toml: Ollama talks
+# to a local server, LiteLLM resolves credentials through its own environment,
+# and ``claude_code`` consumes the Claude subscription through the locally
+# logged-in ``claude`` CLI. Keep this set aligned with the
+# ``requires_api_key=False`` entries of ``app/models/llm_provider.py``; asking
+# the user for a key that the provider never reads leaves the Skill stuck.
+KEYLESS_LLM_PROVIDERS = {"ollama", "litellm", "claude_code"}
 CUSTOM_OPENAI_PROVIDER = "oneapi"
 
 # Hidden providers such as Qwen, Azure, and Grok remain usable when already
