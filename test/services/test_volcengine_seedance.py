@@ -557,11 +557,11 @@ class TestVolcEngineSeedanceService(unittest.TestCase):
 
 class TestVolcEngineSeedanceMaterialIntegration(unittest.TestCase):
     @staticmethod
-    def _item(term: str, url: str) -> MaterialInfo:
+    def _item(term: str, url: str, duration: int = 5) -> MaterialInfo:
         return MaterialInfo(
             provider="volcengine_seedance",
             url=url,
-            duration=5,
+            duration=duration,
             source_info={
                 "provider": "volcengine_seedance",
                 "search_term": term,
@@ -598,6 +598,46 @@ class TestVolcEngineSeedanceMaterialIntegration(unittest.TestCase):
         self.assertEqual(generate.call_count, 2)
         self.assertEqual(persist.call_args.args[0], "seedance-materials")
         self.assertEqual(len(persist.call_args.args[1]), 2)
+
+    def test_on_demand_generation_counts_actual_generated_duration(self):
+        """
+        回归:请求片段时长低于模型下限时,实际生成的素材更长(这里每段 5s),
+        剪辑流程会把整段用掉。记账必须按实际生成时长累计,否则会为已经
+        覆盖的时长继续下单付费。
+        """
+        with (
+            patch.object(
+                seedance,
+                "generate_videos",
+                side_effect=[
+                    [self._item("one", "https://cdn.example.com/one.mp4", duration=5)],
+                    [self._item("two", "https://cdn.example.com/two.mp4", duration=5)],
+                    [
+                        self._item(
+                            "three", "https://cdn.example.com/three.mp4", duration=5
+                        )
+                    ],
+                ],
+            ) as generate,
+            patch.object(
+                material,
+                "save_video",
+                side_effect=["/tmp/one.mp4", "/tmp/two.mp4", "/tmp/three.mp4"],
+            ),
+            patch.object(material, "_persist_material_sources"),
+        ):
+            result = material.download_videos(
+                task_id="seedance-actual-duration",
+                search_terms=["one", "two", "three"],
+                source="volcengine_seedance",
+                audio_duration=10,
+                max_clip_duration=3,
+            )
+
+        # 5s + 5s == 10s 已覆盖;按 max_clip_duration 封顶只会记 3s + 3s,
+        # 从而多下一次单
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(result, ["/tmp/one.mp4", "/tmp/two.mp4"])
 
     def test_non_positive_audio_duration_avoids_paid_submission(self):
         for audio_duration in (0, -1, -0.1):

@@ -1891,7 +1891,12 @@ def _download_videos_wavespeed_on_demand(
                     f"provider={item.provider}, "
                     f"error={type(source_error).__name__}, detail={source_error}"
                 )
-            total_duration += min(max_clip_duration, item.duration)
+            # 记账必须按实际生成时长累计,不能按 max_clip_duration 封顶:
+            # 模型有最短时长下限,请求时长低于下限时实际生成的素材更长
+            # (例如请求 3s 会生成 4s),而剪辑流程会把整段素材切满、连不足
+            # 一个片段的尾巴也保留,这多出来的时长同样会进入成片。按片段
+            # 时长封顶会少记这部分,导致为已经够用的时长继续下单付费。
+            total_duration += item.duration
             # 用 >= 判断:累计时长恰好等于所需时长时已经够用,再生成会
             # 多付一次费用。内外两处判断必须保持同一语义。
             if total_duration >= audio_duration:
@@ -2003,7 +2008,10 @@ def _download_videos_seedance_on_demand(
                     f"provider=volcengine_seedance, "
                     f"error={type(source_error).__name__}, detail={source_error}"
                 )
-            total_duration += min(clip_duration, item.duration)
+            # 与 WaveSpeed 同理:模型有最短时长下限,请求时长低于下限时实际
+            # 生成的素材更长,而剪辑流程会把整段切满、连尾巴也保留。按
+            # clip_duration 封顶会少记这部分,导致为已经够用的时长继续下单付费。
+            total_duration += item.duration
             if total_duration >= required_duration:
                 break
         if total_duration >= required_duration:
