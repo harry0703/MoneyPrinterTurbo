@@ -69,6 +69,16 @@ class TestConfigPersistence:
             "model_id": "",
             "voice_id": "default",
         }
+        # Video-to-Music reads music_base_url from [elevenlabs] and, unlike the
+        # API key, it has no environment-variable fallback: if the example omits
+        # it there is no documented way to route the endpoint through a proxy.
+        assert example_config["elevenlabs"] == {
+            "api_key": "",
+            "model_id": "eleven_multilingual_v2",
+            "music_base_url": "https://api.elevenlabs.io",
+            "music_model_id": "music_v2",
+            "music_timeout": 600,
+        }
         assert example_config["whisper"]["device"] == "cpu"
 
     def test_example_config_covers_llm_provider_registry(self):

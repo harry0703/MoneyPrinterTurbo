@@ -536,6 +536,9 @@ api_key = ""
 # Available models include eleven_multilingual_v2, eleven_flash_v2_5, and eleven_v3.
 model_id = "eleven_multilingual_v2"
 # Video-to-Music uses a separate model family while sharing the same API key.
+# music_base_url only configures the Video-to-Music endpoint, so it can point at
+# a proxy or a self-hosted gateway while the voice API keeps the default host.
+music_base_url = "https://api.elevenlabs.io"
 music_model_id = "music_v2"
 music_timeout = 600
 
