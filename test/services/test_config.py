@@ -1,4 +1,5 @@
 import errno
+import re
 import threading
 import time
 import tomllib
@@ -94,6 +95,33 @@ class TestConfigPersistence:
                 assert provider.config_key("model_name") in app_config
             for field in provider.extra_fields:
                 assert provider.config_key(field.config_suffix) in app_config
+
+    def test_example_ui_block_documents_every_pinnable_default(self):
+        """[ui] 注释块必须列出代码真正会从 [ui] 读取的每个键。
+
+        该块是用户手工固定初始默认值的唯一入口，因此只列出部分键会让设置
+        静默失效：用户照着示例写了 [ui].subtitle_display_mode，却因为示例
+        没提而根本不知道它存在。断言从源码里推导，新增可固定字段时会先失败。
+        """
+        project_root = Path(__file__).resolve().parents[2]
+        ui_block = (project_root / "config.example.toml").read_text(
+            encoding="utf-8"
+        ).split("[ui]", 1)[1]
+        documented = set(re.findall(r"^#\s*([a-z_]+)\s*=", ui_block, re.MULTILINE))
+
+        schema_text = (project_root / "app/models/schema.py").read_text(
+            encoding="utf-8"
+        )
+        pinnable = set(re.findall(r'config\.ui\.get\(\s*"([a-z_]+)"', schema_text))
+        pinnable |= set(
+            re.findall(r'_get_valid_ui_choice\(\s*"([a-z_]+)"', schema_text)
+        )
+        cli_text = (project_root / "cli.py").read_text(encoding="utf-8")
+        pinnable |= set(
+            re.findall(r'_ui_config_value\(\s*\w+\s*,\s*"([a-z_]+)"', cli_text)
+        )
+
+        assert pinnable <= documented, sorted(pinnable - documented)
 
     def test_load_config_accepts_repeated_utf8_bom_without_rewriting_file(self):
         """重复 BOM 不应阻止 Windows 用户启动，也不能改写已有配置。"""
