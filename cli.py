@@ -116,9 +116,10 @@ def _hex_color(value: str) -> str:
 
 def _subtitle_position(value: str) -> str:
     """校验保存的字幕位置，取值范围与命令行参数保持一致。"""
-    if value not in ("top", "center", "bottom", "custom"):
+    if value not in _SUBTITLE_POSITION_VALUES:
         raise argparse.ArgumentTypeError(
-            f"subtitle-position must be one of: top, center, bottom, custom, got {value!r}"
+            "subtitle-position must be one of: "
+            f"{', '.join(_SUBTITLE_POSITION_VALUES)}, got {value!r}"
         )
     return value
 
@@ -143,6 +144,17 @@ _TRANSITION_MODE_VALUES = {
     "zoom-in": "ZoomIn",
     "zoom-out": "ZoomOut",
 }
+
+# 单任务 argparse 和批量清单必须共享同一份字幕位置取值，避免再次出现
+# 「WebUI 能保存、CLI 却拒绝」的落差。取值需与 app/services/video.py 的
+# 渲染分支及 webui/Main.py 的下拉框保持一致。
+_SUBTITLE_POSITION_VALUES = (
+    "top",
+    "center",
+    "bottom",
+    "two_thirds_bottom",
+    "custom",
+)
 
 
 def _transition_mode(value: str) -> str | None:
@@ -479,7 +491,7 @@ Batch manifests:
     )
     subtitle_group.add_argument(
         "--subtitle-position",
-        choices=["top", "center", "bottom", "custom"],
+        choices=_SUBTITLE_POSITION_VALUES,
         default=None,
         help=(
             "subtitle vertical position (default: [ui].subtitle_position from "
@@ -1073,9 +1085,10 @@ def _validate_batch_task_params(
 
     if stop_at == "subtitle" and not params.subtitle_enabled:
         raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
-    if params.subtitle_position not in {"top", "center", "bottom", "custom"}:
+    if params.subtitle_position not in _SUBTITLE_POSITION_VALUES:
         raise ValueError(
-            "subtitle_position must be one of: top, center, bottom, custom"
+            "subtitle_position must be one of: "
+            + ", ".join(_SUBTITLE_POSITION_VALUES)
         )
     if custom_position_is_explicit and params.subtitle_position != "custom":
         raise ValueError("custom_position requires subtitle_position=custom")
