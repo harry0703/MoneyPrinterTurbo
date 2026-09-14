@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -583,6 +583,52 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.bgm_type, "sonilo")
         self.assertEqual(params.sonilo_bgm_prompt, "warm acoustic")
+
+    def test_video_music_prompt_reaches_every_ai_music_provider(self):
+        # video_music_prompt 与供应商无关，WebUI 为每个 AI 配乐供应商都写入
+        # 该字段。CLI 若只提供 Sonilo 专用参数，选中 ElevenLabs 的用户就无法
+        # 传提示词。期望值从运行时注册表推导，避免两份清单再次漂移。
+        from app.services import task as task_service
+
+        for provider in sorted(task_service._VIDEO_MUSIC_PROVIDERS):
+            args = cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--bgm-type",
+                    provider,
+                    "--video-music-prompt",
+                    "warm acoustic",
+                ]
+            )
+            params = cli.build_video_params(args)
+            self.assertEqual(params.bgm_type, provider)
+            self.assertEqual(params.video_music_prompt, "warm acoustic")
+
+    def test_video_music_prompt_requires_an_ai_music_provider(self):
+        # 下游只在 AI 配乐供应商分支读取该提示词。同一个 --bgm-type random 在
+        # 没有提示词时仍然可用，说明这里的拒绝来自提示词与供应商的组合，而不是
+        # 参数本身不被识别。
+        cli.parse_args(["--video-subject", "test", "--bgm-type", "random"])
+        for bgm_type in ("random", "none"):
+            error_output = io.StringIO()
+            with redirect_stderr(error_output):
+                with self.assertRaises(SystemExit) as cm:
+                    cli.parse_args(
+                        [
+                            "--video-subject",
+                            "test",
+                            "--bgm-type",
+                            bgm_type,
+                            "--video-music-prompt",
+                            "warm acoustic",
+                        ]
+                    )
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn(
+                "--video-music-prompt requires --bgm-type sonilo or elevenlabs",
+                error_output.getvalue(),
+            )
 
     def test_local_material_filename_resolved_to_absolute_path(self):
         """After preprocess_video, material.url should be an absolute path, not a bare filename."""

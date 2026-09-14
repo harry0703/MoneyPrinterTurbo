@@ -176,14 +176,22 @@ def _video_fit_mode(value: str) -> str:
     return normalized
 
 
+# 只有这些取值会请求外部音乐生成服务，因此只有它们消费配乐提示词。取值需与
+# app/services/task.py 的 _VIDEO_MUSIC_PROVIDERS 保持一致；集中定义后，新增
+# 配乐供应商不会再次遗漏 --bgm-type 校验、批量校验和提示词参数。
+_CLI_MUSIC_BGM_TYPES = ("sonilo", "elevenlabs")
+_BGM_TYPE_CHOICES_TEXT = "none, random, custom, " + ", ".join(_CLI_MUSIC_BGM_TYPES)
+_BGM_TYPE_METAVAR = "{none,random,custom," + ",".join(_CLI_MUSIC_BGM_TYPES) + "}"
+
+
 def _bgm_type(value: str) -> str:
     normalized = value.strip().lower()
     if normalized == "none":
         return ""
-    if normalized in {"", "random", "custom", "sonilo", "elevenlabs"}:
+    if normalized in {"", "random", "custom", *_CLI_MUSIC_BGM_TYPES}:
         return normalized
     raise argparse.ArgumentTypeError(
-        "bgm-type must be one of: none, random, custom, sonilo, elevenlabs"
+        f"bgm-type must be one of: {_BGM_TYPE_CHOICES_TEXT}"
     )
 
 
@@ -439,7 +447,7 @@ Batch manifests:
         "--bgm-type",
         type=_bgm_type,
         default=None,
-        metavar="{none,random,custom,sonilo,elevenlabs}",
+        metavar=_BGM_TYPE_METAVAR,
         help=(
             "background music mode; Sonilo reads its API key from config.toml or "
             "SONILO_API_KEY, ElevenLabs from config.toml or ELEVENLABS_API_KEY; "
@@ -450,6 +458,15 @@ Batch manifests:
         "--sonilo-bgm-prompt",
         default=None,
         help="optional music style prompt for Sonilo, up to 2000 characters",
+    )
+    audio_group.add_argument(
+        "--video-music-prompt",
+        default=None,
+        help=(
+            "optional music style prompt for the selected AI background music "
+            "provider (sonilo or elevenlabs); the provider's own length limit "
+            "is enforced before generation"
+        ),
     )
     audio_group.add_argument(
         "--bgm-file",
@@ -665,6 +682,18 @@ Batch manifests:
                 "--sonilo-bgm-prompt can only be combined with --bgm-type sonilo"
             )
 
+    # 提示词字段本身与供应商无关，所以不像 Sonilo 专用参数那样推断 bgm_type：
+    # 推断出来的供应商可能不是用户想要的那个。必须显式选择 AI 配乐供应商，
+    # 否则该提示词会被静默丢弃。批量清单仍可按任务单独设置该字段。
+    if (
+        not args.batch_file
+        and args.video_music_prompt
+        and args.bgm_type not in _CLI_MUSIC_BGM_TYPES
+    ):
+        parser.error(
+            "--video-music-prompt requires --bgm-type sonilo or elevenlabs"
+        )
+
     if (
         not args.batch_file
         and args.custom_position is not None
@@ -814,6 +843,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "bgm_file",
         "bgm_volume",
         "sonilo_bgm_prompt",
+        "video_music_prompt",
         "font_name",
         "subtitle_position",
         "custom_position",
@@ -1139,14 +1169,16 @@ def _validate_batch_task_params(
         if value is not None and value < 1:
             raise ValueError(f"{name} must be >= 1")
 
-    if params.bgm_type not in {"", "random", "custom", "sonilo", "elevenlabs"}:
-        raise ValueError(
-            "bgm_type must be one of: none, random, custom, sonilo, elevenlabs"
-        )
+    if params.bgm_type not in {"", "random", "custom", *_CLI_MUSIC_BGM_TYPES}:
+        raise ValueError(f"bgm_type must be one of: {_BGM_TYPE_CHOICES_TEXT}")
     if params.bgm_file and params.bgm_type != "custom":
         raise ValueError("bgm_file requires bgm_type=custom")
     if params.sonilo_bgm_prompt and params.bgm_type != "sonilo":
         raise ValueError("sonilo_bgm_prompt requires bgm_type=sonilo")
+    if params.video_music_prompt and params.bgm_type not in _CLI_MUSIC_BGM_TYPES:
+        raise ValueError(
+            "video_music_prompt requires bgm_type=sonilo or elevenlabs"
+        )
 
 
 def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
