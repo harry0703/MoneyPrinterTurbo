@@ -140,6 +140,8 @@ _TRANSITION_MODE_VALUES = {
     "fade-out": "FadeOut",
     "slide-in": "SlideIn",
     "slide-out": "SlideOut",
+    "zoom-in": "ZoomIn",
+    "zoom-out": "ZoomOut",
 }
 
 
@@ -353,7 +355,7 @@ Batch manifests:
         "--video-transition-mode",
         type=_transition_mode,
         default=None,
-        metavar="{none,shuffle,fade-in,fade-out,slide-in,slide-out}",
+        metavar="{none,shuffle,fade-in,fade-out,slide-in,slide-out,zoom-in,zoom-out}",
         help="transition applied between source clips (default: none)",
     )
     video_group.add_argument(
