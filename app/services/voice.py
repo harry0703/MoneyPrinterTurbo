@@ -570,6 +570,8 @@ def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
         command,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if result.returncode != 0:
@@ -764,7 +766,7 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
                     "pcm_s16le",
                     pcm_wav,
                 ]
-                res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
                 if res.returncode == 0 and os.path.exists(pcm_wav):
                     try:
                         with wave.open(pcm_wav, "rb") as wf:
@@ -800,7 +802,7 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
             "4",
             output_file,
         ]
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
         if result.returncode != 0:
             logger.error(
                 "failed to encode concatenated audio to mp3: "
@@ -912,7 +914,7 @@ def _tts_with_pauses(
                     "pcm_s16le",
                     chunk_wav,
                 ]
-                res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
                 if res.returncode != 0 or not os.path.exists(chunk_wav) or os.path.getsize(chunk_wav) == 0:
                     logger.error(
                         f"failed to decode speech chunk audio to PCM WAV: {speech_text[:50]}, "

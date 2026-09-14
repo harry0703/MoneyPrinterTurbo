@@ -102,7 +102,7 @@ class TestVoiceService(unittest.TestCase):
         视频合成链路的预期。
         """
 
-        def fake_run(command, capture_output, text, check):
+        def fake_run(command, capture_output, text, check, **kwargs):
             self.assertEqual(command[0], "/tmp/fake-ffmpeg")
             self.assertIn("anullsrc=r=44100:cl=mono", command)
             Path(command[-1]).write_bytes(b"fake-silent-mp3")

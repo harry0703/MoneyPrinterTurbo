@@ -177,6 +177,8 @@ def _create_video_proxy(video_path: str) -> str:
             command,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=600,
             check=False,
         )

@@ -530,6 +530,12 @@ def _generate_response(prompt: str, app_config=None) -> str:
                         command,
                         capture_output=True,
                         text=True,
+                        # The CLI always emits UTF-8. Without an explicit encoding,
+                        # text=True decodes with the system locale (e.g. cp1252 on
+                        # non-English Windows), so every non-ASCII character reaches
+                        # the script as mojibake.
+                        encoding="utf-8",
+                        errors="replace",
                         timeout=timeout_seconds,
                         cwd=work_dir,
                         env=cli_env,
