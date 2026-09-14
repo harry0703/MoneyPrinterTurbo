@@ -1348,6 +1348,44 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 2)
         start.assert_not_called()
 
+    def test_video_clip_speed_is_reachable_from_the_cli(self):
+        """
+        WebUI 的滑块把 video_clip_speed 写进 config.toml，批量清单也接受该字段
+        （见 _validate_batch_task_params），但 VideoParams 把它硬编码成 1.0 而不是
+        读取 config.ui，因此单任务命令行此前既没有对应参数、也拿不到保存值。
+        """
+        explicit_params = cli.build_video_params(
+            cli.parse_args(["--video-subject", "test", "--video-clip-speed", "1.5"])
+        )
+        self.assertEqual(explicit_params.video_clip_speed, 1.5)
+
+        saved_args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, {"video_clip_speed": 1.25}, clear=True):
+            saved_params = cli.build_video_params(saved_args)
+
+        self.assertEqual(saved_params.video_clip_speed, 1.25)
+
+    def test_video_clip_speed_range_matches_the_runtime_normalizer(self):
+        """
+        CLI 的取值范围必须与 app/utils/utils.py 的 normalize_clip_speed() 以及
+        WebUI 滑块一致，否则命令行会接受运行时随后改写的取值。
+        """
+        from app.utils import utils
+
+        self.assertEqual(cli._CLIP_SPEED_MIN, utils._CLIP_SPEED_MIN)
+        self.assertEqual(cli._CLIP_SPEED_MAX, utils._CLIP_SPEED_MAX)
+
+        for value in ("0.4", "3.0", "nan", "inf"):
+            error_output = io.StringIO()
+            with redirect_stderr(error_output):
+                with self.assertRaises(SystemExit) as cm:
+                    cli.parse_args(
+                        ["--video-subject", "test", "--video-clip-speed", value]
+                    )
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn("video-clip-speed", error_output.getvalue())
+
     def test_later_null_runtime_field_prevents_every_batch_task_from_starting(self):
         for field_name in ("video_aspect", "video_concat_mode"):
             with self.subTest(field_name=field_name), tempfile.TemporaryDirectory() as temp_dir:

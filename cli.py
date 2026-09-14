@@ -97,6 +97,23 @@ def _positive_float(value: str) -> float:
     return parsed
 
 
+# 片段播放速度的取值范围。app/utils/utils.py 的 normalize_clip_speed() 用同一
+# 范围做限幅，webui/Main.py 的滑块也使用 0.5~2.0。集中定义后，单任务参数、
+# 批量清单校验和 [ui] 保存值不会再次出现取值不一致。
+_CLIP_SPEED_MIN = 0.5
+_CLIP_SPEED_MAX = 2.0
+
+
+def _clip_speed(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or not _CLIP_SPEED_MIN <= parsed <= _CLIP_SPEED_MAX:
+        raise argparse.ArgumentTypeError(
+            "video-clip-speed must be a finite number between "
+            f"{_CLIP_SPEED_MIN} and {_CLIP_SPEED_MAX}, got {value!r}"
+        )
+    return parsed
+
+
 def _percent_position(value: str) -> float:
     parsed = float(value)
     if not math.isfinite(parsed) or parsed < 0 or parsed > 100:
@@ -384,6 +401,15 @@ Batch manifests:
         default=None,
         help=(
             "maximum duration of each source clip in seconds, at least 1 (default: 5)"
+        ),
+    )
+    video_group.add_argument(
+        "--video-clip-speed",
+        type=_clip_speed,
+        default=None,
+        help=(
+            "playback speed multiplier applied to every source clip, between "
+            "0.5 and 2.0 (default: 1.0)"
         ),
     )
     video_group.add_argument(
@@ -834,6 +860,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_concat_mode",
         "video_transition_mode",
         "video_clip_duration",
+        "video_clip_speed",
         "match_materials_to_script",
         "n_threads",
         "voice_volume",
@@ -860,7 +887,11 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
 
     # 没有显式传入命令行参数时，使用 WebUI 保存的值。只补充上面尚未由命令行
     # 设置的字段；若保存值缺失，则继续沿用 VideoParams 的默认值。
+    # VideoParams 里多数可保存字段（subtitle_position、custom_position 等）在
+    # 模型导入时就读取 config.ui，video_clip_speed 却是硬编码的 1.0，因此必须
+    # 在这里显式补上，否则 WebUI 保存的速度在命令行会被静默丢弃。
     ui_defaults = (
+        ("video_clip_speed", float, _clip_speed),
         ("video_fit_mode", str, _video_fit_mode),
         ("font_name", str, None),
         ("text_fore_color", str, _hex_color),
@@ -1126,9 +1157,12 @@ def _validate_batch_task_params(
         raise ValueError("custom_position must be a finite number between 0 and 100")
     if params.video_clip_speed is not None and (
         not math.isfinite(params.video_clip_speed)
-        or not 0.5 <= params.video_clip_speed <= 2.0
+        or not _CLIP_SPEED_MIN <= params.video_clip_speed <= _CLIP_SPEED_MAX
     ):
-        raise ValueError("video_clip_speed must be a finite number between 0.5 and 2.0")
+        raise ValueError(
+            "video_clip_speed must be a finite number between "
+            f"{_CLIP_SPEED_MIN} and {_CLIP_SPEED_MAX}"
+        )
     if params.text_background_color is False and params.rounded_subtitle_background:
         raise ValueError(
             "rounded_subtitle_background requires an enabled subtitle background"
