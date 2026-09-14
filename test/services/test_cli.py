@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import cli
 from app.config import config as app_config
+from app.models import schema as app_schema
 from app.models.schema import VideoTransitionMode
 
 
@@ -2039,6 +2040,57 @@ class TestCliUiDefaults(unittest.TestCase):
         self.assertEqual(
             sorted(webui_positions - set(cli._SUBTITLE_POSITION_VALUES)), []
         )
+
+    def test_subtitle_style_options_follow_the_flag_then_the_saved_value(self):
+        """
+        展示模式与入场动画随「逐词字幕 + 弹跳动画」加入，当时只改了 WebUI 与模型
+        字段默认值：命令行既没有开关，也不显式读取 [ui] 保存值。
+        """
+        for flag, field, value in (
+            ("--subtitle-display-mode", "subtitle_display_mode", "word_by_word"),
+            ("--subtitle-animation", "subtitle_animation", "pop_spring"),
+        ):
+            with self.subTest(field=field):
+                explicit = cli.build_video_params(
+                    cli.parse_args(["--video-subject", "test", flag, value])
+                )
+                self.assertEqual(getattr(explicit, field), value)
+
+                args = cli.parse_args(["--video-subject", "test"])
+                with patch.dict(app_config.ui, {field: value}, clear=True):
+                    saved = cli.build_video_params(args)
+                self.assertEqual(getattr(saved, field), value)
+
+    def test_subtitle_style_values_stay_aligned_with_the_model_and_the_webui(self):
+        """
+        取值必须与 app/models/schema.py 的权威枚举一致，并覆盖 WebUI 下拉框能保存
+        的每一个值；将来新增模式时这里会先失败，避免再次出现「WebUI 支持、命令行
+        不支持」的落差。
+        """
+        for cli_values, model_values in (
+            (cli._SUBTITLE_DISPLAY_MODE_VALUES, app_schema._SUBTITLE_DISPLAY_MODES),
+            (cli._SUBTITLE_ANIMATION_VALUES, app_schema._SUBTITLE_ANIMATIONS),
+        ):
+            self.assertEqual(sorted(cli_values), sorted(model_values))
+
+        source = (Path(__file__).parent.parent.parent / "webui" / "Main.py").read_text(
+            encoding="utf-8"
+        )
+        for name, cli_values in (
+            ("subtitle_display_modes", cli._SUBTITLE_DISPLAY_MODE_VALUES),
+            ("subtitle_animations", cli._SUBTITLE_ANIMATION_VALUES),
+        ):
+            webui_values = set()
+            for node in ast.walk(ast.parse(source)):
+                if any(
+                    isinstance(target, ast.Name) and target.id == name
+                    for target in getattr(node, "targets", [])
+                ):
+                    webui_values = {
+                        ast.literal_eval(element.elts[1])
+                        for element in node.value.elts
+                    }
+            self.assertEqual(sorted(webui_values - set(cli_values)), [], name)
 
     def test_unusable_saved_subtitle_position_falls_back(self):
         """超出取值范围的保存位置回退到内置默认值。"""
