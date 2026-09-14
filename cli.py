@@ -168,10 +168,10 @@ def _bgm_type(value: str) -> str:
     normalized = value.strip().lower()
     if normalized == "none":
         return ""
-    if normalized in {"", "random", "custom", "sonilo"}:
+    if normalized in {"", "random", "custom", "sonilo", "elevenlabs"}:
         return normalized
     raise argparse.ArgumentTypeError(
-        "bgm-type must be one of: none, random, custom, sonilo"
+        "bgm-type must be one of: none, random, custom, sonilo, elevenlabs"
     )
 
 
@@ -427,11 +427,11 @@ Batch manifests:
         "--bgm-type",
         type=_bgm_type,
         default=None,
-        metavar="{none,random,custom,sonilo}",
+        metavar="{none,random,custom,sonilo,elevenlabs}",
         help=(
             "background music mode; Sonilo reads its API key from config.toml or "
-            "SONILO_API_KEY; --bgm-file implies custom when omitted "
-            "(default: random)"
+            "SONILO_API_KEY, ElevenLabs from config.toml or ELEVENLABS_API_KEY; "
+            "--bgm-file implies custom when omitted (default: random)"
         ),
     )
     audio_group.add_argument(
@@ -1126,8 +1126,10 @@ def _validate_batch_task_params(
         if value is not None and value < 1:
             raise ValueError(f"{name} must be >= 1")
 
-    if params.bgm_type not in {"", "random", "custom", "sonilo"}:
-        raise ValueError("bgm_type must be one of: none, random, custom, sonilo")
+    if params.bgm_type not in {"", "random", "custom", "sonilo", "elevenlabs"}:
+        raise ValueError(
+            "bgm_type must be one of: none, random, custom, sonilo, elevenlabs"
+        )
     if params.bgm_file and params.bgm_type != "custom":
         raise ValueError("bgm_file requires bgm_type=custom")
     if params.sonilo_bgm_prompt and params.bgm_type != "sonilo":

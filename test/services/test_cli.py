@@ -556,6 +556,20 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.bgm_type, "")
 
+    def test_video_music_providers_are_selectable_from_the_cli(self):
+        # --bgm-type must reach every video-matched music provider the runtime
+        # dispatches on, otherwise CLI users cannot use a mode the WebUI and the
+        # API already accept. Deriving the expectation from the runtime registry
+        # keeps the two lists from drifting apart again.
+        from app.services import task as task_service
+
+        for provider in sorted(task_service._VIDEO_MUSIC_PROVIDERS):
+            args = cli.parse_args(
+                ["--video-subject", "test", "--bgm-type", provider]
+            )
+            params = cli.build_video_params(args)
+            self.assertEqual(params.bgm_type, provider)
+
     def test_sonilo_prompt_implies_sonilo_bgm_mode(self):
         args = cli.parse_args(
             [
