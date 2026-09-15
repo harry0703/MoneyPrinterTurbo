@@ -364,6 +364,38 @@ class TestBackgroundMusicService(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             bgm.resolve_builtin_bgm_file(invalid_path)
 
+    def test_resolve_rejects_staged_upload_left_by_an_interrupted_write(self):
+        """写入中断留下的暂存中间文件不能被解析成可用的背景音乐。
+
+        ``_list_bgm_files`` 已经把这些尚未完成校验的中间文件排除在随机 BGM
+        之外，但 API 与 CLI 传入的 ``bgm_file`` 走的是 ``resolve_bgm_file``：
+        同一个文件必须在两个入口得到同一个结论，否则客户端可以让任务引用一个
+        内容不完整、无法解码的中间文件。
+        """
+
+        with tempfile.TemporaryDirectory() as uploaded_dir:
+            staged_name = f"{bgm._INTERNAL_UPLOAD_PREFIX}pending.m4a"
+            Path(uploaded_dir, staged_name).write_bytes(b"partial")
+            Path(uploaded_dir, "user.flac").write_bytes(b"uploaded")
+
+            with patch.object(bgm, "uploaded_bgm_dir", return_value=uploaded_dir):
+                for candidate in (
+                    staged_name,
+                    os.path.join(uploaded_dir, staged_name),
+                    # Windows 与 macOS 的文件系统不区分大小写，暂存前缀的判定
+                    # 也必须如此，否则同一个文件会因为大小写写法不同而复活。
+                    staged_name.upper(),
+                ):
+                    with self.subTest(candidate=candidate):
+                        with self.assertRaises(ValueError):
+                            bgm.resolve_bgm_file(candidate)
+
+                # 普通上传文件仍然可以正常解析（反向对照）。
+                self.assertEqual(
+                    bgm.resolve_bgm_file("user.flac"),
+                    os.path.realpath(os.path.join(uploaded_dir, "user.flac")),
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
