@@ -195,7 +195,7 @@
     "Single Word (Word by Word)": "Word by word",
     "Word-by-word Timing Help": "Word-by-word timing is most accurate with Azure TTS V1 (Edge TTS) or Whisper. Other voice providers may fall back to phrase or sentence timing.",
     "Subtitle Animation": "Entrance animation",
-    "None": "None",
+    "None (Animation)": "None",
     "Pop Up (Spring)": "Spring pop",
     "Custom": "Custom",
     "Custom Position (% from top)": "Custom Position (% from top)",

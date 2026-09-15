@@ -7058,7 +7058,7 @@ def _render_subtitle_settings(panel, params):
 
             # Subtitle Animation (None vs Pop Spring)
             subtitle_animations = [
-                (tr("None"), "none"),
+                (tr("None (Animation)"), "none"),
                 (tr("Pop Up (Spring)"), "pop_spring"),
             ]
             saved_anim = config.ui.get(
