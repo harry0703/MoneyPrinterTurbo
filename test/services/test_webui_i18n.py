@@ -106,6 +106,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Stop Tracking LoomLoom Run Help",
         "Unavailable AI Video Model",
         "VoxCPM Speed Not Supported",
+        "None (Animation)",
     }
 )
 FORMAT_PLACEHOLDER_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")
@@ -131,6 +132,22 @@ class _TrKeyVisitor(ast.NodeVisitor):
 def _load_translation(locale):
     data = json.loads((I18N_DIR / f"{locale}.json").read_text(encoding="utf-8"))
     return data.get("Translation", {})
+
+
+def _duplicate_translation_keys(path):
+    """返回 locale 原始文本中重复定义的键，JSON 解析只保留最后一个。"""
+    duplicates = []
+
+    def collect(pairs):
+        seen = set()
+        for key, _ in pairs:
+            if key in seen:
+                duplicates.append(key)
+            seen.add(key)
+        return dict(pairs)
+
+    json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=collect)
+    return duplicates
 
 
 def _required_translation_keys(translations):
@@ -297,3 +314,14 @@ class TestWebuiI18n(unittest.TestCase):
 
         self.assertIsNotNone(support_locales)
         self.assertIn("ru-RU", support_locales)
+
+    def test_locale_files_do_not_redefine_a_translation_key(self):
+        """
+        同一 JSON 对象里出现重复键时，解析只保留最后一个，前一个被静默丢弃。
+        视频转场与字幕动画曾共用 "None" 键，中文转场下拉因此显示成「无动画」。
+        这里直接检查原始 locale 文本，避免同类覆盖再次逃过 tr() 键覆盖测试。
+        """
+
+        for path in sorted(I18N_DIR.glob("*.json")):
+            with self.subTest(locale=path.stem):
+                self.assertEqual(_duplicate_translation_keys(path), [])
