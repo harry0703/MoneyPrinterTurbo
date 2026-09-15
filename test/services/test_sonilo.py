@@ -25,8 +25,15 @@ class _StreamingResponse:
         self.ok = 200 <= status_code < 300
         self.reason = "OK" if self.ok else "Request failed"
         self.text = "" if self.ok else "request failed"
+        self.encoding = "utf-8"
         self.payload = payload if payload is not None else {"services": []}
         self.iter_error = iter_error
+        self.closed = False
+
+    def iter_content(self, chunk_size):
+        if self.iter_error:
+            raise self.iter_error
+        return iter(())
 
     def iter_lines(self):
         if self.iter_error:
@@ -40,6 +47,7 @@ class _StreamingResponse:
         return self
 
     def __exit__(self, *_args):
+        self.closed = True
         return False
 
 
@@ -80,6 +88,30 @@ class TestSoniloService(unittest.TestCase):
             ):
                 self.assertEqual(sonilo._request_timeout(), expected)
 
+    def test_safe_response_error_reads_only_one_bounded_chunk(self):
+        class OversizedErrorResponse:
+            reason = "Request failed"
+            encoding = "utf-8"
+
+            @property
+            def text(self):
+                raise AssertionError("response.text must not be materialized")
+
+            def iter_content(self, chunk_size):
+                self.requested_chunk_size = chunk_size
+                yield b"x" * chunk_size
+                raise AssertionError("error body must not be read further")
+
+        response = OversizedErrorResponse()
+
+        detail = sonilo._safe_response_error(response)
+
+        self.assertEqual(
+            response.requested_chunk_size,
+            sonilo.MAX_ERROR_BODY_BYTES,
+        )
+        self.assertEqual(detail, "x" * sonilo.MAX_ERROR_BODY_BYTES)
+
     def test_connection_uses_non_billing_services_endpoint(self):
         response = _StreamingResponse(
             payload={"available_services": ["video_to_music"]}
@@ -95,6 +127,8 @@ class TestSoniloService(unittest.TestCase):
         self.assertEqual(
             request.call_args.kwargs["headers"]["Authorization"], "Bearer test-key"
         )
+        self.assertTrue(request.call_args.kwargs["stream"])
+        self.assertTrue(response.closed)
 
     def test_connection_accepts_documented_hyphenated_service_id(self):
         """公开文档的连字符写法必须归一化为项目内部服务标识。"""
@@ -187,6 +221,10 @@ class TestSoniloService(unittest.TestCase):
             command = run.call_args.args[0]
             self.assertEqual(command[0], "test-ffmpeg")
             self.assertIn("-an", command)
+            self.assertEqual(
+                command[command.index("-fs") + 1],
+                str(sonilo.MAX_PROXY_BYTES),
+            )
             self.assertIn("force_original_aspect_ratio=decrease", command[command.index("-vf") + 1])
             self.assertEqual(Path(proxy_path).read_bytes(), b"proxy-video")
             Path(proxy_path).unlink()
