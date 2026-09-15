@@ -41,6 +41,7 @@ _CLI_VIDEO_SOURCES = (
     "pexels",
     "pixabay",
     "coverr",
+    "wavespeed",
     "volcengine_seedance",
     "ofox",
     "metaso_minimax",
@@ -359,6 +360,14 @@ Batch manifests:
         default="video",
         choices=_PIPELINE_STAGES,
         help="stop after this pipeline stage; see the stage order below",
+    )
+    material_group.add_argument(
+        "--confirm-wavespeed-charge",
+        action="store_true",
+        help=(
+            "confirm that WaveSpeed video generation creates paid tasks; required "
+            "with --video-source wavespeed for materials or video output"
+        ),
     )
     material_group.add_argument(
         "--confirm-seedance-charge",
@@ -708,6 +717,16 @@ Batch manifests:
         )
     if not args.batch_file and args.video_source != "local" and has_video_materials:
         parser.error("--video-materials can only be used with --video-source local")
+    if (
+        not args.batch_file
+        and args.video_source == "wavespeed"
+        and stage_requires_materials
+        and not args.confirm_wavespeed_charge
+    ):
+        parser.error(
+            "--confirm-wavespeed-charge is required with "
+            "--video-source wavespeed"
+        )
     if (
         not args.batch_file
         and args.video_source == "volcengine_seedance"
@@ -1134,6 +1153,7 @@ def _validate_batch_task_params(
     *,
     stop_at: str,
     custom_position_is_explicit: bool,
+    wavespeed_charge_confirmed: bool,
     seedance_charge_confirmed: bool,
     ofox_charge_confirmed: bool,
     metaso_minimax_charge_confirmed: bool,
@@ -1169,6 +1189,14 @@ def _validate_batch_task_params(
         )
     if params.video_source != "local" and params.video_materials:
         raise ValueError("video_materials can only be used with video_source=local")
+    if (
+        params.video_source == "wavespeed"
+        and stop_at in {"materials", "video"}
+        and not wavespeed_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-wavespeed-charge is required for WaveSpeed video generation"
+        )
     if (
         params.video_source == "volcengine_seedance"
         and stop_at in {"materials", "video"}
@@ -1299,6 +1327,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                     or "custom_position" in override_fields
                 ),
                 seedance_charge_confirmed=args.confirm_seedance_charge,
+                wavespeed_charge_confirmed=args.confirm_wavespeed_charge,
                 ofox_charge_confirmed=args.confirm_ofox_charge,
                 metaso_minimax_charge_confirmed=(
                     args.confirm_metaso_minimax_charge
