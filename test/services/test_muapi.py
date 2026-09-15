@@ -11,8 +11,12 @@ from app.services import material, muapi, state as sm
 from app.services import task as task_service
 
 
-def _response(payload, status_code=200):
-    return SimpleNamespace(status_code=status_code, json=lambda: payload)
+def _response(payload, status_code=200, headers=None):
+    return SimpleNamespace(
+        status_code=status_code,
+        headers=headers or {},
+        json=lambda: payload,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -99,6 +103,7 @@ def test_submit_poll_and_parse_successful_video():
         "x-api-key": "muapi-test-key",
         "Content-Type": "application/json",
     }
+    assert post.call_args.kwargs["allow_redirects"] is False
     assert post.call_args.kwargs["json"] == {
         "prompt": "sunrise over mountains",
         "aspect_ratio": "9:16",
@@ -110,6 +115,7 @@ def test_submit_poll_and_parse_successful_video():
         call.args[0].endswith("/predictions/muapi-task-1/result")
         for call in get.call_args_list
     )
+    assert all(call.kwargs["allow_redirects"] is False for call in get.call_args_list)
     sleep.assert_called_once_with(muapi.DEFAULT_POLL_INTERVAL_SECONDS)
 
 
@@ -170,6 +176,45 @@ def test_submission_errors_are_not_retried_and_secret_is_redacted():
             with pytest.raises(muapi.MuAPIUnconfirmedTaskError):
                 muapi.generate_videos("sunrise", 5)
         assert post.call_count == 1
+
+
+def test_submission_redirect_is_unconfirmed_and_never_followed():
+    redirect = _response(
+        {},
+        status_code=307,
+        headers={"Location": "https://attacker.example/submit?key=muapi-test-key"},
+    )
+    with (
+        patch.object(muapi.requests, "post", return_value=redirect) as post,
+        patch.object(muapi.requests, "get") as get,
+    ):
+        with pytest.raises(muapi.MuAPIUnconfirmedTaskError) as raised:
+            muapi.generate_videos("sunrise", 5)
+
+    assert "muapi-test-key" not in str(raised.value)
+    assert post.call_count == 1
+    assert post.call_args.kwargs["allow_redirects"] is False
+    get.assert_not_called()
+
+
+def test_poll_redirect_is_unconfirmed_and_never_retried():
+    submit = _response({"request_id": "muapi-redirect"}, 202)
+    redirect = _response(
+        {},
+        status_code=307,
+        headers={"Location": "https://attacker.example/result"},
+    )
+    with (
+        patch.object(muapi.requests, "post", return_value=submit) as post,
+        patch.object(muapi.requests, "get", return_value=redirect) as get,
+    ):
+        with pytest.raises(muapi.MuAPIUnconfirmedTaskError) as raised:
+            muapi.generate_videos("sunrise", 5)
+
+    assert raised.value.task_id == "muapi-redirect"
+    assert post.call_count == 1
+    assert get.call_count == 1
+    assert get.call_args.kwargs["allow_redirects"] is False
 
 
 def test_poll_retries_transient_errors_on_same_task():
@@ -269,6 +314,7 @@ def test_on_demand_generation_stops_after_required_duration():
     with (
         patch.object(muapi, "generate_videos", return_value=[generated_item]) as generate,
         patch.object(material, "_save_generated_video_with_retry", return_value="/tmp/video.mp4"),
+        patch.object(material, "_get_downloaded_video_duration", return_value=5.0),
         patch.object(material, "_persist_material_sources"),
     ):
         paths = material._download_videos_muapi_on_demand(
@@ -283,6 +329,56 @@ def test_on_demand_generation_stops_after_required_duration():
     assert paths == ["/tmp/video.mp4"]
     assert generate.call_count == 1
     assert generate.call_args.kwargs["search_term"] == "first"
+
+
+def test_on_demand_counts_actual_downloaded_duration_before_next_paid_submission():
+    generated_items = [
+        MaterialInfo(
+            provider="muapi",
+            url="https://cdn.example.com/short.mp4",
+            duration=5,
+            source_info={"asset_id": "muapi-paid-short"},
+        ),
+        MaterialInfo(
+            provider="muapi",
+            url="https://cdn.example.com/full.mp4",
+            duration=5,
+            source_info={"asset_id": "muapi-paid-full"},
+        ),
+    ]
+    with (
+        patch.object(
+            muapi,
+            "generate_videos",
+            side_effect=[[generated_items[0]], [generated_items[1]]],
+        ) as generate,
+        patch.object(
+            material,
+            "_save_generated_video_with_retry",
+            side_effect=["/tmp/short.mp4", "/tmp/full.mp4"],
+        ),
+        patch.object(
+            material,
+            "_get_downloaded_video_duration",
+            side_effect=[2.0, 5.0],
+        ),
+        patch.object(material, "_persist_material_sources"),
+    ):
+        paths = material._download_videos_muapi_on_demand(
+            task_id="local-task",
+            search_terms=["short scene", "full scene"],
+            video_aspect=VideoAspect.landscape,
+            audio_duration=5,
+            max_clip_duration=5,
+            material_directory="/tmp",
+        )
+
+    assert paths == ["/tmp/short.mp4", "/tmp/full.mp4"]
+    assert generate.call_count == 2
+    assert [call.kwargs["search_term"] for call in generate.call_args_list] == [
+        "short scene",
+        "full scene",
+    ]
 
 
 @pytest.mark.parametrize("audio_duration", [float("nan"), float("inf"), None, "bad"])

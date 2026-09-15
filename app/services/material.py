@@ -1005,6 +1005,33 @@ def _save_generated_video_with_retry(
     return ""
 
 
+def _get_downloaded_video_duration(video_path: str) -> float:
+    """Read the usable duration from the downloaded media file."""
+    clip = None
+    try:
+        clip = VideoFileClip(video_path)
+        duration = float(clip.duration or 0)
+    except Exception as exc:
+        raise ValueError(
+            f"downloaded video duration could not be measured: {video_path}"
+        ) from exc
+    finally:
+        if clip is not None:
+            try:
+                clip.close()
+            except Exception as close_error:
+                logger.warning(
+                    "failed to close downloaded video after duration probe: "
+                    f"path={video_path}, error={type(close_error).__name__}, "
+                    f"detail={close_error}"
+                )
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError(
+            f"downloaded video duration is not positive and finite: {video_path}"
+        )
+    return duration
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -2228,7 +2255,21 @@ def _download_videos_muapi_on_demand(
                     f"provider=muapi, error={type(source_error).__name__}, "
                     f"detail={source_error}"
                 )
-            total_duration += min(clip_duration, item.duration)
+            try:
+                downloaded_duration = _get_downloaded_video_duration(saved_video_path)
+            except Exception as duration_error:
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise muapi.MuAPIDownloadError(
+                    "MuAPI generated a paid video but its downloaded duration "
+                    "could not be measured: "
+                    f"id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                ) from duration_error
+            total_duration += min(clip_duration, downloaded_duration)
             if total_duration >= required_duration:
                 break
         if total_duration >= required_duration:
