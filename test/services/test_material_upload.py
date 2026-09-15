@@ -45,6 +45,37 @@ class TestMaterialUploadService(unittest.TestCase):
                 with self.assertRaises(material_upload.MaterialUploadError):
                     material_upload.sanitize_material_filename(filename)
 
+    def test_sanitize_filename_rejects_windows_invalid_and_reserved_names(self):
+        # bgm.sanitize_upload_filename already applies these Windows rules to the
+        # background-music upload. The local material upload also stores its file
+        # under a UUID, so the two endpoints must agree on which client-supplied
+        # names they accept instead of diverging by platform.
+        for filename in (
+            "CON.mp4",
+            "con.mp4",
+            "lpt1.webm",
+            "aux.extra.mp4",
+            "bad:name.mp4",
+            "bad?.mp4",
+            "bad<1>.mp4",
+            'quote".mp4',
+            "pipe|name.mp4",
+            "star*.mp4",
+        ):
+            with self.subTest(filename=filename):
+                with self.assertRaises(material_upload.MaterialUploadError):
+                    material_upload.sanitize_material_filename(filename)
+
+        # Names that merely contain a reserved word, or an invalid character in
+        # the extension-less stem, are still ordinary uploads.
+        self.assertEqual(
+            material_upload.sanitize_material_filename("console.mp4"), "console.mp4"
+        )
+        self.assertEqual(
+            material_upload.sanitize_material_filename(r"C:\videos\aux-extra.png"),
+            "aux-extra.png",
+        )
+
     def test_video_upload_is_chunked_validated_and_atomically_persisted(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             source = io.BytesIO(b"decodable-video-placeholder")
