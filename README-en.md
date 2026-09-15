@@ -126,6 +126,14 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO"><img src="docs/sponsors/fluxionai-logo.png" alt="Fluxion AI" width="120"></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">Fluxion AI</a> for sponsoring this project! <strong>One gateway to access and manage leading AI models worldwide.</strong> Built for individual developers, technical teams, and enterprises, Fluxion AI offers a unified API with dynamic routing across multiple providers to improve availability, plus transparent model performance, response times, and costs. Depending on the model and route, <strong>API costs can be 40%–98% lower than official or benchmark rates</strong>. Sign up through <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">our exclusive link</a> to receive <strong>&#36;3 in API credits</strong>.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com"><strong>RecCloud</strong></a>
     </td>

@@ -232,6 +232,8 @@
     "llm_provider_label.apimart": "APIMart",
     "llm_provider_label.openrouter": "OpenRouter",
     "llm_provider_label.api_route": "API Route",
+    "llm_provider_label.fluxionai": "Fluxion AI",
+    "llm_provider_tips.fluxionai": "##### Fluxion AI Configuration\n- **API Key**: Sign up through the [referral link]({api_key_url}) and create a key for an **OpenAI API group** in the console\n- **Base Url**: Defaults to `{default_base_url}`. If your group uses another endpoint, enter its OpenAI-compatible API base URL (including `/v1`), not the full `/chat/completions` path\n- **Model Name**: Defaults to `{default_model}`. Available models depend on your group; check the [model plaza]({model_docs_url})\n\nUsed to generate video scripts and stock-footage search terms. Native Anthropic and Gemini API groups are not supported by this entry.",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",

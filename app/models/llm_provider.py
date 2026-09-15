@@ -398,6 +398,20 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://www.api-route.com/v1",
         model_docs_url="https://www.api-route.com/pricing",
     ),
+    # Fluxion 的 OpenAI 分组使用 /v1 接口，复用现有 Chat Completions 适配器。
+    # 分组决定可用模型和地址，因此这里只提供默认值，保留用户覆盖配置的能力；
+    # Anthropic/Gemini 原生分组不能直接使用这个入口，避免协议不匹配。
+    LLMProviderSpec(
+        "fluxionai",
+        "Fluxion AI",
+        api_key_url=(
+            "https://fluxionai.space/register?source=github"
+            "&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO"
+        ),
+        default_model="gpt-5.5",
+        default_base_url="https://fluxionai.space/v1",
+        model_docs_url="https://fluxionai.space/model-plaza",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

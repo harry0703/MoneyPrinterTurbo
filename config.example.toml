@@ -243,6 +243,13 @@ apimart_api_key = ""
 apimart_base_url = ""
 apimart_model_name = ""
 
+# Fluxion AI：使用 OpenAI 接口分组的 API Key，地址和模型可按分组覆盖。
+# 留空时默认使用 https://fluxionai.space/v1 和 gpt-5.5。
+# 模型广场：https://fluxionai.space/model-plaza
+fluxionai_api_key = ""
+fluxionai_base_url = ""
+fluxionai_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""

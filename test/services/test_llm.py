@@ -377,6 +377,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "evolink",
                 "openrouter",
                 "api_route",
+                "fluxionai",
                 "ollama",
                 "claude_code",
                 "oneapi",

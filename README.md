@@ -126,6 +126,14 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO"><img src="docs/sponsors/fluxionai-logo.png" alt="Fluxion AI" width="120"></a>
+    </td>
+    <td align="left">
+      感谢 <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">Fluxion AI</a> 赞助本项目！<strong>一个入口，接入并管理全球主流 AI 模型。</strong>面向个人开发者、技术团队与企业，通过统一 API 接入主流模型，多线路动态调度提升可用性，模型表现、响应时间与费用透明可查。根据不同模型与线路，<strong>API 调用成本较官方或基准价格可降低 40%～98%</strong>。通过<a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">专属链接注册</a>，即可获得 <strong>&#36;3 API 额度</strong>。
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn"><strong>录咖 AI</strong></a>
     </td>
