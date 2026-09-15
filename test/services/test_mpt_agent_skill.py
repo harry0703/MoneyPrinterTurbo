@@ -699,6 +699,28 @@ class TestMptAgentSkill(unittest.TestCase):
         self.assertNotIn("package-a", stdout.getvalue())
         self.assertNotIn("package-a", stderr.getvalue())
 
+    def test_run_checked_decodes_piped_output_as_utf8(self):
+        # run_checked pipes uv's output and re-decodes it with text=True. Without
+        # an explicit encoding, that decode follows the host locale (cp936/cp1252),
+        # so non-ASCII dependency errors reach the tail as mojibake. PR #1365 pinned
+        # every other PIPE-decoding subprocess.run to UTF-8; derive the requirement
+        # from the call so a future regression fails here instead of in the field.
+        with patch.object(
+            mpt_agent.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=0, stdout=""),
+        ) as run_mock:
+            mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+
+        kwargs = run_mock.call_args.kwargs
+        self.assertEqual(kwargs.get("stdout"), mpt_agent.subprocess.PIPE)
+        self.assertTrue(kwargs.get("text"))
+        self.assertEqual(
+            kwargs.get("encoding"),
+            "utf-8",
+            "piped output must be decoded as UTF-8, not the host locale",
+        )
+
     def test_explicit_voice_is_not_overridden(self):
         self.assertTrue(
             mpt_agent.has_cli_option(
