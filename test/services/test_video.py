@@ -634,7 +634,7 @@ class TestVideoService(unittest.TestCase):
         """
         config.app["video_codec"] = "h264_nvenc"
 
-        def fake_run(command, capture_output, text, check):
+        def fake_run(command, capture_output, text, check, **kwargs):
             codec_index = command.index("-c:v") + 1
             codec = command[codec_index]
             if codec == "h264_nvenc":
@@ -673,7 +673,7 @@ class TestVideoService(unittest.TestCase):
         """
         config.app["video_codec"] = "h264_nvenc"
 
-        def fake_run(command, capture_output, text, check):
+        def fake_run(command, capture_output, text, check, **kwargs):
             codec_index = command.index("-c:v") + 1
             codec = command[codec_index]
             return types.SimpleNamespace(
@@ -964,7 +964,7 @@ class TestVideoService(unittest.TestCase):
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 
-        def fake_run(command, capture_output, text, check):
+        def fake_run(command, capture_output, text, check, **kwargs):
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -991,7 +991,7 @@ class TestVideoService(unittest.TestCase):
         无法区分仍在编码与已经卡死（issue #1342）。等待期间必须记录存活信息。
         """
 
-        def slow_run(command, capture_output, text, check):
+        def slow_run(command, capture_output, text, check, **kwargs):
             # 模拟一次耗时拼接：这段窗口内心跳线程应至少记录一次存活日志。
             time.sleep(0.2)
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
