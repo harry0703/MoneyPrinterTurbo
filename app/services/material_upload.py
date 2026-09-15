@@ -18,8 +18,12 @@ MAX_VIDEO_MATERIAL_UPLOAD_BYTES = 200 * 1024 * 1024
 MAX_IMAGE_MATERIAL_UPLOAD_BYTES = 20 * 1024 * 1024
 MATERIAL_VALIDATION_TIMEOUT_SECONDS = 120
 
-SUPPORTED_VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".flv", ".mkv")
-SUPPORTED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
+# Keep these aligned with the local material formats the CLI accepts (cli.py
+# derives its list from const.FILE_TYPE_VIDEOS / const.FILE_TYPE_IMAGES) and the
+# render pipeline classifies (video.py reads const.FILE_TYPE_IMAGES). Accepting a
+# narrower set here rejects uploads the rest of the pipeline already supports.
+SUPPORTED_VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".flv", ".mkv", ".webm")
+SUPPORTED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp")
 SUPPORTED_MATERIAL_EXTENSIONS = (
     *SUPPORTED_VIDEO_EXTENSIONS,
     *SUPPORTED_IMAGE_EXTENSIONS,
@@ -31,6 +35,7 @@ _IMAGE_FORMATS_BY_EXTENSION = {
     ".jpg": frozenset({"JPEG"}),
     ".jpeg": frozenset({"JPEG"}),
     ".png": frozenset({"PNG"}),
+    ".bmp": frozenset({"BMP"}),
 }
 
 
@@ -113,7 +118,7 @@ def _validate_image(file_path: str, extension: str) -> None:
         ValueError,
     ) as exc:
         raise MaterialUploadError(
-            "uploaded file must contain a valid JPEG or PNG image"
+            "uploaded file must contain a valid JPEG, PNG, or BMP image"
         ) from exc
 
 
