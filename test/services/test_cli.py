@@ -232,6 +232,74 @@ class TestCli(unittest.TestCase):
             cli.build_video_params(args).video_source, "volcengine_seedance"
         )
 
+    def test_wavespeed_video_source_requires_explicit_charge_confirmation(self):
+        # WaveSpeed is the WebUI's original per-request billed generator, gated
+        # on the same "Confirm WaveSpeed Charge" checkbox the siblings use.
+        # Rejecting the source outright kept the CLI from reaching a generator
+        # that config.example.toml advertises.
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(["--video-subject", "test", "--video-source", "wavespeed"])
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "wavespeed",
+                "--confirm-wavespeed-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "wavespeed")
+
+    def test_wavespeed_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "wavespeed",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "wavespeed")
+
+    def test_batch_wavespeed_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps([{"video_subject": "ws", "video_source": "wavespeed"}]),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-ws"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-wavespeed-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
     def test_ofox_video_source_requires_explicit_charge_confirmation(self):
         with self.assertRaises(SystemExit) as raised:
             cli.parse_args(
