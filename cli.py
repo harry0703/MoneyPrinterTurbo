@@ -13,6 +13,10 @@ from uuid import UUID, uuid4
 
 from loguru import logger
 
+# 素材来源注册表只依赖标准库，导入它不会初始化应用配置，因此可以安全地放在
+# 模块级供 argparse 的 choices 使用（其余 app 模块仍然延迟到使用时导入）。
+from app.models import video_sources
+
 if TYPE_CHECKING:
     from app.models.schema import MaterialInfo, VideoParams
 
@@ -35,18 +39,10 @@ _CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 _BATCH_FILE_MAX_BYTES = 1024 * 1024
 _BATCH_TASK_MAX_COUNT = 100
 # 单任务 argparse 和批量清单必须共享同一来源集合。此前两处手工维护导致
-# openai_image 只在单任务入口可用；集中定义后，新增 Provider 不会再次遗漏
-# 批量校验。这里仅包含 CLI 已公开支持的来源，不强行暴露 WebUI 专属流程。
-_CLI_VIDEO_SOURCES = (
-    "pexels",
-    "pixabay",
-    "coverr",
-    "volcengine_seedance",
-    "ofox",
-    "metaso_minimax",
-    "openai_image",
-    "local",
-)
+# openai_image 只在单任务入口可用；现在清单与“是否对 CLI 暴露”统一由
+# app.models.video_sources 注册表声明，新增 Provider 不会再遗漏批量校验，
+# 也不会误把 WebUI 专属流程（付费报价确认等）暴露到命令行。
+_CLI_VIDEO_SOURCES = video_sources.cli_video_source_ids()
 
 
 class _CliHelpFormatter(

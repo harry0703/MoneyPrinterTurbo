@@ -28,7 +28,7 @@ if root_dir in sys.path:
 sys.path.insert(0, root_dir)
 
 from app.config import config
-from app.models import const
+from app.models import const, video_sources
 from app.models.llm_provider import (
     DEFAULT_LLM_PROVIDER_ID,
     LLM_PROVIDER_REGISTRY,
@@ -110,21 +110,11 @@ VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
 LOOMLOOM_MAX_POLL_FAILURES = 5
 # WebUI 按素材能力分组展示视频来源，但底层仍保存原有 video_source 值。
-# AI 视频组与设置页共用同一业务顺序：合作服务商优先，并按秘塔、OFox、
-# 胜算云、火山引擎排列；其余服务随后展示。这样两个入口的顺序一致，同时
-# 不改变 config.toml、历史任务和 API 请求中的字段语义，旧用户无需迁移配置。
-VIDEO_SOURCE_GROUPS = {
-    "stock_video": ("pexels", "pixabay", "coverr"),
-    "ai_video": (
-        "metaso_minimax",
-        "ofox",
-        "loomloom",
-        "volcengine_seedance",
-        "wavespeed",
-    ),
-    "ai_image": ("openai_image",),
-    "local": ("local",),
-}
+# 分组、组内顺序与展示名统一来自 app/models/video_sources.py 注册表，避免
+# WebUI、CLI、服务层各维护一份清单后发生漂移；注册表声明的顺序即为展示顺序
+# （AI 视频组按合作服务商优先：秘塔、OFox、胜算云、火山引擎、WaveSpeed）。
+VIDEO_SOURCE_GROUPS = video_sources.video_source_groups()
+VIDEO_SOURCE_LABELS = video_sources.video_source_labels()
 # Upload-Post 的 API Key 与发布用户分别在两个页面管理，并且发布用户名称
 # 不等于登录邮箱。集中维护入口可以避免多语言文案各自硬编码 URL 后发生偏差，
 # 也方便用户从 WebUI 直接完成首次配置和后续账号维护。
@@ -4957,17 +4947,11 @@ def _render_video_settings(panel, params):
                 (tr("Sequential"), "sequential"),
                 (tr("Random"), "random"),
             ]
+            # 展示名同样来自注册表：注册表里的默认名既是 i18n key 也是兜底
+            # 文案，新增来源不需要在这里再补一行。
             video_source_labels = {
-                "pexels": tr("Pexels"),
-                "pixabay": tr("Pixabay"),
-                "coverr": tr("Coverr"),
-                "wavespeed": tr("WaveSpeed AI Video"),
-                "volcengine_seedance": tr("Volcano Engine Seedance"),
-                "ofox": tr("OFox AI Video"),
-                "metaso_minimax": tr("Metaso MiniMax H3"),
-                "loomloom": tr("Shengsuan Cloud AI Video"),
-                "openai_image": tr("OpenAI Compatible Text-to-Image"),
-                "local": tr("Local file"),
+                source_id: tr(label)
+                for source_id, label in VIDEO_SOURCE_LABELS.items()
             }
             saved_video_source_name = str(
                 config.app.get("video_source", "pexels") or "pexels"

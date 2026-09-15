@@ -1,6 +1,5 @@
 """验证 OFox 展示顺序调整，不改变已保存的生成配置或触发付费请求。"""
 
-import ast
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -15,15 +14,12 @@ WEBUI = Path(__file__).resolve().parents[2] / "webui" / "Main.py"
 
 
 def test_ai_video_source_order_keeps_ofox_below_metaso():
-    # 常量控制视频来源选择器，设置弹窗则通过下面的真实控件测试验证。
-    tree = ast.parse(WEBUI.read_text(encoding="utf-8"))
-    assignment = next(
-        node for node in tree.body
-        if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "VIDEO_SOURCE_GROUPS"
-                for target in node.targets)
-    )
-    groups = ast.literal_eval(assignment.value)
+    # 视频来源的选择顺序由 app.models.video_sources 注册表声明，WebUI 只派生
+    # 展示，因此这里校验注册表本身；WebUI 是否同源由
+    # test_video_sources_registry.py 用 AST 校验，避免两处各写一份清单后漂移。
+    from app.models import video_sources
+
+    groups = video_sources.video_source_groups()
     assert groups["ai_video"] == (
         "metaso_minimax", "ofox", "loomloom", "volcengine_seedance", "wavespeed"
     )
