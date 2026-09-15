@@ -525,6 +525,22 @@
     "OFox Upstream Vendor Help": "Which upstream vendor serves OFox video generation. BytePlus (international) is the default with a consistent content policy; Volcano Engine is the mainland-China vendor; Auto lets the OFox gateway load-balance across vendors.",
     "OFox Vendor BytePlus": "BytePlus (International, default)",
     "OFox Vendor Volcengine": "Volcano Engine (Mainland China)",
-    "OFox Vendor Auto": "Auto (gateway load balancing)"
+    "OFox Vendor Auto": "Auto (gateway load balancing)",
+    "MuAPI AI Video": "MuAPI AI Video",
+    "MuAPI AI Video Help": "Generate paid AI video clips through MuAPI's asynchronous text-to-video API, then reuse the existing narration, subtitle, and editing pipeline.",
+    "MuAPI API Key": "MuAPI API Key ([Get API Key](https://muapi.ai))",
+    "MuAPI API Key Help": "Create a MuAPI API key and keep it private. MuAPI generation is billed per submitted task.",
+    "MuAPI Base URL": "MuAPI Base URL",
+    "MuAPI Base URL Help": "The API root used for MuAPI requests. The default is https://api.muapi.ai/api/v1.",
+    "MuAPI Video Endpoint": "MuAPI Video Endpoint",
+    "MuAPI Video Endpoint Help": "A relative asynchronous text-to-video endpoint below the MuAPI base URL, for example seedance-lite-t2v.",
+    "MuAPI Resolution": "MuAPI Resolution",
+    "MuAPI Resolution Help": "Resolution sent to the selected MuAPI endpoint. The default budget route accepts 480p, 720p, and 1080p.",
+    "Please Enter the MuAPI API Key": "Please enter the **MuAPI API Key**",
+    "MuAPI Billing Notice": "Each generated clip is billed by MuAPI. Based on the estimated voiceover duration and clip duration, roughly {min}-{max} paid task(s) will be submitted. Generation stops as soon as enough footage is collected.",
+    "MuAPI Billing Notice Without Script": "Each generated clip is billed by MuAPI. Enter or generate the video script to see an estimated task count.",
+    "Confirm MuAPI Charge": "I understand MuAPI video generation creates paid tasks",
+    "Confirm MuAPI Charge Help": "MuAPI clips are submitted one at a time and stop once they cover the voiceover duration. An ambiguous submission is not retried because it may already have created a billable remote task.",
+    "Confirm MuAPI Charge Required": "Please confirm the MuAPI charge before generating the video."
   }
 }

@@ -50,6 +50,7 @@ from app.services import (
     loomloom,
     material,
     metaso_minimax,
+    muapi,
     ofox,
     video,
     volcengine_seedance,
@@ -121,6 +122,7 @@ VIDEO_SOURCE_GROUPS = {
         "loomloom",
         "volcengine_seedance",
         "wavespeed",
+        "muapi",
     ),
     "ai_image": ("openai_image",),
     "local": ("local",),
@@ -708,6 +710,7 @@ def _initialize_session_state():
         "volcengine_seedance_confirm_charge": False,
         "ofox_confirm_charge": False,
         "metaso_minimax_confirm_charge": False,
+        "muapi_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -3784,6 +3787,78 @@ def _render_settings_dialog():
                 )
                 _save_material_api_keys("wavespeed_api_keys", wavespeed_api_key)
 
+                st.divider()
+                st.markdown(f"**{tr('MuAPI AI Video')}**")
+                st.caption(tr("MuAPI AI Video Help"))
+                muapi_api_key = st.text_input(
+                    tr("MuAPI API Key"),
+                    value=str(config.app.get("muapi_api_key", "") or ""),
+                    type="password",
+                    help=tr("MuAPI API Key Help"),
+                    key="muapi_api_key_input",
+                )
+                _set_runtime_config("app", "muapi_api_key", muapi_api_key.strip())
+                configured_muapi_base_url = str(
+                    config.app.get("muapi_base_url", muapi.DEFAULT_BASE_URL)
+                    or muapi.DEFAULT_BASE_URL
+                ).strip()
+                muapi_base_url = st.text_input(
+                    tr("MuAPI Base URL"),
+                    value=(
+                        ""
+                        if configured_muapi_base_url == muapi.DEFAULT_BASE_URL
+                        else configured_muapi_base_url
+                    ),
+                    placeholder=muapi.DEFAULT_BASE_URL,
+                    key="muapi_base_url_input",
+                    help=tr("MuAPI Base URL Help"),
+                )
+                _set_runtime_config(
+                    "app",
+                    "muapi_base_url",
+                    muapi_base_url.strip() or muapi.DEFAULT_BASE_URL,
+                )
+                configured_muapi_endpoint = str(
+                    config.app.get("muapi_video_endpoint", muapi.DEFAULT_ENDPOINT)
+                    or muapi.DEFAULT_ENDPOINT
+                ).strip()
+                muapi_endpoint = st.text_input(
+                    tr("MuAPI Video Endpoint"),
+                    value=(
+                        ""
+                        if configured_muapi_endpoint == muapi.DEFAULT_ENDPOINT
+                        else configured_muapi_endpoint
+                    ),
+                    placeholder=muapi.DEFAULT_ENDPOINT,
+                    key="muapi_video_endpoint_input",
+                    help=tr("MuAPI Video Endpoint Help"),
+                )
+                _set_runtime_config(
+                    "app",
+                    "muapi_video_endpoint",
+                    muapi_endpoint.strip() or muapi.DEFAULT_ENDPOINT,
+                )
+                configured_muapi_resolution = str(
+                    config.app.get("muapi_resolution", muapi.DEFAULT_RESOLUTION)
+                    or muapi.DEFAULT_RESOLUTION
+                ).strip()
+                muapi_resolution = st.text_input(
+                    tr("MuAPI Resolution"),
+                    value=(
+                        ""
+                        if configured_muapi_resolution == muapi.DEFAULT_RESOLUTION
+                        else configured_muapi_resolution
+                    ),
+                    placeholder=muapi.DEFAULT_RESOLUTION,
+                    key="muapi_resolution_input",
+                    help=tr("MuAPI Resolution Help"),
+                )
+                _set_runtime_config(
+                    "app",
+                    "muapi_resolution",
+                    muapi_resolution.strip() or muapi.DEFAULT_RESOLUTION,
+                )
+
 
             with st.container(border=True):
                 st.markdown(f"#### {tr('AI Image Generation APIs')}")
@@ -4965,6 +5040,7 @@ def _render_video_settings(panel, params):
                 "volcengine_seedance": tr("Volcano Engine Seedance"),
                 "ofox": tr("OFox AI Video"),
                 "metaso_minimax": tr("Metaso MiniMax H3"),
+                "muapi": tr("MuAPI AI Video"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
                 "local": tr("Local file"),
@@ -5004,6 +5080,8 @@ def _render_video_settings(panel, params):
                 st.caption(f"[OfoxAI]({OFOX_REFERRAL_URL}) · {tr('OFox AI Video Help')}")
             if params.video_source == "metaso_minimax":
                 st.caption(tr("Metaso MiniMax H3 Help"))
+            if params.video_source == "muapi":
+                st.caption(tr("MuAPI AI Video Help"))
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
                 local_file_types = sorted(
@@ -5149,23 +5227,31 @@ def _render_video_settings(panel, params):
 
             # MiniMax H3 的远端时长范围是 4～15 秒。选择秘塔时使用完整能力
             # 范围，既避免 2/3 秒被按 4 秒计费，也让 WebUI 与 CLI、服务层一致。
-            video_clip_durations = (
-                list(
+            if params.video_source == "metaso_minimax":
+                video_clip_durations = list(
                     range(
                         metaso_minimax.DEFAULT_MIN_DURATION_SECONDS,
                         metaso_minimax.DEFAULT_MAX_DURATION_SECONDS + 1,
                     )
                 )
-                if params.video_source == "metaso_minimax"
-                else [2, 3, 4, 5, 6, 7, 8, 9, 10]
-            )
+            elif params.video_source == "muapi":
+                video_clip_durations = list(
+                    range(
+                        muapi.DEFAULT_MIN_DURATION_SECONDS,
+                        muapi.DEFAULT_MAX_DURATION_SECONDS + 1,
+                    )
+                )
+            else:
+                video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]
             params.video_clip_duration = stable_selectbox(
                 tr("Clip Duration"),
                 options=video_clip_durations,
                 default_value=_saved_ui_choice(
                     "video_clip_duration",
                     video_clip_durations,
-                    5 if params.video_source == "metaso_minimax" else 3,
+                    5
+                    if params.video_source in {"metaso_minimax", "muapi"}
+                    else 3,
                 ),
                 key="video_clip_duration_select",
                 help=tr("Clip Duration Help"),
@@ -5248,6 +5334,8 @@ def _render_video_settings(panel, params):
                 _render_ofox_video_settings(params)
             if params.video_source == "metaso_minimax":
                 _render_metaso_minimax_video_settings(params)
+            if params.video_source == "muapi":
+                _render_muapi_video_settings(params)
     return uploaded_files
 
 
@@ -5384,6 +5472,29 @@ def _render_metaso_minimax_video_settings(params):
         tr("Confirm Metaso MiniMax Charge"),
         key="metaso_minimax_confirm_charge",
         help=tr("Confirm Metaso MiniMax Charge Help"),
+    )
+
+
+def _render_muapi_video_settings(params):
+    """Show an estimated MuAPI task count and require explicit billing consent."""
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    if estimated_range := _estimate_voiceover_duration_range(
+        str(params.video_script or ""), params.voice_rate
+    ):
+        min_clips = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        max_clips = max(
+            math.ceil(estimated_range[1] * video_count / clip_duration), min_clips
+        )
+        st.warning(
+            tr("MuAPI Billing Notice").format(min=min_clips, max=max_clips)
+        )
+    else:
+        st.warning(tr("MuAPI Billing Notice Without Script"))
+    st.checkbox(
+        tr("Confirm MuAPI Charge"),
+        key="muapi_confirm_charge",
+        help=tr("Confirm MuAPI Charge Help"),
     )
 
 
@@ -7343,6 +7454,7 @@ def _render_generation_controls(
             "volcengine_seedance",
             "ofox",
             "metaso_minimax",
+            "muapi",
             "loomloom",
             "openai_image",
             "local",
@@ -7430,6 +7542,20 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm Metaso MiniMax Charge Required"))
+            st.stop()
+
+        if params.video_source == "muapi" and not (
+            muapi.is_enabled(config.snapshot_config_with_pending(config.app))
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the MuAPI API Key"))
+            st.stop()
+
+        if params.video_source == "muapi" and not st.session_state.get(
+            "muapi_confirm_charge", False
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm MuAPI Charge Required"))
             st.stop()
 
         if params.video_source == "openai_image" and not material.is_openai_image_enabled(

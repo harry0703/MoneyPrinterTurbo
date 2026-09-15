@@ -63,7 +63,7 @@ tls_verify = true
 # -----------------------------------------------------------------------------
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
-# "volcengine_seedance", "ofox", "metaso_minimax", "loomloom",
+# "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "loomloom",
 # "openai_image", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
@@ -156,6 +156,21 @@ ofox_max_duration = 15
 ofox_provider = "byteplus"
 ofox_poll_interval = 5
 ofox_run_timeout = 1800
+
+# MuAPI exposes asynchronous text-to-video endpoints under the public API.
+# Create a key at https://muapi.ai and keep the API base URL rooted at
+# https://api.muapi.ai/api/v1 (the endpoint value is a relative path below it).
+# When empty, MUAPI_API_KEY is used. Generation is billed per submitted clip;
+# the WebUI and CLI require explicit charge confirmation before generation.
+muapi_api_key = ""
+muapi_base_url = "https://api.muapi.ai/api/v1"
+# The budget Seedance Lite route accepts 3-12 second clips and 480p/720p/1080p.
+muapi_video_endpoint = "seedance-lite-t2v"
+muapi_resolution = "480p"
+muapi_min_duration = 3
+muapi_max_duration = 12
+muapi_poll_interval = 5
+muapi_run_timeout = 1800
 
 # Metaso proxies the MiniMax H3 V2 asynchronous video API. Register and obtain
 # an independent API key through https://metaso.cn/minimax-h3/?s=MPT. Its mk-*

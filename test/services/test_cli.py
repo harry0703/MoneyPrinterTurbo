@@ -422,6 +422,74 @@ class TestCli(unittest.TestCase):
         )
         self.assertEqual(args.video_source, "metaso_minimax")
 
+    def test_muapi_video_source_requires_explicit_charge_confirmation(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(
+                ["--video-subject", "test", "--video-source", "muapi"]
+            )
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "muapi",
+                "--confirm-muapi-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "muapi")
+
+    def test_muapi_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "muapi",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "muapi")
+
+    def test_batch_muapi_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [{"video_subject": "MuAPI batch task", "video_source": "muapi"}]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-muapi"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-muapi-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
     def test_batch_seedance_source_uses_global_charge_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             manifest = Path(temp_dir) / "tasks.json"

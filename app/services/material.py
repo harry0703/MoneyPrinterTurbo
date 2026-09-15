@@ -20,6 +20,7 @@ from app.models.schema import MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
     material_cache,
     metaso_minimax,
+    muapi,
     ofox,
     task_artifacts,
     video,
@@ -1004,6 +1005,33 @@ def _save_generated_video_with_retry(
     return ""
 
 
+def _get_downloaded_video_duration(video_path: str) -> float:
+    """Read the usable duration from the downloaded media file."""
+    clip = None
+    try:
+        clip = VideoFileClip(video_path)
+        duration = float(clip.duration or 0)
+    except Exception as exc:
+        raise ValueError(
+            f"downloaded video duration could not be measured: {video_path}"
+        ) from exc
+    finally:
+        if clip is not None:
+            try:
+                clip.close()
+            except Exception as close_error:
+                logger.warning(
+                    "failed to close downloaded video after duration probe: "
+                    f"path={video_path}, error={type(close_error).__name__}, "
+                    f"detail={close_error}"
+                )
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError(
+            f"downloaded video duration is not positive and finite: {video_path}"
+        )
+    return duration
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -1729,6 +1757,17 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
+    if source == "muapi":
+        # MuAPI 的模型端点会创建异步付费任务。逐段提交并在覆盖配音时长后
+        # 停止，避免把未使用的脚本关键词也发送到远端。
+        return _download_videos_muapi_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
     if source == "metaso_minimax":
         # 秘塔 MiniMax 同样按远端异步任务计费。它与火山方舟的请求体相似，
         # 但任务查询路径和响应结构不同，因此只共享本地按需生成语义，不复用
@@ -2122,6 +2161,126 @@ def _download_videos_ofox_on_demand(
             break
 
     logger.success(f"generated and downloaded {len(video_paths)} OFox videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_muapi_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """Generate MuAPI materials until the narration duration is covered."""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError) as exc:
+        raise muapi.MuAPIError(
+            "MuAPI audio duration must be a finite number"
+        ) from exc
+    if not math.isfinite(required_duration):
+        raise muapi.MuAPIError("MuAPI audio duration must be a finite number")
+    if required_duration <= 0:
+        logger.warning(
+            "skip MuAPI paid generation because required audio duration is "
+            f"not positive: duration={required_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    try:
+        clip_duration = int(max_clip_duration)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise muapi.MuAPIError(
+            "MuAPI clip duration must be a positive integer"
+        ) from exc
+    if clip_duration <= 0:
+        raise muapi.MuAPIError("MuAPI clip duration must be a positive integer")
+
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = muapi.generate_videos(
+                search_term=search_term,
+                minimum_duration=clip_duration,
+                video_aspect=video_aspect,
+            )
+        except muapi.MuAPIUnconfirmedTaskError as exc:
+            # An ambiguous paid submission must stop the loop: retrying with the
+            # next keyword could create a duplicate charge.  The task ID is kept
+            # for task-service recovery when the provider returned one.
+            logger.error(
+                "stop submitting new MuAPI tasks because the last paid task "
+                f"is unconfirmed: task_id={exc.task_id or 'unknown'}, "
+                f"detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except muapi.MuAPIError as exc:
+            logger.error(f"MuAPI generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        for item in video_items:
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "muapi"
+            )
+            if not saved_video_path:
+                # The remote job completed and may already have incurred a
+                # charge.  Do not submit a replacement task after download
+                # failure; return the remote ID for manual recovery instead.
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise muapi.MuAPIDownloadError(
+                    "MuAPI generated a paid video but the result could not be "
+                    f"downloaded: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                )
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=muapi, error={type(source_error).__name__}, "
+                    f"detail={source_error}"
+                )
+            try:
+                downloaded_duration = _get_downloaded_video_duration(saved_video_path)
+            except Exception as duration_error:
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise muapi.MuAPIDownloadError(
+                    "MuAPI generated a paid video but its downloaded duration "
+                    "could not be measured: "
+                    f"id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                ) from duration_error
+            total_duration += min(clip_duration, downloaded_duration)
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated MuAPI materials cover the required duration; stop "
+                f"submitting paid tasks: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(f"generated and downloaded {len(video_paths)} MuAPI videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
 

@@ -45,6 +45,7 @@ class TestConfigPersistence:
             "volcengine_seedance",
             "ofox",
             "metaso_minimax",
+            "muapi",
             "loomloom",
             "local",
         }
@@ -61,6 +62,12 @@ class TestConfigPersistence:
         assert app_config["metaso_minimax_api_key"] == ""
         assert app_config["metaso_minimax_base_url"].startswith("https://")
         assert app_config["metaso_minimax_resolution"] in {"768P", "2K"}
+        assert app_config["muapi_api_key"] == ""
+        assert app_config["muapi_base_url"].startswith("https://")
+        assert app_config["muapi_video_endpoint"]
+        assert app_config["muapi_resolution"]
+        assert app_config["muapi_min_duration"] == 3
+        assert app_config["muapi_max_duration"] == 12
         assert "loomloom_market_listing_id" not in app_config
         assert "loomloom_video_market_listing_id" not in app_config
         assert app_config["shengsuanyun_api_key"] == ""

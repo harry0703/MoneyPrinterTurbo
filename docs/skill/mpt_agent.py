@@ -33,6 +33,7 @@ SUPPORTED_SOURCES = {
     "volcengine_seedance",
     "ofox",
     "metaso_minimax",
+    "muapi",
     # Keep this list aligned with ``_CLI_VIDEO_SOURCES`` in cli.py. A source that
     # the CLI accepts must not be rejected here as unsupported.
     "openai_image",
@@ -42,6 +43,7 @@ VOLCENGINE_ARK_API_KEY_URL = (
     "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey"
 )
 OFOX_API_KEY_URL = "https://ofox.ai"
+MUAPI_API_KEY_URL = "https://muapi.ai"
 PEXELS_API_KEY_URL = "https://www.pexels.com/api/"
 PEXELS_VALIDATION_URL = "https://api.pexels.com/v1/collections?per_page=1"
 PEXELS_API_KEY_HELP_URL = (
@@ -233,6 +235,7 @@ def apply_environment_config(config_path: Path) -> None:
     metaso_minimax_key = os.environ.get(
         "MPT_METASO_MINIMAX_API_KEY", ""
     ).strip()
+    muapi_key = os.environ.get("MPT_MUAPI_API_KEY", "").strip()
     if not any(
         (
             provider,
@@ -243,6 +246,7 @@ def apply_environment_config(config_path: Path) -> None:
             seedance_key,
             ofox_key,
             metaso_minimax_key,
+            muapi_key,
         )
     ):
         return
@@ -279,6 +283,9 @@ def apply_environment_config(config_path: Path) -> None:
             text, "metaso_minimax_api_key", metaso_minimax_key
         )
         changes.append("metaso_minimax_api_key")
+    if muapi_key:
+        text = _replace_config_value(text, "muapi_api_key", muapi_key)
+        changes.append("muapi_api_key")
     config_path.write_text(text, encoding="utf-8")
     log("updated configuration fields: " + ", ".join(changes))
 
@@ -401,6 +408,15 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("metaso_minimax_api_key")
         if not has_cli_option(cli_args, "--confirm-metaso-minimax-charge"):
             missing.append("confirm_metaso_minimax_charge")
+    elif source == "muapi":
+        value = (
+            _plain_config_value(text, "muapi_api_key")
+            or os.environ.get("MUAPI_API_KEY", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("muapi_api_key")
+        if not has_cli_option(cli_args, "--confirm-muapi-charge"):
+            missing.append("confirm_muapi_charge")
     elif source == "openai_image":
         # 与运行时的 is_openai_image_enabled() 保持一致：文生图素材源只要求端点
         # 与模型名。完全本地的 ComfyUI/SD 网关允许不配置 API Key，因此这里不
@@ -427,6 +443,7 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
             "volcengine_seedance_api_key",
             "ofox_api_key",
             "metaso_minimax_api_key",
+            "muapi_api_key",
         }
         for field in missing
     ):
@@ -471,6 +488,11 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
             "METASO_MINIMAX_CHARGE_CONFIRMATION_REQUIRED="
             "--confirm-metaso-minimax-charge"
         )
+    if "muapi_api_key" in missing:
+        print(f"MUAPI_API_KEY_URL={MUAPI_API_KEY_URL}")
+        print("MUAPI_API_KEY_ENV=MPT_MUAPI_API_KEY")
+    if "confirm_muapi_charge" in missing:
+        print("MUAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-muapi-charge")
     print("Request only the listed values, set the environment variables, and rerun the same command.")
     return NEEDS_INPUT_EXIT_CODE
 
