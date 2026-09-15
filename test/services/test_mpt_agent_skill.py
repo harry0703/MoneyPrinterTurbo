@@ -1,3 +1,4 @@
+import ast
 import importlib.util
 import io
 import json
@@ -286,6 +287,78 @@ class TestMptAgentSkill(unittest.TestCase):
             "OFOX_CHARGE_CONFIRMATION_REQUIRED=--confirm-ofox-charge", text
         )
         self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_wavespeed_source_requires_its_own_key_and_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_text = MINIMAL_CONFIG.replace(
+                'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+            ).replace(
+                "pexels_api_keys = []",
+                "pexels_api_keys = []\nwavespeed_api_keys = []",
+            )
+            config_path.write_text(config_text, encoding="utf-8")
+
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "wavespeed"]
+                )
+            self.assertEqual(
+                missing, ["wavespeed_api_keys", "confirm_wavespeed_charge"]
+            )
+
+            config_path.write_text(
+                config_text.replace(
+                    "wavespeed_api_keys = []", 'wavespeed_api_keys = ["configured"]'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "wavespeed", "--confirm-wavespeed-charge"],
+                )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_missing_wavespeed_inputs_report_the_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "moonshot",
+                ["wavespeed_api_keys", "confirm_wavespeed_charge"],
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(
+            "WAVESPEED_CHARGE_CONFIRMATION_REQUIRED=--confirm-wavespeed-charge",
+            text,
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_supported_sources_match_the_cli_video_source_list(self):
+        """helper 的来源白名单必须与 cli.py 的 _CLI_VIDEO_SOURCES 同一集合。
+
+        脚本里手抄的这份清单曾经漏掉 wavespeed：CLI 接受该来源，helper 却报
+        "unsupported video source"。期望值从权威常量推导，新增来源时会先失败。
+        """
+        tree = ast.parse(
+            (SKILL_SCRIPT.parents[2] / "cli.py").read_text(encoding="utf-8")
+        )
+        cli_sources = None
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if any(
+                isinstance(target, ast.Name)
+                and target.id == "_CLI_VIDEO_SOURCES"
+                for target in node.targets
+            ):
+                cli_sources = set(ast.literal_eval(node.value))
+                break
+
+        self.assertIsNotNone(cli_sources)
+        self.assertEqual(set(mpt_agent.SUPPORTED_SOURCES), cli_sources)
 
     def test_seedance_source_requires_key_and_explicit_charge_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:

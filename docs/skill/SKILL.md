@@ -118,6 +118,11 @@ When `SEEDANCE_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated Seedance clip creates a paid Ark task. Only after the user explicitly
 confirms, rerun with `--confirm-seedance-charge`; never add this flag silently.
 
+When `WAVESPEED_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
+generated WaveSpeed clip is billed per request by WaveSpeed. Only after the user
+explicitly confirms, rerun with `--confirm-wavespeed-charge`; never add this
+flag silently.
+
 When `OFOX_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated OFox clip creates a paid task. Only after the user explicitly
 confirms, rerun with `--confirm-ofox-charge`; never add this flag silently.

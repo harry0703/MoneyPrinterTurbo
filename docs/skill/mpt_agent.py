@@ -29,6 +29,7 @@ SUPPORTED_SOURCES = {
     "pexels",
     "pixabay",
     "coverr",
+    "wavespeed",
     "volcengine_seedance",
     "ofox",
     "metaso_minimax",
@@ -369,6 +370,15 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("volcengine_seedance_api_key")
         if not has_cli_option(cli_args, "--confirm-seedance-charge"):
             missing.append("confirm_seedance_charge")
+    elif source == "wavespeed":
+        # WaveSpeed 的运行时凭据只来自 wavespeed_api_keys，没有环境变量回退，
+        # 这里保持同一口径。按次计费的生成源还必须显式确认收费。
+        if not _has_configured_value(
+            _plain_config_value(text, "wavespeed_api_keys")
+        ):
+            missing.append("wavespeed_api_keys")
+        if not has_cli_option(cli_args, "--confirm-wavespeed-charge"):
+            missing.append("confirm_wavespeed_charge")
     elif source == "ofox":
         # 与运行时 Provider 保持完全一致的凭据优先级：配置键优先，其次是
         # 语义明确的 OFOX_API_KEY 环境变量。
@@ -447,6 +457,8 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print("VOLCENGINE_ARK_API_KEY_ENV=MPT_VOLCENGINE_ARK_API_KEY")
     if "confirm_seedance_charge" in missing:
         print("SEEDANCE_CHARGE_CONFIRMATION_REQUIRED=--confirm-seedance-charge")
+    if "confirm_wavespeed_charge" in missing:
+        print("WAVESPEED_CHARGE_CONFIRMATION_REQUIRED=--confirm-wavespeed-charge")
     if "ofox_api_key" in missing:
         print(f"OFOX_API_KEY_URL={OFOX_API_KEY_URL}")
         print("OFOX_API_KEY_ENV=MPT_OFOX_API_KEY")
