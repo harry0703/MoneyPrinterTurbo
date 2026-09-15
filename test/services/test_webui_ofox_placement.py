@@ -25,7 +25,7 @@ def test_ai_video_source_order_keeps_ofox_below_metaso():
     )
     groups = ast.literal_eval(assignment.value)
     assert groups["ai_video"] == (
-        "metaso_minimax", "ofox", "loomloom", "volcengine_seedance", "wavespeed"
+        "metaso_minimax", "ofox", "loomloom", "volcengine_seedance", "wavespeed", "muapi"
     )
     assert groups["stock_video"] == ("pexels", "pixabay", "coverr")
 

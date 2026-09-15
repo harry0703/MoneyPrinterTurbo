@@ -123,6 +123,7 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
             "loomloom",
             "volcengine_seedance",
             "wavespeed",
+            "muapi",
             "openai_image",
             "local",
         ]

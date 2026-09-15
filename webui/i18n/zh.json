@@ -523,6 +523,22 @@
     "OFox Upstream Vendor Help": "OFox 视频生成使用的上游厂商。BytePlus（国际）为默认值，内容政策一致；火山引擎为大陆厂商；自动分发由 OFox 网关按权重在可用厂商间调度。",
     "OFox Vendor BytePlus": "BytePlus（国际，默认）",
     "OFox Vendor Volcengine": "火山引擎（中国大陆）",
-    "OFox Vendor Auto": "自动分发（网关调度）"
+    "OFox Vendor Auto": "自动分发（网关调度）",
+    "MuAPI AI Video": "MuAPI AI 视频",
+    "MuAPI AI Video Help": "通过 MuAPI 异步文生视频接口付费生成 AI 视频素材，并复用现有的配音、字幕和剪辑流程。",
+    "MuAPI API Key": "MuAPI API Key（[获取 API Key](https://muapi.ai)）",
+    "MuAPI API Key Help": "创建 MuAPI API Key 并妥善保管。MuAPI 按实际提交的任务计费。",
+    "MuAPI Base URL": "MuAPI Base URL",
+    "MuAPI Base URL Help": "MuAPI 请求使用的 API 根地址，默认值为 https://api.muapi.ai/api/v1。",
+    "MuAPI Video Endpoint": "MuAPI 视频 Endpoint",
+    "MuAPI Video Endpoint Help": "MuAPI Base URL 下的异步文生视频相对路径，例如 seedance-lite-t2v。",
+    "MuAPI Resolution": "MuAPI 分辨率",
+    "MuAPI Resolution Help": "发送给所选 MuAPI Endpoint 的分辨率。默认预算路由支持 480p、720p 和 1080p。",
+    "Please Enter the MuAPI API Key": "请输入 **MuAPI API Key**",
+    "MuAPI Billing Notice": "每段生成视频都会由 MuAPI 计费。根据预计配音时长和片段时长，将提交约 {min}-{max} 个付费任务；凑够所需素材后会立即停止。",
+    "MuAPI Billing Notice Without Script": "每段生成视频都会由 MuAPI 计费。填写或生成视频文案后可查看预计任务数量。",
+    "Confirm MuAPI Charge": "我已了解 MuAPI 视频生成会创建付费任务",
+    "Confirm MuAPI Charge Help": "MuAPI 素材按脚本片段逐段提交，凑够配音所需时长后立即停止。提交状态不明确时不会自动重试，因为远端任务可能已经创建并产生费用。",
+    "Confirm MuAPI Charge Required": "请确认 MuAPI 生成费用后再生成视频。"
   }
 }

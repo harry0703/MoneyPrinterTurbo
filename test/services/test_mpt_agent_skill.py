@@ -33,6 +33,7 @@ coverr_api_keys = []
 volcengine_seedance_api_key = ""
 ofox_api_key = ""
 metaso_minimax_api_key = ""
+muapi_api_key = ""
 openai_image_base_url = ""
 openai_image_model = ""
 openai_image_api_keys = []
@@ -108,6 +109,7 @@ class TestMptAgentSkill(unittest.TestCase):
             pexels_key = "secret-pexels-key"
             seedance_key = "secret-ark-key"
             metaso_key = "secret-metaso-key"
+            muapi_key = "secret-muapi-key"
 
             with patch.dict(
                 os.environ,
@@ -117,6 +119,7 @@ class TestMptAgentSkill(unittest.TestCase):
                     "MPT_PEXELS_API_KEY": pexels_key,
                     "MPT_VOLCENGINE_ARK_API_KEY": seedance_key,
                     "MPT_METASO_MINIMAX_API_KEY": metaso_key,
+                    "MPT_MUAPI_API_KEY": muapi_key,
                 },
                 clear=True,
             ), redirect_stdout(output):
@@ -130,10 +133,12 @@ class TestMptAgentSkill(unittest.TestCase):
                 f'volcengine_seedance_api_key = "{seedance_key}"', config
             )
             self.assertIn(f'metaso_minimax_api_key = "{metaso_key}"', config)
+            self.assertIn(f'muapi_api_key = "{muapi_key}"', config)
             self.assertNotIn(llm_key, output.getvalue())
             self.assertNotIn(pexels_key, output.getvalue())
             self.assertNotIn(seedance_key, output.getvalue())
             self.assertNotIn(metaso_key, output.getvalue())
+            self.assertNotIn(muapi_key, output.getvalue())
 
     def test_material_key_check_matches_selected_source(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -381,6 +386,55 @@ class TestMptAgentSkill(unittest.TestCase):
                 )
             self.assertEqual(confirmed_missing, [])
 
+    def test_muapi_source_requires_its_own_key_and_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "muapi"]
+                )
+            self.assertEqual(missing, ["muapi_api_key", "confirm_muapi_charge"])
+
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'muapi_api_key = ""', 'muapi_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "muapi", "--confirm-muapi-charge"],
+                )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_muapi_source_accepts_provider_environment_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {"MUAPI_API_KEY": "environment-muapi-key"},
+                clear=True,
+            ):
+                _, missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "muapi", "--confirm-muapi-charge"],
+                )
+            self.assertEqual(missing, [])
+
     def test_existing_provider_key_is_reused_without_asking_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
@@ -495,6 +549,22 @@ class TestMptAgentSkill(unittest.TestCase):
             "METASO_MINIMAX_CHARGE_CONFIRMATION_REQUIRED="
             "--confirm-metaso-minimax-charge",
             text,
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_missing_muapi_inputs_report_key_environment_and_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "deepseek", ["muapi_api_key", "confirm_muapi_charge"]
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(f"MUAPI_API_KEY_URL={mpt_agent.MUAPI_API_KEY_URL}", text)
+        self.assertIn("MUAPI_API_KEY_ENV=MPT_MUAPI_API_KEY", text)
+        self.assertIn(
+            "MUAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-muapi-charge", text
         )
         self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
 
