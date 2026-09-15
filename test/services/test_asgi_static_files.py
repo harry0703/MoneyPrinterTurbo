@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 
 from app import asgi
@@ -9,14 +10,37 @@ from app.config import config
 from app.utils import utils
 
 
+def _remount_tasks_staticfiles(directory: str):
+    """Point the /tasks mount at *directory*, returning the previous app.
+
+    ``app.asgi`` bakes ``utils.task_dir()`` into its StaticFiles mount at
+    import time. The conftest fixture redirects ``utils.task_dir`` per-test,
+    so the mount must be re-pointed at the test-scoped directory; otherwise
+    these tests serve from the production directory while creating files in
+    the temp redirect (404). Previous mount app is returned for tearDown
+    restore so no state leaks between tests.
+    """
+    previous = None
+    for route in asgi.app.routes:
+        if getattr(route, "path", "") == "/tasks":
+            previous = route.app
+            route.app = StaticFiles(directory=directory, html=True)
+    return previous
+
+
 class TestTaskStaticFiles(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
         # 普通静态文件测试验证默认开放模式，不能依赖开发者本机是否启用了 Key。
         config.app["api_key"] = ""
+        self._previous_tasks_app = _remount_tasks_staticfiles(utils.task_dir())
         self.client = TestClient(asgi.app)
 
     def tearDown(self):
+        if self._previous_tasks_app is not None:
+            for route in asgi.app.routes:
+                if getattr(route, "path", "") == "/tasks":
+                    route.app = self._previous_tasks_app
         config.app.clear()
         config.app.update(self.original_app_config)
 
