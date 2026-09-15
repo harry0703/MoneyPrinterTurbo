@@ -334,7 +334,8 @@ def resolve_builtin_bgm_file(unsafe_path: str) -> str:
 
 def resolve_bgm_file(unsafe_path: str) -> str:
     """
-    在用户上传目录和内置歌曲目录中解析 BGM，并拒绝两个白名单之外的路径。
+    在用户上传目录和内置歌曲目录中解析 BGM，并拒绝两个白名单之外的路径与上传
+    中断遗留的暂存文件。
 
     文件名优先命中用户目录，同时保留 `output000.mp3`、绝对白名单路径和
     `./resource/songs/output000.mp3` 等旧用法。新上传文件使用 UUID，正常情况下
@@ -345,6 +346,13 @@ def resolve_bgm_file(unsafe_path: str) -> str:
         or Path(unsafe_path).suffix.lower() not in SUPPORTED_BGM_EXTENSIONS
     ):
         raise ValueError("unsupported background music path")
+    if os.path.basename(str(unsafe_path)).lower().startswith(_INTERNAL_UPLOAD_PREFIX):
+        # 上传预检与最终保存都会在同一个目录里短暂创建 ``.bgm-upload-`` 前缀的
+        # 中间文件。它们带有合法的音频扩展名，但尚未完成校验，``_list_bgm_files``
+        # 已经把它们排除在随机 BGM 之外；解析入口必须给出同一个结论，否则
+        # API/CLI 传入的名称可以命中一个写入中断、内容不完整的中间文件。
+        # 用户传入的名称按不区分大小写比较，与 Windows/macOS 的文件系统一致。
+        raise ValueError("background music upload staging files are not selectable")
 
     candidates = [unsafe_path]
     if not os.path.isabs(unsafe_path):
