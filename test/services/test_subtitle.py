@@ -238,6 +238,36 @@ class TestSubtitleService(unittest.TestCase):
 
         self.assertEqual([item[2] for item in items], ["Hello", "World"])
 
+    def test_file_to_subtitles_preserves_timestamps_in_cue_text(self):
+        """Timestamp examples in narration must not replace a cue's timing."""
+        for text in (
+            "Jump to 00:01:23,456 in the recording.",
+            "00:01:23,456",
+            "00:01:23,456 --> 00:01:24,000",
+        ):
+            with self.subTest(text=text), tempfile.TemporaryDirectory() as tmp_dir:
+                subtitle_file = Path(tmp_dir) / "subtitle.srt"
+                subtitle_file.write_text(
+                    "1\n00:00:00,000 --> 00:00:02,000\n"
+                    f"Timestamp example:\n{text}\nContinue watching.\n\n"
+                    "2\n00:00:02,000 --> 00:00:03,000\nNext cue",
+                    encoding="utf-8",
+                )
+
+                items = subtitle.file_to_subtitles(str(subtitle_file))
+
+                self.assertEqual(
+                    items,
+                    [
+                        (
+                            1,
+                            "00:00:00,000 --> 00:00:02,000",
+                            f"Timestamp example:\n{text}\nContinue watching.",
+                        ),
+                        (2, "00:00:02,000 --> 00:00:03,000", "Next cue"),
+                    ],
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -162,7 +162,9 @@ def file_to_subtitles(filename):
     with open(filename, "r", encoding="utf-8") as f:
         for line in f:
             times = re.findall("([0-9]*:[0-9]*:[0-9]*,[0-9]*)", line)
-            if times:
+            # Once a cue has started, timestamps belong to its text until the
+            # blank-line separator; they must not overwrite the cue's timing.
+            if times and current_times is None:
                 current_times = line
             elif line.strip() == "" and current_times:
                 index += 1
