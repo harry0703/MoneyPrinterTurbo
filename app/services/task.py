@@ -486,6 +486,9 @@ def generate_audio(
     voice_preview=None,
     *,
     allow_server_file_input: bool = False,
+    voxcpm_reference_audio: bytes | None = None,
+    voxcpm_prompt_audio: bytes | None = None,
+    voxcpm_prompt_text: str = "",
 ):
     """
     Generate audio for the video script.
@@ -527,12 +530,18 @@ def generate_audio(
 
         logger.info("no custom audio file provided, using TTS to generate audio.")
         audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
-        sub_maker = voice.tts(
-            text=video_script,
-            voice_name=voice.parse_voice_name(params.voice_name),
-            voice_rate=params.voice_rate,
-            voice_file=audio_file,
-        )
+        tts_kwargs = {
+            "text": video_script,
+            "voice_name": voice.parse_voice_name(params.voice_name),
+            "voice_rate": params.voice_rate,
+            "voice_file": audio_file,
+        }
+        if voxcpm_reference_audio is not None:
+            tts_kwargs["voxcpm_reference_audio"] = voxcpm_reference_audio
+        if voxcpm_prompt_audio is not None:
+            tts_kwargs["voxcpm_prompt_audio"] = voxcpm_prompt_audio
+            tts_kwargs["voxcpm_prompt_text"] = voxcpm_prompt_text
+        sub_maker = voice.tts(**tts_kwargs)
         if sub_maker is None:
             _mark_task_failed(
                 task_id,
@@ -1371,6 +1380,9 @@ def _run_pipeline(
     voice_preview: dict | None = None,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
     allow_server_file_input: bool = False,
+    voxcpm_reference_audio: bytes | None = None,
+    voxcpm_prompt_audio: bytes | None = None,
+    voxcpm_prompt_text: str = "",
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
@@ -1525,12 +1537,20 @@ def _run_pipeline(
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
     # 3. Generate audio
+    generate_audio_kwargs = {
+        "voice_preview": voice_preview,
+        "allow_server_file_input": allow_server_file_input,
+    }
+    if voxcpm_reference_audio is not None:
+        generate_audio_kwargs["voxcpm_reference_audio"] = voxcpm_reference_audio
+    if voxcpm_prompt_audio is not None:
+        generate_audio_kwargs["voxcpm_prompt_audio"] = voxcpm_prompt_audio
+        generate_audio_kwargs["voxcpm_prompt_text"] = voxcpm_prompt_text
     audio_file, audio_duration, sub_maker = generate_audio(
         task_id,
         params,
         video_script,
-        voice_preview=voice_preview,
-        allow_server_file_input=allow_server_file_input,
+        **generate_audio_kwargs,
     )
     if not audio_file:
         return _mark_task_failed(
@@ -1687,6 +1707,9 @@ def start(
     voice_preview: dict | None = None,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
     allow_server_file_input: bool = False,
+    voxcpm_reference_audio: bytes | None = None,
+    voxcpm_prompt_audio: bytes | None = None,
+    voxcpm_prompt_text: str = "",
 ):
     """
     执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。
@@ -1702,6 +1725,9 @@ def start(
             voice_preview=voice_preview,
             loomloom_video_request=loomloom_video_request,
             allow_server_file_input=allow_server_file_input,
+            voxcpm_reference_audio=voxcpm_reference_audio,
+            voxcpm_prompt_audio=voxcpm_prompt_audio,
+            voxcpm_prompt_text=voxcpm_prompt_text,
         )
     except Exception as exc:
         logger.exception(

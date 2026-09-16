@@ -77,6 +77,11 @@ GEMINI_TTS_VOICES = (
 _MINIMAX_TTS_MAX_AUDIO_HEX_CHARS = 100 * 1024 * 1024
 VOXCPM_DEFAULT_BASE_URL = "https://api.modelbest.cn/v1"
 VOXCPM_DEFAULT_VOICE = "default"
+VOXCPM_REFERENCE_AUDIO_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+VOXCPM_REFERENCE_AUDIO_MAX_WAV_BYTES = 5 * 1024 * 1024
+VOXCPM_REFERENCE_AUDIO_CONVERSION_TIMEOUT_SECONDS = 15
+VOXCPM_REFERENCE_AUDIO_MAX_DURATION_SECONDS = 120
+VOXCPM_REFERENCE_AUDIO_FILE_TYPES = ("wav", "mp3", "m4a", "aac", "ogg", "flac")
 _VOXCPM_NON_RETRYABLE_STATUS_CODES = {400, 401, 403, 404, 422}
 _VOXCPM_RETRY_DELAY_SECONDS = (1.0, 2.0)
 NO_VOICE_NAME = "no-voice"
@@ -595,6 +600,9 @@ def _single_tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    voxcpm_reference_audio: bytes | None = None,
+    voxcpm_prompt_audio: bytes | None = None,
+    voxcpm_prompt_text: str = "",
 ) -> Union[SubMaker, None]:
     if is_no_voice(voice_name):
         duration_seconds = estimate_no_voice_duration(text)
@@ -703,7 +711,18 @@ def _single_tts(
     elif is_voxcpm_voice(voice_name):
         voice_id = voice_name.split(":", 1)[1].strip()
         if voice_id:
-            return voxcpm_tts(text, voice_id, voice_file, voice_rate, voice_volume)
+            if voxcpm_reference_audio is None:
+                return voxcpm_tts(text, voice_id, voice_file, voice_rate, voice_volume)
+            return voxcpm_tts(
+                text,
+                voice_id,
+                voice_file,
+                voice_rate,
+                voice_volume,
+                reference_audio=voxcpm_reference_audio,
+                prompt_audio=voxcpm_prompt_audio,
+                prompt_text=voxcpm_prompt_text,
+            )
         logger.error(f"Invalid VoxCPM voice name format: {voice_name}")
         return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
@@ -979,6 +998,9 @@ def tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    voxcpm_reference_audio: bytes | None = None,
+    voxcpm_prompt_audio: bytes | None = None,
+    voxcpm_prompt_text: str = "",
 ) -> Union[SubMaker, None]:
     # 无停顿标签时，原样直通原始文本，避免无意义的正则处理或空白截断
     if not utils.has_pause_tags(text):
@@ -988,6 +1010,9 @@ def tts(
             voice_rate=voice_rate,
             voice_file=voice_file,
             voice_volume=voice_volume,
+            voxcpm_reference_audio=voxcpm_reference_audio,
+            voxcpm_prompt_audio=voxcpm_prompt_audio,
+            voxcpm_prompt_text=voxcpm_prompt_text,
         )
 
     # 仅 Azure TTS v1 (Edge TTS) 且脚本包含停顿标签时进入分段合成
@@ -1009,6 +1034,9 @@ def tts(
         voice_rate=voice_rate,
         voice_file=voice_file,
         voice_volume=voice_volume,
+        voxcpm_reference_audio=voxcpm_reference_audio,
+        voxcpm_prompt_audio=voxcpm_prompt_audio,
+        voxcpm_prompt_text=voxcpm_prompt_text,
     )
 
 
@@ -2457,12 +2485,116 @@ def _iter_voxcpm_sse_events(response):
             raise ValueError("VoxCPM returned invalid trailing SSE event data") from exc
 
 
+def prepare_voxcpm_reference_audio(uploaded_audio: bytes, suffix: str = "") -> bytes:
+    """Convert an uploaded reference clip into ModelBest's bounded WAV payload.
+
+    The WebUI keeps the returned bytes only in its current session and passes a
+    copy to the request that needs it. Temporary source and converted files are
+    always scoped to this function, including FFmpeg timeouts and failures.
+    """
+    if not isinstance(uploaded_audio, bytes) or not uploaded_audio:
+        raise ValueError("reference audio is empty")
+    if len(uploaded_audio) > VOXCPM_REFERENCE_AUDIO_MAX_UPLOAD_BYTES:
+        raise ValueError("reference audio upload exceeds 20 MiB")
+
+    normalized_suffix = str(suffix or "").lower()
+    if normalized_suffix and not normalized_suffix.startswith("."):
+        normalized_suffix = f".{normalized_suffix}"
+    if normalized_suffix.removeprefix(".") not in VOXCPM_REFERENCE_AUDIO_FILE_TYPES:
+        raise ValueError("unsupported reference audio format")
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="voxcpm-reference-") as temp_dir:
+            input_path = os.path.join(temp_dir, f"input{normalized_suffix or '.audio'}")
+            output_path = os.path.join(temp_dir, "reference.wav")
+            with open(input_path, "wb") as source:
+                source.write(uploaded_audio)
+
+            result = subprocess.run(
+                [
+                    utils.get_ffmpeg_binary(),
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-xerror",
+                    "-t",
+                    str(VOXCPM_REFERENCE_AUDIO_MAX_DURATION_SECONDS),
+                    "-i",
+                    input_path,
+                    "-map",
+                    "0:a:0",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "16000",
+                    "-c:a",
+                    "pcm_s16le",
+                    "-f",
+                    "wav",
+                    output_path,
+                ],
+                capture_output=True,
+                timeout=VOXCPM_REFERENCE_AUDIO_CONVERSION_TIMEOUT_SECONDS,
+                check=False,
+            )
+            if result.returncode != 0 or not os.path.isfile(output_path):
+                raise ValueError(
+                    "reference audio must contain a decodable audio stream"
+                )
+
+            with open(output_path, "rb") as converted:
+                wav_audio = converted.read()
+            if (
+                not wav_audio
+                or len(wav_audio) > VOXCPM_REFERENCE_AUDIO_MAX_WAV_BYTES
+            ):
+                raise ValueError(
+                    "converted reference audio exceeds ModelBest's 5 MiB limit"
+                )
+
+            try:
+                with wave.open(io.BytesIO(wav_audio), "rb") as wav_file:
+                    if wav_file.getnframes() <= 0:
+                        raise ValueError("reference audio is empty")
+            except wave.Error as exc:
+                raise ValueError(
+                    "reference audio conversion did not produce a valid WAV"
+                ) from exc
+            return wav_audio
+    except subprocess.TimeoutExpired as exc:
+        raise ValueError("reference audio conversion timed out") from exc
+    except OSError as exc:
+        raise ValueError("failed to convert reference audio") from exc
+
+
+def _encode_voxcpm_audio_data_uri(
+    audio_bytes: bytes | None,
+    field_name: str,
+) -> str | None:
+    if audio_bytes is None:
+        return None
+    if not isinstance(audio_bytes, bytes) or not audio_bytes:
+        raise ValueError(f"{field_name} audio is empty")
+    if len(audio_bytes) > VOXCPM_REFERENCE_AUDIO_MAX_WAV_BYTES:
+        raise ValueError(f"{field_name} audio exceeds ModelBest's 5 MiB limit")
+    try:
+        with wave.open(io.BytesIO(audio_bytes), "rb") as wav_file:
+            if wav_file.getnframes() <= 0:
+                raise ValueError(f"{field_name} audio is empty")
+    except wave.Error as exc:
+        raise ValueError(f"{field_name} audio must be a valid WAV") from exc
+    return "data:audio/wav;base64," + base64.b64encode(audio_bytes).decode("ascii")
+
+
 def voxcpm_tts(
     text: str,
     voice_id: str,
     voice_file: str,
     voice_rate: float = 1.0,
     voice_volume: float = 1.0,
+    reference_audio: bytes | None = None,
+    prompt_audio: bytes | None = None,
+    prompt_text: str = "",
 ) -> Union[SubMaker, None]:
     """Generate speech through ModelBest's VoxCPM Audio Speech API.
 
@@ -2507,6 +2639,27 @@ def voxcpm_tts(
         "response_format": "wav",
         "stream": True,
     }
+    prompt_text = str(prompt_text or "").strip()
+    if bool(prompt_audio) != bool(prompt_text):
+        logger.error("VoxCPM prompt audio and prompt text must be provided together")
+        return None
+    try:
+        encoded_reference_audio = _encode_voxcpm_audio_data_uri(
+            reference_audio,
+            "reference",
+        )
+        encoded_prompt_audio = _encode_voxcpm_audio_data_uri(
+            prompt_audio,
+            "prompt",
+        )
+    except ValueError as exc:
+        logger.error(f"VoxCPM audio prompt is invalid: {exc}")
+        return None
+    if encoded_reference_audio:
+        payload["ref_audio"] = encoded_reference_audio
+    if encoded_prompt_audio:
+        payload["prompt_audio"] = encoded_prompt_audio
+        payload["prompt_text"] = prompt_text
     _configure_pydub_ffmpeg(AudioSegment)
 
     for attempt in range(3):
