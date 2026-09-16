@@ -19,8 +19,10 @@ _INTERNAL_UPLOAD_PREFIX = ".bgm-upload-"
 _WINDOWS_INVALID_FILENAME_CHARS = frozenset('<>:"|?*')
 _WINDOWS_RESERVED_FILENAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
-    | {f"COM{index}" for index in range(1, 10)}
-    | {f"LPT{index}" for index in range(1, 10)}
+    | {f"{prefix}{number}" for prefix in ("COM", "LPT") for number in range(1, 10)}
+    # Win32 把 Latin-1 上标数字 ¹、²、³ 也识别为设备编号，因此与普通数字保留名
+    # 同等处理，避免 COM¹.mp3 绕过保护。清单与 webui/Main.py 的下载文件名规则一致。
+    | {f"{prefix}{number}" for prefix in ("COM", "LPT") for number in ("¹", "²", "³")}
 )
 # MoviePy 最终通过 FFmpeg 解码背景音乐，因此不需要人为限制为 MP3。这里仅开放
 # 主流且语义明确的音频扩展名，避免把 MP4 等带视频容器误当作背景音乐上传。

@@ -34,8 +34,10 @@ _INTERNAL_UPLOAD_PREFIX = ".material-upload-"
 _WINDOWS_INVALID_FILENAME_CHARS = frozenset('<>:"|?*')
 _WINDOWS_RESERVED_FILENAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
-    | {f"COM{index}" for index in range(1, 10)}
-    | {f"LPT{index}" for index in range(1, 10)}
+    | {f"{prefix}{number}" for prefix in ("COM", "LPT") for number in range(1, 10)}
+    # 与 bgm.sanitize_upload_filename 及 webui/Main.py 的下载文件名规则保持同一份
+    # 官方清单：Win32 把 Latin-1 上标数字 ¹、²、³ 也当作设备编号。
+    | {f"{prefix}{number}" for prefix in ("COM", "LPT") for number in ("¹", "²", "³")}
 )
 _IMAGE_FORMATS_BY_EXTENSION = {
     ".jpg": frozenset({"JPEG"}),
