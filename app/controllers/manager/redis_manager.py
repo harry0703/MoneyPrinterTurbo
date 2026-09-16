@@ -59,7 +59,10 @@ class RedisTaskManager(TaskManager):
         # 或者队列确实空了"这个约定维持住。
         while True:
             task_json = self.redis_client.lpop(self.queue)
-            if not task_json:
+            # 只有 lpop 什么都没弹出来才代表队列空了。空字符串（或空 bytes）同样
+            # 是一条不可用条目，它后面可能还排着可用的任务，所以要走下面的丢弃
+            # 路径，而不是当成"队列结束"直接返回。
+            if task_json is None:
                 return None
 
             task_info = None
@@ -71,11 +74,18 @@ class RedisTaskManager(TaskManager):
                 task_kwargs = task_info["kwargs"]
                 if not isinstance(task_kwargs, dict):
                     raise ValueError("queued task has no keyword argument mapping")
+                # args 整体缺失时沿用 check_queue 的默认值；写成 null 或其它不是
+                # 数组的形态则会让 check_queue 展开 `*args` 时抛 TypeError，那里
+                # 会把条目重新入队并让异常逃出工作线程，必须在这里先拦下。
+                if not isinstance(task_info.get("args", []), list):
+                    raise ValueError("queued task positional arguments are not a list")
             except (TypeError, ValueError, KeyError) as e:
                 logger.error(f"dropping unusable queued task: {e}")
-                # 与下面的 params 校验失败路径一致：只要能读出 task_id，就把这条
-                # 已经永久离开队列的任务收敛为失败，否则 API/WebUI 会一直显示它
-                # 在 processing。payload 本身没法解析时拿不到 task_id，只能丢弃。
+                # 与下面的 params 校验失败路径一致：只要能读出可用的 task_id，就把
+                # 这条已经永久离开队列的任务收敛为失败，否则 API/WebUI 会一直显示
+                # 它在 processing。payload 本身没法解析、或 task_id 不是字符串
+                # （例如 JSON 数组）时则没有可回写的记录，只能丢弃 —— 把非字符串
+                # 直接交给 patch_task 会让 redis 抛 DataError，反过来打断丢弃循环。
                 stale_kwargs = (
                     task_info.get("kwargs") if isinstance(task_info, dict) else None
                 )
@@ -84,7 +94,7 @@ class RedisTaskManager(TaskManager):
                     if isinstance(stale_kwargs, dict)
                     else None
                 )
-                if task_id:
+                if isinstance(task_id, str) and task_id:
                     sm.state.patch_task(
                         task_id,
                         state=const.TASK_STATE_FAILED,
@@ -106,8 +116,9 @@ class RedisTaskManager(TaskManager):
                     # 丢弃这条队列项而不动状态记录，API/WebUI 会一直显示任务在
                     # 运行，永远不会变成失败。用 patch_task 而不是 update_task，
                     # 这样如果用户已经删除了这个任务，我们不会又把它建回来。
+                    # task_id 不是字符串时同上：没有可回写的记录，跳过状态更新。
                     task_id = task_kwargs.get("task_id")
-                    if task_id:
+                    if isinstance(task_id, str) and task_id:
                         sm.state.patch_task(
                             task_id,
                             state=const.TASK_STATE_FAILED,

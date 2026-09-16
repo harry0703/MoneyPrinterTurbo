@@ -475,6 +475,109 @@ class TestRedisTaskManager(unittest.TestCase):
         self.assertEqual(execute_task.call_args.kwargs["task_id"], "task-next")
         self.assertIs(execute_task.call_args.args[0], task_service.start)
 
+    def test_dequeue_discards_payloads_that_cannot_be_dispatched(self):
+        """
+        三种能通过解析、却无法派发的条目：lpop 返回空值、args 写成 null / 对象 /
+        数字 / 字符串。它们都不能让 dequeue 抛异常、也不能被当成"队列空了"——
+        否则 check_queue 会重新入队或直接早退，后面排着的可用任务再也调度不到。
+        """
+        cases = (
+            ("empty bytes", b"", None),
+            ("empty string", "", None),
+            ("args null", {"args": None}, "t-1"),
+            ("args mapping", {"args": {}}, "t-2"),
+            ("args number", {"args": 5}, "t-3"),
+            ("args string", {"args": "x"}, "t-4"),
+        )
+
+        for case, broken, expected_task_id in cases:
+            with self.subTest(case=case):
+                if isinstance(broken, dict):
+                    broken = json.dumps(
+                        {
+                            "func": "start",
+                            "kwargs": {"task_id": expected_task_id},
+                            **broken,
+                        }
+                    )
+                self.redis_client.reset_mock()
+                self.redis_client.lpop.side_effect = [
+                    broken,
+                    _queued_payload(
+                        "start", task_id="task-valid", params=_video_params()
+                    ),
+                ]
+
+                with patch("app.controllers.manager.redis_manager.sm.state") as state:
+                    state.patch_task.return_value = True
+                    task = self.manager.dequeue()
+
+                self.assertEqual(self.redis_client.lpop.call_count, 2)
+                self.assertEqual(task["kwargs"]["task_id"], "task-valid")
+                self.assertIs(task["func"], task_service.start)
+                if expected_task_id is None:
+                    state.patch_task.assert_not_called()
+                else:
+                    self.assertEqual(
+                        state.patch_task.call_args.args[0], expected_task_id
+                    )
+                    self.assertIn(
+                        "positional arguments",
+                        state.patch_task.call_args.kwargs["error"],
+                    )
+
+    def test_dequeue_dispatches_payload_without_args_field(self):
+        """args 字段整体缺失是既有格式（check_queue 取默认空元组），不能被丢掉。"""
+        self.redis_client.lpop.return_value = json.dumps(
+            {
+                "func": "start",
+                "kwargs": {"task_id": "task-no-args", "params": _video_params()},
+            }
+        )
+
+        with patch("app.controllers.manager.redis_manager.sm.state") as state:
+            task = self.manager.dequeue()
+
+        self.assertEqual(task["kwargs"]["task_id"], "task-no-args")
+        self.assertIs(task["func"], task_service.start)
+        state.patch_task.assert_not_called()
+
+    def test_dequeue_ignores_non_string_task_id_in_every_discard_path(self):
+        """
+        task_id 是 JSON 数组 / 对象这类非字符串值时，交给 patch_task 会让 redis
+        抛 DataError，把丢弃循环打断在一条坏条目上，后面排着的可用任务因此起不来。
+        两条丢弃路径都要跳过状态回写，只丢弃条目本身。
+        """
+        cases = (
+            ("unknown function", _queued_payload("retired-entry", task_id=["task-1"])),
+            (
+                "stale params",
+                _queued_payload(
+                    "start",
+                    task_id={"nested": "task-2"},
+                    params={**_video_params(), "video_count": 0},
+                ),
+            ),
+        )
+
+        for case, payload in cases:
+            with self.subTest(case=case):
+                self.redis_client.reset_mock()
+                self.redis_client.lpop.side_effect = [
+                    payload,
+                    _queued_payload(
+                        "start", task_id="task-valid", params=_video_params()
+                    ),
+                ]
+
+                with patch("app.controllers.manager.redis_manager.sm.state") as state:
+                    task = self.manager.dequeue()
+
+                self.assertEqual(self.redis_client.lpop.call_count, 2)
+                self.assertEqual(task["kwargs"]["task_id"], "task-valid")
+                state.patch_task.assert_not_called()
+                state.update_task.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
