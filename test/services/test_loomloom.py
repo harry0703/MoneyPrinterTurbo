@@ -133,6 +133,63 @@ class TestLoomLoomSettings(unittest.TestCase):
         self.assertEqual(settings.base_url, "https://example.test/loom/v1")
         self.assertNotIn("secret-token", repr(settings))
 
+    def test_rejects_non_numeric_timeout_settings(self):
+        """字符串/数组/布尔不是秒数，须报带配置名的配置错误而非裸异常。"""
+        for name in (
+            "loomloom_request_timeout_seconds",
+            "loomloom_poll_interval_seconds",
+            "loomloom_run_timeout_seconds",
+        ):
+            for value in ("600s", [30], {"seconds": 30}, True):
+                with self.subTest(name=name, value=value):
+                    with self.assertRaisesRegex(LoomLoomConfigurationError, name):
+                        LoomLoomSettings.from_mapping(
+                            {
+                                "loomloom_api_token": "configured-key",
+                                name: value,
+                            }
+                        )
+
+    def test_video_settings_reject_non_numeric_run_timeout(self):
+        with self.assertRaisesRegex(
+            LoomLoomConfigurationError, "loomloom_video_run_timeout_seconds"
+        ):
+            video_settings_from_mapping(
+                {
+                    "loomloom_api_token": "configured-key",
+                    "loomloom_video_run_timeout_seconds": "30m",
+                }
+            )
+
+    def test_rejects_non_finite_timeout_settings(self):
+        """NaN/Inf 能通过 ``value <= 0``，却会让运行截止时间判断永远不成立。"""
+        for value in ("nan", "inf"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    LoomLoomConfigurationError,
+                    "loomloom_run_timeout_seconds must be a finite number",
+                ):
+                    LoomLoomSettings.from_mapping(
+                        {
+                            "loomloom_api_token": "configured-key",
+                            "loomloom_run_timeout_seconds": value,
+                        }
+                    )
+
+    def test_backend_rejects_non_finite_run_timeout(self):
+        """非有限超时不得进入轮询循环，否则 ``wait_for_run`` 永不超时。"""
+        settings = LoomLoomSettings(
+            base_url=DEFAULT_BASE_URL,
+            api_token="configured-key",
+            market_listing_id=DEFAULT_SCRIPT_MARKET_LISTING_ID,
+            run_timeout_seconds=float("nan"),
+        )
+        with self.assertRaisesRegex(
+            LoomLoomConfigurationError,
+            "loomloom_run_timeout_seconds must be a finite number",
+        ):
+            LoomLoomScriptBackend(settings)
+
     def test_video_settings_use_fixed_default_skillbot(self):
         settings = video_settings_from_mapping(
             {
