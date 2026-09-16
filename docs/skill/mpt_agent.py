@@ -469,6 +469,12 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
     if "pexels_api_keys" in missing:
         print(f"PEXELS_API_KEY_URL={PEXELS_API_KEY_URL}")
         print(f"PEXELS_API_KEY_HELP_URL={PEXELS_API_KEY_HELP_URL}")
+        # Pexels is the only material source whose runtime reads the key from
+        # config.toml alone: ``material.get_api_key()`` never consults the
+        # environment, so ``apply_environment_config`` is the only way to
+        # satisfy it without editing the file by hand. Name that variable here
+        # like every other provider that has a write path.
+        print("PEXELS_API_KEY_ENV=MPT_PEXELS_API_KEY")
     if "volcengine_seedance_api_key" in missing:
         print(f"VOLCENGINE_ARK_API_KEY_URL={VOLCENGINE_ARK_API_KEY_URL}")
         print("VOLCENGINE_ARK_API_KEY_ENV=MPT_VOLCENGINE_ARK_API_KEY")
@@ -503,6 +509,7 @@ def report_invalid_pexels_config() -> int:
     print("INVALID=pexels_api_keys")
     print(f"PEXELS_API_KEY_URL={PEXELS_API_KEY_URL}")
     print(f"PEXELS_API_KEY_HELP_URL={PEXELS_API_KEY_HELP_URL}")
+    print("PEXELS_API_KEY_ENV=MPT_PEXELS_API_KEY")
     print("All configured Pexels API keys were rejected or are unavailable. Provide a new key.")
     return NEEDS_INPUT_EXIT_CODE
 
