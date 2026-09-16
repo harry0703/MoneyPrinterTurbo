@@ -224,7 +224,10 @@ def generate_videos(
 
     aspect = VideoAspect(video_aspect)
     video_width, video_height = aspect.to_resolution()
-    requested_duration = max(int(minimum_duration), 1)
+    try:
+        requested_duration = max(int(minimum_duration), 1)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise OFoxError("OFox clip duration must be a positive integer") from exc
     minimum, maximum = _duration_bounds()
     duration = min(max(requested_duration, minimum), maximum)
     if duration != requested_duration:

@@ -224,9 +224,23 @@ def generate_videos(
         raise VolcEngineSeedanceError("Seedance search term must not be empty")
 
     aspect = VideoAspect(video_aspect)
-    requested_duration = max(int(minimum_duration), 1)
+    try:
+        requested_duration = max(int(minimum_duration), 1)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise VolcEngineSeedanceError(
+            "Seedance clip duration must be a positive integer"
+        ) from exc
     minimum, maximum = _duration_bounds()
     duration = min(max(requested_duration, minimum), maximum)
+    if duration != requested_duration:
+        # 生成比请求更长不会影响成片：剪辑流程仍按片段时长裁剪；生成比请求
+        # 更短只发生在请求超过模型上限时，此时也只能收敛到上限。其它付费视频源
+        # 都会说明这次收敛，否则用户无法解释成片片段为何比配置值短。
+        logger.info(
+            "Seedance clip duration clamped to the configured model range: "
+            f"requested={requested_duration}s, using={duration}s "
+            f"(configured {minimum}-{maximum}s)"
+        )
     resolution = _resolution()
     payload = {
         "model": _model_id(),
