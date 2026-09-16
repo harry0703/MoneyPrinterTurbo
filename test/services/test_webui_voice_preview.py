@@ -36,7 +36,7 @@ def _load_duration_estimator():
     return namespace["_estimate_voiceover_duration_range"]
 
 
-def _load_provider_signature(test_config):
+def _load_provider_signature(test_config, session_state=None):
     """加载凭证摘要和 Provider 指纹函数，独立验证缓存失效规则。"""
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
     functions = [
@@ -46,11 +46,28 @@ def _load_provider_signature(test_config):
         and node.name
         in {
             "_credential_signature",
+            "_get_voxcpm_reference_audio_digest",
+            "_get_voxcpm_prompt_audio_digest",
+            "_get_voxcpm_prompt_text",
+            "_get_voxcpm_effective_prompt_audio_digest",
             "_get_voice_preview_provider_signature",
         }
     ]
     module = ast.Module(body=functions, type_ignores=[])
-    namespace = {"hashlib": hashlib, "config": test_config}
+    namespace = {
+        "hashlib": hashlib,
+        "config": test_config,
+        "st": SimpleNamespace(
+            session_state={} if session_state is None else session_state
+        ),
+        "VOXCPM_REFERENCE_AUDIO_SESSION_KEY": "voxcpm_reference_audio",
+        "VOXCPM_PROMPT_AUDIO_SESSION_KEY": "voxcpm_prompt_audio",
+        "VOXCPM_PROMPT_TEXT_SESSION_KEY": "voxcpm_prompt_text_input",
+        "VOXCPM_HIGH_FIDELITY_SESSION_KEY": "voxcpm_high_fidelity_enabled",
+        "VOXCPM_SEPARATE_PROMPT_AUDIO_SESSION_KEY": (
+            "voxcpm_separate_prompt_audio_enabled"
+        ),
+    }
     exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
     return namespace["_get_voice_preview_provider_signature"]
 
@@ -110,6 +127,7 @@ def test_provider_signature_changes_when_api_key_changes():
 
 
 def test_voxcpm_preview_signature_tracks_endpoint_model_and_credentials():
+    session_state = {}
     test_config = SimpleNamespace(
         app={}, azure={}, siliconflow={}, elevenlabs={}, chatterbox={}, kokoro={},
         voxcpm={
@@ -119,15 +137,24 @@ def test_voxcpm_preview_signature_tracks_endpoint_model_and_credentials():
             "voice_id": "default",
         },
     )
-    provider_signature = _load_provider_signature(test_config)
+    provider_signature = _load_provider_signature(test_config, session_state)
 
     original = provider_signature("voxcpm")
     test_config.voxcpm["model_id"] = "speech-model-b"
     changed_model = provider_signature("voxcpm")
     test_config.voxcpm["api_key"] = "new-key"
     changed_key = provider_signature("voxcpm")
+    session_state["voxcpm_reference_audio"] = {"audio_digest": "new-reference"}
+    changed_reference = provider_signature("voxcpm")
+    session_state["voxcpm_high_fidelity_enabled"] = True
+    session_state["voxcpm_prompt_text_input"] = "delivery transcript"
+    reused_reference_as_prompt = provider_signature("voxcpm")
+    session_state["voxcpm_separate_prompt_audio_enabled"] = True
+    session_state["voxcpm_prompt_audio"] = {"audio_digest": "new-prompt"}
+    changed_prompt = provider_signature("voxcpm")
 
-    assert original != changed_model != changed_key
+    assert original != changed_model != changed_key != changed_reference
+    assert changed_reference != reused_reference_as_prompt != changed_prompt
     assert "old-key" not in str(original)
     assert "new-key" not in str(changed_key)
 
