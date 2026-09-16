@@ -81,6 +81,9 @@ class TestBackgroundMusicService(unittest.TestCase):
             "song.mp3\x00",
             "CON.mp3",
             "lpt1.wav",
+            "COM¹.mp3",
+            "lpt².wav",
+            "com³.flac",
             "bad:name.mp3",
             "bad?.flac",
             ".bgm-upload-user.m4a",
@@ -90,6 +93,9 @@ class TestBackgroundMusicService(unittest.TestCase):
             with self.subTest(filename=filename):
                 with self.assertRaises(bgm.BgmUploadError):
                     bgm.sanitize_upload_filename(filename)
+
+        # 只有扩展名之前的首段会被 Win32 当作设备名，上标数字出现在别处不影响。
+        self.assertEqual(bgm.sanitize_upload_filename("song¹.mp3"), "song¹.mp3")
 
     def test_save_bgm_upload_uses_atomic_storage_directory_write(self):
         with tempfile.TemporaryDirectory() as temp_dir:
