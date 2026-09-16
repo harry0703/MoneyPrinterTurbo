@@ -90,10 +90,17 @@ def _safe_response_error(response: requests.Response) -> str:
     except requests.RequestException:
         body_bytes = b""
     if isinstance(body_bytes, bytes):
-        body = body_bytes.decode(
-            response.encoding or "utf-8",
-            errors="replace",
-        )
+        try:
+            body = body_bytes.decode(
+                response.encoding or "utf-8",
+                errors="replace",
+            )
+        except LookupError:
+            # response.encoding 直接取自上游声明的 charset，未知取值（例如
+            # charset=unknown-charset）会让 codecs 抛 LookupError，而 errors
+            # 只影响 UnicodeDecodeError。旧的 response.text 会在内部退回
+            # UTF-8，这里保持同样行为，避免该异常绕过调用方的配乐降级链路。
+            body = body_bytes.decode("utf-8", errors="replace")
     else:
         body = str(body_bytes)
     body = body.strip().replace("\n", " ")[:MAX_ERROR_BODY_BYTES]
