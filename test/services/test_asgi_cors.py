@@ -37,6 +37,51 @@ class TestASGICORS(unittest.TestCase):
         self.assertEqual(asgi.parse_cors_allowed_origins(""), [])
         self.assertEqual(asgi.parse_cors_allowed_origins(None), [])
 
+    def test_origin_parser_normalizes_every_item_to_origin_header_shape(self):
+        """配置项必须折叠成 Origin 请求头的规范形式，否则白名单静默失效。"""
+
+        origins = asgi.parse_cors_allowed_origins(
+            "https://frontend.example/,"
+            "HTTPS://Admin.Example,"
+            "https://frontend.example/,"
+            "localhost:3000,"
+            "ftp://files.example,"
+            "*"
+        )
+
+        # 尾斜杠、大小写差异和重复项都归一到同一个来源；缺少 scheme 的主机名、
+        # 非 http/https 的 scheme 都不可能出现在 Origin 头里，因此被丢弃。
+        self.assertEqual(
+            origins,
+            ["https://frontend.example", "https://admin.example", "*"],
+        )
+
+    def test_address_bar_style_origin_admits_the_trusted_frontend(self):
+        """从地址栏复制的带尾斜杠写法必须与规范写法得到同一个前端访问结果。"""
+
+        trusted_origin = "https://frontend.example"
+        client = self._create_client(
+            asgi.parse_cors_allowed_origins("https://frontend.example/")
+        )
+
+        response = client.get("/probe", headers={"Origin": trusted_origin})
+        preflight = client.options(
+            "/probe",
+            headers={
+                "Origin": trusted_origin,
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"], trusted_origin
+        )
+        self.assertEqual(preflight.status_code, 200)
+        self.assertEqual(
+            preflight.headers["access-control-allow-origin"], trusted_origin
+        )
+
     def test_empty_configuration_keeps_browser_same_origin_policy(self):
         """未配置白名单时，第三方网页不能读取响应或通过预检。"""
 
