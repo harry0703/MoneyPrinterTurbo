@@ -1,3 +1,4 @@
+import math
 import threading
 from typing import Any, Callable, Dict
 
@@ -8,10 +9,41 @@ class TaskQueueFullError(ValueError):
     pass
 
 
+def _coerce_task_limit(value: Any, name: str) -> int:
+    """
+    把配置里的并发 / 排队上限解析成整数。
+
+    TOML 的数值既可能写成 `max_concurrent_tasks = 5`，也可能被写成 `"5"`。字符串
+    会一路传到 `add_task` 的比较运算里，变成不指出配置键名的 TypeError，而且
+    `max_queued_tasks` 写错时只在并发名额用尽后才触发。`app/services/webui_task.py`
+    对同一个 `max_queued_tasks` 键已经做了同样的收敛，这里把它提到唯一的构造入口。
+
+    解析不出整数的写法一律报出配置键名：`0.5` 会被 `int()` 静默截断成 0（任务只入队、
+    没有 worker 执行），TOML 允许的 `inf` / `-inf` / `nan` 也不是有效上限。
+    0 与负数保持原样：前者表示暂时不执行任务，后者让请求直接进入排队分支。
+    """
+    if isinstance(value, bool):
+        # bool 是 int 的子类，但 `true` 显然不是用户想要的上限。
+        raise ValueError(f"{name} must be an integer, got {value!r}")
+    if isinstance(value, float):
+        # 非有限值不是上限，小数则会在截断后退化成「0：只排队不执行」的语义。
+        if not math.isfinite(value):
+            raise ValueError(f"{name} must be a finite integer, got {value!r}")
+        if not value.is_integer():
+            raise ValueError(f"{name} must be an integer, got {value!r}")
+        return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{name} must be an integer, got {value!r}") from None
+
+
 class TaskManager:
     def __init__(self, max_concurrent_tasks: int, max_queued_tasks: int = 100):
-        self.max_concurrent_tasks = max_concurrent_tasks
-        self.max_queued_tasks = max_queued_tasks
+        self.max_concurrent_tasks = _coerce_task_limit(
+            max_concurrent_tasks, "max_concurrent_tasks"
+        )
+        self.max_queued_tasks = _coerce_task_limit(max_queued_tasks, "max_queued_tasks")
         self.current_tasks = 0
         self.lock = threading.Lock()
         self.queue = self.create_queue()

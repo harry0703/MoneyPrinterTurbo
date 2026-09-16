@@ -138,6 +138,68 @@ class TestInMemoryTaskManager(unittest.TestCase):
         )
         fake_thread.start.assert_called_once_with()
 
+    def test_limits_accept_quoted_toml_integers(self):
+        """
+        TOML 里把上限写成字符串时也要按整数比较；修复前并发名额的比较会抛
+        TypeError，队列上限的比较则要等到名额用尽才触发。
+        """
+        manager = InMemoryTaskManager(max_concurrent_tasks="1", max_queued_tasks="1")
+
+        with patch.object(manager, "execute_task") as execute_task:
+            manager.add_task(len, [1])
+            manager.add_task(len, [2])
+            with self.assertRaises(TaskQueueFullError):
+                manager.add_task(len, [3])
+
+        self.assertEqual(manager.max_concurrent_tasks, 1)
+        self.assertEqual(manager.max_queued_tasks, 1)
+        execute_task.assert_called_once_with(len, [1])
+        self.assertEqual(manager.queue_size(), 1)
+
+    def test_invalid_limits_raise_a_named_error(self):
+        """无法解析的上限要立刻指出配置键名，不能推迟成调度期的匿名异常。"""
+        with self.assertRaisesRegex(ValueError, "max_concurrent_tasks"):
+            InMemoryTaskManager(max_concurrent_tasks="abc")
+
+        with self.assertRaisesRegex(ValueError, "max_queued_tasks"):
+            InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks="abc")
+
+        with self.assertRaisesRegex(ValueError, "max_queued_tasks"):
+            InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=True)
+
+    def test_non_integral_limits_are_rejected_by_name(self):
+        """修复前 `0.5` 会被 `int()` 截断成 0（任务入队后没有 worker 执行），`inf` 则漏出 OverflowError。"""
+        cases = (
+            (0.5, "an integer"),
+            (1.5, "an integer"),
+            ("0.5", "an integer"),
+            (float("nan"), "a finite"),
+            (float("inf"), "a finite"),
+            (float("-inf"), "a finite"),
+        )
+        for field in ("max_concurrent_tasks", "max_queued_tasks"):
+            for value, msg in cases:
+                with self.subTest(field=field, value=value):
+                    limits = {"max_concurrent_tasks": 1, "max_queued_tasks": 1}
+                    limits[field] = value
+                    pattern = f"{field} must be {msg}"
+                    with self.assertRaisesRegex(ValueError, pattern):
+                        InMemoryTaskManager(**limits)
+
+        # 没有截断风险的整数值浮点仍然可用（TOML 允许 `max_queued_tasks = 2.0`）。
+        integral = {"max_concurrent_tasks": 1, "max_queued_tasks": 2.0}
+        self.assertEqual(InMemoryTaskManager(**integral).max_queued_tasks, 2)
+
+    def test_zero_concurrency_keeps_queueing_without_executing(self):
+        """0 与负数仍是合法取值：只排队、不执行，既有用例依赖这一语义。"""
+        manager = InMemoryTaskManager(max_concurrent_tasks=0, max_queued_tasks=1)
+
+        with patch.object(manager, "execute_task") as execute_task:
+            manager.add_task(len, [1])
+
+        execute_task.assert_not_called()
+        self.assertEqual(manager.queue_size(), 1)
+
 
 class TestRedisTaskManager(unittest.TestCase):
     def setUp(self):
