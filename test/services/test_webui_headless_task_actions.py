@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -6,6 +7,12 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from app.config import config
+
+# webui/Main.py 在导入 app.services.material 时会连带导入 moviepy，而 moviepy 在
+# 导入期就要解析 FFmpeg 可执行文件（依赖 sys.platform 选择平台二进制），numpy 也
+# 会按 sys.platform 决定是否调用 os.uname()。这些解析必须先于下面的 fixture 完成，
+# 否则在 Windows 上模拟无桌面服务器时会去找 Linux 版 FFmpeg 或直接抛 AttributeError。
+from app.services import material as _material  # noqa: F401
 from app.services import state as sm
 from app.utils import utils
 
@@ -66,6 +73,10 @@ def test_headless_open_folder_shows_host_mapped_path(headless_task_app):
     app.run()
 
     assert not app.exception
+    # _open_task_path() 用 os.path.relpath() 生成相对部分，因此分隔符跟随运行
+    # 测试的平台。headless 分支是靠 monkeypatch sys.platform 进入的，在 Windows
+    # 上提示文本仍会带反斜杠，断言不能写死 POSIX 分隔符。
+    expected_folder = os.path.join("tasks", "headless-test")
     assert any(
-        "./storage/tasks/headless-test" in toast.value for toast in app.get("toast")
+        f"./storage/{expected_folder}" in toast.value for toast in app.get("toast")
     )
