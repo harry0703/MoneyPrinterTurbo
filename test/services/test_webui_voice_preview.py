@@ -72,6 +72,78 @@ def _load_provider_signature(test_config, session_state=None):
     return namespace["_get_voice_preview_provider_signature"]
 
 
+def _load_voxcpm_state_helpers(session_state):
+    """Load upload-state helpers without executing the full Streamlit app."""
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    function_names = {
+        "_get_voxcpm_reference_audio",
+        "_get_voxcpm_reference_audio_digest",
+        "_get_voxcpm_prompt_audio",
+        "_get_voxcpm_prompt_audio_digest",
+        "_get_voxcpm_prompt_text",
+        "_clear_voxcpm_separate_prompt_audio",
+        "_clear_voxcpm_prompt_state",
+        "_clear_voxcpm_prompt_transcript",
+        "_sync_voxcpm_prompt_example_mode",
+        "_get_voxcpm_effective_prompt_audio",
+        "_get_voxcpm_effective_prompt_audio_digest",
+        "_get_voxcpm_prompt_validation_error",
+        "_get_voxcpm_preview_validation_error",
+        "_sync_voxcpm_reference_audio",
+        "_sync_voxcpm_prompt_audio",
+    }
+    functions = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name in function_names
+    ]
+    module = ast.Module(body=functions, type_ignores=[])
+    namespace = {
+        "Path": Path,
+        "hashlib": hashlib,
+        "st": SimpleNamespace(
+            session_state=session_state,
+            spinner=lambda _label: nullcontext(),
+        ),
+        "tr": lambda key: key,
+        "voice": SimpleNamespace(
+            VOXCPM_REFERENCE_AUDIO_MAX_UPLOAD_BYTES=1024,
+            prepare_voxcpm_reference_audio=lambda audio, _suffix: audio,
+            is_voxcpm_voice=lambda name: str(name or "").startswith("voxcpm:"),
+        ),
+        "VOXCPM_REFERENCE_AUDIO_SESSION_KEY": "voxcpm_reference_audio",
+        "VOXCPM_REFERENCE_AUDIO_ERROR_SESSION_KEY": "voxcpm_reference_audio_error",
+        "VOXCPM_PROMPT_AUDIO_SESSION_KEY": "voxcpm_prompt_audio",
+        "VOXCPM_PROMPT_AUDIO_ERROR_SESSION_KEY": "voxcpm_prompt_audio_error",
+        "VOXCPM_PROMPT_TEXT_SESSION_KEY": "voxcpm_prompt_text_input",
+        "VOXCPM_HIGH_FIDELITY_SESSION_KEY": "voxcpm_high_fidelity_enabled",
+        "VOXCPM_SEPARATE_PROMPT_AUDIO_SESSION_KEY": (
+            "voxcpm_separate_prompt_audio_enabled"
+        ),
+        "VOXCPM_PROMPT_EXAMPLE_MODE_SESSION_KEY": "voxcpm_prompt_example_mode",
+    }
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+    return namespace
+
+
+class _FakeAudioUpload:
+    def __init__(self, name: str, payload: bytes):
+        self.name = name
+        self.size = len(payload)
+        self._payload = payload
+
+    def getvalue(self):
+        return self._payload
+
+
+def _session_audio(payload: bytes) -> dict:
+    return {
+        "audio_bytes": payload,
+        "audio_digest": hashlib.sha256(payload).hexdigest(),
+        "upload_digest": hashlib.sha256(payload).hexdigest(),
+    }
+
+
 def _button_by_key(app, key):
     return next(
         button
@@ -157,6 +229,73 @@ def test_voxcpm_preview_signature_tracks_endpoint_model_and_credentials():
     assert changed_reference != reused_reference_as_prompt != changed_prompt
     assert "old-key" not in str(original)
     assert "new-key" not in str(changed_key)
+
+
+def test_replacing_shared_reference_clears_its_transcript():
+    session_state = {
+        "voxcpm_reference_audio": _session_audio(b"clip-a"),
+        "voxcpm_high_fidelity_enabled": True,
+        "voxcpm_separate_prompt_audio_enabled": False,
+        "voxcpm_prompt_text_input": "clip A transcript",
+    }
+    helpers = _load_voxcpm_state_helpers(session_state)
+
+    helpers["_sync_voxcpm_reference_audio"](
+        _FakeAudioUpload("clip-b.wav", b"clip-b")
+    )
+
+    assert "voxcpm_prompt_text_input" not in session_state
+
+
+def test_replacing_separate_delivery_audio_clears_transcript_but_not_identity_change():
+    session_state = {
+        "voxcpm_reference_audio": _session_audio(b"identity-a"),
+        "voxcpm_prompt_audio": _session_audio(b"delivery-a"),
+        "voxcpm_high_fidelity_enabled": True,
+        "voxcpm_separate_prompt_audio_enabled": True,
+        "voxcpm_prompt_text_input": "delivery A transcript",
+    }
+    helpers = _load_voxcpm_state_helpers(session_state)
+
+    helpers["_sync_voxcpm_reference_audio"](
+        _FakeAudioUpload("identity-b.wav", b"identity-b")
+    )
+    assert session_state["voxcpm_prompt_text_input"] == "delivery A transcript"
+
+    helpers["_sync_voxcpm_prompt_audio"](
+        _FakeAudioUpload("delivery-b.wav", b"delivery-b")
+    )
+    assert "voxcpm_prompt_text_input" not in session_state
+
+
+def test_switching_prompt_example_modes_clears_transcript():
+    session_state = {
+        "voxcpm_prompt_example_mode": False,
+        "voxcpm_prompt_text_input": "shared transcript",
+    }
+    helpers = _load_voxcpm_state_helpers(session_state)
+
+    helpers["_sync_voxcpm_prompt_example_mode"](True)
+
+    assert "voxcpm_prompt_text_input" not in session_state
+
+
+def test_invalid_reference_upload_blocks_voxcpm_preview_only():
+    session_state = {"voxcpm_reference_audio_error": "invalid WAV"}
+    helpers = _load_voxcpm_state_helpers(session_state)
+
+    assert (
+        helpers["_get_voxcpm_preview_validation_error"](
+            "voxcpm", "voxcpm:default"
+        )
+        == "invalid WAV"
+    )
+    assert (
+        helpers["_get_voxcpm_preview_validation_error"](
+            "azure-tts-v1", "zh-CN-XiaoxiaoNeural-Female"
+        )
+        == ""
+    )
 
 
 def test_full_voiceover_preview_is_disabled_until_script_exists():

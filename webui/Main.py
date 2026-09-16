@@ -112,6 +112,7 @@ VOXCPM_PROMPT_AUDIO_ERROR_SESSION_KEY = "voxcpm_prompt_audio_error"
 VOXCPM_PROMPT_TEXT_SESSION_KEY = "voxcpm_prompt_text_input"
 VOXCPM_HIGH_FIDELITY_SESSION_KEY = "voxcpm_high_fidelity_enabled"
 VOXCPM_SEPARATE_PROMPT_AUDIO_SESSION_KEY = "voxcpm_separate_prompt_audio_enabled"
+VOXCPM_PROMPT_EXAMPLE_MODE_SESSION_KEY = "voxcpm_prompt_example_mode"
 ONBOARDING_TOUR_KEY = "mpt-onboarding-v1"
 CUSTOM_LLM_ENDPOINT_ID = "custom"
 VOICE_MODE_TTS = "tts"
@@ -1581,6 +1582,7 @@ def _apply_restored_params(params):
     st.session_state.pop(VOXCPM_PROMPT_TEXT_SESSION_KEY, None)
     st.session_state.pop(VOXCPM_HIGH_FIDELITY_SESSION_KEY, None)
     st.session_state.pop(VOXCPM_SEPARATE_PROMPT_AUDIO_SESSION_KEY, None)
+    st.session_state.pop(VOXCPM_PROMPT_EXAMPLE_MODE_SESSION_KEY, None)
     st.session_state.pop("custom_bgm_uploader", None)
     st.session_state.pop("custom_bgm_validation", None)
     st.session_state["task_restore_upload_requirements"] = (
@@ -5652,8 +5654,22 @@ def _clear_voxcpm_separate_prompt_audio() -> None:
 
 def _clear_voxcpm_prompt_state() -> None:
     _clear_voxcpm_separate_prompt_audio()
-    st.session_state.pop(VOXCPM_PROMPT_TEXT_SESSION_KEY, None)
+    _clear_voxcpm_prompt_transcript()
     st.session_state.pop(VOXCPM_SEPARATE_PROMPT_AUDIO_SESSION_KEY, None)
+    st.session_state.pop(VOXCPM_PROMPT_EXAMPLE_MODE_SESSION_KEY, None)
+
+
+def _clear_voxcpm_prompt_transcript() -> None:
+    st.session_state.pop(VOXCPM_PROMPT_TEXT_SESSION_KEY, None)
+
+
+def _sync_voxcpm_prompt_example_mode(use_separate_prompt_audio: bool) -> None:
+    """Invalidate the transcript whenever its effective example changes mode."""
+    previous_mode = st.session_state.get(VOXCPM_PROMPT_EXAMPLE_MODE_SESSION_KEY)
+    current_mode = bool(use_separate_prompt_audio)
+    if previous_mode is not None and bool(previous_mode) != current_mode:
+        _clear_voxcpm_prompt_transcript()
+    st.session_state[VOXCPM_PROMPT_EXAMPLE_MODE_SESSION_KEY] = current_mode
 
 
 def _get_voxcpm_effective_prompt_audio() -> bytes | None:
@@ -5689,6 +5705,18 @@ def _get_voxcpm_prompt_validation_error() -> str:
     return ""
 
 
+def _get_voxcpm_preview_validation_error(
+    selected_tts_server: str,
+    voice_name: str,
+) -> str:
+    if selected_tts_server != "voxcpm" and not voice.is_voxcpm_voice(voice_name):
+        return ""
+    reference_error = st.session_state.get(VOXCPM_REFERENCE_AUDIO_ERROR_SESSION_KEY)
+    if reference_error:
+        return str(reference_error)
+    return _get_voxcpm_prompt_validation_error()
+
+
 def _sync_voxcpm_reference_audio(uploaded_file) -> bytes | None:
     """Normalize a new upload once and keep only bounded WAV bytes in session."""
     if uploaded_file is None:
@@ -5714,6 +5742,7 @@ def _sync_voxcpm_reference_audio(uploaded_file) -> bytes | None:
         ).format(limit=voice.VOXCPM_REFERENCE_AUDIO_MAX_UPLOAD_BYTES // (1024 * 1024))
         return None
 
+    previous_digest = _get_voxcpm_reference_audio_digest()
     raw_audio = uploaded_file.getvalue()
     upload_digest = hashlib.sha256(raw_audio).hexdigest()
     cached = st.session_state.get(VOXCPM_REFERENCE_AUDIO_SESSION_KEY)
@@ -5741,6 +5770,11 @@ def _sync_voxcpm_reference_audio(uploaded_file) -> bytes | None:
         "audio_digest": hashlib.sha256(wav_audio).hexdigest(),
         "audio_bytes": wav_audio,
     }
+    if (
+        previous_digest != hashlib.sha256(wav_audio).hexdigest()
+        and not st.session_state.get(VOXCPM_SEPARATE_PROMPT_AUDIO_SESSION_KEY, False)
+    ):
+        _clear_voxcpm_prompt_transcript()
     st.session_state.pop(VOXCPM_REFERENCE_AUDIO_ERROR_SESSION_KEY, None)
     return bytes(wav_audio)
 
@@ -5766,6 +5800,7 @@ def _sync_voxcpm_prompt_audio(uploaded_file) -> bytes | None:
         ).format(limit=voice.VOXCPM_REFERENCE_AUDIO_MAX_UPLOAD_BYTES // (1024 * 1024))
         return None
 
+    previous_digest = _get_voxcpm_prompt_audio_digest()
     raw_audio = uploaded_file.getvalue()
     upload_digest = hashlib.sha256(raw_audio).hexdigest()
     cached = st.session_state.get(VOXCPM_PROMPT_AUDIO_SESSION_KEY)
@@ -5789,6 +5824,8 @@ def _sync_voxcpm_prompt_audio(uploaded_file) -> bytes | None:
         "audio_digest": hashlib.sha256(wav_audio).hexdigest(),
         "audio_bytes": wav_audio,
     }
+    if previous_digest != hashlib.sha256(wav_audio).hexdigest():
+        _clear_voxcpm_prompt_transcript()
     st.session_state.pop(VOXCPM_PROMPT_AUDIO_ERROR_SESSION_KEY, None)
     return bytes(wav_audio)
 
@@ -5970,10 +6007,9 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
 
     sample_content = _get_voice_preview_sample(voice_name)
     provider_signature = _get_voice_preview_provider_signature(selected_tts_server)
-    prompt_validation_error = (
-        _get_voxcpm_prompt_validation_error()
-        if selected_tts_server == "voxcpm"
-        else ""
+    preview_validation_error = _get_voxcpm_preview_validation_error(
+        selected_tts_server,
+        voice_name,
     )
     preview_columns = st.columns(2)
     short_preview_requested = preview_columns[0].button(
@@ -5981,7 +6017,7 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
         key="play_voice_button",
         icon=":material/graphic_eq:",
         use_container_width=True,
-        disabled=bool(prompt_validation_error),
+        disabled=bool(preview_validation_error),
     )
     full_preview_requested = preview_columns[1].button(
         tr("Generate Full Voiceover Preview"),
@@ -5989,7 +6025,7 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
         icon=":material/article:",
         help=tr("Full Voiceover Preview Cost Hint"),
         use_container_width=True,
-        disabled=not bool(script_content) or bool(prompt_validation_error),
+        disabled=not bool(script_content) or bool(preview_validation_error),
     )
 
     preview_type = ""
@@ -7149,6 +7185,7 @@ def _render_audio_settings(panel, params):
                             key=VOXCPM_SEPARATE_PROMPT_AUDIO_SESSION_KEY,
                             help=tr("VoxCPM Separate Prompt Audio Help"),
                         )
+                        _sync_voxcpm_prompt_example_mode(use_separate_prompt_audio)
                         if use_separate_prompt_audio:
                             prompt_audio_file = st.file_uploader(
                                 tr("VoxCPM Prompt Audio"),
