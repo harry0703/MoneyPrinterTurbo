@@ -149,6 +149,16 @@ class TestOFoxService(unittest.TestCase):
         config.app["ofox_resolution"] = " 480p "
         self.assertEqual(ofox._resolution(), "480p")
 
+    def test_invalid_clip_duration_raises_ofox_error_without_paid_submission(self):
+        for invalid in (None, "bad", ""):
+            with self.subTest(invalid=invalid):
+                with patch.object(ofox.requests, "post") as post:
+                    with self.assertRaises(ofox.OFoxError) as raised:
+                        ofox.generate_videos("sunrise", invalid)
+
+                self.assertIn("clip duration", str(raised.exception))
+                post.assert_not_called()
+
     def test_provider_pinning_defaults_to_byteplus_and_stays_configurable(self):
         # 未配置时默认钉定国际厂商 byteplus（内容政策一致、路由可预期）。
         submit = self._response({"id": "vid-route", "status": "queued"}, 202)

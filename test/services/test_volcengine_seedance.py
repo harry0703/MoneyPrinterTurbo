@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import requests
+from loguru import logger
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect, VideoParams
@@ -229,6 +230,91 @@ class TestVolcEngineSeedanceService(unittest.TestCase):
         self.assertEqual(payload["duration"], 8)
         self.assertEqual(payload["resolution"], "720p")
         self.assertTrue(payload["watermark"])
+
+    def test_clamped_clip_duration_is_reported_before_paid_submission(self):
+        config.app.update(
+            {
+                "volcengine_seedance_min_duration": 4,
+                "volcengine_seedance_max_duration": 8,
+            }
+        )
+        submit = self._response({"id": "cgt-clamped"})
+        completed = self._response(
+            {
+                "id": "cgt-clamped",
+                "status": "succeeded",
+                "content": {"video_url": "https://cdn.example.com/clamped.mp4"},
+            }
+        )
+        messages: list[str] = []
+        handler_id = logger.add(
+            lambda message: messages.append(message.record["message"]),
+            level="INFO",
+        )
+        try:
+            with (
+                patch.object(seedance.requests, "post", return_value=submit),
+                patch.object(seedance.requests, "get", return_value=completed),
+            ):
+                result = seedance.generate_videos("city", 99)
+        finally:
+            logger.remove(handler_id)
+
+        # 用户请求 99 秒、实际提交 8 秒。其它付费视频源都会说明这次收敛，因此
+        # 日志必须同时带上请求值和提交值，否则成片片段比配置值短时无法解释。
+        self.assertEqual(result[0].duration, 8)
+        self.assertTrue(
+            any(
+                "clamped" in message
+                and "requested=99s" in message
+                and "using=8s" in message
+                for message in messages
+            ),
+            messages,
+        )
+
+    def test_clip_duration_inside_the_configured_range_is_not_reported_as_clamped(self):
+        config.app.update(
+            {
+                "volcengine_seedance_min_duration": 4,
+                "volcengine_seedance_max_duration": 8,
+            }
+        )
+        submit = self._response({"id": "cgt-inside"})
+        completed = self._response(
+            {
+                "id": "cgt-inside",
+                "status": "succeeded",
+                "content": {"video_url": "https://cdn.example.com/inside.mp4"},
+            }
+        )
+        messages: list[str] = []
+        handler_id = logger.add(
+            lambda message: messages.append(message.record["message"]),
+            level="INFO",
+        )
+        try:
+            with (
+                patch.object(seedance.requests, "post", return_value=submit),
+                patch.object(seedance.requests, "get", return_value=completed),
+            ):
+                seedance.generate_videos("city", 6)
+        finally:
+            logger.remove(handler_id)
+
+        self.assertFalse(
+            [message for message in messages if "clamped" in message], messages
+        )
+
+    def test_invalid_clip_duration_raises_seedance_error_without_paid_submission(self):
+        for invalid in (None, "bad", ""):
+            with self.subTest(invalid=invalid):
+                with patch.object(seedance.requests, "post") as post:
+                    with self.assertRaises(seedance.VolcEngineSeedanceError) as raised:
+                        seedance.generate_videos("city", invalid)
+
+                self.assertIn("clip duration", str(raised.exception))
+                post.assert_not_called()
 
     def test_rejected_submission_raises_clear_error_without_polling(self):
         rejected = self._response(
