@@ -97,6 +97,43 @@ class TestBackgroundMusicService(unittest.TestCase):
         # 只有扩展名之前的首段会被 Win32 当作设备名，上标数字出现在别处不影响。
         self.assertEqual(bgm.sanitize_upload_filename("song¹.mp3"), "song¹.mp3")
 
+    def test_sanitize_upload_filename_rejects_control_and_bidi_characters(self):
+        """控制符与双向控制符会破坏日志和界面上的文件名显示，必须拒绝。"""
+        for filename in (
+            # C0 控制符（原有行为，此处只作回归保护）
+            "song\x00.mp3",
+            "song\n.mp3",
+            "song\t.mp3",
+            # C1 控制符：U+0085 会被部分日志查看器渲染成换行
+            "song\x7f.mp3",
+            "song\x85.mp3",
+            "song\x9b.mp3",
+            # 双向文本控制符：U+202E 之后的文本会被反向渲染
+            "photo\u202egnp.mp3",
+            "song\u200e.mp3",
+            "song\u2069.mp3",
+            # Unicode 行/段分隔符
+            "song\u2028.mp3",
+            "song\u2029.mp3",
+        ):
+            with self.subTest(filename=filename):
+                with self.assertRaises(bgm.BgmUploadError):
+                    bgm.sanitize_upload_filename(filename)
+
+    def test_sanitize_upload_filename_keeps_printable_unicode_names(self):
+        """只拦截控制符和双向控制符，不误伤中文、组合符等正常文件名。"""
+        for filename in (
+            "用户音乐.mp3",
+            "backing track.mp3",
+            "song\u00a0.mp3",  # 不换行空格：可直接输入，也不改变显示顺序
+            "e\u0301tude.mp3",  # 组合重音符
+            "let\u2019s-go.mp3",  # 弯引号
+            "song\ufe0f.mp3",  # 变体选择符（Cf，但不影响显示顺序）
+            "family\u200d.mp3",  # ZWJ（Cf，emoji 序列依赖它）
+        ):
+            with self.subTest(filename=filename):
+                self.assertEqual(bgm.sanitize_upload_filename(filename), filename)
+
     def test_save_bgm_upload_uses_atomic_storage_directory_write(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             source = io.BytesIO(b"valid-mp3-placeholder")
