@@ -1020,7 +1020,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         """
         config.app["llm_provider"] = "groq"
         config.app["groq_api_key"] = "groq-key"
-        config.app["groq_model_name"] = "llama-3.3-70b-versatile"
+        config.app["groq_model_name"] = "openai/gpt-oss-120b"
         config.app["groq_base_url"] = (
             "https://myuser:mypassword@proxy.example.com/openai/v1"
         )
@@ -1446,7 +1446,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["llm_provider"] = "groq"
         config.app["groq_api_key"] = ""
         config.app["groq_base_url"] = "https://api.groq.com/openai/v1"
-        config.app["groq_model_name"] = "llama-3.3-70b-versatile"
+        config.app["groq_model_name"] = "openai/gpt-oss-120b"
 
         result = llm._generate_response("test")
 
@@ -1458,7 +1458,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["llm_provider"] = "groq"
         config.app["groq_api_key"] = "groq-test-key"
         config.app["groq_base_url"] = ""
-        config.app["groq_model_name"] = "llama-3.3-70b-versatile"
+        config.app["groq_model_name"] = "openai/gpt-oss-120b"
 
         fake_response = types.SimpleNamespace(
             choices=[
