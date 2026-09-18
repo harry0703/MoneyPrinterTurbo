@@ -1760,11 +1760,18 @@ def _render_top_bar():
                     # 写入 config.toml，后续新会话将优先使用该明确选择。
                     _set_runtime_config("ui", "language", selected_language_code)
                     _save_runtime_config()
+                    # 切换语言会先重跑顶部栏，正文控件尚未渲染就触发 rerun。
+                    # 显式保留本次创作内容，防止 Streamlit 清理旧控件状态后，
+                    # 新语言页面把已经输入的主题、文案和关键词重置为空。
+                    for content_key in ("video_subject", "video_script", "video_terms"):
+                        if content_key in st.session_state:
+                            st.session_state[content_key] = st.session_state[content_key]
                     # 切换语言后强制刷新，避免 selectbox 继续展示旧语言文案。
                     st.rerun()
 
 
 support_locales = [
+    "ca-ES",
     "zh-CN",
     "zh-HK",
     "zh-TW",

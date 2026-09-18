@@ -13,7 +13,7 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
 TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
-SECONDARY_LOCALES = ("az", "de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
+SECONDARY_LOCALES = ("az", "ca", "de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
@@ -198,6 +198,28 @@ def _markdown_urls(value):
 
 
 class TestWebuiI18n(unittest.TestCase):
+    def test_catalan_locale_is_discovered_and_matches_browser_variants(self):
+        """语言文件自动注册；区域变体回退到 ca，但不覆盖用户已保存的选择。"""
+        locales = utils.load_locales(str(I18N_DIR))
+        self.assertEqual(locales["ca"]["Language"], "Català")
+        for browser_locale in ("ca", "ca-ES", "ca_AD", "CA-es", "ca-ES-valencia"):
+            with self.subTest(browser_locale=browser_locale):
+                self.assertEqual(
+                    utils.resolve_ui_language("", browser_locale, locales), "ca"
+                )
+        self.assertEqual(utils.resolve_ui_language("en", "ca-ES", locales), "en")
+        self.assertEqual(utils.resolve_ui_language("ca", "en-US", locales), "ca")
+
+    def test_catalan_pause_examples_use_supported_syntax(self):
+        """帮助中的停顿标签必须能被解析，不能把关键字翻成不支持的语法。"""
+        help_text = _load_translation("ca")["Video Script Help"]
+        examples = re.findall(r"\[pausa: [^\]]+\]", help_text)
+        self.assertTrue(examples)
+        for example in examples:
+            with self.subTest(example=example):
+                self.assertTrue(utils.has_pause_tags(example))
+                self.assertEqual(utils.remove_pause_tags(example).strip(), "")
+
     def test_saved_ui_language_takes_priority_over_browser_locale(self):
         language = utils.resolve_ui_language(
             saved_language="de",
@@ -325,7 +347,7 @@ class TestWebuiI18n(unittest.TestCase):
                         _markdown_urls(en_translations[key]),
                     )
 
-    def test_script_language_options_include_russian(self):
+    def test_script_language_options_include_russian_and_catalan(self):
         tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
         support_locales = None
 
@@ -341,6 +363,7 @@ class TestWebuiI18n(unittest.TestCase):
 
         self.assertIsNotNone(support_locales)
         self.assertIn("ru-RU", support_locales)
+        self.assertIn("ca-ES", support_locales)
 
     def test_locale_files_do_not_redefine_a_translation_key(self):
         """
