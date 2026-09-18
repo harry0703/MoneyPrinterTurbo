@@ -9,9 +9,10 @@ from typing import Optional
 import requests
 from loguru import logger
 from app.config import config
+from app.services.publishing_base import PublishingProvider, PUBLISHING_PROVIDER_REGISTRY
 
 
-class UploadPostService:
+class UploadPostService(PublishingProvider):
     API_BASE = "https://api.upload-post.com"
 
     @property
@@ -48,15 +49,53 @@ class UploadPostService:
     def is_configured(self) -> bool:
         return bool(self.api_key and self.username and self.enabled)
 
+    def snapshot_targets(self) -> dict:
+        """Capture queue-time publishing destinations + privacy settings.
+
+        Called once at queue time by the task pipeline. The returned dict is
+        JSON-serializable and passed into the background worker, which must
+        use it exclusively instead of re-reading live config at execution.
+
+        Frozen here: platforms, youtube_privacy_status, privacy_level, AND
+        ``username`` — the username selects the destination account, so a
+        change after queuing must not redirect the queued publish. The API
+        key and API_BASE stay live at call time: ``upload_video`` is a single
+        request, so no cross-request instance split is possible.
+        """
+        return {
+            "provider": "upload_post",
+            "platforms": list(self.platforms or []),
+            "youtube_privacy_status": self.youtube_privacy_status,
+            "extra": {
+                # No WebUI selector exists for this (webui/Main.py only
+                # exposes a youtube_privacy_status selectbox for
+                # upload_post); the upstream API default is
+                # PUBLIC_TO_EVERYONE, so the constant is frozen here
+                # intentionally rather than threaded from config.
+                "privacy_level": "PUBLIC_TO_EVERYONE",
+                # Destination account frozen at queue time (see docstring).
+                "username": self.username,
+            },
+        }
+
     def upload_video(
         self,
         video_path: str,
         title: str,
         platforms: Optional[list] = None,
+        # No WebUI selector for privacy_level (only youtube_privacy_status
+        # has one); keep the upstream API default as the constant default.
         privacy_level: str = "PUBLIC_TO_EVERYONE",
         youtube_extra: Optional[dict] = None,
+        skip_config_check: bool = False,
+        username: Optional[str] = None,
     ) -> dict:
-        if not self.is_configured():
+        # Snapshot execution passes skip_config_check=True so queue-time
+        # destinations survive a config change before the worker runs.
+        # ``username`` is the queue-time snapshot value when provided;
+        # otherwise the live config is used (backward-compatible callers).
+        resolved_username = self.username if username is None else username
+        if not skip_config_check and not self.is_configured():
             logger.warning("Upload-Post is not configured. Skipping cross-post.")
             return {"success": False, "error": "Upload-Post not configured"}
 
@@ -85,7 +124,7 @@ class UploadPostService:
                 files = {'video': video_file}
 
                 data = [
-                    ('user', self.username),
+                    ('user', resolved_username),
                     ('title', title[:2200]),
                     ('privacy_level', privacy_level),
                 ]
@@ -165,6 +204,7 @@ class UploadPostService:
 
 # Singleton instance
 upload_post_service = UploadPostService()
+PUBLISHING_PROVIDER_REGISTRY["upload_post"] = upload_post_service
 
 
 def cross_post_video(
