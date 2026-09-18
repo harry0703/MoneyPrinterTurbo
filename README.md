@@ -53,15 +53,6 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><img src="docs/sponsors/ccsub-logo.png" alt="CCSub" height="36"></a><br>
-      <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><strong>CCSub</strong></a>
-    </td>
-    <td align="left">
-      感谢 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> 赞助本项目！<strong>CCSub 是稳定、实惠的 AI API 中转平台，是 Claude Code 官方订阅的超强平替。</strong>一个 API Key 即可调用 Claude Opus 4.8、Sonnet 4.6、Haiku 4.5、GPT-5、Gemini 等模型，价格约为官方直连的 1/3，全球直连无需梯子。兼容 Claude Code、Codex、Cursor、Cline、Continue、Windsurf 等所有主流 AI 编程工具。前往 <a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> 注册即送 $5 体验额度。
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
       <a href="https://go.apimart.ai/gh-moneyprinterturbo"><img src="docs/sponsors/apimart-logo.png" alt="APIMart" width="100"></a>
     </td>
     <td align="left">
@@ -81,23 +72,22 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo"><img src="docs/sponsors/ofox-logo.svg" alt="OfoxAI" width="120"></a>
+      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.cc 无限星河" height="56"></a><br>
+      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.cc 无限星河</strong></a>
     </td>
     <td align="left">
-      感谢 <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo">OfoxAI</a> 赞助本项目！MoneyPrinterTurbo 已集成 Ofox 多模型文生视频，配置 API Key 即可使用。Seedance、MiniMax H3、Wan 生成视频素材，GPT Image 2.5、Seedream 制作封面配图，GPT、Claude、Gemini、DeepSeek 打磨脚本、辅助开发。<strong>一个 Key，文本、图像、视频共用余额</strong>；提供 OpenAI 兼容接口及 Anthropic、Gemini 原生接口。<strong>按量付费、价格公开、官方渠道接入，稳定高速不限量</strong>，前往 <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo">OfoxAI 查看模型与价格</a>。
+      感谢 <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.cc 无限星河</a> 赞助本项目！Infistar.cc 提供高性价比的大模型 API 服务：大模型低至<strong>官方 0.1 折</strong>，AI 生图低至 <strong>¥0.06/张</strong>。<br>
+      <strong>一个 API Key，覆盖文案、图片与视频创作</strong>，支持 GPT、Claude、Gemini、DeepSeek、通义千问、可灵等主流模型，无需分组。<br>
+      <strong>全模型支持验真</strong>，价格透明，正规备案，人民币实时计费，<strong>支持对公发票</strong>。<br>
+      🎁 MPT 专属福利：通过<a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">专属链接注册</a>即送 <strong>&#36;5 体验额度</strong>，并享首充特惠。
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai 无限星河" height="56"></a><br>
-      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai 无限星河</strong></a>
+      <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo"><img src="docs/sponsors/ofox-logo.svg" alt="OfoxAI" width="120"></a>
     </td>
     <td align="left">
-      感谢 <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai 无限星河</a> 赞助本项目！<br>
-      ⚡ 超低成本与稳定调度：价格低至官方 1 折，模型倍率与调用明细全程透明；多路供应动态调度，告别限流与断连困扰。<br>
-      🧠 全系大模型完美驱动脚本：全面覆盖 OpenAI、Claude、Google Gemini、DeepSeek、通义千问（Qwen）等主流 LLM，兼容 OpenAI 标准接口，为 MoneyPrinterTurbo 的文案生成与素材关键词提炼提供低延迟、高并发支持。<br>
-      🎨 前沿多模态生态：全面接入 FLUX、Midjourney、Seedance、可灵（Kling）、Sora、Luma 等顶级生图与视频模型，满足下一代 AI 视频生成需求。<br>
-      🎁 MoneyPrinterTurbo 用户专属福利：通过 <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">专属推广链接</a> 注册即享 [专属赠送额度 / 首充特惠]，开箱即用！
+      感谢 <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo">OfoxAI</a> 赞助本项目！MoneyPrinterTurbo 已集成 Ofox 多模型文生视频，配置 API Key 即可使用。Seedance、MiniMax H3、Wan 生成视频素材，GPT Image 2.5、Seedream 制作封面配图，GPT、Claude、Gemini、DeepSeek 打磨脚本、辅助开发。<strong>一个 Key，文本、图像、视频共用余额</strong>；提供 OpenAI 兼容接口及 Anthropic、Gemini 原生接口。<strong>按量付费、价格公开、官方渠道接入，稳定高速不限量</strong>，前往 <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo">OfoxAI 查看模型与价格</a>。
     </td>
   </tr>
   <tr>
@@ -135,19 +125,19 @@
   <tr>
     <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
-      <a href="https://reccloud.cn"><strong>录咖 AI</strong></a>
+      <a href="https://reccloud.cn">录咖 AI</a>
     </td>
     <td align="left">
-      由于该项目的 <strong>部署</strong> 和 <strong>使用</strong>，对于一些小白用户来说，还是 <strong>有一定的门槛</strong>，在此特别感谢 <a href="https://reccloud.cn">录咖（AI智能 多媒体服务平台）</a> 网站基于该项目，提供的免费 <code>AI视频生成器</code> 服务，可以不用部署，直接在线使用，非常方便。
+      感谢 <a href="https://reccloud.cn">录咖（AI 智能多媒体服务平台）</a> 基于本项目提供免费的 <strong>AI 视频生成器</strong>，无需部署，在线即可使用，对新手更加友好。
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
       <a href="https://picwish.cn"><img src="docs/sponsors/picwish-logo.svg" alt="佐糖" height="36"></a><br>
-      <a href="https://picwish.cn"><strong>佐糖</strong></a>
+      <a href="https://picwish.cn">佐糖</a>
     </td>
     <td align="left">
-      感谢 <a href="https://picwish.cn">佐糖</a> 对该项目的支持和赞助，使得该项目能够持续的更新和维护。佐糖专注于<strong>图像处理领域</strong>，提供丰富的<strong>图像处理工具</strong>，将复杂操作极致简化，真正实现让图像处理更简单。
+      感谢 <a href="https://picwish.cn">佐糖</a> 对本项目的支持与赞助！佐糖提供丰富的<strong>在线图像处理工具</strong>，操作简单，帮助用户轻松完成各类图片处理。
     </td>
   </tr>
 </table>

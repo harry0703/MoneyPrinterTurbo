@@ -53,15 +53,6 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><img src="docs/sponsors/ccsub-logo.png" alt="CCSub" height="36"></a><br>
-      <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><strong>CCSub</strong></a>
-    </td>
-    <td align="left">
-      Thanks to <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> for sponsoring this project! CCSub is a stable, affordable AI API relay platform — your drop-in replacement for a Claude.ai subscription. One API key gives you access to Claude Opus 4.8, Sonnet, Haiku, GPT-5, and Gemini at roughly 30% of direct API cost, with no VPN required from anywhere in the world. Compatible with Claude Code, Codex, Cursor, Cline, Continue, Windsurf, and all major AI coding tools. Register at <a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> and get $5 free credit on sign-up.
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
       <a href="https://go.apimart.ai/gh-moneyprinterturbo"><img src="docs/sponsors/apimart-logo.png" alt="APIMart" width="100"></a>
     </td>
     <td align="left">
@@ -81,23 +72,22 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo"><img src="docs/sponsors/ofox-logo.svg" alt="OfoxAI" width="120"></a>
+      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.cc" height="56"></a><br>
+      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.cc</strong></a>
     </td>
     <td align="left">
-      Thanks to <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo">OfoxAI</a> for sponsoring this project! MoneyPrinterTurbo already supports Ofox multi-model text-to-video generation—just configure your API key to get started. Create video assets with Seedance, MiniMax H3, and Wan; design cover images with GPT Image 2.5 and Seedream; and refine scripts or build applications with GPT, Claude, Gemini, and DeepSeek. <strong>One key and a shared balance for text, image, and video models</strong>, with OpenAI-compatible endpoints and native Anthropic and Gemini interfaces. <strong>Pay-as-you-go billing, transparent pricing, and official model-provider channels deliver stable, high-speed, unlimited access.</strong> Explore <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo">OfoxAI models and pricing</a>.
+      Thanks to <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.cc</strong></a> for sponsoring this open-source project! Infistar.cc offers cost-effective AI API access: LLMs from <strong>1% of official rates</strong> and AI image generation from <strong>CNY 0.06 per image</strong>.<br>
+      <strong>One API key for text, image, and video creation</strong>, with access to leading models including GPT, Claude, Gemini, DeepSeek, Qwen, and Kling—no separate API groups required.<br>
+      <strong>Authenticity checks for every model</strong>, transparent pricing, an ICP filing in China, real-time billing in CNY, and <strong>business invoices available</strong>.<br>
+      🎁 Exclusive MPT offer: <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">register through our dedicated link</a> to receive <strong>&#36;5 in trial credits</strong> and a special first-top-up offer.
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai" height="56"></a><br>
-      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai</strong></a>
+      <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo"><img src="docs/sponsors/ofox-logo.svg" alt="OfoxAI" width="120"></a>
     </td>
     <td align="left">
-      Thanks to <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai</a> for sponsoring this project!<br>
-      ⚡ Low-cost, reliable access: pricing starts at just 10% of official rates, with transparent model multipliers and detailed usage records. Dynamic routing across multiple providers helps avoid rate limits and unexpected service interruptions.<br>
-      🧠 Leading LLMs for script creation: access OpenAI, Claude, Google Gemini, DeepSeek, Qwen, and other leading models through an OpenAI-compatible API. Infistar.ai provides low-latency, high-concurrency support for MoneyPrinterTurbo's script generation and media keyword extraction workflows.<br>
-      🎨 A cutting-edge multimodal ecosystem: access leading image and video generation models including FLUX, Midjourney, Seedance, Kling, Sora, and Luma, all ready for the next generation of AI video creation.<br>
-      🎁 MoneyPrinterTurbo users can sign up through the <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">dedicated referral link</a> and view the latest exclusive offers available from Infistar.ai.
+      Thanks to <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo">OfoxAI</a> for sponsoring this project! MoneyPrinterTurbo already supports Ofox multi-model text-to-video generation—just configure your API key to get started. Create video assets with Seedance, MiniMax H3, and Wan; design cover images with GPT Image 2.5 and Seedream; and refine scripts or build applications with GPT, Claude, Gemini, and DeepSeek. <strong>One key and a shared balance for text, image, and video models</strong>, with OpenAI-compatible endpoints and native Anthropic and Gemini interfaces. <strong>Pay-as-you-go billing, transparent pricing, and official model-provider channels deliver stable, high-speed, unlimited access.</strong> Explore <a href="https://ofox.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_content=moneyprinterturbo">OfoxAI models and pricing</a>.
     </td>
   </tr>
   <tr>
@@ -135,19 +125,19 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
   <tr>
     <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
-      <a href="https://reccloud.com"><strong>RecCloud</strong></a>
+      <a href="https://reccloud.com">RecCloud</a>
     </td>
     <td align="left">
-      Due to the <strong>deployment</strong> and <strong>usage</strong> of this project, there is a certain threshold for some beginner users. We would like to express our special thanks to <a href="https://reccloud.com">RecCloud (AI-Powered Multimedia Service Platform)</a> for providing a free <code>AI Video Generator</code> service based on this project. It allows for online use without deployment, which is very convenient.
+      Thanks to <a href="https://reccloud.com">RecCloud</a>, an AI-powered multimedia platform, for offering a free <strong>AI Video Generator</strong> based on this project. Use it online with no deployment required—a beginner-friendly way to get started.
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
       <a href="https://picwish.com"><img src="docs/sponsors/picwish-logo.svg" alt="Picwish" height="36"></a><br>
-      <a href="https://picwish.com"><strong>Picwish</strong></a>
+      <a href="https://picwish.com">Picwish</a>
     </td>
     <td align="left">
-      Thanks to <a href="https://picwish.com">Picwish</a> for supporting and sponsoring this project, enabling continuous updates and maintenance. Picwish focuses on the <strong>image processing field</strong>, providing a rich set of <strong>image processing tools</strong> that extremely simplify complex operations, truly making image processing easier.
+      Thanks to <a href="https://picwish.com">Picwish</a> for supporting and sponsoring this project! Picwish offers a wide range of easy-to-use <strong>online image editing tools</strong> to help users handle everyday image editing tasks with ease.
     </td>
   </tr>
 </table>

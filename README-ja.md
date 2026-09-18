@@ -53,15 +53,6 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><img src="docs/sponsors/ccsub-logo.png" alt="CCSub" height="36"></a><br>
-      <a href="https://www.ccsub.net/register?ref=VCVDAWWY"><strong>CCSub</strong></a>
-    </td>
-    <td align="left">
-      本プロジェクトをスポンサードしてくださっている <a href="https://www.ccsub.net/register?ref=VCVDAWWY">CCSub</a> に感謝します！ CCSub は安定的で手頃な AI API 中継プラットフォームであり、Claude.ai のサブスクリプションをそのまま置き換えられます。API キー 1 つで Claude Opus 4.8、Sonnet、Haiku、GPT-5、Gemini を直接 API のおよそ 30% のコストで利用でき、世界中どこからでも VPN は不要です。Claude Code、Codex、Cursor、Cline、Continue、Windsurf をはじめとする主要な AI コーディングツールに対応しています。<a href="https://www.ccsub.net/register?ref=VCVDAWWY">www.ccsub.net</a> から登録すると、初回登録時に 5 ドル分の無料クレジットがもらえます。
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
       <a href="https://go.apimart.ai/gh-moneyprinterturbo"><img src="docs/sponsors/apimart-logo.png" alt="APIMart" width="100"></a>
     </td>
     <td align="left">
@@ -81,15 +72,14 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.ai" height="56"></a><br>
-      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.ai</strong></a>
+      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><img src="docs/sponsors/infistar-logo.svg" alt="Infistar.cc" height="56"></a><br>
+      <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.cc</strong></a>
     </td>
     <td align="left">
-      本プロジェクトをスポンサードしてくださっている <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">Infistar.ai</a> に感謝します！<br>
-      ⚡ 低コストで信頼性の高いアクセス: 価格は公式レートのわずか 10% から。モデル倍率は透明で、詳細な利用履歴も確認できます。複数プロバイダーへの動的ルーティングにより、レート制限や予期しないサービス中断を回避できます。<br>
-      🧠 台本作成に最適な最先端 LLM: OpenAI、Claude、Google Gemini、DeepSeek、Qwen などの主要モデルを OpenAI 互換 API 経由で利用できます。Infistar.ai は MoneyPrinterTurbo の台本生成と素材キーワード抽出のワークフローに、低レイテンシかつ高並列なサポートを提供します。<br>
-      🎨 最先端のマルチモーダルエコシステム: FLUX、Midjourney、Seedance、Kling、Sora、Luma といった主要な画像・動画生成モデルを利用でき、次世代の AI 動画制作にすぐ活用できます。<br>
-      🎁 MoneyPrinterTurbo ユーザーは、<a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">専用の紹介リンク</a>から登録し、Infistar.ai が現在提供している限定特典を確認できます。
+      本オープンソースプロジェクトを支援してくださっている <a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link"><strong>Infistar.cc</strong></a> に感謝します！コストパフォーマンスに優れた AI API サービスで、大規模言語モデルは<strong>公式料金の 1% から</strong>、AI 画像生成は<strong>1 枚あたり 0.06 元から</strong>利用できます。<br>
+      <strong>API キー 1 つでテキスト・画像・動画を生成</strong>。GPT、Claude、Gemini、DeepSeek、Qwen、Kling などの主要モデルに対応し、API グループを分ける必要はありません。<br>
+      <strong>全モデルの真正性を検証可能</strong>。料金は透明で、中国での ICP 届出を行っており、人民元でのリアルタイム課金と<strong>法人向けの請求書発行</strong>に対応しています。<br>
+      🎁 MPT 限定特典：<a href="https://infistar.cc/register?aff=6T4EYXP2&amp;ref_source=link">専用リンクから登録</a>すると、<strong>5 米ドル分のトライアルクレジット</strong>と初回チャージの優待を受けられます。
     </td>
   </tr>
   <tr>
@@ -114,19 +104,19 @@
   <tr>
     <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
-      <a href="https://reccloud.com"><strong>RecCloud</strong></a>
+      <a href="https://reccloud.com">RecCloud</a>
     </td>
     <td align="left">
-      本プロジェクトは<strong>デプロイ</strong>と<strong>利用</strong>にあたって、初心者の方にはややハードルがあります。本プロジェクトをベースにした <code>AI Video Generator</code> サービスを無料で提供してくださっている <a href="https://reccloud.com">RecCloud（AI を活用したマルチメディアサービスプラットフォーム）</a>に、特に感謝いたします。デプロイ不要でオンラインから利用でき、とても便利です。
+      本プロジェクトをベースにした無料の <strong>AI 動画生成ツール</strong>を提供してくださっている <a href="https://reccloud.com">RecCloud（AI マルチメディアプラットフォーム）</a> に感謝します。デプロイ不要でオンラインですぐに使えるため、初心者にも手軽にご利用いただけます。
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
       <a href="https://picwish.com"><img src="docs/sponsors/picwish-logo.svg" alt="Picwish" height="36"></a><br>
-      <a href="https://picwish.com"><strong>Picwish</strong></a>
+      <a href="https://picwish.com">Picwish</a>
     </td>
     <td align="left">
-      本プロジェクトを支援・スポンサードし、継続的な更新とメンテナンスを可能にしてくださっている <a href="https://picwish.com">Picwish</a> に感謝します。Picwish は<strong>画像処理分野</strong>に注力し、複雑な操作を極限まで簡素化する豊富な<strong>画像処理ツール</strong>を提供しており、画像処理を本当に手軽なものにしています。
+      本プロジェクトを支援・スポンサードしてくださっている <a href="https://picwish.com">Picwish</a> に感謝します！Picwish は豊富な<strong>オンライン画像編集ツール</strong>を提供し、さまざまな画像の加工を簡単な操作で行えます。
     </td>
   </tr>
 </table>
