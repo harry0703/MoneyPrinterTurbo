@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from fastapi import FastAPI, File, UploadFile
 from fastapi.testclient import TestClient
@@ -36,6 +36,121 @@ class TestASGICORS(unittest.TestCase):
         )
         self.assertEqual(asgi.parse_cors_allowed_origins(""), [])
         self.assertEqual(asgi.parse_cors_allowed_origins(None), [])
+
+    def test_origin_parser_normalizes_every_item_to_origin_header_shape(self):
+        """配置项必须折叠成 Origin 请求头的规范形式，否则白名单静默失效。"""
+
+        origins = asgi.parse_cors_allowed_origins(
+            "https://frontend.example/,"
+            "HTTPS://Admin.Example,"
+            "https://frontend.example/,"
+            "localhost:3000,"
+            "ftp://files.example,"
+            "*"
+        )
+
+        # 尾斜杠、大小写差异和重复项都归一到同一个来源；缺少 scheme 的主机名、
+        # 非 http/https 的 scheme 都不可能出现在 Origin 头里，因此被丢弃。
+        self.assertEqual(
+            origins,
+            ["https://frontend.example", "https://admin.example", "*"],
+        )
+
+    def test_malformed_entry_is_dropped_without_losing_valid_origins(self):
+        """畸形条目只能丢弃自身并留下告警，不得中断整份配置的解析。"""
+
+        with patch.object(asgi, "logger") as mocked_logger:
+            origins = asgi.parse_cors_allowed_origins(
+                "https://valid.example,"
+                "https://[::1,"
+                "https://frontend.example:bad,"
+                "https://frontend.example:99999,"
+                "https://second.example"
+            )
+
+        # 畸形 IPv6 字面量和非法端口都不可能出现在 Origin 头里。它们的解析异常
+        # 必须在这里收敛：本函数由模块导入期调用，异常冒出去等于整条 API 起不来。
+        self.assertEqual(
+            origins,
+            ["https://valid.example", "https://second.example"],
+        )
+        self.assertEqual(mocked_logger.warning.call_count, 3)
+
+    def test_explicit_default_port_is_folded_into_the_origin(self):
+        """显式写出默认端口的写法必须折叠成浏览器实际发送的 Origin。"""
+
+        origins = asgi.parse_cors_allowed_origins(
+            "https://secure.example:443,"
+            "http://plain.example:80,"
+            "https://padded.example:0443,"
+            "https://custom.example:8443,"
+            "https://[::1]:3000"
+        )
+
+        # :443 / :0443 / :80 都等于协议的默认端口，浏览器序列化 Origin 时会省略；
+        # 非默认端口必须保留，IPv6 字面量则要连方括号一起保留。
+        self.assertEqual(
+            origins,
+            [
+                "https://secure.example",
+                "http://plain.example",
+                "https://padded.example",
+                "https://custom.example:8443",
+                "https://[::1]:3000",
+            ],
+        )
+
+    def test_address_bar_style_origin_admits_the_trusted_frontend(self):
+        """从地址栏复制的带尾斜杠写法必须与规范写法得到同一个前端访问结果。"""
+
+        trusted_origin = "https://frontend.example"
+        client = self._create_client(
+            asgi.parse_cors_allowed_origins("https://frontend.example/")
+        )
+
+        response = client.get("/probe", headers={"Origin": trusted_origin})
+        preflight = client.options(
+            "/probe",
+            headers={
+                "Origin": trusted_origin,
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"], trusted_origin
+        )
+        self.assertEqual(preflight.status_code, 200)
+        self.assertEqual(
+            preflight.headers["access-control-allow-origin"], trusted_origin
+        )
+
+    def test_default_port_configuration_admits_the_trusted_frontend(self):
+        """配置里写了默认端口时，浏览器不带端口的 Origin 仍必须被放行。"""
+
+        trusted_origin = "https://frontend.example"
+        client = self._create_client(
+            asgi.parse_cors_allowed_origins("https://frontend.example:443")
+        )
+
+        response = client.get("/probe", headers={"Origin": trusted_origin})
+        preflight = client.options(
+            "/probe",
+            headers={
+                "Origin": trusted_origin,
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"], trusted_origin
+        )
+        self.assertEqual(preflight.status_code, 200)
+        self.assertEqual(
+            preflight.headers["access-control-allow-origin"], trusted_origin
+        )
 
     def test_empty_configuration_keeps_browser_same_origin_policy(self):
         """未配置白名单时，第三方网页不能读取响应或通过预检。"""
