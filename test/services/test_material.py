@@ -1624,6 +1624,48 @@ class TestWaveSpeedProvider(unittest.TestCase):
         self.assertEqual(generate.call_count, 2)
         self.assertEqual(result, ["/tmp/1.mp4", "/tmp/2.mp4"])
 
+    def test_download_videos_wavespeed_counts_actual_generated_duration(self):
+        """
+        回归:请求片段时长低于模型下限时,实际生成的是更长的素材(请求 3s
+        生成 4s),剪辑流程会把 4s 全部用掉。记账必须按实际生成时长累计,
+        否则会为已经覆盖的时长继续下单付费。
+        """
+        # 模型下限 4s:请求 3s,每段实际生成 4s
+        generated = {
+            f"term-{i}": [
+                self._generated_item(
+                    f"term-{i}", f"https://cdn.example.com/{i}.mp4", duration=4
+                )
+            ]
+            for i in range(1, 5)
+        }
+
+        def fake_generate(search_term, minimum_duration, video_aspect):
+            return generated[search_term]
+
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                side_effect=fake_generate,
+            ) as generate,
+            patch(
+                "app.services.material.save_video",
+                side_effect=lambda video_url, save_dir="": f"/tmp/{video_url.rsplit('/', 1)[-1]}",
+            ),
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed-actual-duration",
+                search_terms=[f"term-{i}" for i in range(1, 5)],
+                source="wavespeed",
+                audio_duration=8,
+                max_clip_duration=3,
+            )
+
+        # 4s + 4s == 8s 已覆盖;按 max_clip_duration 封顶只会记 3s + 3s,
+        # 从而多下两次单
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(result, ["/tmp/1.mp4", "/tmp/2.mp4"])
+
     def test_download_videos_wavespeed_skips_failed_segment_and_continues(self):
         """单个片段生成失败(空结果)时跳过该关键词,继续为后续片段生成。"""
         generated = {
