@@ -63,26 +63,53 @@ def validation_exception_handler(request: Request, e: RequestValidationError):
     )
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
 def _normalize_allowed_origin(raw_origin: str) -> str | None:
     """把配置项折叠成浏览器实际发送的 Origin 形式。
 
     Origin 请求头由 RFC 6454 固定为 ``scheme://host[:port]``：没有路径、没有尾
-    斜杠，scheme 与 host 也已经规范化为小写。用户在浏览器地址栏复制得到的写法
-    是 ``https://frontend.example/``，它与浏览器发送的 Origin 逐字符比较永远不
-    相等，白名单因此静默失效：前端只看到 CORS 报错，服务端只留下一行 blocked
-    日志，两边都指不到配置本身。
+    斜杠，scheme 与 host 已经规范化为小写，并且省略协议的默认端口。用户在浏览器
+    地址栏复制得到的 ``https://frontend.example/``，以及显式写出默认端口的
+    ``https://frontend.example:443``，都与浏览器实际发送的
+    ``https://frontend.example`` 逐字符不相等，白名单因此静默失效：前端只看到
+    CORS 报错，服务端只留下一行 blocked 日志，两边都指不到配置本身。
 
     返回 ``None`` 表示该写法不可能匹配任何 Origin（缺少 scheme、scheme 不是
-    http/https、只剩一个主机名等），调用方应丢弃并告警。
+    http/https、主机名为空或含空白、IPv6 字面量畸形、端口非法或越界），调用方应
+    丢弃并告警。解析失败必须收敛成 ``None``：本函数在模块导入期就会执行，让
+    ``urlsplit()`` 的 ``ValueError`` 冒出去等于整条 API 无法启动。
     """
 
     if raw_origin == "*":
         return raw_origin
 
-    parsed = urlsplit(raw_origin.rstrip("/"))
-    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
+    try:
+        parsed = urlsplit(raw_origin)
+        scheme = parsed.scheme.lower()
+        # 读取 hostname / port 时才校验 netloc：畸形 IPv6 字面量由 urlsplit()
+        # 抛出，非数字端口与超出 0-65535 的端口在读取 port 时抛出。
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError:
         return None
-    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+    # 只有 http/https 具备浏览器 Origin 语义，且两者都有可省略的默认端口。
+    if scheme not in _DEFAULT_PORTS or not host:
+        return None
+    if any(character.isspace() for character in host):
+        return None
+
+    # 显式小写，不依赖 urlsplit 在不同 Python 版本上的大小写处理。
+    host = host.lower()
+    # 浏览器序列化 Origin 时给 IPv6 字面量保留方括号；``:443``、``:0443``、
+    # ``:80`` 这类默认端口写法必须折叠成不带端口的形态才能与真实前端匹配。
+    if ":" in host:
+        host = f"[{host}]"
+    if port is None or port == _DEFAULT_PORTS[scheme]:
+        return f"{scheme}://{host}"
+    return f"{scheme}://{host}:{port}"
 
 
 def parse_cors_allowed_origins(raw_origins: str | None) -> list[str]:
@@ -93,8 +120,9 @@ def parse_cors_allowed_origins(raw_origins: str | None) -> list[str]:
     部署了独立网页前端时，再通过 ``CORS_ALLOWED_ORIGINS`` 显式开启。
 
     每个来源都先折叠成 Origin 请求头的规范形式，因此 ``https://a.example/``、
-    ``HTTPS://A.Example`` 和重复项得到同一个结果，无法匹配任何 Origin 的写法
-    会被丢弃并留下告警。
+    ``HTTPS://A.Example`` 与显式默认端口的 ``https://a.example:443`` 得到同一个
+    结果，无法匹配任何 Origin 的写法会被丢弃并留下告警。畸形条目只丢弃自身，
+    不会中断这里的解析——本函数在模块导入期调用，解析异常会让 API 无法启动。
     """
 
     if not raw_origins:
