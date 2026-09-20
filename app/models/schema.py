@@ -185,7 +185,7 @@ class SubtitleRequest(BaseModel):
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
     video_source: Optional[str] = "local"
-    subtitle_enabled: Optional[str] = "true"
+    subtitle_enabled: Optional[bool] = True
 
 
 class AudioRequest(BaseModel):
