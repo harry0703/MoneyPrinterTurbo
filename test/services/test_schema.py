@@ -86,6 +86,15 @@ class TestVideoParams(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     SubtitleRequest(video_script="Coffee", **{field_name: value})
 
+    def test_subtitle_request_normalizes_enabled_flag_to_bool(self):
+        for value in (False, "false"):
+            with self.subTest(value=value):
+                request = SubtitleRequest(
+                    video_script="Coffee", subtitle_enabled=value
+                )
+
+                self.assertIs(request.subtitle_enabled, False)
+
     def test_invalid_saved_subtitle_mode_falls_back_during_upgrade(self):
         """旧配置包含无效值时应回退默认值，而不是阻止服务启动。"""
         with patch.object(
