@@ -25,6 +25,7 @@ from app.services import (
     metaso_minimax,
     muapi,
     ofox,
+    rough_cut,
     sonilo,
     subtitle,
     task_artifacts,
@@ -1538,11 +1539,13 @@ def _run_pipeline(
     # Creative pipeline: when creative mode is enabled, turn the script into
     # a structured shot plan before audio and material acquisition. Vanilla
     # tasks (creative_mode False) never enter this block.
-    if (
+    creative_active = bool(
         params.creative_mode
         and config.creative.get("enabled", False)
         and stop_at in {"materials", "video"}
-    ):
+    )
+    creative_shot_plan = None
+    if creative_active:
         if params.creative_brief is not None:
             task_artifacts.write_task_json(
                 task_id,
@@ -1555,8 +1558,10 @@ def _run_pipeline(
                 "style_profile.json",
                 params.style_profile.model_dump(mode="json"),
             )
-        shot_plan = director.generate_shot_plan(task_id, params, video_script)
-        if shot_plan is None:
+        creative_shot_plan = director.generate_shot_plan(
+            task_id, params, video_script
+        )
+        if creative_shot_plan is None:
             return _mark_task_failed(
                 task_id,
                 "shot_plan",
@@ -1616,13 +1621,26 @@ def _run_pipeline(
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     # 5. Get video materials
-    downloaded_videos = get_video_materials(
-        task_id,
-        params,
-        video_terms,
-        audio_duration,
-        loomloom_video_request=loomloom_video_request,
-    )
+    creative_shots = None
+    if creative_active:
+        creative_shots = rough_cut.resolve_shot_materials(
+            task_id, params, creative_shot_plan
+        )
+        if creative_shots is None:
+            return _mark_task_failed(
+                task_id,
+                "materials",
+                "failed to resolve creative shot materials",
+            )
+        downloaded_videos = [shot["asset_path"] for shot in creative_shots]
+    else:
+        downloaded_videos = get_video_materials(
+            task_id,
+            params,
+            video_terms,
+            audio_duration,
+            loomloom_video_request=loomloom_video_request,
+        )
     if not downloaded_videos:
         return _mark_task_failed(
             task_id,
@@ -1639,8 +1657,72 @@ def _run_pipeline(
         )
         return {"materials": downloaded_videos}
 
+    if creative_active:
+        if config.creative.get("checkpoint", True):
+            try:
+                timeline = rough_cut.build_rough_cut(
+                    task_id, creative_shots, params=params
+                )
+            except rough_cut.RoughCutError as exc:
+                return _mark_task_failed(task_id, "rough_cut", str(exc))
+            # The director checkpoint pauses the pipeline and resume can
+            # run after a restart, so the full context is persisted here.
+            sm.state.update_task(
+                task_id,
+                state=const.TASK_STATE_WAITING_FOR_DIRECTOR,
+                progress=60,
+                params=params.model_dump(mode="json"),
+                script=video_script,
+                terms=video_terms,
+                audio_file=audio_file,
+                audio_duration=audio_duration,
+                subtitle_path=subtitle_path,
+                materials=downloaded_videos,
+                rough_cut_file=rough_cut.timeline_path(task_id),
+                rough_cut_video=rough_cut.video_path(task_id),
+                rough_cut=timeline,
+            )
+            logger.success(
+                f"task {task_id} rough cut ready "
+                f"({len(timeline['shots'])} shots, "
+                f"{timeline['total_duration']}s); waiting for director approval"
+            )
+            return {"rough_cut": timeline}
+        try:
+            prepared = rough_cut.prepare_segments(task_id, creative_shots)
+        except rough_cut.RoughCutError as exc:
+            return _mark_task_failed(task_id, "rough_cut", str(exc))
+        downloaded_videos = [shot["segment_path"] for shot in prepared]
+
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
+    return _finalize_video_task(
+        task_id,
+        params,
+        downloaded_videos,
+        audio_file,
+        subtitle_path,
+        audio_duration,
+        video_script,
+        video_terms,
+    )
+
+
+def _finalize_video_task(
+    task_id,
+    params,
+    downloaded_videos,
+    audio_file,
+    subtitle_path,
+    audio_duration,
+    video_script,
+    video_terms,
+) -> dict:
+    """Run final video assembly, cross-post and terminal state update.
+
+    Shared by the regular pipeline and the creative director resume
+    path so both produce identical final videos and state fields.
+    """
     # 仅完整视频生成流程才需要处理视频拼接模式；
     # 这样可以避免 /subtitle 和 /audio 这类请求访问不存在的字段。
     if type(params.video_concat_mode) is str:

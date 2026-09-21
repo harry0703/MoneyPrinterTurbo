@@ -575,6 +575,9 @@ creative = _SynchronizedConfig(
         {
             "enabled": False,
             "default_image_provider": "comfyui",
+            "checkpoint": True,
+            "motion": "smooth",
+            "material_fallback": "stock",
         },
     )
 )
