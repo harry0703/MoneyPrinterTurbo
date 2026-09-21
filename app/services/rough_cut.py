@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -139,21 +140,39 @@ def resolve_shot_materials(task_id: str, params: Any, plan: Any) -> Optional[lis
     return shots
 
 
+def _prepare_shot_entry(shot: dict, motion: str, verb: str) -> dict:
+    """Prepare one shot segment, pinning video shots to the real length.
+
+    A video segment can never be longer than its source, so when the actual
+    segment length differs from the shot duration beyond the trim tolerance
+    the duration is pinned to reality and the in/out/total stay consistent
+    with the concatenated rough cut.
+    """
+    segment = creative_segments.prepare_shot_segment(
+        shot["asset_path"], int(round(float(shot["duration"]))), motion
+    )
+    if not segment:
+        raise RoughCutError(
+            f"failed to {verb} segment for shot {shot.get('index')} "
+            f"(asset={shot.get('asset_path')}, motion={motion})"
+        )
+    entry = {**shot, "segment_path": segment}
+    if utils.parse_extension(shot["asset_path"]) not in const.FILE_TYPE_IMAGES:
+        actual = creative_segments.get_video_duration(segment)
+        if actual is not None and abs(actual - float(shot["duration"])) > 0.15:
+            logger.warning(
+                f"[rough_cut] shot {shot.get('index')} duration "
+                f"{shot.get('duration')}s pinned to segment length "
+                f"{round(actual, 3)}s"
+            )
+            entry["duration"] = round(actual, 3)
+    return entry
+
+
 def prepare_segments(task_id: str, shots: list, motion: Optional[str] = None) -> list:
     """Render every shot asset into a video segment (cached per asset)."""
     motion = motion or default_motion()
-    prepared = []
-    for shot in shots:
-        segment = creative_segments.prepare_shot_segment(
-            shot["asset_path"], int(round(float(shot["duration"]))), motion
-        )
-        if not segment:
-            raise RoughCutError(
-                f"failed to prepare segment for shot {shot['index']} "
-                f"(asset={shot['asset_path']}, motion={motion})"
-            )
-        prepared.append({**shot, "segment_path": segment})
-    return prepared
+    return [_prepare_shot_entry(shot, motion, "prepare") for shot in shots]
 
 
 def _aspect_resolution(params: Any) -> tuple:
@@ -266,17 +285,7 @@ def rebuild_rough_cut(task_id: str, params: Any = None) -> Optional[dict]:
         params = task.get("params") or {}
     motion = timeline.get("motion") or default_motion()
     shots = timeline.get("shots") or []
-    prepared = []
-    for shot in shots:
-        segment = creative_segments.prepare_shot_segment(
-            shot["asset_path"], int(round(float(shot["duration"]))), motion
-        )
-        if not segment:
-            raise RoughCutError(
-                f"failed to rebuild segment for shot {shot.get('index')} "
-                f"(asset={shot.get('asset_path')}, motion={motion})"
-            )
-        prepared.append({**shot, "segment_path": segment})
+    prepared = [_prepare_shot_entry(shot, motion, "rebuild") for shot in shots]
     timeline["shots"] = prepared
     timeline["motion"] = motion
     timeline["total_duration"] = _normalize_shots(prepared)
@@ -321,18 +330,46 @@ def _find_shot(timeline: dict, index: int) -> dict:
     raise RoughCutError(f"shot {index} not found in rough cut", status_code=404)
 
 
-def _delete_segment(path: str) -> None:
-    if path and os.path.isfile(path):
-        os.remove(path)
+def _delete_segment(shot: dict) -> None:
+    """Delete a shot's rendered segment, never the shot asset itself.
+
+    For video shots the segment is the asset (passthrough), so only derived
+    segment files are eligible for deletion.
+    """
+    segment = shot.get("segment_path") or ""
+    asset = shot.get("asset_path") or ""
+    if segment and segment != asset and os.path.isfile(segment):
+        os.remove(segment)
 
 
 def _save_and_rebuild(task_id: str, timeline: dict, task: dict) -> dict:
-    task_artifacts.write_task_json(task_id, ROUGH_CUT_FILE, timeline)
-    rebuilt = rebuild_rough_cut(task_id, params=task.get("params") or {})
+    """Persist an edited timeline only if the rebuild succeeds.
+
+    The previous timeline file is kept aside while the rebuild runs and
+    restored when anything fails, so a failed action never leaves a
+    half-updated timeline behind.
+    """
+    path = timeline_path(task_id)
+    backup = f"{path}.bak"
+    had_backup = False
+    if os.path.isfile(path):
+        shutil.move(path, backup)
+        had_backup = True
+    try:
+        task_artifacts.write_task_json(task_id, ROUGH_CUT_FILE, timeline)
+        rebuilt = rebuild_rough_cut(task_id, params=task.get("params") or {})
+    except Exception:
+        if had_backup and os.path.isfile(backup):
+            shutil.move(backup, path)
+        raise
     if rebuilt is None:
+        if had_backup and os.path.isfile(backup):
+            shutil.move(backup, path)
         raise RoughCutError(
             f"no rough cut found for task {task_id}", status_code=404
         )
+    if os.path.isfile(backup):
+        os.remove(backup)
     return rebuilt
 
 
@@ -363,7 +400,7 @@ def set_shot_duration(task_id: str, index: int, duration: float) -> dict:
             f"shot duration must be between {_MIN_SHOT_DURATION} and "
             f"{_MAX_SHOT_DURATION} seconds, got {duration}"
         )
-    _delete_segment(shot.get("segment_path"))
+    _delete_segment(shot)
     shot["duration"] = round(duration, 3)
     return _save_and_rebuild(task_id, timeline, task)
 
@@ -378,7 +415,7 @@ def replace_shot_asset(task_id: str, index: int, asset_path: str) -> dict:
         candidate = os.path.join(utils.task_dir(task_id), candidate)
     if not os.path.isfile(candidate):
         raise RoughCutError(f"asset {asset_path!r} does not exist")
-    _delete_segment(shot.get("segment_path"))
+    _delete_segment(shot)
     shot["asset_path"] = candidate
     return _save_and_rebuild(task_id, timeline, task)
 
@@ -390,7 +427,7 @@ def delete_shot(task_id: str, index: int) -> dict:
     shot = _find_shot(timeline, index)
     if len(timeline.get("shots") or []) <= 1:
         raise RoughCutError("cannot delete the last remaining shot")
-    _delete_segment(shot.get("segment_path"))
+    _delete_segment(shot)
     timeline["shots"] = [
         entry for entry in timeline["shots"] if entry.get("index") != index
     ]
@@ -434,7 +471,7 @@ def regenerate_shot(
     context["output_dir"] = os.path.join(
         context["media_root"], f"shot_{index:03d}"
     )
-    _delete_segment(shot.get("segment_path"))
+    _delete_segment(shot)
     try:
         paths = image_provider.generate(item, context)
     except Exception as exc:

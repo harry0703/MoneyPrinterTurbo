@@ -287,5 +287,124 @@ class TestResumeAfterDirector(RoughCutActionsTestCase):
         self.assertIn("not waiting", task.get("error", ""))
 
 
+class TestVideoShotDuration(RoughCutActionsTestCase):
+    def _video_asset(self, name="stock.mp4"):
+        path = os.path.join(self.task_dir, name)
+        with open(path, "wb") as handle:
+            handle.write(b"fake-video")
+        return path
+
+    def _seed_video(self, video, video_duration=1.0):
+        first_segment = _fake_segment(self.images[0], 1)
+        shots = [
+            {
+                "index": 1,
+                "source": "generated_image",
+                "asset_path": self.images[0],
+                "provider": "fakegen",
+                "prompt": "prompt 1",
+                "query": "",
+                "duration": 1.0,
+                "segment_path": first_segment,
+                "in": 0.0,
+                "out": 1.0,
+            },
+            {
+                "index": 2,
+                "source": "stock",
+                "asset_path": video,
+                "provider": "stock",
+                "prompt": "",
+                "query": "harbor",
+                "duration": video_duration,
+                "segment_path": video,
+                "in": 1.0,
+                "out": 1.0 + video_duration,
+            },
+        ]
+        timeline = {
+            "version": 1,
+            "task_id": TASK_ID,
+            "motion": "smooth",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+            "total_duration": 1.0 + video_duration,
+            "shots": shots,
+        }
+        with open(
+            rough_cut.timeline_path(TASK_ID), "w", encoding="utf-8"
+        ) as handle:
+            json.dump(timeline, handle)
+        sm.state.update_task(
+            TASK_ID,
+            state=const.TASK_STATE_WAITING_FOR_DIRECTOR,
+            progress=60,
+            params={"video_aspect": "16:9"},
+        )
+        return timeline
+
+    def test_duration_change_keeps_video_asset(self):
+        video = self._video_asset()
+        self._seed_video(video)
+        timeline = rough_cut.set_shot_duration(TASK_ID, 2, 2.0)
+        second = timeline["shots"][1]
+        self.assertTrue(os.path.isfile(second["asset_path"]))
+        self.assertEqual(second["duration"], 2.0)
+        self.assertEqual(timeline["shots"][0]["out"], 1.0)
+        self.assertEqual(second["out"], 3.0)
+        self.assertEqual(timeline["total_duration"], 3.0)
+
+    def test_duration_longer_than_source_video_is_clamped(self):
+        from moviepy import ColorClip
+
+        video = os.path.join(self.task_dir, "src.mp4")
+        clip = ColorClip(size=(64, 36), color=(20, 40, 60), duration=2.0)
+        clip.write_videofile(video, fps=10, logger=None)
+        clip.close()
+        self._seed_video(video, video_duration=2.0)
+
+        def passthrough(asset_path, clip_duration, motion="smooth"):
+            return asset_path
+
+        with patch(
+            "app.services.creative_segments.prepare_shot_segment",
+            side_effect=passthrough,
+        ):
+            timeline = rough_cut.set_shot_duration(TASK_ID, 2, 5.0)
+        second = timeline["shots"][1]
+        self.assertAlmostEqual(second["duration"], 2.0, delta=0.25)
+        self.assertEqual(second["out"], 3.0)
+        self.assertEqual(timeline["total_duration"], 3.0)
+
+
+class TestAtomicTimelineSave(RoughCutActionsTestCase):
+    def test_failed_rebuild_restores_previous_timeline(self):
+        self._seed()
+        with patch(
+            "app.services.creative_segments.prepare_shot_segment",
+            return_value="",
+        ):
+            with self.assertRaises(rough_cut.RoughCutError):
+                rough_cut.set_shot_duration(TASK_ID, 1, 2.0)
+        on_disk = rough_cut.load_rough_cut(TASK_ID)
+        self.assertEqual(on_disk["shots"][0]["duration"], 1.0)
+        self.assertEqual(on_disk["total_duration"], 3.0)
+        self.assertFalse(os.path.isfile(rough_cut.timeline_path(TASK_ID) + ".bak"))
+
+    def test_failed_rebuild_restores_previous_timeline_on_replace(self):
+        self._seed()
+        new_asset = self._image("replaced.png", (9, 90, 200))
+        with patch(
+            "app.services.creative_segments.prepare_shot_segment",
+            return_value="",
+        ):
+            with self.assertRaises(rough_cut.RoughCutError):
+                rough_cut.replace_shot_asset(TASK_ID, 1, new_asset)
+        on_disk = rough_cut.load_rough_cut(TASK_ID)
+        self.assertEqual(on_disk["shots"][0]["asset_path"], self.images[0])
+        self.assertEqual(on_disk["total_duration"], 3.0)
+        self.assertFalse(os.path.isfile(rough_cut.timeline_path(TASK_ID) + ".bak"))
+
+
 if __name__ == "__main__":
     unittest.main()
