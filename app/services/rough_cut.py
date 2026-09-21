@@ -12,6 +12,10 @@ Every shot keeps its asset and duration and the timeline keeps the motion
 style, so editing the metadata is always sufficient to rebuild the rough
 cut: ``rebuild_rough_cut`` re-renders only the missing or stale segments.
 
+Director actions (reorder, duration, replace, delete, regenerate) mutate
+the timeline while the task waits in ``WAITING_FOR_DIRECTOR`` and rebuild
+the rough cut after every change.
+
 The vanilla MoneyPrinterTurbo flow never imports this module.
 """
 
@@ -26,19 +30,23 @@ from loguru import logger
 from moviepy import VideoFileClip, concatenate_videoclips
 
 from app.config import config
-from app.models import creative
+from app.models import const, creative
 from app.models.schema import VideoAspect
 from app.services import creative_segments
 from app.services import material_router
 from app.services import state as sm
 from app.services import task_artifacts
 from app.services import video
+from app.services.providers.base import ProviderError, build_registry
 from app.utils import utils
 
 ROUGH_CUT_FILE = "rough_cut.json"
 ROUGH_CUT_VIDEO_FILE = "rough_cut.mp4"
 ROUGH_CUT_VERSION = 1
 ROUGH_CUT_FPS = 30
+
+_MIN_SHOT_DURATION = 0.5
+_MAX_SHOT_DURATION = 600.0
 
 
 class RoughCutError(RuntimeError):
@@ -283,3 +291,161 @@ def rebuild_rough_cut(task_id: str, params: Any = None) -> Optional[dict]:
         f"{len(prepared)} shots, {timeline['total_duration']}s"
     )
     return timeline
+
+
+def _require_task_state(task_id: str) -> dict:
+    task = sm.state.get_task(task_id)
+    if task is None:
+        raise RoughCutError(f"task {task_id} not found", status_code=404)
+    if task.get("state") != const.TASK_STATE_WAITING_FOR_DIRECTOR:
+        raise RoughCutError(
+            f"task {task_id} is not waiting for director approval",
+            status_code=409,
+        )
+    return task
+
+
+def _require_timeline(task_id: str) -> dict:
+    timeline = load_rough_cut(task_id)
+    if timeline is None:
+        raise RoughCutError(
+            f"no rough cut found for task {task_id}", status_code=404
+        )
+    return timeline
+
+
+def _find_shot(timeline: dict, index: int) -> dict:
+    for shot in timeline.get("shots") or []:
+        if shot.get("index") == index:
+            return shot
+    raise RoughCutError(f"shot {index} not found in rough cut", status_code=404)
+
+
+def _delete_segment(path: str) -> None:
+    if path and os.path.isfile(path):
+        os.remove(path)
+
+
+def _save_and_rebuild(task_id: str, timeline: dict, task: dict) -> dict:
+    task_artifacts.write_task_json(task_id, ROUGH_CUT_FILE, timeline)
+    rebuilt = rebuild_rough_cut(task_id, params=task.get("params") or {})
+    if rebuilt is None:
+        raise RoughCutError(
+            f"no rough cut found for task {task_id}", status_code=404
+        )
+    return rebuilt
+
+
+def reorder_shots(task_id: str, order: list) -> dict:
+    """Reorder the shots of a waiting rough cut."""
+    task = _require_task_state(task_id)
+    timeline = _require_timeline(task_id)
+    shots = timeline.get("shots") or []
+    current = [shot.get("index") for shot in shots]
+    if sorted(order) != sorted(current):
+        raise RoughCutError(
+            f"order must contain every shot index exactly once, "
+            f"expected {sorted(current)}, got {sorted(order)}"
+        )
+    by_index = {shot.get("index"): shot for shot in shots}
+    timeline["shots"] = [by_index[index] for index in order]
+    return _save_and_rebuild(task_id, timeline, task)
+
+
+def set_shot_duration(task_id: str, index: int, duration: float) -> dict:
+    """Change one shot duration and re-render its segment."""
+    task = _require_task_state(task_id)
+    timeline = _require_timeline(task_id)
+    shot = _find_shot(timeline, index)
+    duration = float(duration)
+    if not _MIN_SHOT_DURATION <= duration <= _MAX_SHOT_DURATION:
+        raise RoughCutError(
+            f"shot duration must be between {_MIN_SHOT_DURATION} and "
+            f"{_MAX_SHOT_DURATION} seconds, got {duration}"
+        )
+    _delete_segment(shot.get("segment_path"))
+    shot["duration"] = round(duration, 3)
+    return _save_and_rebuild(task_id, timeline, task)
+
+
+def replace_shot_asset(task_id: str, index: int, asset_path: str) -> dict:
+    """Swap the asset of one shot and re-render its segment."""
+    task = _require_task_state(task_id)
+    timeline = _require_timeline(task_id)
+    shot = _find_shot(timeline, index)
+    candidate = asset_path
+    if not os.path.isabs(candidate):
+        candidate = os.path.join(utils.task_dir(task_id), candidate)
+    if not os.path.isfile(candidate):
+        raise RoughCutError(f"asset {asset_path!r} does not exist")
+    _delete_segment(shot.get("segment_path"))
+    shot["asset_path"] = candidate
+    return _save_and_rebuild(task_id, timeline, task)
+
+
+def delete_shot(task_id: str, index: int) -> dict:
+    """Delete one shot from the rough cut."""
+    task = _require_task_state(task_id)
+    timeline = _require_timeline(task_id)
+    shot = _find_shot(timeline, index)
+    if len(timeline.get("shots") or []) <= 1:
+        raise RoughCutError("cannot delete the last remaining shot")
+    _delete_segment(shot.get("segment_path"))
+    timeline["shots"] = [
+        entry for entry in timeline["shots"] if entry.get("index") != index
+    ]
+    return _save_and_rebuild(task_id, timeline, task)
+
+
+def regenerate_shot(
+    task_id: str,
+    index: int,
+    prompt: Optional[str] = None,
+    provider: Optional[str] = None,
+) -> dict:
+    """Regenerate the image of one shot and re-render its segment."""
+    task = _require_task_state(task_id)
+    timeline = _require_timeline(task_id)
+    shot = _find_shot(timeline, index)
+    provider_name = (provider or shot.get("provider") or "").strip()
+    if not provider_name:
+        if shot.get("source") != "generated_image":
+            raise RoughCutError(
+                f"shot {index} is not a generated shot; "
+                "pass a provider to regenerate it"
+            )
+        provider_name = str(
+            config.creative.get("default_image_provider", "") or "comfyui"
+        ).strip()
+    registry = build_registry()
+    try:
+        image_provider = registry.get(provider_name)
+    except ProviderError as exc:
+        raise RoughCutError(
+            f"image provider {provider_name!r} is not available"
+        ) from exc
+    item = creative.ShotPlanItem(
+        index=index,
+        source_type="generated_image",
+        prompt=prompt or shot.get("prompt") or "",
+        provider=provider_name,
+    )
+    context = _shot_context(task_id, task.get("params") or {})
+    context["output_dir"] = os.path.join(
+        context["media_root"], f"shot_{index:03d}"
+    )
+    _delete_segment(shot.get("segment_path"))
+    try:
+        paths = image_provider.generate(item, context)
+    except Exception as exc:
+        raise RoughCutError(f"regeneration failed for shot {index}: {exc}") from exc
+    if not paths:
+        raise RoughCutError(
+            f"image provider {provider_name!r} returned no files"
+        )
+    shot["asset_path"] = paths[0]
+    shot["source"] = "generated_image"
+    shot["provider"] = provider_name
+    if prompt:
+        shot["prompt"] = prompt
+    return _save_and_rebuild(task_id, timeline, task)

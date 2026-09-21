@@ -1811,6 +1811,67 @@ def _finalize_video_task(
     return kwargs
 
 
+def resume_after_director(task_id) -> dict:
+    """Rebuild the rough cut after director edits and render the final video."""
+    task = sm.state.get_task(task_id)
+    if not task or task.get("state") != const.TASK_STATE_WAITING_FOR_DIRECTOR:
+        return _mark_task_failed(
+            task_id,
+            "director_resume",
+            "task is not waiting for director approval",
+        )
+
+    sm.state.update_task(
+        task_id,
+        state=const.TASK_STATE_PROCESSING,
+        progress=50,
+        params=task.get("params") or {},
+        script=task.get("script") or "",
+        terms=task.get("terms") or "",
+        audio_file=task.get("audio_file") or "",
+        audio_duration=task.get("audio_duration") or 0,
+        subtitle_path=task.get("subtitle_path") or "",
+        materials=task.get("materials") or [],
+        rough_cut_file=task.get("rough_cut_file") or "",
+        rough_cut_video=task.get("rough_cut_video") or "",
+    )
+
+    try:
+        params = VideoParams(**(task.get("params") or {}))
+        timeline = rough_cut.rebuild_rough_cut(task_id, params=params)
+        if not timeline or not timeline.get("shots"):
+            return _mark_task_failed(
+                task_id,
+                "director_resume",
+                "rough cut timeline is missing or empty",
+            )
+        segments = [shot.get("segment_path") for shot in timeline["shots"]]
+        if not all(segments):
+            return _mark_task_failed(
+                task_id,
+                "director_resume",
+                "rough cut has no usable shot segments",
+            )
+        params.video_count = 1
+        params.video_concat_mode = "sequential"
+        return _finalize_video_task(
+            task_id,
+            params,
+            segments,
+            audio_file=task.get("audio_file") or "",
+            subtitle_path=task.get("subtitle_path") or "",
+            audio_duration=float(task.get("audio_duration") or 0.0),
+            video_script=task.get("script") or "",
+            video_terms=task.get("terms") or "",
+        )
+    except Exception as exc:
+        logger.exception(f"creative director resume failed: task_id={task_id}")
+        return _mark_task_failed(
+            task_id,
+            "director_resume",
+            f"{type(exc).__name__}: {exc}",
+        )
+
 def start(
     task_id,
     params: VideoParams,
