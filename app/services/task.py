@@ -17,6 +17,7 @@ from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
+    director,
     elevenlabs_music,
     llm,
     loomloom,
@@ -1533,6 +1534,34 @@ def _run_pipeline(
             task_id, state=const.TASK_STATE_COMPLETE, progress=100, terms=video_terms
         )
         return {"script": video_script, "terms": video_terms}
+
+    # Creative pipeline: when creative mode is enabled, turn the script into
+    # a structured shot plan before audio and material acquisition. Vanilla
+    # tasks (creative_mode False) never enter this block.
+    if (
+        params.creative_mode
+        and config.creative.get("enabled", False)
+        and stop_at in {"materials", "video"}
+    ):
+        if params.creative_brief is not None:
+            task_artifacts.write_task_json(
+                task_id,
+                "creative_brief.json",
+                params.creative_brief.model_dump(mode="json"),
+            )
+        if params.style_profile is not None:
+            task_artifacts.write_task_json(
+                task_id,
+                "style_profile.json",
+                params.style_profile.model_dump(mode="json"),
+            )
+        shot_plan = director.generate_shot_plan(task_id, params, video_script)
+        if shot_plan is None:
+            return _mark_task_failed(
+                task_id,
+                "shot_plan",
+                "failed to generate creative shot plan",
+            )
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
