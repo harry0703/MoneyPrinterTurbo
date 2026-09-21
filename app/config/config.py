@@ -501,6 +501,7 @@ def save_config():
         config_to_save["fish_audio"] = dict(fish_audio)
         config_to_save["voxcpm"] = dict(voxcpm)
         config_to_save["ui"] = dict(ui)
+        config_to_save["creative"] = dict(creative)
         serialized_config = toml.dumps(config_to_save)
 
         # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
@@ -563,6 +564,15 @@ ui = _SynchronizedConfig(
         "ui",
         {
             "hide_log": False,
+        },
+    )
+)
+# 创意生产管线总开关。关闭时视频生成主流程与原生行为完全一致。
+creative = _SynchronizedConfig(
+    _cfg.get(
+        "creative",
+        {
+            "enabled": False,
         },
     )
 )
