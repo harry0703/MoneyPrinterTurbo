@@ -292,6 +292,53 @@ class TestMaterialRouter(unittest.TestCase):
         self.assertEqual(shot.status, SHOT_STATUS_FAILED)
         self.assertIn("no material provider", shot.error)
 
+    def test_stock_fallback_derives_query_from_prompt(self):
+        seen = {}
+
+        def _resolve(shot, context):
+            seen["query"] = shot.query
+            shot_dir = os.path.join(
+                context["media_root"], f"shot_{shot.index:03d}"
+            )
+            os.makedirs(shot_dir, exist_ok=True)
+            path = os.path.join(shot_dir, "stock.mp4")
+            with open(path, "wb") as f:
+                f.write(b"VID")
+            return path
+
+        router = MaterialRouter(
+            registry=ProviderRegistry(),
+            stock_source=_resolve,
+            fallback=FALLBACK_STOCK,
+        )
+        plan = make_plan(
+            [
+                ShotPlanItem(
+                    index=1,
+                    source_type="generated_video",
+                    prompt="old wooden boats swaying at the harbor at dawn",
+                )
+            ]
+        )
+        resolved = router.resolve_shot_plan(plan, self.context)
+        shot = resolved.shots[0]
+        self.assertEqual(shot.status, SHOT_STATUS_RESOLVED)
+        self.assertEqual(shot.provider, "stock")
+        self.assertEqual(seen["query"], "old wooden boats swaying at")
+        self.assertIsNone(plan.shots[0].query)
+
+    def test_stock_fallback_without_text_fails(self):
+        router = MaterialRouter(
+            registry=ProviderRegistry(),
+            stock_source=self._stock()[0],
+            fallback=FALLBACK_STOCK,
+        )
+        plan = make_plan([ShotPlanItem(index=1, source_type="local")])
+        resolved = router.resolve_shot_plan(plan, self.context)
+        shot = resolved.shots[0]
+        self.assertEqual(shot.status, SHOT_STATUS_FAILED)
+        self.assertIn("no usable search query", shot.error)
+
     def test_retry_fallback_retries_once(self):
         provider = FakeImageProvider(fail_times=1)
         router = MaterialRouter(

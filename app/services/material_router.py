@@ -98,6 +98,12 @@ def _default_stock_source() -> StockSource:
     return _resolve_stock
 
 
+def _fallback_query(shot: ShotPlanItem) -> str:
+    """Short stock search query for a shot without a usable ``query``."""
+    text = shot.query or shot.prompt or ""
+    return " ".join(str(text).split()[:5])
+
+
 def _resolve_local_path(shot: ShotPlanItem, context: dict) -> str:
     raw_path = (shot.query or shot.asset_path or "").strip()
     if not raw_path:
@@ -216,6 +222,13 @@ class MaterialRouter:
         self, shot: ShotPlanItem, context: dict, previous_error: str
     ) -> tuple[Optional[str], Optional[str], Optional[str]]:
         try:
+            if not (shot.query or "").strip():
+                derived = _fallback_query(shot)
+                if not derived:
+                    raise ProviderError(
+                        "stock fallback has no usable search query"
+                    )
+                shot = shot.model_copy(update={"query": derived})
             return self.stock_source(shot, context), SHOT_SOURCE_STOCK, None
         except (ProviderError, OSError) as exc:
             return None, None, f"stock fallback failed: {exc} (after: {previous_error})"
