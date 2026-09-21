@@ -10,16 +10,26 @@
       "save": "12"
     },
     "sizes": {
-      "16:9": [1280, 720],
-      "9:16": [720, 1280],
-      "1:1": [832, 832]
+      "16:9": [
+        1280,
+        720
+      ],
+      "9:16": [
+        720,
+        1280
+      ],
+      "1:1": [
+        832,
+        832
+      ]
     }
   },
   "prompt": {
     "1": {
       "class_type": "UNETLoader",
       "inputs": {
-        "unet_name": "krea2_raw_fp8_scaled.safetensors"
+        "unet_name": "krea2_raw_fp8_scaled.safetensors",
+        "weight_dtype": "default"
       }
     },
     "2": {
@@ -38,7 +48,10 @@
     "4": {
       "class_type": "LoraLoaderModelOnly",
       "inputs": {
-        "model": ["1", 0],
+        "model": [
+          "1",
+          0
+        ],
         "lora_name": "krea2_turbo_lora_rank_64_bf16.safetensors",
         "strength_model": 0.6
       }
@@ -46,7 +59,10 @@
     "5": {
       "class_type": "LoraLoaderModelOnly",
       "inputs": {
-        "model": ["4", 0],
+        "model": [
+          "4",
+          0
+        ],
         "lora_name": "krea2_realism_lora.safetensors",
         "strength_model": 1.0
       }
@@ -54,7 +70,10 @@
     "6": {
       "class_type": "ModelSamplingAuraFlow",
       "inputs": {
-        "model": ["5", 0],
+        "model": [
+          "5",
+          0
+        ],
         "shift": 1.15
       }
     },
@@ -62,14 +81,20 @@
       "class_type": "CLIPTextEncode",
       "inputs": {
         "text": "{{positive}}",
-        "clip": ["2", 0]
+        "clip": [
+          "2",
+          0
+        ]
       }
     },
     "8": {
       "class_type": "CLIPTextEncode",
       "inputs": {
         "text": "{{negative}}",
-        "clip": ["2", 0]
+        "clip": [
+          "2",
+          0
+        ]
       }
     },
     "9": {
@@ -83,28 +108,50 @@
     "10": {
       "class_type": "KSampler",
       "inputs": {
-        "model": ["6", 0],
+        "model": [
+          "6",
+          0
+        ],
         "seed": "{{seed}}",
         "steps": 8,
         "cfg": 1.0,
         "sampler_name": "euler",
         "scheduler": "simple",
-        "positive": ["7", 0],
-        "negative": ["8", 0],
-        "latent_image": ["9", 0]
+        "positive": [
+          "7",
+          0
+        ],
+        "negative": [
+          "8",
+          0
+        ],
+        "latent_image": [
+          "9",
+          0
+        ],
+        "denoise": 1.0
       }
     },
     "11": {
       "class_type": "VAEDecode",
       "inputs": {
-        "samples": ["10", 0],
-        "vae": ["3", 0]
+        "samples": [
+          "10",
+          0
+        ],
+        "vae": [
+          "3",
+          0
+        ]
       }
     },
     "12": {
       "class_type": "SaveImage",
       "inputs": {
-        "images": ["11", 0],
+        "images": [
+          "11",
+          0
+        ],
         "filename_prefix": "{{filename_prefix}}"
       }
     }
