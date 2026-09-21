@@ -6,8 +6,10 @@ from app.services.providers.base import (
     ProviderRegistry,
     build_registry,
 )
+from app.services.providers.comfyui import ComfyUIProvider
 
 __all__ = [
+    "ComfyUIProvider",
     "MaterialProvider",
     "ProviderError",
     "ProviderRegistry",

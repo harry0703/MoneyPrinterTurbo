@@ -71,9 +71,15 @@ class ProviderRegistry:
 
 
 def build_registry() -> ProviderRegistry:
-    """Build the default registry of enabled material providers.
+    """Build the registry of material providers enabled in config."""
+    from app.config import config
+    from app.services.providers.comfyui import ComfyUIProvider
 
-    Concrete providers register themselves here as they are added; with no
-    provider enabled the registry is empty.
-    """
-    return ProviderRegistry()
+    registry = ProviderRegistry()
+    comfy_cfg = dict(config.comfyui)
+    if comfy_cfg.get("enabled"):
+        try:
+            registry.register(ComfyUIProvider.from_config(comfy_cfg))
+        except ProviderError as exc:
+            logger.warning(f"comfyui provider not registered: {exc}")
+    return registry

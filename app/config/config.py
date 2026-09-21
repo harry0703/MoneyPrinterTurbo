@@ -502,6 +502,7 @@ def save_config():
         config_to_save["voxcpm"] = dict(voxcpm)
         config_to_save["ui"] = dict(ui)
         config_to_save["creative"] = dict(creative)
+        config_to_save["comfyui"] = dict(comfyui)
         serialized_config = toml.dumps(config_to_save)
 
         # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
@@ -573,6 +574,26 @@ creative = _SynchronizedConfig(
         "creative",
         {
             "enabled": False,
+            "default_image_provider": "comfyui",
+        },
+    )
+)
+# ComfyUI image generation backend for the creative pipeline.
+comfyui = _SynchronizedConfig(
+    _cfg.get(
+        "comfyui",
+        {
+            "enabled": False,
+            "base_url": "",
+            "launcher_url": "",
+            "template": "image_basic",
+            "checkpoint": "",
+            "steps": 0,
+            "cfg": 0.0,
+            "sampler_name": "",
+            "scheduler": "",
+            "timeout_seconds": 600,
+            "poll_interval": 2.0,
         },
     )
 )
