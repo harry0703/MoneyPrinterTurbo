@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from app.config import config
 from app.services.providers.base import (
     MaterialProvider,
     ProviderError,
@@ -25,6 +26,13 @@ class _FakeProvider(MaterialProvider):
 
 
 class TestProviderRegistry(unittest.TestCase):
+    def setUp(self):
+        self._original_comfyui = dict(config.comfyui)
+
+    def tearDown(self):
+        config.comfyui.clear()
+        config.comfyui.update(self._original_comfyui)
+
     def test_register_and_get(self):
         provider = _FakeProvider("alpha")
         registry = ProviderRegistry([provider])
@@ -58,10 +66,18 @@ class TestProviderRegistry(unittest.TestCase):
         registry.register(second)
         self.assertIs(registry.get("x"), second)
 
-    def test_build_registry_empty_by_default(self):
+    def test_build_registry_empty_when_comfyui_disabled(self):
+        config.comfyui.clear()
+        config.comfyui.update({"enabled": False})
         registry = build_registry()
         self.assertIsInstance(registry, ProviderRegistry)
         self.assertEqual(registry.names(), [])
+
+    def test_build_registry_registers_comfyui_when_enabled(self):
+        config.comfyui.clear()
+        config.comfyui.update({"enabled": True, "base_url": "http://127.0.0.1:9"})
+        registry = build_registry()
+        self.assertEqual(registry.names(), ["comfyui"])
 
 
 if __name__ == "__main__":
