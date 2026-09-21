@@ -96,6 +96,7 @@ class ShotPlanItem(BaseModel):
     motion: Optional[str] = None
     asset_path: Optional[str] = None
     status: str = SHOT_STATUS_PLANNED
+    error: Optional[str] = None
 
     @field_validator("source_type")
     @classmethod
