@@ -2614,14 +2614,42 @@ def _format_file_size(size_bytes):
 
 
 @st.cache_data(ttl=30, show_spinner=False)
-def _get_video_cache_stats(max_age_days=None):
+def _get_video_cache_stats_data(max_age_days=None):
     """
     短周期缓存目录统计，避免设置弹窗内普通控件交互反复扫描大量文件。
 
     缓存键包含清理天数，因此切换范围只会为每个范围扫描一次；主动刷新或清理
     完成后会显式清空，最多 30 秒的缓存不会影响实际删除时的二次扫描。
+
+    这里只缓存纯 dict，而不是 VideoCacheStats 实例：st.cache_data 需要用 pickle
+    序列化返回值，而 pickle 保存自定义类时按「模块名 + 类名」引用，并校验解析
+    出来的类与实例的类是同一个对象。Streamlit 源码监视器在本地源码文件发生变化
+    时（包含 Windows 上防病毒或索引器引起的偶发事件）会清空 sys.modules 中的
+    被监视模块并重新导入；此时仍打开的设置弹窗（Dialog 继承 fragment 行为，
+    内部交互不会重建 Main.py 顶层引用）持有的还是旧模块里的类，pickle 会抛
+    PicklingError: it's not the same object as ...，并被 Streamlit 包装成
+    UnserializableReturnValueError（对应 Streamlit 官方 issue #14593 的已知缺陷）。
+    纯 dict 按值序列化、不含类引用，因此不受模块重新导入影响。
     """
-    return cache_manager.get_video_cache_stats(max_age_days=max_age_days)
+    stats = cache_manager.get_video_cache_stats(max_age_days=max_age_days)
+    # 字段名与 VideoCacheStats 完全一致，供下方 _get_video_cache_stats 直接展开
+    # 还原；今后若 VideoCacheStats 增删字段，需要同步维护这里的字段映射。
+    return {
+        "file_count": stats.file_count,
+        "total_size": stats.total_size,
+        "oldest_mtime": stats.oldest_mtime,
+        "newest_mtime": stats.newest_mtime,
+    }
+
+
+def _get_video_cache_stats(max_age_days=None) -> cache_manager.VideoCacheStats:
+    """在缓存边界之外把纯数据还原为 VideoCacheStats，调用方属性访问方式不变。"""
+
+    # 还原时使用当前生效的 cache_manager 模块；即使模块被重新导入，也只是重建
+    # 一个轻量 dataclass，不会再触发 pickle 的「类引用身份」校验。
+    return cache_manager.VideoCacheStats(
+        **_get_video_cache_stats_data(max_age_days=max_age_days)
+    )
 
 
 def _render_cache_management_settings(panel):
@@ -2685,7 +2713,7 @@ def _render_cache_management_settings(panel):
             use_container_width=True,
             icon=":material/refresh:",
         ):
-            _get_video_cache_stats.clear()
+            _get_video_cache_stats_data.clear()
             st.rerun(scope="fragment")
 
         if open_col.button(
@@ -2723,7 +2751,7 @@ def _render_cache_management_settings(panel):
             # nonce 让下一次 fragment rerun 创建未勾选的新控件，避免清理完成后
             # 危险确认状态被继续保留。
             st.session_state["video_cache_cleanup_confirm_nonce"] = confirm_nonce + 1
-            _get_video_cache_stats.clear()
+            _get_video_cache_stats_data.clear()
             st.rerun(scope="fragment")
 
 
