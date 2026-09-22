@@ -22,9 +22,11 @@ from app.services.material_router import (
     MaterialRouter,
 )
 from app.services.providers.base import (
+    GeneratedVideoProvider,
     MaterialProvider,
     ProviderError,
     ProviderRegistry,
+    VideoProviderRegistry,
 )
 
 
@@ -276,24 +278,34 @@ class TestMaterialRouter(unittest.TestCase):
         self.assertEqual(shot.status, SHOT_STATUS_FAILED)
         self.assertIn("not available", shot.error)
 
-    def test_generated_video_fails_until_provider_exists(self):
-        router = MaterialRouter(
-            registry=ProviderRegistry(), stock_source=self._stock()[0]
-        )
-        plan = make_plan(
-            [
-                ShotPlanItem(
-                    index=1, source_type="generated_video", prompt="x"
-                )
-            ]
-        )
-        resolved = router.resolve_shot_plan(plan, self.context)
+    def test_generated_video_fails_when_no_video_provider(self):
+        saved_kling = dict(config.kling)
+        config.kling.clear()
+        config.kling.update({"enabled": False})
+        try:
+            router = MaterialRouter(
+                registry=ProviderRegistry(), stock_source=self._stock()[0]
+            )
+            plan = make_plan(
+                [
+                    ShotPlanItem(
+                        index=1, source_type="generated_video", prompt="x"
+                    )
+                ]
+            )
+            resolved = router.resolve_shot_plan(plan, self.context)
+        finally:
+            config.kling.clear()
+            config.kling.update(saved_kling)
         shot = resolved.shots[0]
         self.assertEqual(shot.status, SHOT_STATUS_FAILED)
-        self.assertIn("no material provider", shot.error)
+        self.assertIn("video provider", shot.error)
 
     def test_stock_fallback_derives_query_from_prompt(self):
         seen = {}
+        saved_kling = dict(config.kling)
+        config.kling.clear()
+        config.kling.update({"enabled": False})
 
         def _resolve(shot, context):
             seen["query"] = shot.query
@@ -321,6 +333,8 @@ class TestMaterialRouter(unittest.TestCase):
             ]
         )
         resolved = router.resolve_shot_plan(plan, self.context)
+        config.kling.clear()
+        config.kling.update(saved_kling)
         shot = resolved.shots[0]
         self.assertEqual(shot.status, SHOT_STATUS_RESOLVED)
         self.assertEqual(shot.provider, "stock")
@@ -426,6 +440,126 @@ class TestMaterialRouter(unittest.TestCase):
                 stock_source=self._stock()[0],
                 fallback="bogus",
             )
+
+
+class FakeVideoProvider(GeneratedVideoProvider):
+    name = "kling"
+
+    def __init__(self, available=True):
+        self.available = available
+        self.calls = 0
+
+    def is_available(self) -> bool:
+        return self.available
+
+    def generate_video(self, shot, context):
+        self.calls += 1
+        os.makedirs(context["output_dir"], exist_ok=True)
+        path = os.path.join(context["output_dir"], "video.mp4")
+        with open(path, "wb") as f:
+            f.write(b"VID")
+        return path
+
+
+class TestMaterialRouterGeneratedVideo(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.media_root = os.path.join(self._tmp.name, "assets")
+        os.makedirs(self.media_root)
+        self.context = {
+            "task_id": "test-task",
+            "media_root": self.media_root,
+            "video_aspect": "16:9",
+        }
+        self._saved_kling = dict(config.kling)
+        self._saved_creative = dict(config.creative)
+        config.kling.clear()
+        config.kling.update({"enabled": False})
+
+    def tearDown(self):
+        self._tmp.cleanup()
+        config.kling.clear()
+        config.kling.update(self._saved_kling)
+        config.creative.clear()
+        config.creative.update(self._saved_creative)
+
+    def test_generated_video_resolved_by_video_provider(self):
+        fake = FakeVideoProvider()
+        router = MaterialRouter(
+            registry=ProviderRegistry(),
+            video_registry=VideoProviderRegistry([fake]),
+        )
+        plan = make_plan(
+            [
+                ShotPlanItem(
+                    index=1, source_type="generated_video", prompt="p"
+                )
+            ]
+        )
+        resolved = router.resolve_shot_plan(plan, self.context)
+        shot = resolved.shots[0]
+        self.assertEqual(shot.status, SHOT_STATUS_RESOLVED)
+        self.assertEqual(shot.provider, "kling")
+        self.assertTrue(os.path.isfile(shot.asset_path))
+        self.assertEqual(fake.calls, 1)
+
+    def test_generated_video_unavailable_provider_fails(self):
+        fake = FakeVideoProvider(available=False)
+        router = MaterialRouter(
+            registry=ProviderRegistry(),
+            video_registry=VideoProviderRegistry([fake]),
+        )
+        plan = make_plan(
+            [
+                ShotPlanItem(
+                    index=1, source_type="generated_video", prompt="p"
+                )
+            ]
+        )
+        resolved = router.resolve_shot_plan(plan, self.context)
+        shot = resolved.shots[0]
+        self.assertEqual(shot.status, SHOT_STATUS_FAILED)
+        self.assertIn("not available", shot.error)
+        self.assertEqual(fake.calls, 0)
+
+    def test_generated_video_uses_default_provider_from_config(self):
+        config.creative.update({"default_video_provider": "kling"})
+        fake = FakeVideoProvider()
+        router = MaterialRouter(
+            registry=ProviderRegistry(),
+            video_registry=VideoProviderRegistry([fake]),
+        )
+        plan = make_plan(
+            [
+                ShotPlanItem(
+                    index=1, source_type="generated_video", prompt="p"
+                )
+            ]
+        )
+        resolved = router.resolve_shot_plan(plan, self.context)
+        shot = resolved.shots[0]
+        self.assertEqual(shot.status, SHOT_STATUS_RESOLVED)
+        self.assertEqual(shot.provider, "kling")
+
+    def test_generated_video_unknown_provider_fails(self):
+        router = MaterialRouter(
+            registry=ProviderRegistry(),
+            video_registry=VideoProviderRegistry(),
+        )
+        plan = make_plan(
+            [
+                ShotPlanItem(
+                    index=1,
+                    source_type="generated_video",
+                    prompt="p",
+                    provider="runway",
+                )
+            ]
+        )
+        resolved = router.resolve_shot_plan(plan, self.context)
+        shot = resolved.shots[0]
+        self.assertEqual(shot.status, SHOT_STATUS_FAILED)
+        self.assertIn("unknown video provider", shot.error)
 
 
 if __name__ == "__main__":

@@ -90,3 +90,69 @@ def build_registry() -> ProviderRegistry:
         except ProviderError as exc:
             logger.warning(f"drawthings provider not registered: {exc}")
     return registry
+
+
+class GeneratedVideoProvider:
+    """Base class for generated video providers."""
+
+    name: str = "base_video"
+
+    def is_available(self) -> bool:
+        """Cheap probe. Must not start services or have other side effects."""
+        raise NotImplementedError
+
+    def generate_video(self, shot: ShotPlanItem, context: dict[str, Any]) -> str:
+        """Produce one local video file for a shot.
+
+        ``context`` carries task-level data: ``output_dir``,
+        ``video_aspect`` and provider-specific overrides.
+
+        Returns the path of an existing local video file.
+        """
+        raise NotImplementedError
+
+
+class VideoProviderRegistry:
+    """Registry of generated video providers keyed by provider name."""
+
+    def __init__(self, providers: Optional[list[GeneratedVideoProvider]] = None):
+        self._providers: dict[str, GeneratedVideoProvider] = {}
+        for provider in providers or []:
+            self.register(provider)
+
+    def register(self, provider: GeneratedVideoProvider) -> None:
+        self._providers[provider.name] = provider
+
+    def get(self, name: str) -> GeneratedVideoProvider:
+        try:
+            return self._providers[name]
+        except KeyError:
+            raise ProviderError(f"unknown video provider: {name!r}") from None
+
+    def names(self) -> list[str]:
+        return sorted(self._providers)
+
+    def is_available(self, name: str) -> bool:
+        provider = self.get(name)
+        try:
+            return bool(provider.is_available())
+        except Exception as exc:
+            logger.warning(
+                f"video provider {name!r} availability probe failed: {exc}"
+            )
+            return False
+
+
+def build_video_registry() -> VideoProviderRegistry:
+    """Build the registry of generated video providers enabled in config."""
+    from app.config import config
+    from app.services.providers.kling import KlingVideoProvider
+
+    registry = VideoProviderRegistry()
+    kling_cfg = dict(config.kling)
+    if kling_cfg.get("enabled"):
+        try:
+            registry.register(KlingVideoProvider.from_config(kling_cfg))
+        except ProviderError as exc:
+            logger.warning(f"kling provider not registered: {exc}")
+    return registry

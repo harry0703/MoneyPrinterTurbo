@@ -504,6 +504,7 @@ def save_config():
         config_to_save["creative"] = dict(creative)
         config_to_save["comfyui"] = dict(comfyui)
         config_to_save["drawthings"] = dict(drawthings)
+        config_to_save["kling"] = dict(kling)
         serialized_config = toml.dumps(config_to_save)
 
         # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
@@ -576,6 +577,7 @@ creative = _SynchronizedConfig(
         {
             "enabled": False,
             "default_image_provider": "comfyui",
+            "default_video_provider": "kling",
             "checkpoint": True,
             "motion": "smooth",
             "material_fallback": "stock",
@@ -618,6 +620,22 @@ drawthings = _SynchronizedConfig(
             "use_tls": False,
             "timeout_seconds": 900,
             "probe_timeout": 5.0,
+        },
+    )
+)
+# Kling AI video generation backend for the creative pipeline.
+kling = _SynchronizedConfig(
+    _cfg.get(
+        "kling",
+        {
+            "enabled": False,
+            "base_url": "https://api-singapore.klingai.com",
+            "access_key": "",
+            "secret_key": "",
+            "model_name": "kling-v2-master",
+            "cfg_scale": 0.8,
+            "poll_interval": 10.0,
+            "timeout_seconds": 900,
         },
     )
 )

@@ -7,7 +7,9 @@ Resolves every shot of a director's shot plan into a concrete local asset:
 - ``local``, ``graphic`` and ``archive`` shots are validated on disk (the path
   may be absolute or relative to ``context['media_root']``);
 - ``generated_image`` shots are produced by a registered material provider;
-- ``generated_video`` shots fail until a video provider exists.
+- ``generated_video`` shots are produced by a registered video
+  provider; they fail with a clear error while no video provider is
+  enabled.
 
 Each resolved shot gets ``asset_path``, ``provider`` (the source actually
 used) and ``status``; ``error`` is only set when the shot finally fails.
@@ -39,7 +41,9 @@ from app.models.creative import (
 from app.services.providers.base import (
     ProviderError,
     ProviderRegistry,
+    VideoProviderRegistry,
     build_registry,
+    build_video_registry,
 )
 
 FALLBACK_NONE = "none"
@@ -141,11 +145,17 @@ class MaterialRouter:
         self,
         registry: Optional[ProviderRegistry] = None,
         stock_source: Optional[StockSource] = None,
+        video_registry: Optional[VideoProviderRegistry] = None,
         fallback: str = FALLBACK_NONE,
     ):
         if fallback not in FALLBACKS:
             raise ValueError(f"fallback must be one of {', '.join(FALLBACKS)}")
         self.registry = registry if registry is not None else build_registry()
+        self.video_registry = (
+            video_registry
+            if video_registry is not None
+            else build_video_registry()
+        )
         self.stock_source = (
             stock_source if stock_source is not None else _default_stock_source()
         )
@@ -212,6 +222,8 @@ class MaterialRouter:
                 )
             if shot.source_type == SHOT_SOURCE_GENERATED_IMAGE:
                 return self._resolve_generated(shot, context)
+            if shot.source_type == SHOT_SOURCE_GENERATED_VIDEO:
+                return self._resolve_generated_video(shot, context)
             raise ProviderError(
                 f"no material provider for source type {shot.source_type!r} yet"
             )
@@ -260,6 +272,30 @@ class MaterialRouter:
         if not paths:
             raise ProviderError(f"image provider {provider_name!r} returned no files")
         return paths[0], provider_name, None
+
+    def _resolve_generated_video(
+        self, shot: ShotPlanItem, context: dict
+    ) -> tuple[str, str, None]:
+        provider_name = (shot.provider or "").strip()
+        if not provider_name:
+            from app.config import config
+
+            provider_name = str(
+                config.creative.get("default_video_provider", "kling")
+            )
+        provider = self.video_registry.get(provider_name)
+        if not provider.is_available():
+            raise ProviderError(
+                f"video provider {provider_name!r} is not available"
+            )
+        provider_context = dict(context or {})
+        provider_context["output_dir"] = _shot_dir(shot, context)
+        path = provider.generate_video(shot, provider_context)
+        if not path:
+            raise ProviderError(
+                f"video provider {provider_name!r} returned no file"
+            )
+        return path, provider_name, None
 
     @staticmethod
     def _mark_resolved(shot: ShotPlanItem, path: str, provider_name: str) -> None:
