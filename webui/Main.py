@@ -88,6 +88,13 @@ st.set_page_config(
 style_file = Path(__file__).with_name("styles.css")
 streamlit_style = f"<style>{style_file.read_text(encoding='utf-8')}</style>"
 st.markdown(streamlit_style, unsafe_allow_html=True)
+
+# Director 模式：创意管线可选顶层模式。标准模式（默认）继续渲染下方原有 WebUI。
+if st.sidebar.radio("Mode", ["Standard", "Director"], index=0, key="ui_mode") == "Director":
+    from webui import director
+
+    director.render()
+    st.stop()
 # 定义资源目录
 font_dir = os.path.join(root_dir, "resource", "fonts")
 song_dir = os.path.join(root_dir, "resource", "songs")
