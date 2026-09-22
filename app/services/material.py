@@ -23,6 +23,7 @@ from app.services import (
     muapi,
     ofox,
     task_artifacts,
+    tensorscale,
     video,
     volcengine_seedance,
 )
@@ -120,6 +121,11 @@ def _material_source_record(item: MaterialInfo, local_path: str) -> dict[str, An
             value = raw_rendition.get(field)
             if value not in (None, ""):
                 rendition[field] = str(value) if field == "id" else value
+        if record["provider"] == "tensorscale":
+            for field in ("resolution", "aspect_ratio"):
+                value = raw_rendition.get(field)
+                if isinstance(value, str) and value.strip():
+                    rendition[field] = value.strip()
         if rendition:
             record["rendition"] = rendition
     return record
@@ -1780,6 +1786,17 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
+    if source == "tensorscale":
+        # TensorScale uses the same paid, asynchronous generation semantics but
+        # has its own idempotency and direct-download response contract.
+        return _download_videos_tensorscale_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
     if source == "openai_image":
         # 与 WaveSpeed 相同的按需付费语义：文生图按张计费，逐段生成、凑够
         # 所需时长立即停止。生成结果是一次性的本地图片文件，也不参与 24
@@ -2395,6 +2412,111 @@ def _download_videos_metaso_minimax_on_demand(
             break
 
     logger.success(f"generated and downloaded {len(video_paths)} Metaso MiniMax videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_tensorscale_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """Generate TensorScale clips sequentially and stop once narration is covered."""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError) as exc:
+        raise tensorscale.TensorScaleError(
+            "TensorScale audio duration must be a finite number"
+        ) from exc
+    if not math.isfinite(required_duration):
+        raise tensorscale.TensorScaleError(
+            "TensorScale audio duration must be a finite number"
+        )
+    if required_duration <= 0:
+        logger.warning(
+            "skip TensorScale paid generation because required audio duration "
+            f"is not positive: duration={required_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    try:
+        clip_duration = int(max_clip_duration)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise tensorscale.TensorScaleError(
+            "TensorScale clip duration must be a positive integer"
+        ) from exc
+    if clip_duration <= 0:
+        raise tensorscale.TensorScaleError(
+            "TensorScale clip duration must be a positive integer"
+        )
+
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = tensorscale.generate_videos(
+                search_term=search_term,
+                minimum_duration=clip_duration,
+                video_aspect=video_aspect,
+            )
+        except tensorscale.TensorScaleUnconfirmedTaskError as exc:
+            logger.error(
+                "stop submitting new TensorScale jobs because the last paid job "
+                f"is unconfirmed: task_id={exc.task_id or 'unknown'}, detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except tensorscale.TensorScaleError as exc:
+            logger.error(f"TensorScale generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        for item in video_items:
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "tensorscale"
+            )
+            if not saved_video_path:
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise tensorscale.TensorScaleDownloadError(
+                    "TensorScale generated a paid video but the result could not "
+                    f"be downloaded: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                )
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=tensorscale, error={type(source_error).__name__}, "
+                    f"detail={source_error}"
+                )
+            total_duration += min(clip_duration, item.duration)
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated TensorScale materials cover the required duration; "
+                f"stop submitting paid jobs: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(
+        f"generated and downloaded {len(video_paths)} TensorScale videos"
+    )
     _persist_material_sources(task_id, material_sources)
     return video_paths
 

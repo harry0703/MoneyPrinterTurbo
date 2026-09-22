@@ -27,6 +27,7 @@ from app.services import (
     sonilo,
     subtitle,
     task_artifacts,
+    tensorscale,
     twelvelabs,
     video,
     volcengine_seedance,
@@ -791,6 +792,18 @@ def get_video_materials(
                 details=details,
             )
             return None
+        except tensorscale.TensorScaleError as exc:
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = (
+                {"tensorscale_job_id": remote_task_id} if remote_task_id else None
+            )
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
         except muapi.MuAPIError as exc:
             # MuAPI tasks are billable after acceptance.  Preserve the remote
             # request ID on any ambiguous or post-completion failure so the
@@ -1418,6 +1431,17 @@ def _run_pipeline(
             task_id,
             "preflight",
             "Metaso MiniMax requires an API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "tensorscale"
+        and not tensorscale.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "TensorScale video generation requires an API key",
         )
 
     if (

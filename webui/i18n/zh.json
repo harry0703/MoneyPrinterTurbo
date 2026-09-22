@@ -568,6 +568,18 @@
     "MuAPI Billing Notice Without Script": "每段生成视频都会由 MuAPI 计费。填写或生成视频文案后可查看预计任务数量。",
     "Confirm MuAPI Charge": "我已了解 MuAPI 视频生成会创建付费任务",
     "Confirm MuAPI Charge Help": "MuAPI 素材按脚本片段逐段提交，凑够配音所需时长后立即停止。提交状态不明确时不会自动重试，因为远端任务可能已经创建并产生费用。",
-    "Confirm MuAPI Charge Required": "请确认 MuAPI 生成费用后再生成视频。"
+    "Confirm MuAPI Charge Required": "请确认 MuAPI 生成费用后再生成视频。",
+    "TensorScale MiniMax H3 Fast": "TensorScale · MiniMax H3 Fast",
+    "TensorScale MiniMax H3 Fast Help": "通过 TensorScale 的异步 MiniMax H3 Fast 接口付费生成 4～15 秒视频素材；任务完成后立即使用短期签名直链下载。",
+    "TensorScale API Key": "TensorScale API Key",
+    "TensorScale Base URL": "TensorScale Base URL",
+    "TensorScale Resolution": "TensorScale 分辨率",
+    "TensorScale Resolution Help": "可选择 360p、480p 或 768p 素材；方形画幅需要使用 480p 或 768p。",
+    "Please Enter the TensorScale API Key": "请输入 **TensorScale API Key**",
+    "TensorScale Billing Notice": "每段生成视频都会由 TensorScale 计费。当前选择 {resolution}，根据预计配音时长和片段时长，将提交约 {min}-{max} 个付费任务；凑够所需素材后会立即停止。",
+    "TensorScale Billing Notice Without Script": "每段 MiniMax H3 Fast 视频都会由 TensorScale 计费。填写或生成视频文案后可查看预计任务数量。",
+    "Confirm TensorScale Charge": "我已了解 TensorScale MiniMax H3 Fast 会创建付费视频任务",
+    "Confirm TensorScale Charge Help": "素材按脚本片段逐段提交，并使用幂等保护；凑够配音所需时长后立即停止。TensorScale 按实际提交的生成任务结算。",
+    "Confirm TensorScale Charge Required": "请确认 TensorScale MiniMax H3 Fast 生成费用后再生成视频。"
   }
 }
