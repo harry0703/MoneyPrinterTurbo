@@ -28,10 +28,13 @@ class _FakeProvider(MaterialProvider):
 class TestProviderRegistry(unittest.TestCase):
     def setUp(self):
         self._original_comfyui = dict(config.comfyui)
+        self._original_drawthings = dict(getattr(config, "drawthings", {}))
 
     def tearDown(self):
         config.comfyui.clear()
         config.comfyui.update(self._original_comfyui)
+        config.drawthings.clear()
+        config.drawthings.update(self._original_drawthings)
 
     def test_register_and_get(self):
         provider = _FakeProvider("alpha")
@@ -69,6 +72,8 @@ class TestProviderRegistry(unittest.TestCase):
     def test_build_registry_empty_when_comfyui_disabled(self):
         config.comfyui.clear()
         config.comfyui.update({"enabled": False})
+        config.drawthings.clear()
+        config.drawthings.update({"enabled": False})
         registry = build_registry()
         self.assertIsInstance(registry, ProviderRegistry)
         self.assertEqual(registry.names(), [])
@@ -76,6 +81,8 @@ class TestProviderRegistry(unittest.TestCase):
     def test_build_registry_registers_comfyui_when_enabled(self):
         config.comfyui.clear()
         config.comfyui.update({"enabled": True, "base_url": "http://127.0.0.1:9"})
+        config.drawthings.clear()
+        config.drawthings.update({"enabled": False})
         registry = build_registry()
         self.assertEqual(registry.names(), ["comfyui"])
 

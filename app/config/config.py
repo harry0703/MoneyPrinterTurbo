@@ -503,6 +503,7 @@ def save_config():
         config_to_save["ui"] = dict(ui)
         config_to_save["creative"] = dict(creative)
         config_to_save["comfyui"] = dict(comfyui)
+        config_to_save["drawthings"] = dict(drawthings)
         serialized_config = toml.dumps(config_to_save)
 
         # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
@@ -597,6 +598,26 @@ comfyui = _SynchronizedConfig(
             "scheduler": "",
             "timeout_seconds": 600,
             "poll_interval": 2.0,
+        },
+    )
+)
+# Draw Things image generation backend for the creative pipeline.
+drawthings = _SynchronizedConfig(
+    _cfg.get(
+        "drawthings",
+        {
+            "enabled": False,
+            "base_url": "",
+            "model_file": "",
+            "preset": "",
+            "preset_path": "",
+            "steps": 0,
+            "guidance": 0.0,
+            "shift": 0.0,
+            "seed": -1,
+            "use_tls": False,
+            "timeout_seconds": 900,
+            "probe_timeout": 5.0,
         },
     )
 )

@@ -74,6 +74,7 @@ def build_registry() -> ProviderRegistry:
     """Build the registry of material providers enabled in config."""
     from app.config import config
     from app.services.providers.comfyui import ComfyUIProvider
+    from app.services.providers.drawthings import DrawThingsProvider
 
     registry = ProviderRegistry()
     comfy_cfg = dict(config.comfyui)
@@ -82,4 +83,10 @@ def build_registry() -> ProviderRegistry:
             registry.register(ComfyUIProvider.from_config(comfy_cfg))
         except ProviderError as exc:
             logger.warning(f"comfyui provider not registered: {exc}")
+    drawthings_cfg = dict(config.drawthings)
+    if drawthings_cfg.get("enabled"):
+        try:
+            registry.register(DrawThingsProvider.from_config(drawthings_cfg))
+        except ProviderError as exc:
+            logger.warning(f"drawthings provider not registered: {exc}")
     return registry

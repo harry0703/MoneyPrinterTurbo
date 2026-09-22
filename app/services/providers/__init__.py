@@ -7,9 +7,11 @@ from app.services.providers.base import (
     build_registry,
 )
 from app.services.providers.comfyui import ComfyUIProvider
+from app.services.providers.drawthings import DrawThingsProvider
 
 __all__ = [
     "ComfyUIProvider",
+    "DrawThingsProvider",
     "MaterialProvider",
     "ProviderError",
     "ProviderRegistry",
