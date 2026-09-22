@@ -17,6 +17,7 @@ from app.controllers.v1.base import new_router
 from app.models import const
 from app.models.exception import HttpException
 from app.services import rough_cut
+from app.services.creative import qc as creative_qc
 from app.services import state as sm
 from app.services import task as task_service
 from app.utils import utils
@@ -108,6 +109,22 @@ def get_rough_cut(request: Request, task_id: str = Path(...)):
             message=f"{request_id}: no rough cut found for task",
         )
     return utils.get_response(200, {"task_id": task_id, "rough_cut": timeline})
+
+
+@router.get(
+    "/creative/tasks/{task_id}/qc",
+    summary="Get the advisory QC report for the creative task",
+)
+def get_qc_report(request: Request, task_id: str = Path(...)):
+    request_id = base.get_task_id(request)
+    report = creative_qc.load_report(task_id)
+    if report is None:
+        raise HttpException(
+            task_id=task_id,
+            status_code=404,
+            message=f"{request_id}: no qc report found for task",
+        )
+    return utils.get_response(200, {"task_id": task_id, "qc": report})
 
 
 @router.post(

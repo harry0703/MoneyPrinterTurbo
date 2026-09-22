@@ -38,6 +38,7 @@ from app.services import material_router
 from app.services import state as sm
 from app.services import task_artifacts
 from app.services import video
+from app.services.creative import qc as creative_qc
 from app.services.providers.base import ProviderError, build_registry
 from app.utils import utils
 
@@ -299,6 +300,12 @@ def rebuild_rough_cut(task_id: str, params: Any = None) -> Optional[dict]:
         f"[rough_cut] rebuilt rough cut: task_id={task_id}, "
         f"{len(prepared)} shots, {timeline['total_duration']}s"
     )
+    try:
+        creative_qc.write_report(task_id)
+    except Exception as exc:
+        logger.warning(
+            f"[rough_cut] qc report refresh failed (advisory only): {exc}"
+        )
     return timeline
 
 

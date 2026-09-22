@@ -35,6 +35,7 @@ from app.services import (
     voice,
 )
 from app.services import upload_post
+from app.services.creative import qc as creative_qc
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -1665,6 +1666,13 @@ def _run_pipeline(
                 )
             except rough_cut.RoughCutError as exc:
                 return _mark_task_failed(task_id, "rough_cut", str(exc))
+            try:
+                creative_qc.write_report(task_id, audio_duration=audio_duration)
+            except Exception as exc:
+                logger.warning(
+                    f"creative qc report failed (advisory only): "
+                    f"task_id={task_id}, error={exc}"
+                )
             # The director checkpoint pauses the pipeline and resume can
             # run after a restart, so the full context is persisted here.
             sm.state.update_task(
