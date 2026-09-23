@@ -265,6 +265,13 @@ fluxionai_api_key = ""
 fluxionai_base_url = ""
 fluxionai_model_name = ""
 
+# Cheaper Inference, an OpenAI-compatible multi-model gateway.
+# API key: https://cheaperinference.com/signup
+# Model list: https://cheaperinference.com/#models
+cheaperinference_api_key = ""
+cheaperinference_base_url = ""
+cheaperinference_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
