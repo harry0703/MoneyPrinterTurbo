@@ -583,7 +583,20 @@ class TestMptAgentSkill(unittest.TestCase):
         text = output.getvalue()
         self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
         self.assertIn(f"PEXELS_API_KEY_URL={mpt_agent.PEXELS_API_KEY_URL}", text)
+        self.assertIn("PEXELS_API_KEY_ENV=MPT_PEXELS_API_KEY", text)
         self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_invalid_pexels_key_reports_the_same_key_environment(self):
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            code = mpt_agent.report_invalid_pexels_config()
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn("INVALID=pexels_api_keys", text)
+        self.assertIn(f"PEXELS_API_KEY_URL={mpt_agent.PEXELS_API_KEY_URL}", text)
+        self.assertIn("PEXELS_API_KEY_ENV=MPT_PEXELS_API_KEY", text)
 
     def test_missing_seedance_inputs_report_ark_signup_and_charge_flag(self):
         output = io.StringIO()
