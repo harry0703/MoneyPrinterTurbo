@@ -46,6 +46,7 @@ _CLI_VIDEO_SOURCES = (
     "ofox",
     "metaso_minimax",
     "muapi",
+    "tensorscale",
     "openai_image",
     "local",
 )
@@ -400,6 +401,14 @@ Batch manifests:
         help=(
             "confirm that MuAPI video generation creates paid tasks; required "
             "with --video-source muapi for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-tensorscale-charge",
+        action="store_true",
+        help=(
+            "confirm that TensorScale MiniMax H3 Fast creates paid video jobs; "
+            "required with --video-source tensorscale for materials or video output"
         ),
     )
 
@@ -774,6 +783,16 @@ Batch manifests:
     ):
         parser.error(
             "--confirm-muapi-charge is required with --video-source muapi"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "tensorscale"
+        and stage_requires_materials
+        and not args.confirm_tensorscale_charge
+    ):
+        parser.error(
+            "--confirm-tensorscale-charge is required with "
+            "--video-source tensorscale"
         )
 
     if args.bgm_file:
@@ -1177,6 +1196,7 @@ def _validate_batch_task_params(
     ofox_charge_confirmed: bool,
     metaso_minimax_charge_confirmed: bool,
     muapi_charge_confirmed: bool,
+    tensorscale_charge_confirmed: bool,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
@@ -1245,6 +1265,14 @@ def _validate_batch_task_params(
         and not muapi_charge_confirmed
     ):
         raise ValueError("--confirm-muapi-charge is required for MuAPI video generation")
+    if (
+        params.video_source == "tensorscale"
+        and stop_at in {"materials", "video"}
+        and not tensorscale_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-tensorscale-charge is required for TensorScale MiniMax H3 Fast"
+        )
 
     if stop_at == "subtitle" and not params.subtitle_enabled:
         raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
@@ -1359,6 +1387,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                     args.confirm_metaso_minimax_charge
                 ),
                 muapi_charge_confirmed=args.confirm_muapi_charge,
+                tensorscale_charge_confirmed=args.confirm_tensorscale_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc

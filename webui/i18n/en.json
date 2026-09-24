@@ -570,6 +570,18 @@
     "MuAPI Billing Notice Without Script": "Each generated clip is billed by MuAPI. Enter or generate the video script to see an estimated task count.",
     "Confirm MuAPI Charge": "I understand MuAPI video generation creates paid tasks",
     "Confirm MuAPI Charge Help": "MuAPI clips are submitted one at a time and stop once they cover the voiceover duration. An ambiguous submission is not retried because it may already have created a billable remote task.",
-    "Confirm MuAPI Charge Required": "Please confirm the MuAPI charge before generating the video."
+    "Confirm MuAPI Charge Required": "Please confirm the MuAPI charge before generating the video.",
+    "TensorScale MiniMax H3 Fast": "TensorScale · MiniMax H3 Fast",
+    "TensorScale MiniMax H3 Fast Help": "Generate paid 4–15 second clips through TensorScale's asynchronous MiniMax H3 Fast API. Completed jobs are downloaded immediately from a short-lived signed URL.",
+    "TensorScale API Key": "TensorScale API Key",
+    "TensorScale Base URL": "TensorScale Base URL",
+    "TensorScale Resolution": "TensorScale Resolution",
+    "TensorScale Resolution Help": "Choose 360p, 480p, or 768p source material. Square output requires 480p or 768p.",
+    "Please Enter the TensorScale API Key": "Please enter the **TensorScale API Key**",
+    "TensorScale Billing Notice": "Each generated clip is billed by TensorScale. At {resolution}, the estimated voiceover and clip duration require roughly {min}-{max} paid job(s). Generation stops as soon as enough footage is collected.",
+    "TensorScale Billing Notice Without Script": "Each MiniMax H3 Fast clip is billed by TensorScale. Enter or generate the video script to see an estimated job count.",
+    "Confirm TensorScale Charge": "I understand TensorScale MiniMax H3 Fast creates paid video jobs",
+    "Confirm TensorScale Charge Help": "Clips are submitted one script segment at a time with idempotency protection and stop once they cover the voiceover duration. TensorScale bills submitted generation jobs.",
+    "Confirm TensorScale Charge Required": "Please confirm the TensorScale MiniMax H3 Fast charge before generating the video."
   }
 }

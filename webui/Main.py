@@ -53,6 +53,7 @@ from app.services import (
     muapi,
     ofox,
     subtitle,
+    tensorscale,
     video,
     volcengine_seedance,
     voice,
@@ -132,6 +133,7 @@ VIDEO_SOURCE_GROUPS = {
         "volcengine_seedance",
         "wavespeed",
         "muapi",
+        "tensorscale",
     ),
     "ai_image": ("openai_image",),
     "local": ("local",),
@@ -720,6 +722,7 @@ def _initialize_session_state():
         "ofox_confirm_charge": False,
         "metaso_minimax_confirm_charge": False,
         "muapi_confirm_charge": False,
+        "tensorscale_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -3913,6 +3916,69 @@ def _render_settings_dialog():
                     muapi_resolution.strip() or muapi.DEFAULT_RESOLUTION,
                 )
 
+                st.divider()
+                st.markdown(f"**{tr('TensorScale MiniMax H3 Fast')}**")
+                st.caption(tr("TensorScale MiniMax H3 Fast Help"))
+                tensorscale_api_key = st.text_input(
+                    tr("TensorScale API Key"),
+                    value=str(config.app.get("tensorscale_api_key", "") or ""),
+                    type="password",
+                    key="tensorscale_api_key_input",
+                )
+                _set_runtime_config(
+                    "app", "tensorscale_api_key", tensorscale_api_key.strip()
+                )
+                configured_tensorscale_base_url = str(
+                    config.app.get(
+                        "tensorscale_base_url", tensorscale.DEFAULT_BASE_URL
+                    )
+                    or tensorscale.DEFAULT_BASE_URL
+                ).strip()
+                tensorscale_base_url = st.text_input(
+                    tr("TensorScale Base URL"),
+                    value=(
+                        ""
+                        if configured_tensorscale_base_url
+                        == tensorscale.DEFAULT_BASE_URL
+                        else configured_tensorscale_base_url
+                    ),
+                    placeholder=tensorscale.DEFAULT_BASE_URL,
+                    key="tensorscale_base_url_input",
+                )
+                _set_runtime_config(
+                    "app",
+                    "tensorscale_base_url",
+                    tensorscale_base_url.strip() or tensorscale.DEFAULT_BASE_URL,
+                )
+                configured_tensorscale_resolution = str(
+                    config.app.get(
+                        "tensorscale_resolution", tensorscale.DEFAULT_RESOLUTION
+                    )
+                    or tensorscale.DEFAULT_RESOLUTION
+                ).strip().lower()
+                tensorscale_resolution_options = list(
+                    tensorscale.SUPPORTED_RESOLUTIONS
+                )
+                tensorscale_resolution = st.selectbox(
+                    tr("TensorScale Resolution"),
+                    options=tensorscale_resolution_options,
+                    index=(
+                        tensorscale_resolution_options.index(
+                            configured_tensorscale_resolution
+                        )
+                        if configured_tensorscale_resolution
+                        in tensorscale_resolution_options
+                        else tensorscale_resolution_options.index(
+                            tensorscale.DEFAULT_RESOLUTION
+                        )
+                    ),
+                    key="tensorscale_resolution_input",
+                    help=tr("TensorScale Resolution Help"),
+                )
+                _set_runtime_config(
+                    "app", "tensorscale_resolution", tensorscale_resolution
+                )
+
 
             with st.container(border=True):
                 st.markdown(f"#### {tr('AI Image Generation APIs')}")
@@ -5095,6 +5161,7 @@ def _render_video_settings(panel, params):
                 "ofox": tr("OFox AI Video"),
                 "metaso_minimax": tr("Metaso MiniMax H3"),
                 "muapi": tr("MuAPI AI Video"),
+                "tensorscale": tr("TensorScale MiniMax H3 Fast"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
                 "local": tr("Local file"),
@@ -5136,6 +5203,8 @@ def _render_video_settings(panel, params):
                 st.caption(tr("Metaso MiniMax H3 Help"))
             if params.video_source == "muapi":
                 st.caption(tr("MuAPI AI Video Help"))
+            if params.video_source == "tensorscale":
+                st.caption(tr("TensorScale MiniMax H3 Fast Help"))
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
                 local_file_types = sorted(
@@ -5281,11 +5350,11 @@ def _render_video_settings(panel, params):
 
             # MiniMax H3 的远端时长范围是 4～15 秒。选择秘塔时使用完整能力
             # 范围，既避免 2/3 秒被按 4 秒计费，也让 WebUI 与 CLI、服务层一致。
-            if params.video_source == "metaso_minimax":
+            if params.video_source in {"metaso_minimax", "tensorscale"}:
                 video_clip_durations = list(
                     range(
-                        metaso_minimax.DEFAULT_MIN_DURATION_SECONDS,
-                        metaso_minimax.DEFAULT_MAX_DURATION_SECONDS + 1,
+                        4,
+                        16,
                     )
                 )
             elif params.video_source == "muapi":
@@ -5304,7 +5373,8 @@ def _render_video_settings(panel, params):
                     "video_clip_duration",
                     video_clip_durations,
                     5
-                    if params.video_source in {"metaso_minimax", "muapi"}
+                    if params.video_source
+                    in {"metaso_minimax", "muapi", "tensorscale"}
                     else 3,
                 ),
                 key="video_clip_duration_select",
@@ -5390,6 +5460,8 @@ def _render_video_settings(panel, params):
                 _render_metaso_minimax_video_settings(params)
             if params.video_source == "muapi":
                 _render_muapi_video_settings(params)
+            if params.video_source == "tensorscale":
+                _render_tensorscale_video_settings(params)
     return uploaded_files
 
 
@@ -5549,6 +5621,38 @@ def _render_muapi_video_settings(params):
         tr("Confirm MuAPI Charge"),
         key="muapi_confirm_charge",
         help=tr("Confirm MuAPI Charge Help"),
+    )
+
+
+def _render_tensorscale_video_settings(params):
+    """Show the estimated paid job count and require explicit consent."""
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    if estimated_range := _estimate_voiceover_duration_range(
+        str(params.video_script or ""), params.voice_rate
+    ):
+        min_clips = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        max_clips = max(
+            math.ceil(estimated_range[1] * video_count / clip_duration), min_clips
+        )
+        st.warning(
+            tr("TensorScale Billing Notice").format(
+                min=min_clips,
+                max=max_clips,
+                resolution=str(
+                    config.app.get(
+                        "tensorscale_resolution", tensorscale.DEFAULT_RESOLUTION
+                    )
+                    or tensorscale.DEFAULT_RESOLUTION
+                ),
+            )
+        )
+    else:
+        st.warning(tr("TensorScale Billing Notice Without Script"))
+    st.checkbox(
+        tr("Confirm TensorScale Charge"),
+        key="tensorscale_confirm_charge",
+        help=tr("Confirm TensorScale Charge Help"),
     )
 
 
@@ -7880,6 +7984,7 @@ def _render_generation_controls(
             "ofox",
             "metaso_minimax",
             "muapi",
+            "tensorscale",
             "loomloom",
             "openai_image",
             "local",
@@ -7981,6 +8086,20 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm MuAPI Charge Required"))
+            st.stop()
+
+        if params.video_source == "tensorscale" and not (
+            tensorscale.is_enabled(config.snapshot_config_with_pending(config.app))
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the TensorScale API Key"))
+            st.stop()
+
+        if params.video_source == "tensorscale" and not st.session_state.get(
+            "tensorscale_confirm_charge", False
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm TensorScale Charge Required"))
             st.stop()
 
         if params.video_source == "openai_image" and not material.is_openai_image_enabled(
