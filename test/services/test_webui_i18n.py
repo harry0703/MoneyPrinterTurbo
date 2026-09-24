@@ -49,6 +49,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.openrouter",
         "llm_provider_label.api_route",
         "llm_provider_label.fluxionai",
+        "llm_provider_label.cheaperinference",
         "llm_provider_label.shengsuanyun",
         "LoomLoom Poll Retry Pending",
         "LoomLoom Poll Retry Warning",

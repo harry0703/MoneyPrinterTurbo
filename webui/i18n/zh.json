@@ -234,6 +234,8 @@
     "llm_provider_label.api_route": "API Route",
     "llm_provider_label.fluxionai": "Fluxion AI",
     "llm_provider_tips.fluxionai": "##### Fluxion AI 配置说明\n- **API Key**：通过[专属链接]({api_key_url})注册，在控制台创建 **OpenAI 接口分组**的密钥\n- **Base Url**：默认 `{default_base_url}`；如分组提供其他地址，请填写对应的 OpenAI 兼容 API 地址（包含 `/v1`），不要填写完整的 `/chat/completions` 路径\n- **Model Name**：默认 `{default_model}`；可用模型随分组不同而变化，请在[模型广场]({model_docs_url})查看\n\n用于生成视频文案和素材搜索关键词。Anthropic 或 Gemini 原生接口分组不适用于此入口。",
+    "llm_provider_label.cheaperinference": "Cheaper Inference",
+    "llm_provider_tips.cheaperinference": "##### Cheaper Inference 配置说明\n- **API Key**: 在 [Cheaper Inference 官网]({api_key_url}) 注册并创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看所有模型 ID\n\nCheaper Inference 是兼容 OpenAI 接口的多模型网关。每个模型的价格比其厂商官方价格低 15–60%。",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",

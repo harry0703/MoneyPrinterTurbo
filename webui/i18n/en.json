@@ -234,6 +234,8 @@
     "llm_provider_label.api_route": "API Route",
     "llm_provider_label.fluxionai": "Fluxion AI",
     "llm_provider_tips.fluxionai": "##### Fluxion AI Configuration\n- **API Key**: Sign up through the [referral link]({api_key_url}) and create a key for an **OpenAI API group** in the console\n- **Base Url**: Defaults to `{default_base_url}`. If your group uses another endpoint, enter its OpenAI-compatible API base URL (including `/v1`), not the full `/chat/completions` path\n- **Model Name**: Defaults to `{default_model}`. Available models depend on your group; check the [model plaza]({model_docs_url})\n\nUsed to generate video scripts and stock-footage search terms. Native Anthropic and Gemini API groups are not supported by this entry.",
+    "llm_provider_label.cheaperinference": "Cheaper Inference",
+    "llm_provider_tips.cheaperinference": "##### Cheaper Inference Configuration\n- **API Key**: Sign up and create an API key at [Cheaper Inference]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for all model IDs\n\nCheaper Inference is an OpenAI-compatible gateway to models from many labs. Each model costs 15–60% less than the list price of its lab.",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
