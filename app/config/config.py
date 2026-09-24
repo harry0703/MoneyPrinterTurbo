@@ -501,6 +501,10 @@ def save_config():
         config_to_save["fish_audio"] = dict(fish_audio)
         config_to_save["voxcpm"] = dict(voxcpm)
         config_to_save["ui"] = dict(ui)
+        config_to_save["creative"] = dict(creative)
+        config_to_save["comfyui"] = dict(comfyui)
+        config_to_save["drawthings"] = dict(drawthings)
+        config_to_save["kling"] = dict(kling)
         serialized_config = toml.dumps(config_to_save)
 
         # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
@@ -563,6 +567,75 @@ ui = _SynchronizedConfig(
         "ui",
         {
             "hide_log": False,
+        },
+    )
+)
+# 创意生产管线总开关。关闭时视频生成主流程与原生行为完全一致。
+creative = _SynchronizedConfig(
+    _cfg.get(
+        "creative",
+        {
+            "enabled": False,
+            "default_image_provider": "comfyui",
+            "default_video_provider": "kling",
+            "checkpoint": True,
+            "motion": "smooth",
+            "material_fallback": "stock",
+        },
+    )
+)
+# ComfyUI image generation backend for the creative pipeline.
+comfyui = _SynchronizedConfig(
+    _cfg.get(
+        "comfyui",
+        {
+            "enabled": False,
+            "base_url": "",
+            "launcher_url": "",
+            "template": "image_basic",
+            "checkpoint": "",
+            "steps": 0,
+            "cfg": 0.0,
+            "sampler_name": "",
+            "scheduler": "",
+            "timeout_seconds": 600,
+            "poll_interval": 2.0,
+        },
+    )
+)
+# Draw Things image generation backend for the creative pipeline.
+drawthings = _SynchronizedConfig(
+    _cfg.get(
+        "drawthings",
+        {
+            "enabled": False,
+            "base_url": "",
+            "model_file": "",
+            "preset": "",
+            "preset_path": "",
+            "steps": 0,
+            "guidance": 0.0,
+            "shift": 0.0,
+            "seed": -1,
+            "use_tls": False,
+            "timeout_seconds": 900,
+            "probe_timeout": 5.0,
+        },
+    )
+)
+# Kling AI video generation backend for the creative pipeline.
+kling = _SynchronizedConfig(
+    _cfg.get(
+        "kling",
+        {
+            "enabled": False,
+            "base_url": "https://api-singapore.klingai.com",
+            "access_key": "",
+            "secret_key": "",
+            "model_name": "kling-v2-master",
+            "cfg_scale": 0.8,
+            "poll_interval": 10.0,
+            "timeout_seconds": 900,
         },
     )
 )

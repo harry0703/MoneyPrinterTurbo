@@ -385,9 +385,10 @@ def test_worker_logs_are_available_without_streamlit_session_state():
     assert result == {"videos": ["/tmp/final-1.mp4"]}
     records = webui_task.get_task_logs(task_id)
     assert len(records) == 1
+    # 路径前缀取决于 pytest 调用方式与字节码缓存，这里只锁定日志结构本身。
     assert re.fullmatch(
         r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \| INFO \| "
-        r'"\./test/services/test_webui_task\.py:\d+": logged_start '
+        r'"(?:[^"]*/)?test/services/test_webui_task\.py:\d+": logged_start '
         r"- unique background task log",
         records[0],
     )
