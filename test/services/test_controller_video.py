@@ -16,7 +16,12 @@ from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.v1 import video as video_controller
 from app.models import const
 from app.models.exception import HttpException
-from app.models.schema import TaskDeletionResponse, TaskListResponse, TaskQueryResponse
+from app.models.schema import (
+    TaskDeletionResponse,
+    TaskListResponse,
+    TaskQueryResponse,
+    TaskVideoRequest,
+)
 from app.services import material_upload
 from app.services import state as sm
 from app.utils import utils
@@ -118,6 +123,81 @@ class TestVideoControllerTasks(unittest.TestCase):
     @staticmethod
     def _request():
         return SimpleNamespace(headers={"x-task-id": "request-123"})
+
+    def test_video_task_rejects_font_outside_font_directory_before_queueing(self):
+        """非法字体路径必须在任务入队前返回 400，不产生付费后台任务。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            font_dir = Path(temp_dir, "fonts")
+            font_dir.mkdir()
+            outside = Path(temp_dir, "outside.ttf")
+            outside.write_bytes(b"not a font")
+
+            for font_name in (str(outside), "../outside.ttf"):
+                with (
+                    self.subTest(font_name=font_name),
+                    patch.object(video_controller.utils, "font_dir", return_value=str(font_dir)),
+                    patch.object(video_controller.sm.state, "update_task") as update_task,
+                    patch.object(video_controller.task_manager, "add_task") as add_task,
+                ):
+                    body = TaskVideoRequest(video_subject="Coffee", font_name=font_name)
+                    with self.assertRaises(HttpException) as raised:
+                        video_controller.create_task(self._request(), body, stop_at="video")
+
+                    self.assertEqual(raised.exception.status_code, 400)
+                    update_task.assert_not_called()
+                    add_task.assert_not_called()
+
+    def test_video_task_rejects_font_symlink_outside_font_directory(self):
+        """即使路径字符串位于字体目录内，也不能借符号链接读取目录外文件。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            font_dir = Path(temp_dir, "fonts")
+            font_dir.mkdir()
+            outside = Path(temp_dir, "outside.ttf")
+            outside.write_bytes(b"not a font")
+            try:
+                (font_dir / "linked.ttf").symlink_to(outside)
+            except (NotImplementedError, OSError) as exc:
+                self.skipTest(f"symlinks are unavailable: {exc}")
+
+            with (
+                patch.object(video_controller.utils, "font_dir", return_value=str(font_dir)),
+                patch.object(video_controller.sm.state, "update_task") as update_task,
+                patch.object(video_controller.task_manager, "add_task") as add_task,
+            ):
+                body = TaskVideoRequest(video_subject="Coffee", font_name="linked.ttf")
+                with self.assertRaises(HttpException) as raised:
+                    video_controller.create_task(self._request(), body, stop_at="video")
+
+            self.assertEqual(raised.exception.status_code, 400)
+            update_task.assert_not_called()
+            add_task.assert_not_called()
+
+    def test_video_task_accepts_font_inside_directory_and_ignores_disabled_subtitles(self):
+        """正常字体仍能入队，关闭字幕时保留原有的未使用字体兼容行为。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            font_dir = Path(temp_dir, "fonts")
+            font_dir.mkdir()
+            (font_dir / "custom.ttf").write_bytes(b"font file")
+            cases = (
+                TaskVideoRequest(video_subject="Coffee", font_name="custom.ttf"),
+                TaskVideoRequest(
+                    video_subject="Coffee", subtitle_enabled=False, font_name="../unused.ttf"
+                ),
+            )
+            for body in cases:
+                with (
+                    self.subTest(font_name=body.font_name, enabled=body.subtitle_enabled),
+                    patch.object(video_controller.utils, "font_dir", return_value=str(font_dir)),
+                    patch.object(video_controller.sm.state, "update_task") as update_task,
+                    patch.object(video_controller.task_manager, "add_task") as add_task,
+                ):
+                    response = video_controller.create_task(
+                        self._request(), body, stop_at="video"
+                    )
+
+                self.assertEqual(response["status"], 200)
+                update_task.assert_called_once()
+                add_task.assert_called_once()
 
     def test_create_task_queues_requested_pipeline_stage(self):
         """创建任务应持久化初始状态，并把原请求模型与停止阶段交给队列。"""
@@ -369,6 +449,29 @@ class TestVideoControllerTasks(unittest.TestCase):
                     with self.assertRaises(HttpException) as raised:
                         operation()
                     self.assertEqual(raised.exception.status_code, 404)
+
+
+class TestVideoControllerCreateHTTP(unittest.TestCase):
+    """验证越界字体在真实 HTTP 入口返回 400，而不是创建后台任务。"""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        config.app["api_key"] = ""
+        self.client = TestClient(asgi.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    def test_video_request_rejects_font_path_traversal(self):
+        with patch.object(video_controller.task_manager, "add_task") as add_task:
+            response = self.client.post(
+                "/api/v1/videos",
+                json={"video_subject": "Coffee", "font_name": "../../README.md"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        add_task.assert_not_called()
 
 
 class TestVideoControllerDeleteHTTP(unittest.TestCase):

@@ -64,6 +64,47 @@ class TestVideoService(unittest.TestCase):
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
 
+    def test_generate_video_rejects_font_outside_directory_before_opening_media(self):
+        """WebUI、CLI 或内部调用绕过 API 时，渲染层也必须阻断越界字体。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            font_dir = Path(temp_dir, "fonts")
+            font_dir.mkdir()
+            outside = Path(temp_dir, "outside.ttf")
+            outside.write_bytes(b"not a font")
+
+            for font_name in (str(outside), "../outside.ttf"):
+                with (
+                    self.subTest(font_name=font_name),
+                    patch.object(vd.utils, "font_dir", return_value=str(font_dir)),
+                    patch.object(vd, "_open_video_clip_quietly") as open_video,
+                ):
+                    params = vd.VideoParams(video_subject="Coffee", font_name=font_name)
+                    with self.assertRaisesRegex(ValueError, "outside the allowed directory"):
+                        vd.generate_video(
+                            video_path="unused.mp4",
+                            audio_path="unused.mp3",
+                            subtitle_path="unused.srt",
+                            output_file="unused-output.mp4",
+                            params=params,
+                        )
+                    open_video.assert_not_called()
+
+    def test_generate_video_accepts_bundled_font_before_opening_media(self):
+        """内置字体必须继续通过校验，不能阻断默认字幕生成链路。"""
+        params = vd.VideoParams(video_subject="Coffee", font_name="STHeitiMedium.ttc")
+        with patch.object(
+            vd, "_open_video_clip_quietly", side_effect=RuntimeError("media reached")
+        ) as open_video:
+            with self.assertRaisesRegex(RuntimeError, "media reached"):
+                vd.generate_video(
+                    video_path="unused.mp4",
+                    audio_path="unused.mp3",
+                    subtitle_path="unused.srt",
+                    output_file="unused-output.mp4",
+                    params=params,
+                )
+        open_video.assert_called_once_with("unused.mp4")
+
     def test_subtitle_spring_animation_keeps_color_and_mask_aligned(self):
         """
         弹跳动画必须同步缩放颜色帧和透明蒙版。

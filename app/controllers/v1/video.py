@@ -207,6 +207,16 @@ def create_task(
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
     try:
+        if (
+            stop_at == "video"
+            and isinstance(body, TaskVideoRequest)
+            and body.subtitle_enabled
+        ):
+            # 字体名可由 API 客户端直接提交，不能等到后台渲染时才发现路径越界。
+            # 这里与渲染层共用目录边界校验，让非法请求在创建付费任务前返回 400。
+            file_security.resolve_path_within_directory(
+                utils.font_dir(), body.font_name or "STHeitiMedium.ttc"
+            )
         task = {
             "task_id": task_id,
             "request_id": request_id,

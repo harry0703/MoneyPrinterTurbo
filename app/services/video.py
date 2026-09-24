@@ -1239,7 +1239,12 @@ def generate_video(
     if params.subtitle_enabled:
         if not params.font_name:
             params.font_name = "STHeitiMedium.ttc"
-        font_path = os.path.join(utils.font_dir(), params.font_name)
+        # API 入口虽已预检，WebUI、CLI 和内部调用仍可直接进入渲染层；
+        # 始终以真实路径校验字体必须留在 resource/fonts，阻断绝对路径、
+        # ../ 穿越及指向目录外的符号链接，再交给 PIL/MoviePy 打开。
+        font_path = file_security.resolve_path_within_directory(
+            utils.font_dir(), params.font_name
+        )
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
