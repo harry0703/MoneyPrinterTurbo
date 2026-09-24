@@ -16,7 +16,6 @@ from app.models.creative import (
 )
 from app.services.material_router import (
     FALLBACK_LOCAL_PLACEHOLDER,
-    FALLBACK_NONE,
     FALLBACK_RETRY,
     FALLBACK_STOCK,
     MaterialRouter,
