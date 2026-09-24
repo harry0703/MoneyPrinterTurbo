@@ -1,7 +1,8 @@
 """Creative pipeline director endpoints.
 
 Expose the rough-cut checkpoint actions of the flag-gated creative pipeline
-(approve/resume plus per-shot edits) on top of the shared video task queue.
+(approve/resume plus per-shot edits) and a stage-by-stage pipeline status
+view for external orchestration, on top of the shared video task queue.
 The vanilla MoneyPrinterTurbo flow is not affected by this router.
 """
 
@@ -20,6 +21,7 @@ from app.models import const
 from app.models.exception import HttpException
 from app.services import rough_cut
 from app.services.creative import premiere as creative_premiere
+from app.services.creative import pipeline as creative_pipeline
 from app.services.creative import qc as creative_qc
 from app.services import state as sm
 from app.services import task as task_service
@@ -128,6 +130,24 @@ def get_qc_report(request: Request, task_id: str = Path(...)):
             message=f"{request_id}: no qc report found for task",
         )
     return utils.get_response(200, {"task_id": task_id, "qc": report})
+
+
+@router.get(
+    "/creative/tasks/{task_id}/pipeline",
+    summary="Get the stage-by-stage creative pipeline status",
+)
+def get_pipeline_status(request: Request, task_id: str = Path(...)):
+    request_id = base.get_task_id(request)
+    status = creative_pipeline.build_pipeline_status(task_id)
+    if status is None:
+        raise HttpException(
+            task_id=task_id,
+            status_code=404,
+            message=f"{request_id}: unknown creative task",
+        )
+    return utils.get_response(
+        200, {"task_id": task_id, "pipeline": status}
+    )
 
 
 @router.get(
