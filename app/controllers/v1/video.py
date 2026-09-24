@@ -111,6 +111,12 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
     if file.startswith(("http://", "https://")):
         return file
 
+    # Canonicalize the base FIRST: resolve_path_within_directory() returns a
+    # realpath'd path, and os.path.relpath() below is only meaningful when
+    # both sides share canonical form. On macOS /var is a symlink to
+    # /private/var, so relpath(realpath(child), unresolved(base)) yields a
+    # garbage "../../private/..." URI instead of "tasks/<id>/file".
+    task_dir = os.path.realpath(task_dir)
     try:
         resolved_path = file_security.resolve_path_within_directory(task_dir, file)
     except ValueError as exc:

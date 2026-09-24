@@ -540,6 +540,37 @@ class TestVideoControllerFiles(unittest.TestCase):
         self.assertEqual(response.filename, "final-1.mp4")
         self.assertEqual(response.media_type, "video/mp4")
 
+    def test_task_file_to_uri_canonicalizes_symlinked_task_dir(self):
+        """Symlinked base (macOS /var -> /private/var) must still yield a clean URI.
+
+        Regression for the macOS task-download-URL failure: the stored file
+        path resolves to canonical form while the task dir may arrive through
+        a symlink. Both sides must be canonicalized before relpath, otherwise
+        the URI comes out as tasks/../../private/... instead of
+        tasks/<task_id>/final-1.mp4. A local symlink reproduces the macOS
+        layout on any OS.
+        """
+        with tempfile.TemporaryDirectory() as real_dir:
+            task_id = "symlink-task"
+            real_task_dir = os.path.join(real_dir, "tasks", task_id)
+            os.makedirs(real_task_dir)
+            Path(real_task_dir, "final-1.mp4").write_bytes(b"video")
+            link_dir = os.path.join(real_dir, "link-tasks")
+            try:
+                os.symlink(os.path.join(real_dir, "tasks"), link_dir)
+            except (NotImplementedError, OSError) as error:
+                self.skipTest(f"symbolic links are unavailable: {error}")
+
+            linked_task_dir = os.path.join(link_dir, task_id)
+            stored_path = os.path.join(linked_task_dir, "final-1.mp4")
+            # The caller passes the tasks ROOT (as get_task does); the
+            # per-task segment must survive canonicalization.
+            uri = video_controller._task_file_to_uri(
+                stored_path, "", link_dir, "request-123"
+            )
+
+        self.assertEqual(uri, f"/tasks/{task_id}/final-1.mp4")
+
     def test_download_video_encodes_content_disposition_filename(self):
         """
         下载文件名必须按 HTTP 标准编码。
