@@ -576,6 +576,10 @@ def _stage_review(task, task_id):
         return
     st.video(asset_url(task_id, combined[0]))
     st.caption("Combined video: cut + voiceover (no BGM, no subtitles).")
+    st.link_button(
+        "Download Premiere handoff (.zip)",
+        f"{API_BASE}/api/v1/creative/tasks/{task_id}/premiere",
+    )
 
 
 def _stage_final(task, task_id):
@@ -586,6 +590,10 @@ def _stage_final(task, task_id):
     url = asset_url(task_id, videos[0])
     st.video(url)
     st.link_button("Download final video", url)
+    st.link_button(
+        "Download Premiere handoff (.zip)",
+        f"{API_BASE}/api/v1/creative/tasks/{task_id}/premiere",
+    )
     audio = task.get("audio_file")
     if audio:
         st.audio(asset_url(task_id, audio))

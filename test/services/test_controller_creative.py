@@ -267,6 +267,48 @@ class TestCreativeEndpointsHTTP(unittest.TestCase):
                 )
         self.assertEqual(response.status_code, 409)
 
+    def test_premiere_download_over_http(self):
+        from fastapi.testclient import TestClient
+
+        from app import asgi
+
+        with patch.object(
+            creative_controller.creative_premiere,
+            "build_premiere_zip",
+            return_value=(b"PK-34payload", "premiere-task-456.zip"),
+        ):
+            with TestClient(asgi.app) as client:
+                response = client.get(
+                    f"/api/v1/creative/tasks/{TASK_ID}/premiere",
+                    headers={"x-task-id": "request-456"},
+                )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "application/zip")
+        self.assertIn(
+            'filename="premiere-task-456.zip"',
+            response.headers["content-disposition"],
+        )
+        self.assertEqual(response.content, b"PK-34payload")
+
+    def test_premiere_download_404_over_http(self):
+        from fastapi.testclient import TestClient
+
+        from app import asgi
+
+        with patch.object(
+            creative_controller.creative_premiere,
+            "build_premiere_zip",
+            side_effect=creative_controller.creative_premiere.PremiereExportError(
+                "no rough cut timeline found for task"
+            ),
+        ):
+            with TestClient(asgi.app) as client:
+                response = client.get(
+                    f"/api/v1/creative/tasks/{TASK_ID}/premiere",
+                    headers={"x-task-id": "request-456"},
+                )
+        self.assertEqual(response.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

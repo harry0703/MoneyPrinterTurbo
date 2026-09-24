@@ -5,9 +5,11 @@ Expose the rough-cut checkpoint actions of the flag-gated creative pipeline
 The vanilla MoneyPrinterTurbo flow is not affected by this router.
 """
 
+import io
 from typing import Optional
 
 from fastapi import Path, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.controllers import base
@@ -17,6 +19,7 @@ from app.controllers.v1.base import new_router
 from app.models import const
 from app.models.exception import HttpException
 from app.services import rough_cut
+from app.services.creative import premiere as creative_premiere
 from app.services.creative import qc as creative_qc
 from app.services import state as sm
 from app.services import task as task_service
@@ -125,6 +128,29 @@ def get_qc_report(request: Request, task_id: str = Path(...)):
             message=f"{request_id}: no qc report found for task",
         )
     return utils.get_response(200, {"task_id": task_id, "qc": report})
+
+
+@router.get(
+    "/creative/tasks/{task_id}/premiere",
+    summary="Download the Premiere Pro handoff package (zip)",
+)
+def download_premiere_handoff(request: Request, task_id: str = Path(...)):
+    request_id = base.get_task_id(request)
+    try:
+        payload, filename = creative_premiere.build_premiere_zip(task_id)
+    except creative_premiere.PremiereExportError as exc:
+        raise HttpException(
+            task_id=task_id,
+            status_code=404,
+            message=f"{request_id}: {exc}",
+        ) from exc
+    return StreamingResponse(
+        io.BytesIO(payload),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
 
 
 @router.post(
