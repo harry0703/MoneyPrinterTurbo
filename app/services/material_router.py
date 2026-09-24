@@ -69,6 +69,7 @@ def _shot_dir(shot: ShotPlanItem, context: dict) -> str:
 
 
 def _to_aspect(value: Any) -> str:
+    value = getattr(value, "value", value)
     return str(value or "16:9").strip().lower() or "16:9"
 
 

@@ -89,6 +89,12 @@ def _param_value(params: Any, key: str, default: Any = None) -> Any:
     return getattr(params, key, default)
 
 
+def _aspect_param(params: Any) -> str:
+    raw = _param_value(params, "video_aspect", None)
+    value = getattr(raw, "value", raw)
+    return str(value or "16:9").strip().lower() or "16:9"
+
+
 def _shot_context(task_id: str, params: Any) -> dict:
     media_root = os.path.join(utils.task_dir(task_id), "assets")
     os.makedirs(media_root, exist_ok=True)
@@ -100,7 +106,7 @@ def _shot_context(task_id: str, params: Any) -> dict:
     return {
         "task_id": task_id,
         "media_root": media_root,
-        "video_aspect": str(_param_value(params, "video_aspect", "") or "16:9"),
+        "video_aspect": _aspect_param(params),
         "stock_provider": stock_provider,
     }
 
@@ -141,6 +147,29 @@ def resolve_shot_materials(task_id: str, params: Any, plan: Any) -> Optional[lis
     return shots
 
 
+def scale_shot_durations(
+    plan: Any, target_total: float, default_duration: float = 5.0
+) -> Optional[Any]:
+    """Scale shot durations in place so their total matches target_total.
+
+    Keeps the rough cut in step with the narration: every duration is
+    multiplied by target_total / current_total and floored at
+    _MIN_SHOT_DURATION. Returns the plan unchanged when there is nothing
+    to scale.
+    """
+    shots = getattr(plan, "shots", None) if plan is not None else None
+    if not shots or not target_total or float(target_total) <= 0:
+        return plan
+    total = sum(float(shot.duration or default_duration) for shot in shots)
+    if total <= 0:
+        return plan
+    factor = float(target_total) / total
+    for shot in shots:
+        base = float(shot.duration or default_duration)
+        shot.duration = max(_MIN_SHOT_DURATION, round(base * factor, 2))
+    return plan
+
+
 def _prepare_shot_entry(shot: dict, motion: str, verb: str) -> dict:
     """Prepare one shot segment, pinning video shots to the real length.
 
@@ -177,7 +206,7 @@ def prepare_segments(task_id: str, shots: list, motion: Optional[str] = None) ->
 
 
 def _aspect_resolution(params: Any) -> tuple:
-    aspect_value = str(_param_value(params, "video_aspect", "") or "16:9").strip()
+    aspect_value = _aspect_param(params)
     try:
         aspect = VideoAspect(aspect_value)
     except ValueError:

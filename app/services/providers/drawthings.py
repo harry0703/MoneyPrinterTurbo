@@ -182,7 +182,8 @@ class DrawThingsProvider(MaterialProvider):
             )
         negative = (shot.negative_prompt or "").strip()
 
-        aspect = str(context.get("video_aspect") or "16:9").strip().lower()
+        raw_aspect = context.get("video_aspect")
+        aspect = str(getattr(raw_aspect, "value", raw_aspect) or "16:9").strip().lower()
         width, height = DEFAULT_ASPECT_SIZES.get(
             aspect, DEFAULT_ASPECT_SIZES["16:9"]
         )

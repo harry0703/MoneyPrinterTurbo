@@ -195,7 +195,8 @@ class ComfyUIProvider(MaterialProvider):
             raise ProviderError("comfyui context is missing 'output_dir'")
         os.makedirs(output_dir, exist_ok=True)
 
-        aspect = str(context.get("video_aspect") or "16:9").strip().lower()
+        raw_aspect = context.get("video_aspect")
+        aspect = str(getattr(raw_aspect, "value", raw_aspect) or "16:9").strip().lower()
         task_id = str(context.get("task_id") or "")
         seed = context.get("seed")
         if seed is None:

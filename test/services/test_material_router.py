@@ -561,5 +561,19 @@ class TestMaterialRouterGeneratedVideo(unittest.TestCase):
         self.assertIn("unknown video provider", shot.error)
 
 
+class TestToAspect(unittest.TestCase):
+    def test_enum_value(self):
+        from app.models.schema import VideoAspect
+        from app.services.material_router import _to_aspect
+
+        self.assertEqual(_to_aspect(VideoAspect.portrait), "9:16")
+
+    def test_plain_value(self):
+        from app.services.material_router import _to_aspect
+
+        self.assertEqual(_to_aspect("16:9"), "16:9")
+        self.assertEqual(_to_aspect(None), "16:9")
+
+
 if __name__ == "__main__":
     unittest.main()

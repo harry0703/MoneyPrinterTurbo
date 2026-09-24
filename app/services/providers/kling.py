@@ -238,4 +238,5 @@ class KlingVideoProvider(GeneratedVideoProvider):
 
 
 def _aspect(value: Any) -> str:
+    value = getattr(value, "value", value)
     return str(value or "16:9").strip().lower() or "16:9"

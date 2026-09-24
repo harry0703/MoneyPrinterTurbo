@@ -236,5 +236,76 @@ class TestResolveShotMaterials(RoughCutTestCase):
         )
 
 
+class TestAspectSafety(RoughCutTestCase):
+    def _enum_params(self, aspect):
+        from app.models.schema import VideoParams
+
+        return VideoParams(video_subject="s", video_aspect=aspect)
+
+    def test_aspect_param_from_enum(self):
+        from app.models.schema import VideoAspect
+
+        params = self._enum_params(VideoAspect.portrait)
+        self.assertEqual(rough_cut._aspect_param(params), "9:16")
+
+    def test_shot_context_from_enum(self):
+        from app.models.schema import VideoAspect
+
+        params = self._enum_params(VideoAspect.portrait)
+        context = rough_cut._shot_context("task-1", params)
+        self.assertEqual(context["video_aspect"], "9:16")
+
+    def test_aspect_resolution_from_enum(self):
+        from app.models.schema import VideoAspect
+
+        params = self._enum_params(VideoAspect.portrait)
+        self.assertEqual(rough_cut._aspect_resolution(params), (1080, 1920))
+
+    def test_aspect_resolution_from_dict(self):
+        self.assertEqual(
+            rough_cut._aspect_resolution({"video_aspect": "16:9"}), (1920, 1080)
+        )
+
+    def test_aspect_resolution_defaults(self):
+        self.assertEqual(rough_cut._aspect_resolution(None), (1920, 1080))
+        self.assertEqual(rough_cut._aspect_resolution({}), (1920, 1080))
+
+
+class TestScaleShotDurations(RoughCutTestCase):
+    def _plan(self, durations):
+        return ShotPlan(
+            task_id="task-1",
+            shots=[
+                ShotPlanItem(
+                    index=index,
+                    source_type="generated_image",
+                    prompt=f"prompt {index}",
+                    duration=duration,
+                )
+                for index, duration in enumerate(durations, start=1)
+            ],
+        )
+
+    def test_scales_to_target_total(self):
+        plan = self._plan([5.0] * 10)
+        self.assertIs(rough_cut.scale_shot_durations(plan, 100.0), plan)
+        for shot in plan.shots:
+            self.assertEqual(shot.duration, 10.0)
+        self.assertAlmostEqual(
+            sum(shot.duration for shot in plan.shots), 100.0, delta=0.1
+        )
+
+    def test_none_durations_use_default(self):
+        plan = self._plan([None] * 4)
+        rough_cut.scale_shot_durations(plan, 10.0, default_duration=5.0)
+        for shot in plan.shots:
+            self.assertEqual(shot.duration, 2.5)
+
+    def test_no_scaling_without_target(self):
+        plan = self._plan([5.0, 5.0])
+        rough_cut.scale_shot_durations(plan, 0)
+        self.assertEqual([shot.duration for shot in plan.shots], [5.0, 5.0])
+
+
 if __name__ == "__main__":
     unittest.main()

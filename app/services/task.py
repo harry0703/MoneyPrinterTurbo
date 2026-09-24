@@ -1624,6 +1624,16 @@ def _run_pipeline(
     # 5. Get video materials
     creative_shots = None
     if creative_active:
+        if audio_duration:
+            rough_cut.scale_shot_durations(
+                creative_shot_plan,
+                float(audio_duration),
+                float(params.video_clip_duration or 5),
+            )
+            logger.info(
+                f"[creative] shot durations scaled to audio: "
+                f"task_id={task_id} total={round(float(audio_duration), 1)}s"
+            )
         creative_shots = rough_cut.resolve_shot_materials(
             task_id, params, creative_shot_plan
         )
