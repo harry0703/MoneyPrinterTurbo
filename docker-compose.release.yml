@@ -9,6 +9,8 @@ services:
     ports:
       - "0.0.0.0:8501:8501"
     command: [ "streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.serverAddress=127.0.0.1", "--server.enableCORS=True", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal", "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False" ]
+    environment:
+      - MPT_CREATIVE_API_BASE=http://100.71.253.58:8080
     volumes: *common-volumes
     restart: always
   api:
