@@ -56,6 +56,8 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Timeout (seconds)",
         "OpenCode Model",
         "OpenCode Variant",
+        "Search OpenCode Models",
+        "No OpenCode Models Match Search",
         "Default variant",
         "Refresh OpenCode Models",
         "Loading OpenCode Models",

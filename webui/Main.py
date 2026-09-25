@@ -2697,7 +2697,22 @@ def _render_opencode_model_selector(
         model_labels[current_base] = (
             f"{current_base} ({tr('OpenCode Model Not Currently Available')})"
         )
+
+    search_query = panel.text_input(
+        tr("Search OpenCode Models"),
+        value="",
+        key="opencode_model_search_input",
+    )
+    normalized_query = search_query.strip().lower()
+    if normalized_query:
+        model_options = [
+            model_ref
+            for model_ref in model_options
+            if normalized_query in model_ref.lower()
+            or normalized_query in model_labels[model_ref].lower()
+        ]
     if not model_options:
+        panel.warning(tr("No OpenCode Models Match Search"))
         return panel.text_input(
             tr("Model Name"),
             value=configured_model,

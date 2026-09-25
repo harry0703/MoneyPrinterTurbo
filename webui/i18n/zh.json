@@ -247,6 +247,8 @@
     "Timeout (seconds)": "超时时间（秒）",
     "OpenCode Model": "OpenCode 模型",
     "OpenCode Variant": "OpenCode 变体",
+    "Search OpenCode Models": "搜索 OpenCode 模型",
+    "No OpenCode Models Match Search": "没有匹配的 OpenCode 模型",
     "Default variant": "默认变体",
     "Refresh OpenCode Models": "刷新 OpenCode 模型",
     "Loading OpenCode Models": "正在加载 OpenCode 模型……",

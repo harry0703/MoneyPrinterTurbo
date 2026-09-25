@@ -116,6 +116,13 @@ def test_opencode_settings_discover_models_and_select_variants():
         assert app_config["opencode_model_name"] == "opencode/test-model#high"
         discover.assert_called_once()
 
+        _widget_by_key(app.text_input, "opencode_model_search_input").set_value(
+            "opencode/"
+        ).run()
+        filtered_model = _widget_by_key(app.selectbox, "opencode_model_name_select")
+        assert any("opencode/test-model" in str(option) for option in filtered_model.options)
+        _widget_by_key(app.text_input, "opencode_model_search_input").set_value("").run()
+
         _widget_by_key(app.button, "opencode_refresh_models_button").click().run()
         assert discover.call_count == 2
 

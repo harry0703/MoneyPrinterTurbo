@@ -247,6 +247,8 @@
     "Timeout (seconds)": "Timeout (seconds)",
     "OpenCode Model": "OpenCode Model",
     "OpenCode Variant": "OpenCode Variant",
+    "Search OpenCode Models": "Search OpenCode models",
+    "No OpenCode Models Match Search": "No OpenCode models match this search",
     "Default variant": "Default variant",
     "Refresh OpenCode Models": "Refresh OpenCode Models",
     "Loading OpenCode Models": "Loading OpenCode models...",
