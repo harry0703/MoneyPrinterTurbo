@@ -181,7 +181,7 @@
 
 #### OpenCode CLI Provider
 
-安装并登录 OpenCode V2.0.4 或更高版本后，可将 **OpenCode CLI** 选为大模型 Provider，使用 OpenCode 中已经配置的模型和 Provider。MoneyPrinterTurbo 只会调用无状态脚本文案/关键词生成接口，不会复制 OpenCode 凭证，也不会向 WebUI 暴露 Agent、工具、会话或 MCP。Docker 运行环境内必须能够访问 OpenCode，宿主机单独安装的 CLI 不会自动对容器可见。
+安装并登录 OpenCode V2.0.4 或更高版本后，可将 **OpenCode CLI** 选为大模型 Provider，使用 OpenCode 中已经配置的模型和 Provider。MoneyPrinterTurbo 只会调用无状态脚本文案/关键词生成接口，不会复制 OpenCode 凭证，也不会向 WebUI 暴露 Agent、工具、会话或 MCP。Docker 运行环境内必须能够访问 OpenCode，宿主机单独安装的 CLI 不会自动对容器可见。OpenCode Console 的匿名 `opencode/*-free` 模型仅允许官方 OpenCode 客户端使用，无法通过此无状态 API 路由调用；MoneyPrinterTurbo 生成时请使用 `openrouter/...` 等 API Provider 模型引用。
 
 ### 视频与图片素材
 

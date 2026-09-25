@@ -181,7 +181,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-f6b0a640d35c41deb03b247
 
 #### OpenCode CLI provider
 
-When OpenCode V2.0.4 or newer is installed and authenticated locally, select **OpenCode CLI** as the LLM provider to use the models already configured in OpenCode. MoneyPrinterTurbo discovers enabled text models and delegates only stateless script/keyword generation to OpenCode; it does not copy OpenCode credentials or expose OpenCode agents, tools, sessions, or MCP. The CLI must be available inside the runtime environment, so a host-only installation is not automatically visible from Docker.
+When OpenCode V2.0.4 or newer is installed and authenticated locally, select **OpenCode CLI** as the LLM provider to use the models already configured in OpenCode. MoneyPrinterTurbo discovers enabled text models and delegates only stateless script/keyword generation to OpenCode; it does not copy OpenCode credentials or expose OpenCode agents, tools, sessions, or MCP. The CLI must be available inside the runtime environment, so a host-only installation is not automatically visible from Docker. OpenCode Console's anonymous `opencode/*-free` models are restricted to the official OpenCode client and are not usable through this stateless API route; use an API-backed reference such as an `openrouter/...` model for MoneyPrinterTurbo generation.
 
 ### Video and Image Footage
 

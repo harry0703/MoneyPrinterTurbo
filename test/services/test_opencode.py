@@ -341,6 +341,48 @@ def test_cli_error_sanitizer_redacts_common_secret_forms():
     assert "Authorization" in sanitized
 
 
+def test_opencode_free_tier_error_is_reported_with_actionable_guidance():
+    completed = _completed(
+        ["opencode", "api", "post", "/api/experimental/generate"],
+        stderr=(
+            "HTTP 503 Service Unavailable | "
+            '{"_tag":"ServiceUnavailableError","message":"Error from provider '
+            "(Console): OpenCode's free tier can only be used from within "
+            'OpenCode","service":"opencode"}'
+        ),
+        returncode=1,
+    )
+
+    with pytest.raises(opencode.OpenCodeFreeTierError) as error:
+        opencode._raise_for_command_failure(completed)
+
+    message = str(error.value)
+    assert "official OpenCode client" in message
+    assert "stateless API" in message
+    assert "OpenRouter" in message
+    assert "HTTP 503" not in message
+
+
+def test_opencode_model_unavailable_error_is_reported_with_refresh_guidance():
+    completed = _completed(
+        ["opencode", "api", "post", "/api/experimental/generate"],
+        stderr=(
+            "HTTP 400 Bad Request | "
+            '{"_tag":"InvalidRequestError","message":"Model unavailable: '
+            'openrouter/stealth/space-bunny-alpha"}'
+        ),
+        returncode=1,
+    )
+
+    with pytest.raises(opencode.OpenCodeModelUnavailableError) as error:
+        opencode._raise_for_command_failure(completed)
+
+    message = str(error.value)
+    assert "openrouter/stealth/space-bunny-alpha" in message
+    assert "Refresh OpenCode Models" in message
+    assert "HTTP 400" not in message
+
+
 def test_coerce_opencode_timeout_handles_blank_and_invalid_values():
     assert (
         opencode.coerce_opencode_timeout("")

@@ -44,6 +44,14 @@ _SENSITIVE_QUERY_RE = re.compile(
     r"(?i)([?&](?:api[_-]?key|access[_-]?token|token|key|secret|password)=)"
     r"[^&\s]+"
 )
+_OPENCODE_FREE_TIER_ERROR_RE = re.compile(
+    r"opencode(?:['’]s)?\s+free tier can only be used from within\s+opencode",
+    re.IGNORECASE,
+)
+_OPENCODE_MODEL_UNAVAILABLE_RE = re.compile(
+    r"model unavailable:\s*(?P<model>[^\s,}\"']+)",
+    re.IGNORECASE,
+)
 
 
 class OpenCodeError(Exception):
@@ -60,6 +68,14 @@ class OpenCodeVersionError(OpenCodeError):
 
 class OpenCodeCommandError(OpenCodeError):
     """An OpenCode CLI command failed or returned an unusable result."""
+
+
+class OpenCodeFreeTierError(OpenCodeCommandError):
+    """OpenCode Console rejected a free-tier model used through the API."""
+
+
+class OpenCodeModelUnavailableError(OpenCodeCommandError):
+    """OpenCode could not resolve a model in its current provider catalog."""
 
 
 class OpenCodeTimeoutError(OpenCodeCommandError):
@@ -364,6 +380,21 @@ def _raise_for_command_failure(completed: subprocess.CompletedProcess[str]) -> N
         _sanitize_cli_output(completed.stdout),
     ]
     detail = " | ".join(value for value in details if value)
+    if _OPENCODE_FREE_TIER_ERROR_RE.search(detail):
+        raise OpenCodeFreeTierError(
+            "OpenCode Console free-tier models can only be used by the official "
+            "OpenCode client. MoneyPrinterTurbo uses OpenCode's stateless API, "
+            "so choose an API-backed provider reference instead, such as an "
+            "OpenRouter model."
+        )
+    unavailable_match = _OPENCODE_MODEL_UNAVAILABLE_RE.search(detail)
+    if unavailable_match:
+        model_name = _sanitize_cli_output(unavailable_match.group("model"))
+        raise OpenCodeModelUnavailableError(
+            f"OpenCode model {model_name!r} is unavailable. Refresh OpenCode "
+            "Models and choose a currently listed reference; the provider "
+            "catalog may have changed since it was saved."
+        )
     suffix = f": {detail}" if detail else ""
     raise OpenCodeCommandError(
         f"OpenCode command exited with code {completed.returncode}{suffix}"
@@ -686,7 +717,9 @@ __all__ = [
     "OpenCodeCliInfo",
     "OpenCodeCommandError",
     "OpenCodeError",
+    "OpenCodeFreeTierError",
     "OpenCodeModel",
+    "OpenCodeModelUnavailableError",
     "OpenCodeModelRef",
     "OpenCodeNoModelsError",
     "OpenCodeNotFoundError",
