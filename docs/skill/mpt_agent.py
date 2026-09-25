@@ -73,11 +73,12 @@ RECOMMENDED_LLM_PROVIDERS = {
 }
 # Providers that generate without an API key stored in config.toml: Ollama talks
 # to a local server, LiteLLM resolves credentials through its own environment,
-# and ``claude_code`` consumes the Claude subscription through the locally
-# logged-in ``claude`` CLI. Keep this set aligned with the
+# ``claude_code`` consumes the Claude subscription through the locally logged-in
+# ``claude`` CLI, and ``opencode`` delegates model discovery and generation to the
+# locally configured OpenCode CLI. Keep this set aligned with the
 # ``requires_api_key=False`` entries of ``app/models/llm_provider.py``; asking
 # the user for a key that the provider never reads leaves the Skill stuck.
-KEYLESS_LLM_PROVIDERS = {"ollama", "litellm", "claude_code"}
+KEYLESS_LLM_PROVIDERS = {"ollama", "litellm", "claude_code", "opencode"}
 CUSTOM_OPENAI_PROVIDER = "oneapi"
 
 # Hidden providers such as Qwen, Azure, and Grok remain usable when already
@@ -292,6 +293,10 @@ def apply_environment_config(config_path: Path) -> None:
 
 def _provider_is_ready(text: str, provider: str) -> bool:
     """Return whether a provider has enough configuration to generate."""
+    if provider == "opencode":
+        return _has_configured_value(
+            _plain_config_value(text, "opencode_model_name")
+        )
     if provider in KEYLESS_LLM_PROVIDERS:
         return True
     if not _has_configured_value(
@@ -356,6 +361,10 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         _plain_config_value(text, f"{provider}_api_key")
     ):
         missing.append(f"{provider}_api_key")
+    if provider == "opencode" and not _has_configured_value(
+        _plain_config_value(text, "opencode_model_name")
+    ):
+        missing.append("opencode_model_name")
     if provider == CUSTOM_OPENAI_PROVIDER:
         for suffix in ("base_url", "model_name"):
             field = f"{provider}_{suffix}"

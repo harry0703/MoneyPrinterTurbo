@@ -15,6 +15,11 @@ from openai.types.chat import ChatCompletion
 
 from app.config import config
 from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
+from app.services.opencode import (
+    OpenCodeModelRef,
+    coerce_opencode_timeout,
+    generate_opencode_text,
+)
 from app.utils import utils
 
 _max_retries = 5
@@ -469,6 +474,34 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 raise Exception(
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
+
+        if adapter == "opencode_cli":
+            try:
+                model_ref = OpenCodeModelRef.from_string(model_name)
+            except ValueError as exc:
+                raise ValueError(
+                    f"{llm_provider}: invalid model reference: {exc}"
+                ) from exc
+
+            configured_cli = str(extra_values.get("cli_path") or "").strip() or None
+            timeout_seconds = coerce_opencode_timeout(
+                extra_values.get("timeout"),
+                config_key=provider.config_key("timeout"),
+            )
+            logger.info(
+                "invoking OpenCode CLI: model=%s, cli=%s",
+                model_ref,
+                configured_cli or "PATH",
+            )
+            return _normalize_text_response(
+                generate_opencode_text(
+                    prompt,
+                    model_ref,
+                    cli_path=configured_cli,
+                    timeout=timeout_seconds,
+                ),
+                llm_provider,
+            )
 
         if adapter == "claude_code":
             # Claude 订阅（Pro / Max / Team）不签发 API Key，其凭证只能由

@@ -111,3 +111,5 @@ jobs:
           test/services/test_controller_video.py
           test/services/test_webui_task.py
           test/services/test_webui_headless_task_actions.py
+          test/services/test_opencode.py
+          test/services/test_opencode_llm.py
