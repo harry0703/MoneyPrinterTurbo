@@ -60,6 +60,13 @@ from app.services import (
 )
 from app.services import elevenlabs_music as elevenlabs_music_service
 from app.services import sonilo as sonilo_service
+from app.services.opencode import (
+    OpenCodeError,
+    OpenCodeModel,
+    OpenCodeModelRef,
+    coerce_opencode_timeout,
+    discover_opencode_models,
+)
 from app.services import state as sm
 from app.services import task as tm
 from app.services import version_checker
@@ -2584,6 +2591,171 @@ def get_groq_model_ids(api_key: str, base_url: str) -> list[str]:
         return []
 
 
+OPENCODE_MODEL_CACHE_TTL_SECONDS = 300
+
+
+@st.cache_data(ttl=OPENCODE_MODEL_CACHE_TTL_SECONDS, show_spinner=False)
+def _get_opencode_models_cached(
+    cli_path: str,
+    working_directory: str,
+    timeout: float,
+    refresh_token: int,
+) -> tuple[OpenCodeModel, ...]:
+    # The token is part of the cache key so Refresh requests a new catalog
+    # without clearing unrelated Streamlit caches.
+    del refresh_token
+    return discover_opencode_models(
+        cli_path=cli_path or None,
+        cwd=working_directory,
+        timeout=timeout,
+    )
+
+
+def _split_opencode_model_reference(value: str) -> tuple[str, str]:
+    try:
+        reference = OpenCodeModelRef.from_string(value)
+    except (TypeError, ValueError):
+        return str(value or "").strip(), ""
+    return reference.to_string().split("#", 1)[0], reference.variant or ""
+
+
+def _render_opencode_model_selector(
+    panel,
+    configured_model: str,
+) -> str:
+    """Render cached OpenCode model/variant selection with a manual fallback."""
+
+    cli_path = panel.text_input(
+        tr("OpenCode CLI Path"),
+        value=str(config.app.get("opencode_cli_path", "") or ""),
+        key="opencode_cli_path_input",
+    )
+    timeout_value = str(config.app.get("opencode_timeout", "") or "60")
+    timeout_text = panel.text_input(
+        tr("Timeout (seconds)"),
+        value=timeout_value,
+        key="opencode_timeout_input",
+    )
+    _set_runtime_config(
+        "app",
+        "opencode_cli_path",
+        normalize_provider_override(cli_path, ""),
+    )
+    _set_runtime_config(
+        "app",
+        "opencode_timeout",
+        normalize_provider_override(timeout_text, "60"),
+    )
+
+    try:
+        timeout_seconds = coerce_opencode_timeout(timeout_text)
+    except ValueError as exc:
+        panel.error(f"{tr('OpenCode Model Discovery Failed')}: {exc}")
+        return panel.text_input(
+            tr("Model Name"),
+            value=configured_model,
+            key="opencode_model_name_manual_input",
+        )
+
+    refresh_token = int(st.session_state.get("opencode_model_refresh_token", 0))
+    if panel.button(
+        tr("Refresh OpenCode Models"),
+        key="opencode_refresh_models_button",
+        type="secondary",
+        icon=":material/refresh:",
+        use_container_width=True,
+    ):
+        st.session_state["opencode_model_refresh_token"] = refresh_token + 1
+        st.rerun(scope="app")
+
+    working_directory = str(Path(root_dir).resolve())
+    try:
+        with panel.spinner(tr("Loading OpenCode Models")):
+            models = _get_opencode_models_cached(
+                str(cli_path or "").strip(),
+                working_directory,
+                timeout_seconds,
+                refresh_token,
+            )
+    except (OpenCodeError, ValueError) as exc:
+        panel.error(f"{tr('OpenCode Model Discovery Failed')}: {exc}")
+        return panel.text_input(
+            tr("Model Name"),
+            value=configured_model,
+            key="opencode_model_name_manual_input",
+        )
+
+    current_base, current_variant = _split_opencode_model_reference(configured_model)
+    model_by_base = {model.ref.to_string(): model for model in models}
+    model_options = sorted(model_by_base)
+    model_labels = {
+        model_ref: f"{model_by_base[model_ref].name} · {model_ref}"
+        for model_ref in model_options
+    }
+    if current_base and current_base not in model_options:
+        model_options.append(current_base)
+        model_labels[current_base] = (
+            f"{current_base} ({tr('OpenCode Model Not Currently Available')})"
+        )
+
+    search_query = panel.text_input(
+        tr("Search OpenCode Models"),
+        value="",
+        key="opencode_model_search_input",
+    )
+    normalized_query = search_query.strip().lower()
+    if normalized_query:
+        model_options = [
+            model_ref
+            for model_ref in model_options
+            if normalized_query in model_ref.lower()
+            or normalized_query in model_labels[model_ref].lower()
+        ]
+    if not model_options:
+        panel.warning(tr("No OpenCode Models Match Search"))
+        return panel.text_input(
+            tr("Model Name"),
+            value=configured_model,
+            key="opencode_model_name_manual_input",
+        )
+
+    selected_base = stable_selectbox(
+        tr("OpenCode Model"),
+        options=model_options,
+        default_value=current_base if current_base in model_options else model_options[0],
+        key="opencode_model_name_select",
+        format_func=lambda model_ref: model_labels[model_ref],
+    )
+    selected_model = model_by_base.get(selected_base)
+    variants = list(selected_model.variants) if selected_model else []
+    if current_base == selected_base and current_variant and current_variant not in variants:
+        variants.append(current_variant)
+    if variants:
+        variant_options = ["", *variants]
+        selected_variant = stable_selectbox(
+            tr("OpenCode Variant"),
+            options=variant_options,
+            default_value=(
+                current_variant
+                if current_base == selected_base and current_variant in variant_options
+                else ""
+            ),
+            key="opencode_model_variant_select",
+            format_func=lambda variant: tr("Default variant") if not variant else variant,
+        )
+    else:
+        selected_variant = ""
+
+    providers = ", ".join(sorted({model.ref.provider_id for model in models}))
+    panel.caption(
+        tr("OpenCode Models Loaded").format(
+            count=len(models),
+            providers=providers,
+        )
+    )
+    return f"{selected_base}#{selected_variant}" if selected_variant else selected_base
+
+
 def _get_material_api_keys(config_key):
     """将配置中的素材 API Key 统一转换为 WebUI 可编辑字符串。"""
     api_keys = config.app.get(config_key, [])
@@ -3414,7 +3586,12 @@ def _render_settings_dialog():
                     disabled=selected_service_endpoint is not None,
                 )
             st_llm_model_name = ""
-            if llm_provider == "groq":
+            if llm_provider == "opencode":
+                st_llm_model_name = _render_opencode_model_selector(
+                    llm_form_panel,
+                    llm_model_name,
+                )
+            elif llm_provider == "groq":
                 effective_api_key = st_llm_api_key or llm_api_key
                 effective_base_url = st_llm_base_url or llm_base_url
                 groq_models = get_groq_model_ids(
@@ -3478,6 +3655,11 @@ def _render_settings_dialog():
             # Provider 专用字段也由 Registry 声明。例如 Cloudflare AI Gateway
             # 需要 Account ID；以后新增类似字段时无需再在 Main.py 增加判断。
             for field in llm_provider_spec.extra_fields:
+                if llm_provider == "opencode":
+                    # OpenCode renders its CLI path and timeout before model
+                    # discovery so the first catalog request uses the current
+                    # values instead of stale saved configuration.
+                    continue
                 field_config_key = llm_provider_spec.config_key(field.config_suffix)
                 field_value = llm_form_panel.text_input(
                     tr(field.label_key),

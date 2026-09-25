@@ -397,6 +397,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "cheaperinference",
                 "ollama",
                 "claude_code",
+                "opencode",
                 "oneapi",
                 "litellm",
                 "groq",

@@ -444,6 +444,23 @@ LLM_PROVIDER_REGISTRY = (
             LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
         ),
     ),
+    # OpenCode owns provider credentials and exposes a stateless V2 generation
+    # route. The CLI path and timeout are local runtime settings; no API key or
+    # Base URL belongs in MoneyPrinterTurbo configuration.
+    LLMProviderSpec(
+        "opencode",
+        "OpenCode CLI",
+        adapter="opencode_cli",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        requires_model_name=True,
+        extra_fields=(
+            LLMProviderField("cli_path", "OpenCode CLI Path"),
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="60"),
+        ),
+    ),
     LLMProviderSpec(
         "oneapi",
         "OneAPI",

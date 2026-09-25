@@ -4,7 +4,8 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 from app.config import config
-from app.services import llm
+from app.services import llm, opencode
+from app.services.opencode import OpenCodeModel, OpenCodeModelRef
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -67,6 +68,63 @@ def test_fluxionai_settings_defaults_and_connection_button():
         _widget_by_key(app.button, "test_llm_connection_button").click().run()
         test_connection.assert_called_once()
         assert not app.exception
+
+
+def test_opencode_settings_discover_models_and_select_variants():
+    model = OpenCodeModel(
+        ref=OpenCodeModelRef("opencode", "test-model"),
+        upstream_model_id="test-model",
+        name="Test OpenCode Model",
+        enabled=True,
+        input_modalities=("text",),
+        output_modalities=("text",),
+        variants=("low", "high"),
+        status="active",
+    )
+    app_config = dict(
+        config.app,
+        llm_provider="opencode",
+        opencode_model_name="opencode/test-model#high",
+        opencode_cli_path="test-opencode-cli",
+        opencode_timeout="60",
+    )
+
+    with (
+        patch.object(config, "app", app_config),
+        patch.object(config, "ui", dict(config.ui, language="en")),
+        patch.object(config, "try_save_config", return_value=True),
+        patch.object(
+            opencode,
+            "discover_opencode_models",
+            return_value=(model,),
+        ) as discover,
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
+        app.session_state["ui_language"] = "en"
+        app.session_state["settings_dialog_open"] = True
+        app.run()
+
+        assert not app.exception
+        assert _widget_by_key(app.selectbox, "llm_provider_select").value == "opencode"
+        assert _widget_by_key(app.selectbox, "opencode_model_name_select").value == (
+            "opencode/test-model"
+        )
+        assert _widget_by_key(app.selectbox, "opencode_model_variant_select").value == "high"
+        assert _widget_by_key(app.text_input, "opencode_cli_path_input").value == (
+            "test-opencode-cli"
+        )
+        assert app_config["opencode_model_name"] == "opencode/test-model#high"
+        discover.assert_called_once()
+
+        _widget_by_key(app.text_input, "opencode_model_search_input").set_value(
+            "opencode/"
+        ).run()
+        filtered_model = _widget_by_key(app.selectbox, "opencode_model_name_select")
+        assert any("opencode/test-model" in str(option) for option in filtered_model.options)
+        _widget_by_key(app.text_input, "opencode_model_search_input").set_value("").run()
+
+        _widget_by_key(app.button, "opencode_refresh_models_button").click().run()
+        assert discover.call_count == 2
 
 
 def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
