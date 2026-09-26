@@ -1,4 +1,5 @@
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import io
 import math
 import os
@@ -31,6 +32,19 @@ from app.utils import utils
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
+
+# 库存素材的搜索与下载都是网络等待型任务。这里用小并发避免拖垮上游 API，
+# 同时把串行等待压缩成一批请求的总等待时间。
+_MATERIAL_SEARCH_CONCURRENCY = 4
+_MATERIAL_DOWNLOAD_CONCURRENCY = 4
+
+
+def _get_material_concurrency() -> int:
+    try:
+        concurrency = int(config.app.get("material_concurrency", _MATERIAL_DOWNLOAD_CONCURRENCY))
+    except (TypeError, ValueError):
+        concurrency = _MATERIAL_DOWNLOAD_CONCURRENCY
+    return max(1, min(8, concurrency))
 
 
 class _OpenAIImageDecodeError(ValueError):
@@ -1683,6 +1697,128 @@ def _search_videos_with_cache(
         return items
 
 
+def _search_terms_in_parallel(
+    search_terms: List[str],
+    search_videos: Callable[[str, int, VideoAspect], List[MaterialInfo]],
+    minimum_duration: int,
+    video_aspect: VideoAspect,
+) -> list[tuple[str, List[MaterialInfo]]]:
+    """并行搜索关键词，失败的关键词返回空结果，不阻断其它素材。"""
+    if not search_terms:
+        return []
+
+    workers = min(_get_material_concurrency(), len(search_terms))
+    if workers == 1:
+        results = []
+        for search_term in search_terms:
+            items = search_videos(
+                search_term=search_term,
+                minimum_duration=minimum_duration,
+                video_aspect=video_aspect,
+            )
+            logger.info(f"found {len(items)} videos for '{search_term}'")
+            results.append((search_term, items))
+        return results
+
+    futures = {}
+    with ThreadPoolExecutor(
+        max_workers=workers,
+        thread_name_prefix="material-search",
+    ) as executor:
+        for search_term in search_terms:
+            futures[executor.submit(
+                search_videos,
+                search_term,
+                minimum_duration,
+                video_aspect,
+            )] = search_term
+
+        results = []
+        for future in futures:
+            search_term = futures[future]
+            try:
+                items = future.result()
+            except Exception as exc:
+                logger.error(
+                    "failed to search material videos: "
+                    f"search_term={search_term!r}, "
+                    f"error={type(exc).__name__}, detail={exc}"
+                )
+                items = []
+            logger.info(f"found {len(items)} videos for '{search_term}'")
+            results.append((search_term, items))
+        return results
+
+
+def _download_materials_in_parallel(
+    materials: List[tuple[str, MaterialInfo]],
+    material_directory: str,
+) -> list[tuple[str, MaterialInfo, str]]:
+    """并行下载一轮素材，保留调用方传入的候选顺序。"""
+    if not materials:
+        return []
+
+    workers = min(_get_material_concurrency(), len(materials))
+    if workers == 1:
+        downloaded = []
+        for search_term, item in materials:
+            saved_video_path = save_video(
+                video_url=item.url,
+                save_dir=material_directory,
+            )
+            if saved_video_path:
+                downloaded.append((search_term, item, saved_video_path))
+        return downloaded
+
+    futures = {}
+    with ThreadPoolExecutor(
+        max_workers=workers,
+        thread_name_prefix="material-download",
+    ) as executor:
+        for search_term, item in materials:
+            futures[executor.submit(
+                save_video,
+                item.url,
+                material_directory,
+            )] = (search_term, item)
+
+        downloaded = []
+        for future in futures:
+            search_term, item = futures[future]
+            try:
+                saved_video_path = future.result()
+            except Exception as exc:
+                logger.error(
+                    "failed to download material video: "
+                    f"provider={item.provider}, "
+                    f"error={type(exc).__name__}, "
+                    f"detail={_redact_request_error(exc, item.url)}"
+                )
+                continue
+            if saved_video_path:
+                downloaded.append((search_term, item, saved_video_path))
+        return downloaded
+
+
+def _select_materials_until_duration(
+    materials: List[tuple[str, MaterialInfo]],
+    max_clip_duration: int,
+    audio_duration: float,
+    current_duration: float = 0.0,
+) -> List[tuple[str, MaterialInfo]]:
+    """
+    按候选顺序选取一轮素材，避免并发时下载已经超过配音时长的候选。
+    """
+    selected = []
+    total_duration = current_duration
+    for material in materials:
+        selected.append(material)
+        total_duration += min(max_clip_duration, material[1].duration)
+        if total_duration > audio_duration:
+            break
+    return selected
+
+
 def download_videos(
     task_id: str,
     search_terms: List[str],
@@ -1807,14 +1943,12 @@ def download_videos(
     valid_video_items = []
     valid_video_urls = []
     found_duration = 0.0
-    for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-        )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
-
+    for search_term, video_items in _search_terms_in_parallel(
+        search_terms=search_terms,
+        search_videos=search_videos,
+        minimum_duration=max_clip_duration,
+        video_aspect=video_aspect,
+    ):
         for item in video_items:
             if item.url not in valid_video_urls:
                 valid_video_items.append(item)
@@ -2422,14 +2556,12 @@ def _download_videos_by_script_order(
     valid_video_urls = set()
     found_duration = 0.0
 
-    for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-        )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
-
+    for search_term, video_items in _search_terms_in_parallel(
+        search_terms=search_terms,
+        search_videos=search_videos,
+        minimum_duration=max_clip_duration,
+        video_aspect=video_aspect,
+    ):
         term_items = []
         for item in video_items:
             if item.url in valid_video_urls:
@@ -2451,13 +2583,26 @@ def _download_videos_by_script_order(
     total_duration = 0.0
     candidate_index = 0
     while candidate_groups and total_duration <= audio_duration:
-        has_candidate = False
-        for search_term, term_items in candidate_groups:
-            if candidate_index >= len(term_items):
-                continue
+        round_materials = [
+            (search_term, term_items[candidate_index])
+            for search_term, term_items in candidate_groups
+            if candidate_index < len(term_items)
+        ]
+        if not round_materials:
+            break
 
-            has_candidate = True
-            item = term_items[candidate_index]
+        selected_materials = _select_materials_until_duration(
+            materials=round_materials,
+            max_clip_duration=max_clip_duration,
+            audio_duration=audio_duration,
+            current_duration=total_duration,
+        )
+        print("DEBUG_SELECT", [(term, item.url, item.duration) for term, item in selected_materials])
+        downloaded_materials = _download_materials_in_parallel(
+            materials=selected_materials,
+            material_directory=material_directory,
+        )
+        for search_term, item, saved_video_path in downloaded_materials:
             try:
                 source_info = (
                     item.source_info if isinstance(item.source_info, dict) else {}
@@ -2465,9 +2610,6 @@ def _download_videos_by_script_order(
                 logger.info(
                     f"downloading ordered {item.provider} video for {search_term!r}: "
                     f"asset_id={source_info.get('asset_id') or 'unknown'}"
-                )
-                saved_video_path = save_video(
-                    video_url=item.url, save_dir=material_directory
                 )
                 if saved_video_path:
                     logger.info(f"video saved: {saved_video_path}")
@@ -2495,9 +2637,6 @@ def _download_videos_by_script_order(
                     f"provider={item.provider}, error={type(e).__name__}, "
                     f"detail={_redact_request_error(e, item.url)}"
                 )
-
-        if not has_candidate:
-            break
         candidate_index += 1
 
     logger.success(f"downloaded {len(video_paths)} ordered videos")
