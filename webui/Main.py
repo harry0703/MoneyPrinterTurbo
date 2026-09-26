@@ -338,10 +338,11 @@ def _save_runtime_config():
     return saved
 
 
-def _saved_ui_choice(key, options, default):
+def _saved_ui_choice(key, options, default, section=None):
     """读取一个持久化选择，并把旧配置或手工编辑的非法值降级为默认值。"""
     options = list(options)
-    saved = config.ui.get(key, default)
+    section = config.ui if section is None else section
+    saved = section.get(key, default)
     numeric_default = isinstance(default, (int, float)) and not isinstance(
         default, bool
     )
@@ -5376,6 +5377,33 @@ def _render_video_settings(panel, params):
                 _delete_runtime_config("app", "video_codec")
             else:
                 _set_runtime_config("app", "video_codec", selected_video_codec)
+
+            concurrency_options = [1, 2, 4, 6, 8]
+            selected_material_concurrency = stable_selectbox(
+                tr("Material Concurrency"),
+                options=concurrency_options,
+                default_value=_saved_ui_choice(
+                    "material_concurrency", concurrency_options, 4, config.app
+                ),
+                key="material_concurrency_select",
+                help=tr("Material Concurrency Help"),
+            )
+            _set_runtime_config(
+                "app", "material_concurrency", selected_material_concurrency
+            )
+
+            selected_clip_concurrency = stable_selectbox(
+                tr("Clip Rendering Concurrency"),
+                options=concurrency_options,
+                default_value=_saved_ui_choice(
+                    "video_clip_concurrency", concurrency_options, 4, config.app
+                ),
+                key="clip_rendering_concurrency_select",
+                help=tr("Clip Rendering Concurrency Help"),
+            )
+            _set_runtime_config(
+                "app", "video_clip_concurrency", selected_clip_concurrency
+            )
 
             if params.video_source == "loomloom":
                 _render_loomloom_video_settings(params)

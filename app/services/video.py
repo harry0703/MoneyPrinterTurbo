@@ -1,4 +1,5 @@
 import itertools
+from concurrent.futures import ThreadPoolExecutor
 import io
 import math
 import os
@@ -83,6 +84,17 @@ _MIN_MATERIAL_DIMENSION = 480
 # 丢弃，最终以 "no valid materials found" 整体失败。这里留一个很小的容差，
 # 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
 _MIN_DIMENSION_TOLERANCE = 10
+# 片段预处理是独立的重编码任务。4 路并发在 8 核/16GB 的桌面机上收益明显，
+# 又不会把 MoviePy 的内存峰值推到失控。
+_CLIP_PROCESSING_CONCURRENCY = 4
+
+
+def _get_clip_processing_concurrency() -> int:
+    try:
+        concurrency = int(config.app.get("video_clip_concurrency", _CLIP_PROCESSING_CONCURRENCY))
+    except (TypeError, ValueError):
+        concurrency = _CLIP_PROCESSING_CONCURRENCY
+    return max(1, min(8, concurrency))
 _DEFAULT_VIDEO_CODEC = "libx264"
 # ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
 # 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
@@ -833,18 +845,15 @@ def combine_videos(
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
-    for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration >= required_video_duration:
-            break
-        
-        logger.debug(
-            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
-            f"source: {os.path.basename(subclipped_item.source_file_path)}, "
-            f"current duration: {video_duration:.2f}s, "
-            f"remaining: {required_video_duration - video_duration:.2f}s"
-        )
-        
+    def process_one_clip(indexed_item):
+        """把一个源片段裁剪、变速、转场后写出，失败时返回 None。"""
+        index, subclipped_item = indexed_item
+        clip = None
         try:
+            logger.debug(
+                f"processing clip {index + 1}: {subclipped_item.width}x{subclipped_item.height}, "
+                f"source: {os.path.basename(subclipped_item.source_file_path)}"
+            )
             clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
@@ -874,9 +883,7 @@ def combine_videos(
                 )
 
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
-            if transition_value in (None, VideoTransitionMode.none.value):
-                clip = clip
-            elif transition_value == VideoTransitionMode.fade_in.value:
+            if transition_value == VideoTransitionMode.fade_in.value:
                 clip = video_effects.fadein_transition(clip, 1)
             elif transition_value == VideoTransitionMode.fade_out.value:
                 clip = video_effects.fadeout_transition(clip, 1)
@@ -902,9 +909,10 @@ def combine_videos(
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
-                
-            # wirte clip to temp file
-            clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
+
+            # Write each candidate clip to a unique temporary file. Threads must not
+            # share the same output path.
+            clip_file = f"{output_dir}/temp-clip-{index + 1}.mp4"
             _write_videofile_with_codec_fallback(
                 clip,
                 clip_file,
@@ -913,23 +921,55 @@ def combine_videos(
                 fps=fps,
             )
 
-            # Store clip duration before closing
             clip_duration_saved = clip.duration
-            close_clip(clip)
-
-            processed_clips.append(
-                SubClippedVideoClip(
-                    file_path=clip_file,
-                    duration=clip_duration_saved,
-                    width=clip_w,
-                    height=clip_h,
-                    source_file_path=subclipped_item.source_file_path,
-                )
+            return SubClippedVideoClip(
+                file_path=clip_file,
+                duration=clip_duration_saved,
+                width=clip_w,
+                height=clip_h,
+                source_file_path=subclipped_item.source_file_path,
             )
-            video_duration += clip_duration_saved
-            
-        except Exception as e:
-            logger.error(f"failed to process clip: {str(e)}")
+        except Exception as exc:
+            logger.error(f"failed to process clip: {str(exc)}")
+            return None
+        finally:
+            if clip is not None:
+                close_clip(clip)
+
+    clip_processing_workers = 1
+    if len(subclipped_items) >= 2:
+        clip_processing_workers = min(_get_clip_processing_concurrency(), len(subclipped_items))
+    with ThreadPoolExecutor(
+        max_workers=clip_processing_workers,
+        thread_name_prefix="clip-process",
+    ) as executor:
+        next_candidate_index = 0
+        while (
+            next_candidate_index < len(subclipped_items)
+            and video_duration < required_video_duration
+        ):
+            remaining_duration = required_video_duration - video_duration
+            batch = []
+            batch_duration = 0.0
+            candidate_index = next_candidate_index
+            while candidate_index < len(subclipped_items) and batch_duration < remaining_duration:
+                subclipped_item = subclipped_items[candidate_index]
+                source_duration = subclipped_item.end_time - subclipped_item.start_time
+                output_duration = min(
+                    max_clip_duration,
+                    source_duration / normalized_clip_speed,
+                )
+                batch.append((candidate_index, subclipped_item))
+                batch_duration += output_duration
+                candidate_index += 1
+            if not batch:
+                break
+            for processed_clip in executor.map(process_one_clip, batch):
+                if processed_clip is None:
+                    continue
+                processed_clips.append(processed_clip)
+                video_duration += processed_clip.duration
+            next_candidate_index = candidate_index
     
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
     if video_duration < required_video_duration:
@@ -1245,6 +1285,7 @@ def generate_video(
         font_path = file_security.resolve_path_within_directory(
             utils.font_dir(), params.font_name
         )
+        font_path = os.path.join(utils.font_dir(), params.font_name)
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
