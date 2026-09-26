@@ -33,6 +33,7 @@ from app.services import (
     voice,
 )
 from app.services import upload_post
+from app.services import scene_planner
 from app.services import state as sm
 from app.utils import file_security, utils
 
@@ -1584,6 +1585,23 @@ def _run_pipeline(
         )
         return {"subtitle_path": subtitle_path}
 
+    production_plan_version = None
+    if params.director_mode and stop_at in {"materials", "video"}:
+        try:
+            scene_plan = scene_planner.build_scene_plan(
+                task_id=task_id,
+                script=video_script,
+                audio_duration=audio_duration,
+                subtitle_items=(
+                    subtitle.file_to_subtitles(subtitle_path) if subtitle_path else []
+                ),
+                custom_audio=bool(params.custom_audio_file),
+            )
+            task_artifacts.write_production_plan(task_id, scene_plan)
+            production_plan_version = scene_plan.version
+        except (OSError, ValueError) as exc:
+            return _mark_task_failed(task_id, "scene_plan", str(exc))
+
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     # 5. Get video materials
@@ -1602,13 +1620,16 @@ def _run_pipeline(
         )
 
     if stop_at == "materials":
+        material_result = {"materials": downloaded_videos}
+        if production_plan_version is not None:
+            material_result["production_plan_version"] = production_plan_version
         sm.state.update_task(
             task_id,
             state=const.TASK_STATE_COMPLETE,
             progress=100,
-            materials=downloaded_videos,
+            **material_result,
         )
-        return {"materials": downloaded_videos}
+        return material_result
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
@@ -1636,6 +1657,9 @@ def _run_pipeline(
             "failed to generate final video",
         )
 
+    if params.director_mode:
+        generation_warnings.append({"code": "director_mode_preview_legacy_render"})
+
     logger.success(
         f"task {task_id} finished, generated {len(final_video_paths)} videos."
     )
@@ -1643,7 +1667,8 @@ def _run_pipeline(
     # 7. 先完成视频生成任务，再按需提交跨平台发布。第三方上传可能耗时
     # 数分钟，不应阻塞视频结果返回，也不能反向影响已经生成的成片。
     cross_post_enabled = (
-        upload_post.upload_post_service.is_configured()
+        not params.director_mode
+        and upload_post.upload_post_service.is_configured()
         and upload_post.upload_post_service.auto_upload
     )
     platforms = (
@@ -1671,6 +1696,8 @@ def _run_pipeline(
         "cross_post_owner": _cross_post_process_owner if should_cross_post else None,
         "warnings": generation_warnings or None,
     }
+    if production_plan_version is not None:
+        kwargs["production_plan_version"] = production_plan_version
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
     )

@@ -66,6 +66,7 @@ class ScenePlan(_StrictModel):
     narration_end: int = Field(gt=0)
     start_seconds: float | None = Field(default=None, ge=0)
     end_seconds: float | None = Field(default=None, gt=0)
+    timing_source: Literal["subtitle", "estimated"] | None = None
     intent: str = Field(min_length=1)
     factual_claims: list[str] = Field(default_factory=list)
     visual_strategy: Literal["stock", "image", "diagram", "generated_video"] = "stock"
