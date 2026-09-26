@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from loguru import logger
 
+from app.models.production_plan import ProductionPlan
 from app.utils import utils
 
 
@@ -18,12 +19,24 @@ def _script_file(task_id: str) -> Path:
     return Path(utils.task_dir(task_id)) / "script.json"
 
 
-def _write_json_atomic(target: Path, payload: Mapping[str, Any]) -> None:
+class ProductionPlanArtifactError(ValueError):
+    """A production-plan artifact cannot be safely used by the pipeline."""
+
+    stage = "production_plan"
+
+
+def _production_plan_file(task_id: str) -> Path:
+    return Path(utils.task_dir(task_id)) / "production-plan-v1.json"
+
+
+def _write_json_atomic(
+    target: Path, payload: Mapping[str, Any], *, create_only: bool = False
+) -> None:
     """
     在目标目录内原子写入 JSON，避免进程中断留下半个文件。
 
-    临时文件和目标文件必须位于同一目录，才能保证 ``os.replace`` 在常见
-    本地文件系统和 Docker 挂载目录中保持原子替换语义。写入成功前不会修改
+    临时文件和目标文件必须位于同一目录，才能保证发布操作在常见
+    本地文件系统和 Docker 挂载目录中保持原子语义。写入成功前不会修改
     现有文件；异常时只清理本次创建的临时文件，并把错误交给调用方决定是否
     影响主流程。
     """
@@ -49,8 +62,14 @@ def _write_json_atomic(target: Path, payload: Mapping[str, Any]) -> None:
             temp_file.flush()
             os.fsync(temp_file.fileno())
 
-        os.replace(temp_path, target)
-        temp_path = None
+        if create_only:
+            # The hard link publishes a complete file only when the target does
+            # not exist. It also prevents a concurrent writer from replacing an
+            # approved/versioned artifact after our existence check.
+            os.link(temp_path, target)
+        else:
+            os.replace(temp_path, target)
+            temp_path = None
     finally:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
@@ -59,6 +78,44 @@ def _write_json_atomic(target: Path, payload: Mapping[str, Any]) -> None:
 def write_script_data(task_id: str, payload: Mapping[str, Any]) -> None:
     """创建或完整替换任务的 ``script.json`` 清单。"""
     _write_json_atomic(_script_file(task_id), payload)
+
+
+def write_production_plan(task_id: str, plan: ProductionPlan) -> None:
+    """Atomically publish an immutable, idempotent version-one plan."""
+    payload = plan.model_dump(mode="json")
+    try:
+        ProductionPlan.model_validate(payload)
+    except ValueError as exc:
+        raise ProductionPlanArtifactError(
+            f"production_plan is invalid: {exc}"
+        ) from exc
+    if plan.task_id != task_id:
+        raise ProductionPlanArtifactError("production_plan task_id mismatch")
+    try:
+        _write_json_atomic(
+            _production_plan_file(task_id), payload, create_only=True
+        )
+    except FileExistsError as exc:
+        if read_production_plan(task_id) == plan:
+            return
+        raise ProductionPlanArtifactError(
+            "production_plan artifact already exists with different content"
+        ) from exc
+
+
+def read_production_plan(task_id: str) -> ProductionPlan:
+    """Read a plan or raise a stage-specific error instead of returning empty data."""
+    try:
+        with _production_plan_file(task_id).open("r", encoding="utf-8") as plan_file:
+            payload = json.load(plan_file)
+        plan = ProductionPlan.model_validate(payload)
+        if plan.task_id != task_id:
+            raise ValueError("task_id mismatch")
+        return plan
+    except (OSError, ValueError, TypeError) as exc:
+        raise ProductionPlanArtifactError(
+            f"production_plan artifact is missing, corrupt, or unsupported: {exc}"
+        ) from exc
 
 
 def patch_script_data(task_id: str, **updates: Any) -> bool:

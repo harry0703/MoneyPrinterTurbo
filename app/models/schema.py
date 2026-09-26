@@ -294,6 +294,7 @@ class TaskStatusData(BaseModel):
     task_id: str
     state: int
     progress: int = 0
+    production_plan_version: Optional[int] = None
     videos: Optional[List[str]] = None
     combined_videos: Optional[List[str]] = None
     failed_stage: Optional[str] = None
