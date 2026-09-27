@@ -1104,23 +1104,19 @@ def recover_interrupted_cross_posts(page_size: int = 100) -> int | None:
 
     跨平台发布使用当前进程内的线程池，不是持久化任务队列。进程启动时，
     Redis 中残留的 pending/processing 不会自动继续执行；如果继续把它们视为
-    运行中，用户将永久无法删除任务。这里分页扫描状态，只处理当前进程没有
-    对应 Future 的活动记录，并保留已经生成的视频结果。
+    运行中，用户将永久无法删除任务。这里仅收集一次任务 ID，再读取当前状态；
+    不能跨多次 Redis SCAN 按页码推进，否则扫描顺序变化会漏掉遗留任务。
+    只处理当前进程没有对应 Future 的活动记录，并保留已经生成的视频结果。
     """
     recovered = 0
-    page = 1
-
-    while True:
-        try:
-            tasks, total = sm.state.get_all_tasks(page, page_size)
-        except Exception as exc:
-            logger.exception(f"failed to recover interrupted cross-post tasks: {exc}")
-            return None
-
-        for task in tasks:
-            task_id = str(task.get("task_id") or "")
+    try:
+        task_ids = sm.state.list_task_ids(scan_count=page_size)
+        for task_id in task_ids:
+            # 扫描之后任务可能已被删除或转为终态；以最新状态决定是否恢复，
+            # 不能使用扫描时的旧快照覆盖已经完成的发布结果。
+            task = sm.state.get_task(task_id)
             if (
-                not task_id
+                not task
                 or task.get("cross_post_state") not in _ACTIVE_CROSS_POST_STATES
                 or _is_cross_post_active_in_process(task_id)
                 or _is_cross_post_owner_alive(task.get("cross_post_owner"))
@@ -1135,10 +1131,9 @@ def recover_interrupted_cross_posts(page_size: int = 100) -> int | None:
             )
             if updated is True:
                 recovered += 1
-
-        if page * page_size >= total or not tasks:
-            break
-        page += 1
+    except Exception as exc:
+        logger.exception(f"failed to recover interrupted cross-post tasks: {exc}")
+        return None
 
     if recovered:
         logger.warning(f"recovered interrupted cross-post tasks: {recovered}")

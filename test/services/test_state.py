@@ -163,11 +163,10 @@ class TestRedisState(unittest.TestCase):
 
     def test_get_all_tasks_paginates_across_scan_batches(self):
         """
-        Redis SCAN 分批返回 key 时，分页切片必须按当前批次起始位置计算。
+        Redis SCAN 分批返回 key 时，分页必须按任务键的稳定顺序切片。
 
         这个用例复现 PR #890 描述的 18 条任务、page_size=10 场景：
-        第一批 10 条，第二批 8 条。旧逻辑第一页会返回空列表，第二页
-        只返回 2 条；修复后第一页返回 10 条，第二页返回剩余 8 条。
+        第一批 10 条，第二批 8 条；两页合起来应完整覆盖全部任务。
         """
         state = self._build_state([10, 8])
 
@@ -178,16 +177,41 @@ class TestRedisState(unittest.TestCase):
         self.assertEqual(second_total, 18)
         self.assertEqual(len(first_page), 10)
         self.assertEqual(len(second_page), 8)
+        expected_ids = sorted(f"task:{i}" for i in range(18))
         self.assertEqual(
             [task["task_id"] for task in first_page],
-            [f"task:{i}" for i in range(10)],
+            expected_ids[:10],
         )
         self.assertEqual(
             [task["task_id"] for task in second_page],
-            [f"task:{i}" for i in range(10, 18)],
+            expected_ids[10:],
         )
         self.assertTrue(state._redis.scan_types)
         self.assertEqual(set(state._redis.scan_types), {"HASH"})
+
+    def test_get_all_tasks_deduplicates_and_stabilizes_scan_order(self):
+        """两次独立扫描顺序不同、单次扫描重复返回键时仍不重不漏。"""
+        state = self._build_state([3])
+        state._redis.batches = [
+            [b"task:1", b"task:0"],
+            [],
+            [b"task:2", b"task:1"],
+        ]
+        first_page, first_total = state.get_all_tasks(page=1, page_size=2)
+
+        state._redis.batches = [
+            [b"task:2", b"task:1"],
+            [b"task:0", b"task:2"],
+        ]
+        second_page, second_total = state.get_all_tasks(page=2, page_size=2)
+
+        self.assertEqual(first_total, 3)
+        self.assertEqual(second_total, 3)
+        self.assertEqual(
+            [task["task_id"] for task in first_page + second_page],
+            ["task:0", "task:1", "task:2"],
+        )
+        self.assertEqual(state.list_task_ids(scan_count=1), ["task:0", "task:1", "task:2"])
 
     @unittest.skipUnless(
         os.getenv("MPT_TEST_REDIS_HOST"),
@@ -220,6 +244,38 @@ class TestRedisState(unittest.TestCase):
             self.assertNotIn(queue_key, returned_ids)
         finally:
             state._redis.delete(queue_key, *task_ids)
+
+    @unittest.skipUnless(
+        os.getenv("MPT_TEST_REDIS_HOST"),
+        "MPT_TEST_REDIS_HOST not set",
+    )
+    def test_real_redis_pagination_keeps_a_stable_task_order(self):
+        """真实 Redis 的多批 SCAN 不应让跨页任务重复或丢失。"""
+        state = RedisState(
+            host=os.environ["MPT_TEST_REDIS_HOST"],
+            port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
+            db=int(os.getenv("MPT_TEST_REDIS_DB", "15")),
+        )
+        task_ids = [f"ci-page-{uuid.uuid4()}-{index}" for index in range(13)]
+        try:
+            for task_id in reversed(task_ids):
+                state.update_task(task_id, state=const.TASK_STATE_COMPLETE)
+
+            all_tasks = []
+            page = 1
+            while True:
+                tasks, total = state.get_all_tasks(page=page, page_size=3)
+                all_tasks.extend(tasks)
+                if page * 3 >= total:
+                    break
+                page += 1
+
+            returned_ids = [task["task_id"] for task in all_tasks if "task_id" in task]
+            self.assertEqual(len(returned_ids), len(set(returned_ids)))
+            self.assertEqual(returned_ids, sorted(returned_ids))
+            self.assertTrue(set(task_ids).issubset(returned_ids))
+        finally:
+            state._redis.delete(*task_ids)
 
     def test_patch_task_updates_only_existing_redis_task(self):
         state = self._build_state([1])

@@ -2021,6 +2021,43 @@ class TestTaskService(unittest.TestCase):
         )
         active_future.set_result(None)
 
+    def test_recover_interrupted_cross_posts_scans_ids_only_once(self):
+        """启动恢复不能依赖多次独立扫描的分页顺序。"""
+        state = MemoryState()
+        for task_id, cross_post_state in (
+            ("stale-pending", tm.const.CROSS_POST_STATE_PENDING),
+            ("stale-processing", tm.const.CROSS_POST_STATE_PROCESSING),
+            ("already-complete", tm.const.CROSS_POST_STATE_COMPLETE),
+        ):
+            state.update_task(
+                task_id,
+                state=tm.const.TASK_STATE_COMPLETE,
+                progress=100,
+                videos=["final.mp4"],
+                cross_post_state=cross_post_state,
+            )
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(state, "list_task_ids", wraps=state.list_task_ids) as list_ids,
+            patch.object(
+                state, "get_all_tasks", side_effect=AssertionError("pagination used")
+            ) as get_all_tasks,
+        ):
+            recovered = tm.recover_interrupted_cross_posts(page_size=1)
+
+        self.assertEqual(recovered, 2)
+        list_ids.assert_called_once_with(scan_count=1)
+        get_all_tasks.assert_not_called()
+        for task_id in ("stale-pending", "stale-processing"):
+            task = state.get_task(task_id)
+            self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
+            self.assertEqual(task["videos"], ["final.mp4"])
+        self.assertEqual(
+            state.get_task("already-complete")["cross_post_state"],
+            tm.const.CROSS_POST_STATE_COMPLETE,
+        )
+
     def test_cross_post_owner_uses_future_registry_for_current_process(self):
         """当前进程无活动 Future 时，同 PID 的新旧 owner 都应视为中断。"""
         stale_owner = f"{tm.socket.gethostname()}:{tm.os.getpid()}:old-instance"
@@ -2093,7 +2130,7 @@ class TestTaskService(unittest.TestCase):
     def test_cross_post_recovery_reports_state_backend_failure(self):
         """启动恢复读取状态失败时应返回 None，允许 WebUI 后续 rerun 重试。"""
         state = MagicMock()
-        state.get_all_tasks.side_effect = RuntimeError("redis unavailable")
+        state.list_task_ids.side_effect = RuntimeError("redis unavailable")
 
         with (
             patch.object(tm.sm, "state", state),
@@ -2135,33 +2172,49 @@ class TestTaskService(unittest.TestCase):
         "MPT_TEST_REDIS_HOST not set",
     )
     def test_real_redis_recovers_interrupted_cross_post_state(self):
-        """真实 Redis 中的遗留发布状态必须在恢复后保留视频并进入失败终态。"""
+        """真实 Redis 的多批扫描应恢复全部遗留发布状态并保留视频。"""
         state = RedisState(
             host=os.environ["MPT_TEST_REDIS_HOST"],
             port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
             db=int(os.getenv("MPT_TEST_REDIS_DB", "15")),
         )
-        task_id = f"ci-cross-post-recovery-{uuid4()}"
-        state.update_task(
-            task_id,
-            state=tm.const.TASK_STATE_COMPLETE,
-            progress=100,
-            videos=["final.mp4"],
-            cross_post_state=tm.const.CROSS_POST_STATE_PROCESSING,
-            cross_post_owner="",
-        )
+        task_ids = [f"ci-cross-post-recovery-{uuid4()}" for _ in range(3)]
+        for task_id, cross_post_state in zip(
+            task_ids,
+            (
+                tm.const.CROSS_POST_STATE_PENDING,
+                tm.const.CROSS_POST_STATE_PROCESSING,
+                tm.const.CROSS_POST_STATE_COMPLETE,
+            ),
+        ):
+            state.update_task(
+                task_id,
+                state=tm.const.TASK_STATE_COMPLETE,
+                progress=100,
+                videos=["final.mp4"],
+                cross_post_state=cross_post_state,
+                cross_post_owner="",
+            )
 
         try:
             with patch.object(tm.sm, "state", state):
-                recovered = tm.recover_interrupted_cross_posts(page_size=10)
+                recovered = tm.recover_interrupted_cross_posts(page_size=1)
 
-            self.assertGreaterEqual(recovered, 1)
-            task = state.get_task(task_id)
-            self.assertEqual(task["videos"], ["final.mp4"])
-            self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
-            self.assertEqual(task["cross_post_error"], tm._INTERRUPTED_CROSS_POST_ERROR)
+            self.assertGreaterEqual(recovered, 2)
+            for task_id in task_ids[:2]:
+                task = state.get_task(task_id)
+                self.assertEqual(task["videos"], ["final.mp4"])
+                self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
+                self.assertEqual(
+                    task["cross_post_error"], tm._INTERRUPTED_CROSS_POST_ERROR
+                )
+            self.assertEqual(
+                state.get_task(task_ids[2])["cross_post_state"],
+                tm.const.CROSS_POST_STATE_COMPLETE,
+            )
         finally:
-            state.delete_task(task_id)
+            for task_id in task_ids:
+                state.delete_task(task_id)
 
     def test_cross_post_future_exception_is_observed(self):
         """线程池自身抛出的异常必须进入日志，不能留在无人读取的 Future 中。"""
