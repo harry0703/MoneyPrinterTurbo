@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import redis
 from fastapi.testclient import TestClient
 
 from app import asgi
@@ -704,6 +705,17 @@ class TestBuildRedisUrl(unittest.TestCase):
         self.assertEqual(
             _build_redis_url("redis-host", 6380, 1, "s3cr3t"),
             "redis://:s3cr3t@redis-host:6380/1",
+        )
+
+    def test_reserved_characters_in_password_round_trip_through_redis_url(self):
+        from app.controllers.v1.video import _build_redis_url
+
+        password = "p@ss:/?#% word"
+        url = _build_redis_url("redis-host", 6380, 1, password)
+
+        self.assertEqual(
+            redis.Redis.from_url(url).connection_pool.connection_kwargs["password"],
+            password,
         )
 
 

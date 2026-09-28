@@ -3,6 +3,7 @@ import os
 import pathlib
 import shutil
 from typing import Union
+from urllib.parse import quote
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
@@ -50,7 +51,10 @@ _max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
 
 def _build_redis_url(host: str, port: int, db: int, password: str | None) -> str:
-    auth = f":{password}@" if password else ""
+    # Passwords are URL userinfo. Escape reserved characters so Redis receives
+    # the exact configured secret rather than parsing part of it as a host,
+    # port, path, query, or fragment.
+    auth = f":{quote(password, safe='')}@" if password else ""
     return f"redis://{auth}{host}:{port}/{db}"
 
 
