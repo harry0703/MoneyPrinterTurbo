@@ -94,6 +94,34 @@ class TestVideoCacheManager(unittest.TestCase):
         self.assertTrue(first.exists())
         self.assertFalse(second.exists())
 
+    def test_cleanup_preserves_file_replaced_after_scan(self):
+        """A fresh atomic download must survive a cleanup that scanned its old file."""
+        now = 2_000_000_000.0
+        cache_file = self._create_cache_file("a" * 32, 10, now - 40 * 86400)
+        original_iterator = cache_manager._iter_video_cache_entries
+
+        def replace_after_scan(include_temp=False):
+            scanned_entries = list(original_iterator(include_temp=include_temp))
+            replacement = self.cache_dir / "new-download.tmp"
+            replacement.write_bytes(b"new complete video")
+            os.utime(replacement, (now, now))
+            os.replace(replacement, cache_file)
+            yield from scanned_entries
+
+        with (
+            patch.object(cache_manager.time, "time", return_value=now),
+            patch.object(
+                cache_manager,
+                "_iter_video_cache_entries",
+                side_effect=replace_after_scan,
+            ),
+        ):
+            result = cache_manager.clean_video_cache(30)
+
+        self.assertEqual(result.deleted_count, 0)
+        self.assertEqual(result.failed_count, 0)
+        self.assertEqual(cache_file.read_bytes(), b"new complete video")
+
     def test_cleanup_reclaims_only_stale_atomic_downloads(self):
         """An interrupted download must not accumulate without deleting an active one."""
         now = 2_000_000_000.0
