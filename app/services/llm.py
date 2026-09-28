@@ -795,15 +795,17 @@ def generate_script(
                 # that text through would make the task treat it as narration.
                 raise ValueError(response)
             if response:
-                final_script = format_response(response)
+                candidate = format_response(response)
             else:
                 logging.error("gpt returned an empty response")
+                candidate = ""
 
             # Some upstream providers may return quota errors as plain text.
-            if final_script and "当日额度已消耗完" in final_script:
-                raise ValueError(final_script)
+            if candidate and "当日额度已消耗完" in candidate:
+                raise ValueError(candidate)
 
-            if final_script:
+            if candidate:
+                final_script = candidate
                 break
         except Exception as e:
             logger.error(f"failed to generate script: {e}")

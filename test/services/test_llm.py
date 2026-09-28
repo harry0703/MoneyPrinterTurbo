@@ -174,6 +174,18 @@ class TestScriptPromptOptions(unittest.TestCase):
 
         self.assertEqual(result, "")
 
+    def test_generate_script_does_not_return_stale_quota_error_after_retries(self):
+        responses = ["当日额度已消耗完"] + [
+            RuntimeError("provider unavailable")
+        ] * (llm._max_retries - 1)
+        with patch.object(
+            llm, "_generate_response", side_effect=responses
+        ) as generate_response:
+            result = llm.generate_script(video_subject="Coffee")
+
+        self.assertEqual(result, "")
+        self.assertEqual(generate_response.call_count, llm._max_retries)
+
     def test_generate_script_strips_each_bracket_group_independently(self):
         """
         format_response must remove each [bracket] and (paren) group in
