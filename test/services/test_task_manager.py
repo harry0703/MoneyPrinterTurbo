@@ -1,4 +1,5 @@
 import json
+import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -83,6 +84,55 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertEqual(manager.current_tasks, 1)
         execute_task.assert_called_once_with(len, [1, 2])
         self.assertTrue(manager.is_queue_empty())
+
+    def test_new_request_cannot_take_slot_before_waiting_task(self):
+        """A completion must reserve its freed slot for the oldest queued task."""
+        manager = InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=2)
+        manager.current_tasks = 1
+
+        def queued_task():
+            pass
+
+        def incoming_task():
+            pass
+
+        manager.enqueue({"func": queued_task, "args": (), "kwargs": {}})
+        released = threading.Event()
+        resume = threading.Event()
+
+        class PausingLock:
+            def __init__(self):
+                self.lock = threading.Lock()
+                self.worker = None
+                self.paused = False
+
+            def __enter__(self):
+                self.lock.acquire()
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                self.lock.release()
+                if threading.current_thread() is self.worker and not self.paused:
+                    self.paused = True
+                    released.set()
+                    resume.wait(timeout=2)
+
+        manager.lock = PausingLock()
+        started = []
+        with patch.object(manager, "execute_task", side_effect=lambda func: started.append(func)):
+            worker = threading.Thread(target=manager.task_done)
+            manager.lock.worker = worker
+            worker.start()
+            try:
+                self.assertTrue(released.wait(timeout=2))
+                manager.add_task(incoming_task)
+            finally:
+                resume.set()
+                worker.join(timeout=2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(started, [queued_task])
+        self.assertEqual(manager.dequeue()["func"], incoming_task)
 
     def test_task_done_requeues_task_when_thread_cannot_start(self):
         """出队后若线程启动失败，应回滚名额并把任务放回队列，避免任务丢失。"""
