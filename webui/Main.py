@@ -1994,37 +1994,46 @@ def _render_generation_task_snapshot(task_id, task):
         else:
             st.warning(str(warning))
 
-    try:
-        player_cols = st.columns(len(video_files) * 2 + 1)
-        for i, url in enumerate(video_files):
-            with player_cols[i * 2 + 1]:
-                st.video(url)
-                if not os.path.isfile(url):
-                    logger.warning(
-                        f"generated video is unavailable for download: "
-                        f"task_id={task_id}, video_file={url}"
-                    )
-                    continue
+    available_videos = [
+        (index, url)
+        for index, url in enumerate(video_files)
+        if os.path.isfile(url)
+    ]
+    for index, url in enumerate(video_files):
+        if os.path.isfile(url):
+            continue
+        logger.warning(
+            f"generated video is unavailable: "
+            f"task_id={task_id}, video_file={url}"
+        )
 
-                download_label = tr("Download Video")
-                if len(video_files) > 1:
-                    download_label = f"{download_label} {i + 1}"
-                download_name = _build_video_download_name(
-                    task.get("video_subject"),
-                    i + 1,
-                    len(video_files),
-                )
-                with open(url, "rb") as video_file:
-                    st.download_button(
-                        download_label,
-                        data=video_file,
-                        file_name=download_name,
-                        mime=mimetypes.guess_type(url)[0] or "video/mp4",
-                        key=f"download_generated_video_{task_id}_{i}",
-                        icon=":material/download:",
-                        on_click="ignore",
-                        use_container_width=True,
+    try:
+        if not available_videos:
+            st.warning(tr("Generated Video Files Unavailable"))
+        else:
+            player_cols = st.columns(len(available_videos) * 2 + 1)
+            for player_index, (video_index, url) in enumerate(available_videos):
+                with player_cols[player_index * 2 + 1]:
+                    st.video(url)
+                    download_label = tr("Download Video")
+                    if len(video_files) > 1:
+                        download_label = f"{download_label} {video_index + 1}"
+                    download_name = _build_video_download_name(
+                        task.get("video_subject"),
+                        video_index + 1,
+                        len(video_files),
                     )
+                    with open(url, "rb") as video_file:
+                        st.download_button(
+                            download_label,
+                            data=video_file,
+                            file_name=download_name,
+                            mime=mimetypes.guess_type(url)[0] or "video/mp4",
+                            key=f"download_generated_video_{task_id}_{video_index}",
+                            icon=":material/download:",
+                            on_click="ignore",
+                            use_container_width=True,
+                        )
     except Exception as exc:
         logger.exception(
             f"failed to render generated video preview: task_id={task_id}, "
