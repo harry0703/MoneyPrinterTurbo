@@ -1794,6 +1794,25 @@ class TestClaudeCodeProvider(unittest.TestCase):
             llm.CLAUDE_CODE_SYSTEM_PROMPT,
         )
 
+    def test_prompt_is_sent_through_stdin_not_argv(self):
+        """Windows 上 npm 安装的 claude 是 claude.cmd，cmd.exe 会在第一个换行处截断
+        参数，多行 prompt 及其后的隔离参数都会丢失，因此 prompt 必须走 stdin。"""
+        prompt = "# Role: Generator\n\n## Goals:\nwrite something"
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/bin/claude"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._cli_payload("ok")),
+            ) as run,
+        ):
+            llm._generate_response(prompt)
+
+        command = run.call_args.args[0]
+        self.assertFalse(any("\n" in arg for arg in command))
+        self.assertNotIn(prompt, command)
+        self.assertEqual(run.call_args.kwargs["input"], prompt)
+
     def test_model_name_is_only_passed_when_configured(self):
         """模型名留空时应沿用 CLI 默认模型，而不是硬编码一个可能失效的 ID。"""
         with (
