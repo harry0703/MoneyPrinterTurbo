@@ -8139,6 +8139,22 @@ def _render_generation_controls(
                     CUSTOM_AUDIO_EXTENSIONS,
                     "custom-audio",
                 )
+                # Voiceover uploads previously bypassed the same full-decode
+                # and size checks used for background-music uploads. Validate
+                # before storing or scheduling the generation task.
+                bgm_service.validate_bgm_upload(
+                    uploaded_audio_file.name, uploaded_audio_file
+                )
+            except bgm_service.BgmUploadError as exc:
+                _remove_active_generation_task(task_id)
+                logger.warning(f"WebUI custom audio upload rejected: {exc}")
+                st.error(str(exc))
+                st.stop()
+            except bgm_service.BgmServiceError as exc:
+                _remove_active_generation_task(task_id)
+                logger.error(f"WebUI custom audio validation failed: {exc}")
+                st.error(str(exc))
+                st.stop()
             except ValueError:
                 _remove_active_generation_task(task_id)
                 st.error(tr("Unsupported Upload File Type"))
