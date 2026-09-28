@@ -718,6 +718,16 @@ class TestBuildRedisUrl(unittest.TestCase):
             password,
         )
 
+    def test_ipv6_host_round_trips_through_redis_url(self):
+        from app.controllers.v1.video import _build_redis_url
+
+        url = _build_redis_url("::1", 6380, 1, None)
+        connection = redis.Redis.from_url(url).connection_pool.connection_kwargs
+
+        self.assertEqual(connection["host"], "::1")
+        self.assertEqual(connection["port"], 6380)
+        self.assertEqual(connection["db"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
