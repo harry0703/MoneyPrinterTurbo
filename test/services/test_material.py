@@ -582,6 +582,37 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertTrue(os.path.exists(video_path))
             self.assertTrue(get.call_args.kwargs["verify"])
 
+    def test_invalid_download_is_not_reused_as_cached_video(self):
+        url = "https://example.com/broken-then-valid.mp4"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        class FakeVideoFileClip:
+            fps = 24
+
+            def __init__(self, path):
+                self.duration = 0 if Path(path).read_bytes() == b"broken" else 1
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "app.services.material.requests.get",
+                side_effect=[
+                    SimpleNamespace(content=b"broken"),
+                    SimpleNamespace(content=b"valid"),
+                ],
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+                self.assertEqual(material.save_video(url, save_dir=temp_dir), "")
+                self.assertFalse((Path(temp_dir) / cached_name).exists())
+                self.assertEqual(
+                    material.save_video(url, save_dir=temp_dir),
+                    str(Path(temp_dir) / cached_name),
+                )
+
+            self.assertEqual(get.call_count, 2)
+            self.assertEqual((Path(temp_dir) / cached_name).read_bytes(), b"valid")
+
     def test_download_videos_accepts_plain_string_concat_mode(self):
         """
         download_videos 可能被服务层或测试直接传入字符串模式，而不是
