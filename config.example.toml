@@ -272,6 +272,14 @@ cheaperinference_api_key = ""
 cheaperinference_base_url = ""
 cheaperinference_model_name = ""
 
+# Requesty, an OpenAI-compatible multi-model gateway.
+# API key: https://app.requesty.ai/api-keys
+# Model list: https://www.requesty.ai/models
+# EU endpoint: https://router.eu.requesty.ai/v1
+requesty_api_key = ""
+requesty_base_url = ""
+requesty_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
