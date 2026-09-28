@@ -32,6 +32,7 @@ from app.config import config
 from app.utils import utils
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
+_SILICONFLOW_TTS_TIMEOUT_SECONDS = (10, 300)  # connect, read
 _MIMO_DEFAULT_BASE_URL = "https://api.xiaomimimo.com/v1"
 _MIMO_DEFAULT_TTS_MODEL = "mimo-v2.5-tts"
 MINIMAX_TTS_GLOBAL_URL = "https://api.minimax.io/v1/t2a_v2"
@@ -1428,7 +1429,12 @@ def siliconflow_tts(
                 f"start siliconflow tts, model: {model}, voice: {voice}, try: {i + 1}"
             )
 
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=_SILICONFLOW_TTS_TIMEOUT_SECONDS,
+            )
 
             if response.status_code == 200:
                 # 保存音频文件
