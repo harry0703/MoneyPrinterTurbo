@@ -699,8 +699,16 @@ class WaveSpeedUnconfirmedTaskError(RuntimeError):
 
     这类异常绝不等价于“该任务失败、可以重来”：远端任务可能仍在运行或已经
     完成并计费。素材流程必须就此停止，不再为后续关键词提交新的付费任务，
-    并把已提交的 prediction id 留在日志中供人工找回。
+    并把已提交的 prediction id 传给任务状态供人工找回。
     """
+
+    def __init__(self, message: str, prediction_id: str = ""):
+        super().__init__(message)
+        self.prediction_id = prediction_id
+
+
+class WaveSpeedDownloadError(RuntimeError):
+    """A paid prediction completed, but its video could not be saved locally."""
 
     def __init__(self, message: str, prediction_id: str = ""):
         super().__init__(message)
@@ -1020,7 +1028,7 @@ def _save_generated_video_with_retry(
     下载已经付费生成的产物，失败时优先重试同一个地址。
 
     重新生成一次远端任务的代价是再付一次费，所以下载抖动必须先在原地址上
-    做有限次退避重试，重试耗尽才放弃该片段。
+    做有限次退避重试，重试耗尽后由调用方报告可恢复的付费任务失败。
     """
     for attempt in range(WAVESPEED_MAX_DOWNLOAD_RETRIES + 1):
         try:
@@ -1961,8 +1969,9 @@ def _download_videos_wavespeed_on_demand(
 
     每个关键词天然对应一个脚本片段，生成即付费：先全量生成再挑选会为
     用不到的片段付费。这里每生成一段就立刻下载并累计有效时长（与库存
-    流程一致，按片段时长封顶），累计超过所需配音时长后不再触发新的生成
-    请求。单段失败按现有素材源约定跳过并继续下一段。
+    流程一致，按片段时长封顶），累计覆盖所需配音时长后不再触发新的生成
+    请求。远端明确失败的片段可跳过；状态不明或下载失败的付费任务必须
+    保留 ID 并终止本地任务。
     """
     video_paths: List[str] = []
     material_sources: list[dict[str, Any]] = []
@@ -1977,19 +1986,29 @@ def _download_videos_wavespeed_on_demand(
         except WaveSpeedUnconfirmedTaskError as e:
             # 已提交的付费任务状态不明：远端可能仍在运行或已经完成并计费。
             # 继续为后续关键词下单会造成重复生成和重复扣费，因此就地停止，
-            # 并把 prediction id 留在日志里供人工在控制台找回产物。
+            # 把 prediction id 交给任务层写入失败状态，供用户找回产物。
             logger.error(
                 "stop submitting new wavespeed tasks, the last submitted task "
                 f"is unconfirmed: prediction_id={e.prediction_id or 'unknown'}, "
                 f"detail={e}"
             )
-            break
+            _persist_material_sources(task_id, material_sources)
+            raise
         for item in video_items:
             saved_video_path = _save_generated_video_with_retry(
                 item.url, material_directory, "wavespeed"
             )
             if not saved_video_path:
-                continue
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                prediction_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise WaveSpeedDownloadError(
+                    "WaveSpeed generated a paid video but the result could not be "
+                    f"downloaded: id={prediction_id or 'unknown'}",
+                    prediction_id=prediction_id,
+                )
             logger.info(f"video saved: {saved_video_path}")
             video_paths.append(saved_video_path)
             try:

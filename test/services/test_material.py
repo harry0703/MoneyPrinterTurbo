@@ -1622,7 +1622,7 @@ class TestWaveSpeedProvider(unittest.TestCase):
         """
         回归:某个片段的任务状态不明时,后续关键词绝不能再触发新的付费生成
         请求——否则第一个任务可能仍在运行/已完成,造成重复生成和额外扣费。
-        已经下载成功的素材照常返回。
+        已经下载成功的素材不能让整个任务被错误地标记为完成。
         """
         first_item = self._generated_item("term-1", "https://cdn.example.com/1.mp4")
 
@@ -1643,17 +1643,44 @@ class TestWaveSpeedProvider(unittest.TestCase):
                 return_value="/tmp/1.mp4",
             ),
         ):
-            result = material.download_videos(
-                task_id="test-wavespeed-unconfirmed",
-                search_terms=["term-1", "term-2", "term-3"],
-                source="wavespeed",
-                audio_duration=100,
-                max_clip_duration=5,
-            )
+            with self.assertRaises(material.WaveSpeedUnconfirmedTaskError) as ctx:
+                material.download_videos(
+                    task_id="test-wavespeed-unconfirmed",
+                    search_terms=["term-1", "term-2", "term-3"],
+                    source="wavespeed",
+                    audio_duration=100,
+                    max_clip_duration=5,
+                )
 
         # term-2 抛出状态不明后立即停止,term-3 不能再产生生成请求
         self.assertEqual(generate.call_count, 2)
-        self.assertEqual(result, ["/tmp/1.mp4"])
+        self.assertEqual(ctx.exception.prediction_id, "pred-stuck")
+
+    def test_download_videos_wavespeed_stops_after_paid_download_failure(self):
+        """下载耗尽重试后不能悄悄为下一个关键词再次付费。"""
+        item = self._generated_item("term-1", "https://cdn.example.com/1.mp4")
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                return_value=[item],
+            ) as generate,
+            patch("app.services.material.save_video", return_value="") as save,
+            patch("app.services.material.time.sleep"),
+        ):
+            with self.assertRaises(material.WaveSpeedDownloadError) as ctx:
+                material.download_videos(
+                    task_id="test-wavespeed-paid-download-failure",
+                    search_terms=["term-1", "term-2"],
+                    source="wavespeed",
+                    audio_duration=10,
+                    max_clip_duration=5,
+                )
+
+        self.assertEqual(ctx.exception.prediction_id, "pred-term-1")
+        self.assertEqual(generate.call_count, 1)
+        self.assertEqual(
+            save.call_count, material.WAVESPEED_MAX_DOWNLOAD_RETRIES + 1
+        )
 
     def test_download_videos_wavespeed_retries_original_download_url(self):
         """
