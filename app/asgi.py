@@ -41,6 +41,14 @@ async def application_lifespan(_: FastAPI):
     from app.services import task as task_service
 
     task_service.recover_interrupted_cross_posts()
+
+    # Redis queue entries persist across API restarts. No task_done callback
+    # exists in the new process to dispatch them, so fill its worker slots now.
+    from app.controllers.manager.redis_manager import RedisTaskManager
+    from app.controllers.v1 import video as video_controller
+
+    if isinstance(video_controller.task_manager, RedisTaskManager):
+        video_controller.task_manager.resume_queued_tasks()
     try:
         yield
     finally:
