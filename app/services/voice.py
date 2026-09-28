@@ -746,66 +746,75 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
         return True
 
     target_sample_rate = 24000
-    combined_pcm = bytearray()
     ffmpeg_binary = utils.get_ffmpeg_binary()
 
     with tempfile.TemporaryDirectory() as concat_temp:
-        for idx, f in enumerate(audio_files):
-            if not os.path.exists(f) or os.path.getsize(f) == 0:
-                continue
+        temp_combined_wav = os.path.join(concat_temp, "combined_master.wav")
+        combined_frames = 0
+        with wave.open(temp_combined_wav, "wb") as combined_wave:
+            combined_wave.setnchannels(1)
+            combined_wave.setsampwidth(2)
+            combined_wave.setframerate(target_sample_rate)
 
-            # 检查是否已经是 24000Hz 16-bit mono WAV
-            is_valid_pcm_wav = False
-            if f.lower().endswith(".wav"):
-                try:
-                    with wave.open(f, "rb") as wf:
-                        if (
-                            wf.getframerate() == target_sample_rate
-                            and wf.getnchannels() == 1
-                            and wf.getsampwidth() == 2
-                        ):
-                            is_valid_pcm_wav = True
-                            combined_pcm.extend(wf.readframes(wf.getnframes()))
-                except Exception:
-                    is_valid_pcm_wav = False
+            def append_pcm(reader):
+                nonlocal combined_frames
+                while chunk := reader.readframes(8192):
+                    combined_wave.writeframesraw(chunk)
+                    combined_frames += len(chunk) // 2
 
-            if not is_valid_pcm_wav:
-                # 使用 FFmpeg 将输入文件解码为 24000Hz 16-bit mono PCM WAV
-                pcm_wav = os.path.join(concat_temp, f"chunk_{idx}.wav")
-                cmd = [
-                    ffmpeg_binary,
-                    "-y",
-                    "-i",
-                    f,
-                    "-vn",
-                    "-ac",
-                    "1",
-                    "-ar",
-                    str(target_sample_rate),
-                    "-codec:a",
-                    "pcm_s16le",
-                    pcm_wav,
-                ]
-                res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
-                if res.returncode == 0 and os.path.exists(pcm_wav):
+            for idx, f in enumerate(audio_files):
+                if not os.path.exists(f) or os.path.getsize(f) == 0:
+                    continue
+
+                # 检查是否已经是 24000Hz 16-bit mono WAV
+                is_valid_pcm_wav = False
+                if f.lower().endswith(".wav"):
                     try:
-                        with wave.open(pcm_wav, "rb") as wf:
-                            combined_pcm.extend(wf.readframes(wf.getnframes()))
-                    except Exception as e:
-                        logger.error(f"failed to read decoded pcm wav: {e}")
-                else:
-                    logger.error(f"failed to decode audio chunk with ffmpeg: {res.stderr}")
+                        with wave.open(f, "rb") as wf:
+                            if (
+                                wf.getframerate() == target_sample_rate
+                                and wf.getnchannels() == 1
+                                and wf.getsampwidth() == 2
+                            ):
+                                is_valid_pcm_wav = True
+                                append_pcm(wf)
+                    except Exception as exc:
+                        if is_valid_pcm_wav:
+                            logger.error(f"failed to stream PCM input: {exc}")
+                            return False
+                        is_valid_pcm_wav = False
 
-        if not combined_pcm:
+                if not is_valid_pcm_wav:
+                    # 使用 FFmpeg 将输入文件解码为 24000Hz 16-bit mono PCM WAV
+                    pcm_wav = os.path.join(concat_temp, f"chunk_{idx}.wav")
+                    cmd = [
+                        ffmpeg_binary,
+                        "-y",
+                        "-i",
+                        f,
+                        "-vn",
+                        "-ac",
+                        "1",
+                        "-ar",
+                        str(target_sample_rate),
+                        "-codec:a",
+                        "pcm_s16le",
+                        pcm_wav,
+                    ]
+                    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+                    if res.returncode == 0 and os.path.exists(pcm_wav):
+                        try:
+                            with wave.open(pcm_wav, "rb") as wf:
+                                append_pcm(wf)
+                        except Exception as e:
+                            logger.error(f"failed to read decoded pcm wav: {e}")
+                            return False
+                    else:
+                        logger.error(f"failed to decode audio chunk with ffmpeg: {res.stderr}")
+
+        if not combined_frames:
             logger.error("no valid audio samples to concatenate")
             return False
-
-        temp_combined_wav = os.path.join(concat_temp, "combined_master.wav")
-        with wave.open(temp_combined_wav, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(target_sample_rate)
-            wf.writeframes(combined_pcm)
 
         if output_file.lower().endswith(".wav"):
             shutil.copyfile(temp_combined_wav, output_file)

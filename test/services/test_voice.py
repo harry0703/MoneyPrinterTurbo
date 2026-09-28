@@ -1646,6 +1646,52 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertNotIn("(pausa", flex_cleaned)
         self.assertNotIn("[pause", flex_cleaned)
 
+    def test_concat_audio_files_reads_pcm_in_bounded_chunks(self):
+        """Long pause-aware narration should not load each WAV into memory."""
+        real_wave_open = vs.wave.open
+        read_sizes = []
+
+        class RecordingReader:
+            def __init__(self, reader):
+                self.reader = reader
+
+            def __enter__(self):
+                self.reader.__enter__()
+                return self
+
+            def __exit__(self, *args):
+                return self.reader.__exit__(*args)
+
+            def __getattr__(self, name):
+                return getattr(self.reader, name)
+
+            def readframes(self, frame_count):
+                read_sizes.append(frame_count)
+                return self.reader.readframes(frame_count)
+
+        def recording_wave_open(file, mode):
+            opened = real_wave_open(file, mode)
+            return RecordingReader(opened) if mode == "rb" else opened
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            inputs = [str(Path(temp_dir) / f"input-{i}.wav") for i in range(2)]
+            output = str(Path(temp_dir) / "joined.wav")
+            for input_path in inputs:
+                with real_wave_open(input_path, "wb") as writer:
+                    writer.setnchannels(1)
+                    writer.setsampwidth(2)
+                    writer.setframerate(24000)
+                    writer.writeframes(b"\x01\x00" * 20000)
+
+            with patch.object(vs.wave, "open", side_effect=recording_wave_open):
+                self.assertTrue(vs._concat_audio_files(inputs, output))
+
+            with real_wave_open(output, "rb") as result:
+                self.assertEqual(result.getnframes(), 40000)
+
+        self.assertTrue(read_sizes)
+        self.assertLessEqual(max(read_sizes), 8192)
+
     def test_tts_with_pauses_shifts_submaker_timeline(self):
         """测试包含停顿标签时，SubMaker 时间轴和音频拼接正确偏移。"""
         from edge_tts.srt_composer import Subtitle
