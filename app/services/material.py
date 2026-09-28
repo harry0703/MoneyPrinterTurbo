@@ -338,21 +338,40 @@ def search_videos_pexels(
         )
         response = r.json()
         video_items = []
-        if "videos" not in response:
+        if not isinstance(response, dict) or not isinstance(
+            response.get("videos"), list
+        ):
             logger.error("pexels video search returned an unsupported response")
             return video_items
         videos = response["videos"]
         # loop through each video in the result
         for v in videos:
-            duration = v["duration"]
-            # check if video has desired minimum duration
-            if duration < minimum_duration:
+            if not isinstance(v, dict):
                 continue
-            video_files = v["video_files"]
+            duration = v.get("duration")
+            # check if video has desired minimum duration
+            if (
+                isinstance(duration, bool)
+                or not isinstance(duration, (int, float))
+                or not math.isfinite(duration)
+                or duration < minimum_duration
+            ):
+                continue
+            video_files = v.get("video_files")
+            if not isinstance(video_files, list):
+                continue
             # loop through each url to determine the best quality
             for video in video_files:
-                w = int(video["width"])
-                h = int(video["height"])
+                if not isinstance(video, dict):
+                    continue
+                try:
+                    w = int(video.get("width"))
+                    h = int(video.get("height"))
+                except (TypeError, ValueError):
+                    continue
+                video_url = video.get("link")
+                if not isinstance(video_url, str) or not video_url:
+                    continue
                 if (
                     _matches_video_aspect(w, h, aspect)
                     and w == video_width
@@ -360,7 +379,7 @@ def search_videos_pexels(
                 ):
                     item = MaterialInfo()
                     item.provider = "pexels"
-                    item.url = video["link"]
+                    item.url = video_url
                     item.duration = duration
                     item.source_info = {
                         "provider": "pexels",

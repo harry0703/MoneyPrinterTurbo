@@ -75,6 +75,49 @@ class TestMaterialTlsVerification(unittest.TestCase):
         )
         self.assertEqual(results[0].source_info["rendition"]["id"], "987")
 
+    def test_search_pexels_skips_malformed_entries_without_losing_good_videos(self):
+        config.app["pexels_api_keys"] = ["pexels-key"]
+        fake_response = SimpleNamespace(
+            json=lambda: {
+                "videos": [
+                    {"id": 1, "duration": "unknown", "video_files": []},
+                    {
+                        "id": 2,
+                        "duration": 8,
+                        "video_files": [
+                            {"width": None, "height": 1920, "link": "bad"},
+                            {
+                                "id": 22,
+                                "width": 1080,
+                                "height": 1920,
+                                "link": "https://example.com/first.mp4",
+                            },
+                        ],
+                    },
+                    {
+                        "id": 3,
+                        "duration": 8,
+                        "video_files": [
+                            {
+                                "id": 33,
+                                "width": 1080,
+                                "height": 1920,
+                                "link": "https://example.com/second.mp4",
+                            }
+                        ],
+                    },
+                ]
+            }
+        )
+
+        with patch("app.services.material.requests.get", return_value=fake_response):
+            results = material.search_videos_pexels("cat", minimum_duration=1)
+
+        self.assertEqual(
+            [item.url for item in results],
+            ["https://example.com/first.mp4", "https://example.com/second.mp4"],
+        )
+
     def test_search_pixabay_allows_explicit_tls_disable_for_proxy(self):
         """
         少数企业代理会使用自签证书。该场景必须显式配置关闭 TLS 校验，
