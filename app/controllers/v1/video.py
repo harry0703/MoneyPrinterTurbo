@@ -496,10 +496,11 @@ async def stream_video(request: Request, file_path: str):
     response = StreamingResponse(
         file_iterator(video_path, start, length), media_type="video/mp4"
     )
-    response.headers["Content-Range"] = f"bytes {start}-{end}/{video_size}"
     response.headers["Accept-Ranges"] = "bytes"
     response.headers["Content-Length"] = str(length)
-    response.status_code = 206  # Partial Content
+    if range_header:
+        response.headers["Content-Range"] = f"bytes {start}-{end}/{video_size}"
+        response.status_code = 206  # Partial Content
 
     return response
 
