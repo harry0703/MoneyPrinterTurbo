@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+import warnings
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -26,7 +27,13 @@ def _image_response(payload, status_code=200):
 
 
 def _download_response(content, status_code=200):
-    return SimpleNamespace(status_code=status_code, content=content)
+    return SimpleNamespace(
+        status_code=status_code,
+        content=content,
+        headers={"Content-Length": str(len(content))},
+        iter_content=lambda chunk_size: iter((content,)),
+        close=lambda: None,
+    )
 
 
 class TestOpenAIImageProvider(unittest.TestCase):
@@ -377,6 +384,66 @@ class TestOpenAIImageProvider(unittest.TestCase):
         self.assertEqual(get.call_count, 2)
         for call in get.call_args_list:
             self.assertEqual(call.args[0], "https://cdn.example.com/generated/x.png")
+
+    def test_generated_image_download_rejects_oversize_body(self):
+        """A generated image URL must not buffer an unbounded provider body."""
+        response = _download_response(b"too-large")
+        response.headers = {}
+        closed = []
+        response.close = lambda: closed.append(True)
+        with (
+            patch("app.services.material.requests.get", return_value=response) as get,
+            patch("app.services.material.OPENAI_IMAGE_MAX_BYTES", 5, create=True),
+            patch("app.services.material.time.sleep"),
+        ):
+            image_bytes, error = material._openai_image_download_bytes(
+                "https://cdn.example.com/generated/x.png", "test-key"
+            )
+
+        self.assertIsNone(image_bytes)
+        self.assertIn("limit", error)
+        self.assertTrue(all(call.kwargs.get("stream") is True for call in get.call_args_list))
+        self.assertEqual(closed, [True])
+
+    def test_generated_image_download_rejects_declared_oversize_body(self):
+        """An advertised oversize image should be rejected before reading bytes."""
+        response = _download_response(b"small")
+        response.headers = {"Content-Length": "100"}
+        response.iter_content = lambda chunk_size: self.fail("body should not be read")
+        with (
+            patch("app.services.material.requests.get", return_value=response),
+            patch("app.services.material.OPENAI_IMAGE_MAX_BYTES", 5),
+        ):
+            image_bytes, error = material._openai_image_download_bytes(
+                "https://cdn.example.com/generated/x.png", "test-key"
+            )
+
+        self.assertIsNone(image_bytes)
+        self.assertIn("limit", error)
+
+    def test_generated_image_response_rejects_oversize_base64(self):
+        """Do not decode an unbounded inline image from a provider response."""
+        response = _image_response(
+            {"data": [{"b64_json": base64.b64encode(b"too-large").decode()}]}
+        )
+        with patch("app.services.material.OPENAI_IMAGE_MAX_BYTES", 5):
+            image_bytes, error = material._parse_openai_image_response(response, "test-key")
+
+        self.assertIsNone(image_bytes)
+        self.assertIn("limit", error)
+
+    def test_generated_image_decode_rejects_pillow_bomb_warning(self):
+        """Small compressed bytes can still expand to too many image pixels."""
+        image_bytes = _png_bytes(width=12, height=12)
+        with (
+            patch.object(Image, "MAX_IMAGE_PIXELS", 100),
+            warnings.catch_warnings(),
+        ):
+            warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+            with self.assertRaises(material._OpenAIImageDecodeError):
+                material._save_openai_image_file(image_bytes, self.save_dir)
+
+        self.assertEqual(os.listdir(self.save_dir), [])
 
     def test_generate_images_openai_returns_empty_on_rejected_request(self):
         """业务拒绝(如内容策略)返回空结果,不做退避重试。"""

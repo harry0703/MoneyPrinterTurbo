@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import uuid
+import warnings
 from pathlib import Path
 from typing import Any, Callable, List
 from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
@@ -1190,6 +1191,8 @@ OPENAI_IMAGE_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 # key 时重试会自动换 key；只有一个 key 时快速失败，不做无意义重试。
 OPENAI_IMAGE_KEY_ERROR_STATUS_CODES = frozenset({401, 403})
 OPENAI_IMAGE_MAX_ATTEMPTS = 3
+OPENAI_IMAGE_MAX_BYTES = 25 * 1024 * 1024
+OPENAI_IMAGE_MAX_PIXELS = 50_000_000
 # 串行出图 + 线性退避，兼容中转服务普遍的限流恢复窗口。
 OPENAI_IMAGE_RETRY_BACKOFF_SECONDS = (5, 15, 30)
 # 同步生成接口可能需要数十秒才返回图片，读超时给足余量。
@@ -1319,6 +1322,7 @@ def _openai_image_download_bytes(
     """
     failure_detail = "no download attempt was made"
     for attempt in range(1, OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS + 1):
+        response = None
         try:
             response = requests.get(
                 image_url,
@@ -1330,14 +1334,40 @@ def _openai_image_download_bytes(
                 proxies=config.proxy,
                 verify=_get_tls_verify(),
                 timeout=(30, 120),
+                stream=True,
             )
-            if response.status_code == 200 and response.content:
-                return response.content, ""
-            failure_detail = f"HTTP {response.status_code} while downloading image"
+            if response.status_code == 200:
+                try:
+                    declared_size = int(response.headers.get("Content-Length", 0))
+                except (TypeError, ValueError):
+                    declared_size = 0
+                if declared_size > OPENAI_IMAGE_MAX_BYTES:
+                    return None, "generated image exceeds the 25 MB download limit"
+                image_bytes = bytearray()
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    if not chunk:
+                        continue
+                    if len(image_bytes) + len(chunk) > OPENAI_IMAGE_MAX_BYTES:
+                        return None, "generated image exceeds the 25 MB download limit"
+                    image_bytes.extend(chunk)
+                if image_bytes:
+                    return bytes(image_bytes), ""
+                failure_detail = "generated image download was empty"
+            else:
+                failure_detail = f"HTTP {response.status_code} while downloading image"
         except Exception as e:
             failure_detail = (
                 f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
             )
+        finally:
+            if response is not None:
+                try:
+                    response.close()
+                except Exception as exc:
+                    logger.warning(
+                        "failed to close generated image download response: "
+                        f"error={type(exc).__name__}"
+                    )
         if attempt < OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS:
             logger.warning(
                 "generated image download failed, retrying the same url: "
@@ -1369,10 +1399,18 @@ def _parse_openai_image_response(
 
     b64_payload = entry.get("b64_json")
     if b64_payload:
+        if (
+            not isinstance(b64_payload, str)
+            or len(b64_payload) > 4 * ((OPENAI_IMAGE_MAX_BYTES + 2) // 3)
+        ):
+            return None, "generated image exceeds the 25 MB response limit"
         try:
-            return base64.b64decode(b64_payload), ""
+            image_bytes = base64.b64decode(b64_payload)
         except Exception as e:
             return None, f"invalid b64_json payload: {type(e).__name__}"
+        if len(image_bytes) > OPENAI_IMAGE_MAX_BYTES:
+            return None, "generated image exceeds the 25 MB response limit"
+        return image_bytes, ""
 
     image_url = entry.get("url")
     if isinstance(image_url, str) and image_url.startswith(("http://", "https://")):
@@ -1487,21 +1525,34 @@ def _save_openai_image_file(
         os.makedirs(save_dir, exist_ok=True)
 
     image_path = os.path.join(save_dir, f"openai-image-{uuid.uuid4().hex[:12]}.png")
+    if len(image_bytes) > OPENAI_IMAGE_MAX_BYTES:
+        raise _OpenAIImageDecodeError("generated image exceeds the 25 MB limit")
 
     # 图片解码失败可以降级为“跳过当前关键词”，但目录权限、磁盘空间和文件
     # 写入失败必须继续抛出，否则按需生成循环会在本地无法保存文件时继续创建
     # 后续付费任务。Image.open 只读取内存字节，因此这里的 OSError 属于格式
     # 识别失败；image.load 的 OSError 则对应截断或损坏的图片数据。
+    image = None
     try:
-        image = Image.open(io.BytesIO(image_bytes))
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            image = Image.open(io.BytesIO(image_bytes))
+            if image.width * image.height > OPENAI_IMAGE_MAX_PIXELS:
+                raise ValueError("generated image exceeds the 50 million pixel limit")
+            image.load()
+    except (
+        Image.DecompressionBombWarning,
+        Image.DecompressionBombError,
+        UnidentifiedImageError,
+        OSError,
+        SyntaxError,
+        ValueError,
+    ) as exc:
+        if image is not None:
+            image.close()
         raise _OpenAIImageDecodeError(f"{type(exc).__name__}: {exc}") from exc
 
     with image:
-        try:
-            image.load()
-        except (OSError, SyntaxError, ValueError) as exc:
-            raise _OpenAIImageDecodeError(f"{type(exc).__name__}: {exc}") from exc
         if image.mode not in ("RGB", "RGBA", "L", "LA", "P"):
             image = image.convert("RGB")
         # save 不放进解码异常保护区：写入错误表示运行环境持续不可用，应立即
