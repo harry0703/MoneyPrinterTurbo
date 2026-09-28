@@ -76,6 +76,10 @@ class MemoryState(BaseState):
 
         with self._lock:
             self._tasks[task_id] = {
+                # Keep fields from earlier pipeline stages, matching Redis
+                # HSET updates. A progress-only update must not erase the
+                # WebUI subject or diagnostic details already stored.
+                **self._tasks.get(task_id, {}),
                 "task_id": task_id,
                 "state": state,
                 "progress": progress,
