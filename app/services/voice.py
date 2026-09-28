@@ -2807,10 +2807,19 @@ def voxcpm_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
-        except requests.RequestException as exc:
-            logger.error(f"VoxCPM TTS request failed: {exc}")
+        except requests.exceptions.ConnectTimeout as exc:
+            logger.error(f"VoxCPM TTS connection timed out: {exc}")
+            # A timeout before POST returns is safe to retry only when no
+            # response has been received. Never resubmit after SSE started.
+            if response is not None:
+                return None
             if attempt < 2:
                 time.sleep(_VOXCPM_RETRY_DELAY_SECONDS[attempt])
+        except requests.RequestException as exc:
+            # The server may have generated speech before a read timeout or
+            # stream disconnect. Resubmitting can create duplicate work.
+            logger.error(f"VoxCPM TTS request outcome is unconfirmed: {exc}")
+            return None
         except Exception as exc:
             # Invalid SSE/WAV data and local conversion failures are deterministic;
             # retrying the same response cannot repair them.
