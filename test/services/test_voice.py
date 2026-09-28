@@ -316,6 +316,45 @@ class TestVoiceService(unittest.TestCase):
             self.assertEqual(len(sub_maker.events), 1)
             self.assertEqual(sub_maker.events[0]["type"], "WordBoundary")
 
+    def test_azure_tts_v1_rejects_boundary_only_stream(self):
+        """Subtitle events without audio must not produce a successful TTS result."""
+
+        class _BoundaryOnlyCommunicate:
+            def __init__(self, text, voice, rate="+0%", boundary=None):
+                pass
+
+            def stream_sync(self):
+                yield {
+                    "type": "WordBoundary",
+                    "offset": 0,
+                    "duration": 10000000,
+                    "text": "hello",
+                }
+
+        class _FakeSubMaker:
+            def __init__(self):
+                self.events = []
+
+            def feed(self, chunk):
+                self.events.append(chunk)
+
+            def get_srt(self):
+                return "1\n00:00:00,000 --> 00:00:01,000\nhello\n" if self.events else ""
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.edge_tts, "Communicate", _BoundaryOnlyCommunicate
+        ), patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker):
+            voice_file = Path(tmp_dir) / "boundary-only.mp3"
+            result = vs.azure_tts_v1(
+                text="hello",
+                voice_name="en-US-AriaNeural-Female",
+                voice_file=str(voice_file),
+                voice_rate=1.0,
+            )
+
+            self.assertIsNone(result)
+            self.assertFalse(voice_file.exists())
+
     def test_azure_tts_v1_times_out_hanging_stream_sync(self):
         """
         验证 Azure TTS V1 在 edge_tts 同步流卡住时能够快速失败。

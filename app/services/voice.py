@@ -1360,6 +1360,13 @@ def azure_tts_v1(
                     communicate, _handle_chunk, timeout_seconds=timeout_seconds
                 )
 
+            # Edge can finish a stream with timing events but no audio payload.
+            # Those events produce a nonempty SRT, yet the MP3 is unplayable.
+            if os.path.getsize(voice_file) == 0:
+                logger.warning("failed, edge tts stream contained no audio")
+                os.remove(voice_file)
+                continue
+
             if not sub_maker.get_srt():
                 logger.warning("failed, sub_maker.get_srt() is empty")
                 continue
