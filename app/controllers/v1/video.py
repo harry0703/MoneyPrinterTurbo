@@ -1,4 +1,3 @@
-import glob
 import os
 import pathlib
 import shutil
@@ -406,29 +405,32 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     "/video_materials", response_model=VideoMaterialRetrieveResponse, summary="Retrieve local video materials"
 )
 def get_video_materials_list(request: Request):
-    allowed_suffixes = tuple(
-        extension.removeprefix(".")
-        for extension in material_upload_service.SUPPORTED_MATERIAL_EXTENSIONS
-    )
+    allowed_suffixes = material_upload_service.SUPPORTED_MATERIAL_EXTENSIONS
     local_videos_dir = utils.storage_dir("local_videos", create=True)
-    files = []
-    for suffix in allowed_suffixes:
-        files.extend(glob.glob(os.path.join(local_videos_dir, f"*.{suffix}")))
-    # 文件系统枚举顺序不稳定，直接返回会导致“顺序拼接”在不同机器或不同
-    # 时刻表现不一致。这里统一按文件名排序，至少保证服务端返回顺序可预测。
-    files.sort(key=lambda file_path: os.path.basename(file_path).lower())
     video_materials_list = []
-    for file in files:
-        filename = os.path.basename(file)
-        video_materials_list.append(
-            {
-                "name": filename,
-                "size": os.path.getsize(file),
-                # 与 BGM 一样，只返回文件名；创建任务时再在 local_videos
-                # 白名单目录内解析，避免 API 泄露宿主机绝对路径。
-                "file": filename,
-            }
-        )
+    with os.scandir(local_videos_dir) as entries:
+        for entry in entries:
+            if (
+                entry.name.startswith(".")
+                or pathlib.Path(entry.name).suffix.lower() not in allowed_suffixes
+            ):
+                continue
+            try:
+                # Do not follow links outside local_videos or list an upload
+                # that disappeared while the directory was being scanned.
+                if not entry.is_file(follow_symlinks=False):
+                    continue
+                size = entry.stat(follow_symlinks=False).st_size
+            except OSError as exc:
+                logger.warning(
+                    f"skip unavailable local material: name={entry.name}, error={exc}"
+                )
+                continue
+            video_materials_list.append(
+                {"name": entry.name, "size": size, "file": entry.name}
+            )
+    # Keep ordered material selection stable across file systems and runs.
+    video_materials_list.sort(key=lambda item: (item["name"].casefold(), item["name"]))
     response = {"files": video_materials_list}
     return utils.get_response(200, response)
 

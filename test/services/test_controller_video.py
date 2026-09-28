@@ -49,6 +49,43 @@ class TestVideoControllerHelpers(unittest.TestCase):
                     expected,
                 )
 
+    def test_local_material_list_skips_broken_and_external_symlinks(self):
+        """One stale link must not 500 the picker or reveal external file metadata."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            material_dir = root / "materials"
+            material_dir.mkdir()
+            (material_dir / "clip.mp4").write_bytes(b"video")
+            external = root / "private.mp4"
+            external.write_bytes(b"private contents")
+            try:
+                (material_dir / "external.mp4").symlink_to(external)
+                (material_dir / "broken.mp4").symlink_to(root / "missing.mp4")
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"symlinks are unavailable: {exc}")
+
+            with patch.object(
+                video_controller.utils, "storage_dir", return_value=str(material_dir)
+            ):
+                response = video_controller.get_video_materials_list(self._request())
+
+        self.assertEqual(response["data"]["files"], [
+            {"name": "clip.mp4", "size": 5, "file": "clip.mp4"}
+        ])
+
+    def test_local_material_list_includes_supported_uppercase_extensions(self):
+        """Manually copied materials should be listed like uploads on any OS."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            (Path(temp_dir) / "photo.PNG").write_bytes(b"image")
+            with patch.object(
+                video_controller.utils, "storage_dir", return_value=temp_dir
+            ):
+                response = video_controller.get_video_materials_list(self._request())
+
+        self.assertEqual(response["data"]["files"], [
+            {"name": "photo.PNG", "size": 5, "file": "photo.PNG"}
+        ])
+
     def test_fastapi_startup_recovers_interrupted_cross_posts(self):
         """API 进程启动时必须执行一次发布遗留状态恢复。"""
         from app.services import task as task_service
