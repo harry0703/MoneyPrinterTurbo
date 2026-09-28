@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import toml
+import pytest
 
 from app.config import config
 from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
@@ -163,6 +164,46 @@ class TestConfigPersistence:
             error_message = str(error_mock.call_args.args[0])
             assert str(config_path) in error_message
             assert "TomlDecodeError" in error_message
+
+    def test_load_config_recovers_empty_config_directory(self):
+        """Docker can create an empty directory at a missing file bind-mount path."""
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "config.toml"
+            config_path.mkdir()
+            (root / "config.example.toml").write_text(
+                '[app]\nvideo_source = "pexels"\n', encoding="utf-8"
+            )
+
+            with (
+                patch.object(config, "root_dir", temp_dir),
+                patch.object(config, "config_file", str(config_path)),
+            ):
+                loaded_config = config.load_config()
+
+            assert loaded_config["app"]["video_source"] == "pexels"
+            assert config_path.is_file()
+
+    def test_load_config_preserves_nonempty_config_directory(self):
+        """A mistaken config.toml directory must not be recursively deleted."""
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_path = root / "config.toml"
+            config_path.mkdir()
+            sentinel = config_path / "user-data.txt"
+            sentinel.write_text("keep this file", encoding="utf-8")
+            (root / "config.example.toml").write_text(
+                '[app]\nvideo_source = "pexels"\n', encoding="utf-8"
+            )
+
+            with (
+                patch.object(config, "root_dir", temp_dir),
+                patch.object(config, "config_file", str(config_path)),
+            ):
+                with pytest.raises(IsADirectoryError, match="config.toml"):
+                    config.load_config()
+
+            assert sentinel.read_text(encoding="utf-8") == "keep this file"
 
     def test_kimi_uses_current_default_model(self):
         """Kimi 未配置模型覆盖值时，应使用当前发布版本的默认模型。"""
