@@ -447,16 +447,20 @@ class TestOpenAIImageProvider(unittest.TestCase):
 
     def test_generated_image_download_failure_does_not_buy_another_image(self):
         """A confirmed paid result remains a task failure if its URL cannot download."""
+        signed_url = "https://cdn.example.com/generated/x.png?token=private"
         response = _image_response(
-            {"data": [{"url": "https://cdn.example.com/generated/x.png"}]}
+            {"data": [{"url": signed_url}]}
         )
         with (
             patch("app.services.material.requests.post", return_value=response) as post,
             patch(
                 "app.services.material.requests.get",
-                return_value=_download_response(b"", status_code=502),
+                side_effect=requests.exceptions.ConnectionError(
+                    f"download failed for {signed_url}"
+                ),
             ) as get,
             patch("app.services.material.time.sleep"),
+            patch("app.services.material.logger") as logger,
         ):
             with self.assertRaisesRegex(RuntimeError, "could not be downloaded"):
                 material.download_videos(
@@ -469,6 +473,7 @@ class TestOpenAIImageProvider(unittest.TestCase):
 
         self.assertEqual(post.call_count, 1)
         self.assertEqual(get.call_count, material.OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS)
+        self.assertNotIn("token=private", str(logger.warning.call_args_list))
 
     def test_generate_images_openai_returns_empty_on_rejected_request(self):
         """业务拒绝(如内容策略)返回空结果,不做退避重试。"""
