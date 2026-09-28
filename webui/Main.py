@@ -809,7 +809,11 @@ def _safe_load_task_script(task_path):
 
     try:
         with open(script_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+            payload = json.load(f)
+        if not isinstance(payload, dict):
+            logger.warning(f"task script data is not an object: {script_file}")
+            return {}
+        return payload
     except Exception as e:
         logger.warning(f"failed to read task script data: {script_file}, {e}")
         return {}
@@ -1002,11 +1006,16 @@ def _scan_history_tasks(limit=30):
     tasks = []
     for mtime, name, task_path in task_entries[:limit]:
         script_data = _safe_load_task_script(task_path)
-        params_data = script_data.get("params", {}) if script_data else {}
+        params_data = script_data.get("params", {})
+        if not isinstance(params_data, dict):
+            params_data = {}
+        script_text = script_data.get("script", "")
+        if not isinstance(script_text, str):
+            script_text = ""
         video_file = _find_final_task_video(task_path)
         subject = (
             params_data.get("video_subject")
-            or script_data.get("script", "")[:40]
+            or script_text[:40]
             or name
         )
         tasks.append(
