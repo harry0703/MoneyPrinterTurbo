@@ -8,6 +8,7 @@ rows; it is not a chat-completions provider.
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from collections.abc import Callable, Mapping
@@ -22,9 +23,10 @@ from loguru import logger
 DEFAULT_RESULT_PORT_NAME = "output"
 DEFAULT_BASE_URL = "https://loomloom.shengsuanyun.com/loom/v1"
 DEFAULT_SCRIPT_MARKET_LISTING_ID = "019fd618-9baa-73d9-94f4-c9270b6f3025"
+VIDEO_CAPABILITY_PROFILE_ID = "video.text-to-video.aspect-ratio.v1"
 # 文案与视频是两个输入、产物结构完全不同的已上架 SkillBot。两个 ID 都是
 # MoneyPrinterTurbo 集成的内部常量，用户只需提供 API Key，不应接触 Listing ID。
-DEFAULT_VIDEO_MARKET_LISTING_ID = "019fd60d-5c26-78f7-bba0-5584f9ee7337"
+DEFAULT_VIDEO_MARKET_LISTING_ID = "01a06563-7331-773a-b9b2-25989a0dd70e"
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 30.0
 DEFAULT_POLL_INTERVAL_SECONDS = 2.0
 DEFAULT_RUN_TIMEOUT_SECONDS = 600.0
@@ -62,6 +64,25 @@ class LoomLoomAPIError(LoomLoomError):
 
 class LoomLoomRunError(LoomLoomError):
     """Raised when a submitted run fails or exceeds its wait timeout."""
+
+
+def _coerce_seconds_setting(value: Any, name: str) -> float:
+    """
+    把配置里的秒数字段转成浮点数，并保持配置错误的异常类型约定。
+
+    TOML 允许字符串/数组写法，裸 ``float()`` 抛出的 ``ValueError`` /
+    ``TypeError`` 不是 ``LoomLoomError``，会让只捕获 ``LoomLoomError`` 的轮询
+    入口冒泡成 traceback，绕过 ``validate()`` 带配置名的提示；``float(True)``
+    还会静默变成 1.0，把 600 秒等待压成 1 秒。
+    """
+    if isinstance(value, bool):
+        raise LoomLoomConfigurationError(f"{name} must be a number, got {value!r}")
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise LoomLoomConfigurationError(
+            f"{name} must be a number, got {value!r}"
+        ) from None
 
 
 def resolve_api_token(values: Mapping[str, Any]) -> str:
@@ -102,20 +123,23 @@ class LoomLoomSettings:
             market_listing_id=DEFAULT_SCRIPT_MARKET_LISTING_ID,
             listing_version_id="",
             result_port_name=DEFAULT_RESULT_PORT_NAME,
-            request_timeout_seconds=float(
+            request_timeout_seconds=_coerce_seconds_setting(
                 values.get(
                     "loomloom_request_timeout_seconds",
                     DEFAULT_REQUEST_TIMEOUT_SECONDS,
-                )
+                ),
+                "loomloom_request_timeout_seconds",
             ),
-            poll_interval_seconds=float(
+            poll_interval_seconds=_coerce_seconds_setting(
                 values.get(
                     "loomloom_poll_interval_seconds",
                     DEFAULT_POLL_INTERVAL_SECONDS,
-                )
+                ),
+                "loomloom_poll_interval_seconds",
             ),
-            run_timeout_seconds=float(
-                values.get("loomloom_run_timeout_seconds", DEFAULT_RUN_TIMEOUT_SECONDS)
+            run_timeout_seconds=_coerce_seconds_setting(
+                values.get("loomloom_run_timeout_seconds", DEFAULT_RUN_TIMEOUT_SECONDS),
+                "loomloom_run_timeout_seconds",
             ),
         )
         settings.validate(require_api_token=True)
@@ -146,6 +170,10 @@ class LoomLoomSettings:
             ("loomloom_poll_interval_seconds", self.poll_interval_seconds),
             ("loomloom_run_timeout_seconds", self.run_timeout_seconds),
         ):
+            # ``value <= 0`` 拦不住 NaN/Inf：NaN 参与比较恒为 False，Inf 永远
+            # 大于当前时间，两者都会让 ``wait_for_run`` 的截止时间失效。
+            if not math.isfinite(value):
+                raise LoomLoomConfigurationError(f"{name} must be a finite number")
             if value <= 0:
                 raise LoomLoomConfigurationError(f"{name} must be greater than zero")
 
@@ -160,6 +188,21 @@ class LoomLoomVideoBatch:
     """默认 SkillBot 一次视频素材报价所包含的输入行。"""
 
     input_rows: tuple[dict[str, str], ...]
+
+
+@dataclass(frozen=True)
+class LoomLoomVideoModel:
+    model_id: str
+    display_name: str
+
+
+@dataclass(frozen=True)
+class LoomLoomVideoCapability:
+    """当前账号可用于文本生成视频 Profile 的公开候选。"""
+
+    models: tuple[LoomLoomVideoModel, ...]
+    default_model_id: str
+    aspect_ratios: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -242,18 +285,19 @@ def video_settings_from_mapping(values: Mapping[str, Any]) -> LoomLoomSettings:
     return LoomLoomSettings(
         base_url=settings.base_url,
         api_token=settings.api_token,
-        # 视频 Listing 接收 scenePrompt/aspectRatio/sceneIndex 并返回 MP4；不能
+        # 视频 Listing 接收 prompt/modelChoice/aspectRatio 并返回 MP4；不能
         # 复用文案 Listing，否则报价阶段就会因输入 schema 不匹配而失败。
         market_listing_id=DEFAULT_VIDEO_MARKET_LISTING_ID,
         listing_version_id=settings.listing_version_id,
         result_port_name=settings.result_port_name,
         request_timeout_seconds=settings.request_timeout_seconds,
         poll_interval_seconds=settings.poll_interval_seconds,
-        run_timeout_seconds=float(
+        run_timeout_seconds=_coerce_seconds_setting(
             values.get(
                 "loomloom_video_run_timeout_seconds",
                 DEFAULT_VIDEO_RUN_TIMEOUT_SECONDS,
-            )
+            ),
+            "loomloom_video_run_timeout_seconds",
         ),
     )
 
@@ -634,7 +678,9 @@ class LoomLoomScriptBackend:
             if isinstance(error_payload, dict):
                 server_error = str(error_payload.get("error", "")).strip()
                 if server_error:
-                    message = server_error
+                    # 服务端错误偶尔会回显请求上下文。即使出现异常响应，也不能
+                    # 让 Bearer Token 进入页面错误、日志或任务状态。
+                    message = server_error.replace(api_token, "[redacted]")
             raise LoomLoomAPIError(
                 f"LoomLoom API returned HTTP {response.status_code}: {message}",
                 status_code=response.status_code,
@@ -681,17 +727,120 @@ class LoomLoomScriptBackend:
 class LoomLoomVideoBackend(LoomLoomScriptBackend):
     """通过默认 SkillBot 生成视频素材，并将 MP4 产物安全下载到任务目录。"""
 
+    def resolve_video_capability(self) -> LoomLoomVideoCapability:
+        """读取当前账号在固定视频 Profile 下的实时模型与比例候选。"""
+        response = self._request(
+            "GET",
+            "/authoringCapabilities:resolve",
+            params={"inputModality": "text", "outputModality": "video"},
+        )
+        matches = response.get("matches", [])
+        if not isinstance(matches, list):
+            raise LoomLoomAPIError("LoomLoom capability matches must be a list")
+
+        profile_match = next(
+            (
+                match
+                for match in matches
+                if isinstance(match, dict)
+                and isinstance(match.get("profile"), dict)
+                and str(match["profile"].get("profileId", "")).strip()
+                == VIDEO_CAPABILITY_PROFILE_ID
+            ),
+            None,
+        )
+        if profile_match is None:
+            raise LoomLoomConfigurationError(
+                f"LoomLoom capability profile {VIDEO_CAPABILITY_PROFILE_ID} is unavailable"
+            )
+
+        eligible_models = profile_match.get("eligibleModels", [])
+        if not isinstance(eligible_models, list):
+            raise LoomLoomAPIError("LoomLoom eligibleModels must be a list")
+
+        models = []
+        seen_model_ids = set()
+        for candidate in eligible_models:
+            if not isinstance(candidate, dict):
+                raise LoomLoomAPIError("LoomLoom eligible model must be an object")
+            # null/数值不能转成看似有效的 ID，否则会把坏目录继续传给付费接口。
+            model_id = candidate.get("modelId")
+            display_name = candidate.get("displayName")
+            if not isinstance(model_id, str) or not isinstance(display_name, str):
+                raise LoomLoomAPIError("LoomLoom modelId and displayName must be strings")
+            model_id = model_id.strip()
+            display_name = display_name.strip()
+            if not model_id or not display_name:
+                raise LoomLoomAPIError(
+                    "LoomLoom eligible model requires modelId and displayName"
+                )
+            if model_id in seen_model_ids:
+                continue
+            seen_model_ids.add(model_id)
+            models.append(
+                LoomLoomVideoModel(model_id=model_id, display_name=display_name)
+            )
+        if not models:
+            raise LoomLoomConfigurationError(
+                "LoomLoom video capability has no eligible models"
+            )
+
+        profile = profile_match["profile"]
+        operations = profile.get("operations", {})
+        if not isinstance(operations, dict):
+            raise LoomLoomAPIError("LoomLoom profile operations must be an object")
+        default_model_id = str(operations.get("defaultModelId", "")).strip()
+        if default_model_id not in seen_model_ids:
+            raise LoomLoomConfigurationError(
+                "LoomLoom video capability default model is not eligible"
+            )
+
+        definition = profile.get("definition", {})
+        constraints = (
+            definition.get("constraints", {}) if isinstance(definition, dict) else {}
+        )
+        ports = constraints.get("ports", {}) if isinstance(constraints, dict) else {}
+        aspect_ratio = ports.get("aspect_ratio", {}) if isinstance(ports, dict) else {}
+        raw_aspect_ratios = (
+            aspect_ratio.get("enum", []) if isinstance(aspect_ratio, dict) else []
+        )
+        if not isinstance(raw_aspect_ratios, list):
+            raise LoomLoomAPIError(
+                "LoomLoom video aspect ratio constraint must be a list"
+            )
+        aspect_ratios = tuple(
+            dict.fromkeys(
+                str(value).strip()
+                for value in raw_aspect_ratios
+                if str(value).strip() in {"9:16", "16:9"}
+            )
+        )
+        if not aspect_ratios:
+            raise LoomLoomConfigurationError(
+                "LoomLoom video capability has no supported aspect ratios"
+            )
+
+        return LoomLoomVideoCapability(
+            models=tuple(models),
+            default_model_id=default_model_id,
+            aspect_ratios=aspect_ratios,
+        )
+
     def prepare_video_batch(
         self,
         *,
         subject: str,
         scene_prompts: list[str] | tuple[str, ...],
+        model_id: str,
         aspect_ratio: str,
     ) -> LoomLoomVideoBatch:
         normalized_subject = str(subject or "").strip()
+        normalized_model_id = str(model_id or "").strip()
         normalized_aspect_ratio = str(aspect_ratio or "").strip()
         if not normalized_subject:
             raise ValueError("subject is required")
+        if not normalized_model_id:
+            raise ValueError("model_id is required")
         if normalized_aspect_ratio not in {"9:16", "16:9"}:
             raise ValueError("aspect_ratio must be 9:16 or 16:9")
 
@@ -707,13 +856,13 @@ class LoomLoomVideoBackend(LoomLoomScriptBackend):
 
         rows = tuple(
             {
-                "scenePrompt": (
+                "prompt": (
                     "Create cinematic stock-footage-style video for a short video "
-                    f"about {normalized_subject}. Scene focus: {scene}. "
+                    f"about {normalized_subject}. Scene {index} focus: {scene}. "
                     "No text, subtitles, captions, watermarks, logos, or spoken audio."
                 ),
+                "modelChoice": normalized_model_id,
                 "aspectRatio": normalized_aspect_ratio,
-                "sceneIndex": str(index),
             }
             for index, scene in enumerate(scenes, start=1)
         )

@@ -23,6 +23,11 @@ MATERIAL_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
 _CACHE_FORMAT_VERSION = 2
 _CACHE_CLEANUP_INTERVAL_SECONDS = 60 * 60
 _CACHE_FILE_PATTERN = re.compile(r"^[0-9a-f]{64}\.json$")
+# 保存缓存时先写入 NamedTemporaryFile(delete=False)，再用 os.replace 发布。
+# 进程被强制终止（Ctrl+C、容器停止、断电）时 Python 的异常兜底没有机会执行，
+# 会留下一个没有被替换的中间文件；它不匹配上面的缓存文件模式，必须单独识别
+# 才能回收，否则会永久累积在缓存目录里。
+_CACHE_TEMP_FILE_PATTERN = re.compile(r"^\.[0-9a-f]{64}-[a-z0-9_]+\.tmp$")
 
 # API 默认允许多个视频任务并发执行。固定数量的锁分片可以让相同搜索条件共用
 # 一个锁，同时避免按关键词永久保存 Lock 导致内存持续增长。它只负责合并当前
@@ -386,11 +391,12 @@ def cleanup_expired_material_search_cache(
     force: bool = False,
 ) -> int:
     """
-    低频清理没有再次被查询到的过期搜索缓存。
+    低频清理没有再次被查询到的过期搜索缓存，以及中断写入遗留的临时文件。
 
     正常写入路径每小时最多扫描一次目录，避免每次搜索都产生线性目录遍历；
-    ``force`` 仅供测试或显式维护调用。只删除 SHA-256 命名的 JSON 文件，不会
-    触碰用户放入目录的其它文件。
+    ``force`` 仅供测试或显式维护调用。只删除 SHA-256 命名的 JSON 缓存文件和本
+    模块自己生成的 ``.tmp`` 中间文件，不会触碰用户放入目录的其它文件。两者共用
+    同一套过期判定，因此仍在写入中的临时文件不会被并发清理误删。
     """
     global _last_cleanup_monotonic
 
@@ -420,7 +426,10 @@ def cleanup_expired_material_search_cache(
     failed_count = 0
     with entries:
         for entry in entries:
-            if not _CACHE_FILE_PATTERN.fullmatch(entry.name):
+            if not (
+                _CACHE_FILE_PATTERN.fullmatch(entry.name)
+                or _CACHE_TEMP_FILE_PATTERN.fullmatch(entry.name)
+            ):
                 continue
             try:
                 if not entry.is_file(follow_symlinks=False):

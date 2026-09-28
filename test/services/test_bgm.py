@@ -81,6 +81,9 @@ class TestBackgroundMusicService(unittest.TestCase):
             "song.mp3\x00",
             "CON.mp3",
             "lpt1.wav",
+            "COM¹.mp3",
+            "lpt².wav",
+            "com³.flac",
             "bad:name.mp3",
             "bad?.flac",
             ".bgm-upload-user.m4a",
@@ -90,6 +93,46 @@ class TestBackgroundMusicService(unittest.TestCase):
             with self.subTest(filename=filename):
                 with self.assertRaises(bgm.BgmUploadError):
                     bgm.sanitize_upload_filename(filename)
+
+        # 只有扩展名之前的首段会被 Win32 当作设备名，上标数字出现在别处不影响。
+        self.assertEqual(bgm.sanitize_upload_filename("song¹.mp3"), "song¹.mp3")
+
+    def test_sanitize_upload_filename_rejects_control_and_bidi_characters(self):
+        """控制符与双向控制符会破坏日志和界面上的文件名显示，必须拒绝。"""
+        for filename in (
+            # C0 控制符（原有行为，此处只作回归保护）
+            "song\x00.mp3",
+            "song\n.mp3",
+            "song\t.mp3",
+            # C1 控制符：U+0085 会被部分日志查看器渲染成换行
+            "song\x7f.mp3",
+            "song\x85.mp3",
+            "song\x9b.mp3",
+            # 双向文本控制符：U+202E 之后的文本会被反向渲染
+            "photo\u202egnp.mp3",
+            "song\u200e.mp3",
+            "song\u2069.mp3",
+            # Unicode 行/段分隔符
+            "song\u2028.mp3",
+            "song\u2029.mp3",
+        ):
+            with self.subTest(filename=filename):
+                with self.assertRaises(bgm.BgmUploadError):
+                    bgm.sanitize_upload_filename(filename)
+
+    def test_sanitize_upload_filename_keeps_printable_unicode_names(self):
+        """只拦截控制符和双向控制符，不误伤中文、组合符等正常文件名。"""
+        for filename in (
+            "用户音乐.mp3",
+            "backing track.mp3",
+            "song\u00a0.mp3",  # 不换行空格：可直接输入，也不改变显示顺序
+            "e\u0301tude.mp3",  # 组合重音符
+            "let\u2019s-go.mp3",  # 弯引号
+            "song\ufe0f.mp3",  # 变体选择符（Cf，但不影响显示顺序）
+            "family\u200d.mp3",  # ZWJ（Cf，emoji 序列依赖它）
+        ):
+            with self.subTest(filename=filename):
+                self.assertEqual(bgm.sanitize_upload_filename(filename), filename)
 
     def test_save_bgm_upload_uses_atomic_storage_directory_write(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -333,6 +376,7 @@ class TestBackgroundMusicService(unittest.TestCase):
             ):
                 resolved = bgm.resolve_bgm_file("same.mp3")
                 listed = bgm.list_bgm_files()
+                builtin_listed = bgm.list_builtin_bgm_files()
 
             self.assertEqual(
                 resolved, os.path.realpath(os.path.join(uploaded_dir, "same.mp3"))
@@ -345,6 +389,55 @@ class TestBackgroundMusicService(unittest.TestCase):
             self.assertEqual(
                 same_file, os.path.realpath(os.path.join(uploaded_dir, "same.mp3"))
             )
+            self.assertEqual(
+                [os.path.basename(file_path) for file_path in builtin_listed],
+                ["builtin.mp3", "same.mp3"],
+            )
+            with patch.object(bgm.utils, "song_dir", return_value=builtin_dir):
+                self.assertEqual(
+                    bgm.resolve_builtin_bgm_file("same.mp3"),
+                    os.path.realpath(os.path.join(builtin_dir, "same.mp3")),
+                )
+
+                for invalid_path in (
+                    "../same.mp3",
+                    str(Path(uploaded_dir, "user.flac")),
+                ):
+                    with self.subTest(invalid_path=invalid_path):
+                        with self.assertRaises(ValueError):
+                            bgm.resolve_builtin_bgm_file(invalid_path)
+
+    def test_resolve_rejects_staged_upload_left_by_an_interrupted_write(self):
+        """写入中断留下的暂存中间文件不能被解析成可用的背景音乐。
+
+        ``_list_bgm_files`` 已经把这些尚未完成校验的中间文件排除在随机 BGM
+        之外，但 API 与 CLI 传入的 ``bgm_file`` 走的是 ``resolve_bgm_file``：
+        同一个文件必须在两个入口得到同一个结论，否则客户端可以让任务引用一个
+        内容不完整、无法解码的中间文件。
+        """
+
+        with tempfile.TemporaryDirectory() as uploaded_dir:
+            staged_name = f"{bgm._INTERNAL_UPLOAD_PREFIX}pending.m4a"
+            Path(uploaded_dir, staged_name).write_bytes(b"partial")
+            Path(uploaded_dir, "user.flac").write_bytes(b"uploaded")
+
+            with patch.object(bgm, "uploaded_bgm_dir", return_value=uploaded_dir):
+                for candidate in (
+                    staged_name,
+                    os.path.join(uploaded_dir, staged_name),
+                    # Windows 与 macOS 的文件系统不区分大小写，暂存前缀的判定
+                    # 也必须如此，否则同一个文件会因为大小写写法不同而复活。
+                    staged_name.upper(),
+                ):
+                    with self.subTest(candidate=candidate):
+                        with self.assertRaises(ValueError):
+                            bgm.resolve_bgm_file(candidate)
+
+                # 普通上传文件仍然可以正常解析（反向对照）。
+                self.assertEqual(
+                    bgm.resolve_bgm_file("user.flac"),
+                    os.path.realpath(os.path.join(uploaded_dir, "user.flac")),
+                )
 
 
 if __name__ == "__main__":

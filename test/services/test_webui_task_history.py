@@ -16,6 +16,7 @@ TASK_HISTORY_HELPERS = {
 TASK_HISTORY_CONSTANTS = {
     "_FINAL_VIDEO_PATTERN",
     "_DOWNLOAD_FILENAME_INVALID_PATTERN",
+    "_WINDOWS_RESERVED_FILENAMES",
     "VOICE_MODE_TTS",
     "VOICE_MODE_UPLOAD",
     "VOICE_MODE_NONE",
@@ -49,6 +50,7 @@ def _load_task_history_helpers():
 TASK_HISTORY_NAMESPACE = _load_task_history_helpers()
 find_final_task_video = TASK_HISTORY_NAMESPACE["_find_final_task_video"]
 build_video_download_name = TASK_HISTORY_NAMESPACE["_build_video_download_name"]
+windows_reserved_filenames = TASK_HISTORY_NAMESPACE["_WINDOWS_RESERVED_FILENAMES"]
 build_restore_upload_requirements = TASK_HISTORY_NAMESPACE[
     "_build_restore_upload_requirements"
 ]
@@ -88,6 +90,61 @@ def test_build_video_download_name_uses_subject_and_output_index():
 def test_build_video_download_name_handles_empty_and_long_subjects():
     assert build_video_download_name("  ...  ", 1, 1) == "video.mp4"
     assert len(build_video_download_name("a" * 100, 1, 1)) == 84
+
+
+def test_build_video_download_name_avoids_windows_reserved_names():
+    # 使用官方规则的显式清单，避免测试复制生产代码的 range/comprehension；
+    # 如果实现误写范围，集合相等断言会立即失败，而不是与实现一起漏测。
+    reserved_names = {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "COM¹",
+        "COM²",
+        "COM³",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
+        "LPT¹",
+        "LPT²",
+        "LPT³",
+    }
+    assert windows_reserved_filenames == reserved_names
+
+    for reserved_name in reserved_names:
+        assert (
+            build_video_download_name(reserved_name.lower(), 1, 1)
+            == f"_{reserved_name.lower()}.mp4"
+        )
+        assert (
+            build_video_download_name(f"{reserved_name}.topic", 2, 3)
+            == f"_{reserved_name}.topic-2.mp4"
+        )
+
+    assert build_video_download_name("con .topic", 1, 1) == "_con .topic.mp4"
+
+
+def test_build_video_download_name_does_not_overmatch_similar_names():
+    """只处理 Windows 真实保留名，不能误伤相邻但合法的普通主题。"""
+
+    for safe_name in ("COM0", "COM10", "LPT0", "LPT10", "COM⁴", "LPT⁴"):
+        assert build_video_download_name(safe_name, 1, 1) == f"{safe_name}.mp4"
 
 
 def test_restore_requirements_block_missing_uploaded_files():

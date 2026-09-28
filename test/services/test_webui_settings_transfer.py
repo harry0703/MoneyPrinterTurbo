@@ -6,6 +6,7 @@ import pytest
 
 from app.models.llm_provider import LLM_PROVIDER_REGISTRY, get_llm_provider
 from app.models.schema import VideoParams
+from app.services import bgm as bgm_service
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -76,7 +77,9 @@ def _load_settings_transfer_helpers():
 
     namespace = {
         "json": json,
+        "Path": Path,
         "VideoParams": VideoParams,
+        "bgm_service": bgm_service,
         "LLM_PROVIDER_REGISTRY": LLM_PROVIDER_REGISTRY,
         # _apply_key_backup 写配置并清理控件状态，两者都由测试替身记录，
         # 这样可以验证真实实现而不需要启动 Streamlit 会话。
@@ -123,6 +126,7 @@ def _sample_config_sections():
             "upload_post_api_key": "api-key-123",
             "upload_post_username": "my-username",
             "volcengine_seedance_api_key": "ark-seedance-key",
+            "ofox_api_key": "ofox-backup-key",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key", "model_id": "eleven_v3"},
@@ -151,6 +155,7 @@ def test_settings_preset_round_trip_preserves_generation_settings():
     params = VideoParams(
         video_subject="a cat",
         video_aspect="9:16",
+        video_fit_mode="contain",
         font_size=48,
         stroke_width=2.5,
         voice_volume=0.8,
@@ -163,10 +168,42 @@ def test_settings_preset_round_trip_preserves_generation_settings():
 
     assert restored["video_subject"] == "a cat"
     assert restored["video_aspect"] == "9:16"
+    assert restored["video_fit_mode"] == "contain"
     assert restored["font_size"] == 48
     assert restored["stroke_width"] == 2.5
     assert restored["voice_volume"] == 0.8
     assert restored["paragraph_number"] == 3
+
+
+def test_settings_preset_round_trip_preserves_builtin_bgm_filename():
+    params = VideoParams(
+        video_subject="a cat",
+        bgm_type="preset",
+        bgm_file="output000.mp3",
+    ).model_dump(mode="json")
+
+    payload = build_settings_preset_payload(params, "1")
+    restored = parse_settings_preset(_encode(payload))
+
+    assert payload["params"]["bgm_file"] == "output000.mp3"
+    assert restored["bgm_type"] == "preset"
+    assert restored["bgm_file"] == "output000.mp3"
+
+
+def test_settings_preset_rejects_unsafe_or_missing_builtin_bgm():
+    for bgm_file in ("../output000.mp3", "missing-preset-song.mp3"):
+        payload = {
+            "schema": SETTINGS_PRESET_SCHEMA,
+            "version": SETTINGS_PRESET_VERSION,
+            "params": {
+                "video_subject": "a cat",
+                "bgm_type": "preset",
+                "bgm_file": bgm_file,
+            },
+        }
+
+        with pytest.raises(ValueError):
+            parse_settings_preset(_encode(payload))
 
 
 def test_settings_preset_accepts_file_without_video_subject():
@@ -223,11 +260,12 @@ def test_key_backup_collects_credentials_and_their_companion_settings():
             "upload_post_api_key": "api-key-123",
             "upload_post_username": "my-username",
             "volcengine_seedance_api_key": "ark-seedance-key",
+            "ofox_api_key": "ofox-backup-key",
         },
         "azure": {"speech_key": "azure-key", "speech_region": "westeurope"},
         "elevenlabs": {"api_key": "eleven-key"},
     }
-    assert count_backup_keys(backup) == 11
+    assert count_backup_keys(backup) == 12
 
 
 def test_key_backup_carries_llm_provider_extra_fields_with_the_key():
@@ -282,6 +320,7 @@ def test_key_backup_round_trip_restores_every_saved_key():
     assert restored["app"]["upload_post_api_key"] == "api-key-123"
     assert restored["app"]["upload_post_username"] == "my-username"
     assert restored["app"]["volcengine_seedance_api_key"] == "ark-seedance-key"
+    assert restored["app"]["ofox_api_key"] == "ofox-backup-key"
 
 
 def test_key_backup_import_ignores_unknown_sections_and_non_key_settings():
@@ -331,6 +370,9 @@ def test_credential_widget_state_keys_match_settings_inputs():
     assert credential_widget_state_keys("app", "volcengine_seedance_api_key") == (
         "volcengine_seedance_api_key_input",
     )
+    assert credential_widget_state_keys("app", "ofox_api_key") == (
+        "ofox_api_key_input",
+    )
     assert credential_widget_state_keys("azure", "speech_key") == (
         "azure_speech_key_input",
     )
@@ -351,7 +393,6 @@ def test_credential_widget_state_keys_cover_shared_input_aliases():
     )
     assert credential_widget_state_keys("app", "loomloom_api_token") == (
         "loomloom_api_token_input",
-        "loomloom_user_api_token",
     )
 
 
@@ -362,7 +403,7 @@ def test_apply_key_backup_writes_config_and_clears_every_widget_alias():
         {
             "gemini_api_key_input": "stale-gemini",
             "gemini_tts_api_key_input": "stale-gemini",
-            "loomloom_user_api_token": "stale-loomloom",
+            "loomloom_api_token_input": "stale-loomloom",
             "azure_speech_key_input": "stale-azure",
             "elevenlabs_voices_stale-key": ["old voice"],
             "video_subject": "untouched",

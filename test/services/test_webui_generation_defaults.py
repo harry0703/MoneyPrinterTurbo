@@ -85,6 +85,9 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         _widget_by_key(first_session.selectbox, "video_aspect_for_pexels").set_value(
             "16:9"
         )
+        _widget_by_key(first_session.selectbox, "video_fit_mode_select").set_value(
+            "contain"
+        )
         _widget_by_key(first_session.selectbox, "video_clip_duration_select").set_value(
             7
         )
@@ -104,15 +107,13 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
 
         # Aspect is a per-source preference: Coverr's common landscape default
         # must not replace an explicit portrait choice or the Pexels preference.
-        _widget_by_key(first_session.selectbox, "video_source_select").set_value(
-            "coverr"
-        ).run()
+        first_session.session_state["video_source_select_en"] = "coverr"
+        first_session.run()
         _widget_by_key(first_session.selectbox, "video_aspect_for_coverr").set_value(
             "9:16"
         ).run()
-        _widget_by_key(first_session.selectbox, "video_source_select").set_value(
-            "pexels"
-        ).run()
+        first_session.session_state["video_source_select_en"] = "pexels"
+        first_session.run()
 
         _widget_by_key(first_session.selectbox, "bgm_volume_select").set_value(0.4)
         _widget_by_key(first_session.text_input, "custom_bgm_file_input").set_value(
@@ -145,6 +146,7 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
             "video_transition_mode": "FadeIn",
             "video_aspect_pexels": "16:9",
             "video_aspect_coverr": "9:16",
+            "video_fit_mode": "contain",
             "video_clip_duration": 7,
             "video_clip_speed": 1.5,
             "video_count": 3,
@@ -191,15 +193,16 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         assert _widget_by_key(
             second_session.selectbox, "video_aspect_for_pexels"
         ).value == "16:9"
-        _widget_by_key(second_session.selectbox, "video_source_select").set_value(
-            "coverr"
-        ).run()
+        assert _widget_by_key(
+            second_session.selectbox, "video_fit_mode_select"
+        ).value == "contain"
+        second_session.session_state["video_source_select_en"] = "coverr"
+        second_session.run()
         assert _widget_by_key(
             second_session.selectbox, "video_aspect_for_coverr"
         ).value == "9:16"
-        _widget_by_key(second_session.selectbox, "video_source_select").set_value(
-            "pexels"
-        ).run()
+        second_session.session_state["video_source_select_en"] = "pexels"
+        second_session.run()
         assert _widget_by_key(
             second_session.selectbox, "video_clip_duration_select"
         ).value == 7
@@ -283,6 +286,7 @@ def test_invalid_saved_generation_settings_fall_back_without_breaking_webui():
         video_concat_mode="not-a-mode",
         video_transition_mode="not-a-transition",
         video_aspect_pexels="4:3",
+        video_fit_mode="stretch",
         video_clip_duration=999,
         video_clip_speed="nan",
         video_count=True,
@@ -317,6 +321,7 @@ def test_invalid_saved_generation_settings_fall_back_without_breaking_webui():
         "None"
     )
     assert _widget_by_key(app.selectbox, "video_aspect_for_pexels").value == "9:16"
+    assert _widget_by_key(app.selectbox, "video_fit_mode_select").value == "cover"
     assert _widget_by_key(app.selectbox, "video_clip_duration_select").value == 3
     assert _widget_by_key(app.slider, "video_clip_speed_slider").value == 1.0
     assert _widget_by_key(app.selectbox, "video_count_select").value == 1
@@ -332,6 +337,29 @@ def test_invalid_saved_generation_settings_fall_back_without_breaking_webui():
     assert app.session_state["loomloom_candidate_count"] == 1
     assert app.session_state["loomloom_script_duration_seconds"] == 600
     assert app.session_state["loomloom_video_scene_count"] == 1
+
+
+def test_ofox_source_shows_unchecked_paid_task_confirmation():
+    test_app_config = dict(
+        config.app,
+        video_source="ofox",
+        ofox_api_key="",
+    )
+    test_ui_config = dict(
+        config.ui,
+        language="en",
+        voice_mode="none",
+    )
+
+    with (
+        patch.object(config, "app", test_app_config),
+        patch.object(config, "ui", test_ui_config),
+        patch.object(config, "save_config"),
+    ):
+        app = _new_app()
+
+    assert app.session_state["video_source_select_en"] == "ofox"
+    assert _widget_by_key(app.checkbox, "ofox_confirm_charge").value is False
 
 
 def test_seedance_source_shows_unchecked_paid_task_confirmation():
@@ -353,9 +381,7 @@ def test_seedance_source_shows_unchecked_paid_task_confirmation():
     ):
         app = _new_app()
 
-    assert _widget_by_key(app.selectbox, "video_source_select").value == (
-        "volcengine_seedance"
-    )
+    assert app.session_state["video_source_select_en"] == "volcengine_seedance"
     assert _widget_by_key(
         app.checkbox, "volcengine_seedance_confirm_charge"
     ).value is False

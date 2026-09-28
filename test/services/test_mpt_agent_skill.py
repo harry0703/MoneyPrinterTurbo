@@ -1,3 +1,4 @@
+import ast
 import importlib.util
 import io
 import json
@@ -9,6 +10,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+
+from app.models.llm_provider import LLM_PROVIDER_REGISTRY
 
 
 SKILL_SCRIPT = (
@@ -29,6 +32,12 @@ pexels_api_keys = []
 pixabay_api_keys = []
 coverr_api_keys = []
 volcengine_seedance_api_key = ""
+ofox_api_key = ""
+metaso_minimax_api_key = ""
+muapi_api_key = ""
+openai_image_base_url = ""
+openai_image_model = ""
+openai_image_api_keys = []
 oneapi_api_key = ""
 oneapi_base_url = ""
 oneapi_model_name = ""
@@ -100,6 +109,8 @@ class TestMptAgentSkill(unittest.TestCase):
             llm_key = "secret-llm-key"
             pexels_key = "secret-pexels-key"
             seedance_key = "secret-ark-key"
+            metaso_key = "secret-metaso-key"
+            muapi_key = "secret-muapi-key"
 
             with patch.dict(
                 os.environ,
@@ -108,6 +119,8 @@ class TestMptAgentSkill(unittest.TestCase):
                     "MPT_LLM_API_KEY": llm_key,
                     "MPT_PEXELS_API_KEY": pexels_key,
                     "MPT_VOLCENGINE_ARK_API_KEY": seedance_key,
+                    "MPT_METASO_MINIMAX_API_KEY": metaso_key,
+                    "MPT_MUAPI_API_KEY": muapi_key,
                 },
                 clear=True,
             ), redirect_stdout(output):
@@ -120,9 +133,13 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertIn(
                 f'volcengine_seedance_api_key = "{seedance_key}"', config
             )
+            self.assertIn(f'metaso_minimax_api_key = "{metaso_key}"', config)
+            self.assertIn(f'muapi_api_key = "{muapi_key}"', config)
             self.assertNotIn(llm_key, output.getvalue())
             self.assertNotIn(pexels_key, output.getvalue())
             self.assertNotIn(seedance_key, output.getvalue())
+            self.assertNotIn(metaso_key, output.getvalue())
+            self.assertNotIn(muapi_key, output.getvalue())
 
     def test_material_key_check_matches_selected_source(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -141,6 +158,212 @@ class TestMptAgentSkill(unittest.TestCase):
 
             self.assertEqual(default_missing, ["pexels_api_keys"])
             self.assertEqual(pixabay_missing, [])
+
+    def test_openai_image_source_accepts_keyless_local_gateway(self):
+        """文生图素材源只需要端点与模型名，本地网关允许不配置 API Key。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                )
+                .replace(
+                    'openai_image_base_url = ""',
+                    'openai_image_base_url = "http://127.0.0.1:7860/v1"',
+                )
+                .replace(
+                    'openai_image_model = ""', 'openai_image_model = "local-sd"'
+                ),
+                encoding="utf-8",
+            )
+
+            _, missing = mpt_agent.missing_config(
+                config_path, ["--video-source", "openai_image"]
+            )
+
+            self.assertEqual(missing, [])
+
+    def test_missing_openai_image_inputs_report_endpoint_and_model(self):
+        """端点或模型名缺失时必须回报字段名，且不能把可选的 Key 当作缺失。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            _, missing = mpt_agent.missing_config(
+                config_path, ["--video-source", "openai_image"]
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = mpt_agent.report_missing_config("moonshot", missing)
+
+            self.assertEqual(
+                missing, ["openai_image_base_url", "openai_image_model"]
+            )
+            self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+            self.assertIn("OPENAI_IMAGE_REQUIRED=", output.getvalue())
+            self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", output.getvalue())
+
+    def test_ofox_source_requires_key_and_explicit_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "ofox"]
+                )
+            self.assertEqual(missing, ["ofox_api_key", "confirm_ofox_charge"])
+
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'ofox_api_key = ""', 'ofox_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "ofox", "--confirm-ofox-charge"],
+                )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_ofox_source_accepts_the_provider_specific_environment_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ,
+                {"OFOX_API_KEY": "environment-ofox-key"},
+                clear=True,
+            ):
+                _, missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "ofox", "--confirm-ofox-charge"],
+                )
+
+            self.assertEqual(missing, [])
+
+    def test_ofox_environment_key_is_written_without_leaking_to_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(MINIMAL_CONFIG, encoding="utf-8")
+            ofox_key = "secret-ofox-key"
+            output = io.StringIO()
+
+            with patch.dict(
+                os.environ,
+                {"MPT_OFOX_API_KEY": ofox_key},
+                clear=True,
+            ), redirect_stdout(output):
+                mpt_agent.apply_environment_config(config_path)
+
+            config = config_path.read_text(encoding="utf-8")
+            self.assertIn(f'ofox_api_key = "{ofox_key}"', config)
+            self.assertNotIn(ofox_key, output.getvalue())
+
+    def test_missing_ofox_inputs_report_signup_and_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "deepseek",
+                ["ofox_api_key", "confirm_ofox_charge"],
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(f"OFOX_API_KEY_URL={mpt_agent.OFOX_API_KEY_URL}", text)
+        self.assertIn(
+            "OFOX_CHARGE_CONFIRMATION_REQUIRED=--confirm-ofox-charge", text
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_wavespeed_source_requires_its_own_key_and_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_text = MINIMAL_CONFIG.replace(
+                'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+            ).replace(
+                "pexels_api_keys = []",
+                "pexels_api_keys = []\nwavespeed_api_keys = []",
+            )
+            config_path.write_text(config_text, encoding="utf-8")
+
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "wavespeed"]
+                )
+            self.assertEqual(
+                missing, ["wavespeed_api_keys", "confirm_wavespeed_charge"]
+            )
+
+            config_path.write_text(
+                config_text.replace(
+                    "wavespeed_api_keys = []", 'wavespeed_api_keys = ["configured"]'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "wavespeed", "--confirm-wavespeed-charge"],
+                )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_missing_wavespeed_inputs_report_the_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "moonshot",
+                ["wavespeed_api_keys", "confirm_wavespeed_charge"],
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(
+            "WAVESPEED_CHARGE_CONFIRMATION_REQUIRED=--confirm-wavespeed-charge",
+            text,
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_supported_sources_match_the_cli_video_source_list(self):
+        """helper 的来源白名单必须与 cli.py 的 _CLI_VIDEO_SOURCES 同一集合。
+
+        脚本里手抄的这份清单曾经漏掉 wavespeed：CLI 接受该来源，helper 却报
+        "unsupported video source"。期望值从权威常量推导，新增来源时会先失败。
+        """
+        tree = ast.parse(
+            (SKILL_SCRIPT.parents[2] / "cli.py").read_text(encoding="utf-8")
+        )
+        cli_sources = None
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if any(
+                isinstance(target, ast.Name)
+                and target.id == "_CLI_VIDEO_SOURCES"
+                for target in node.targets
+            ):
+                cli_sources = set(ast.literal_eval(node.value))
+                break
+
+        self.assertIsNotNone(cli_sources)
+        self.assertEqual(set(mpt_agent.SUPPORTED_SOURCES), cli_sources)
 
     def test_seedance_source_requires_key_and_explicit_charge_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -203,6 +426,88 @@ class TestMptAgentSkill(unittest.TestCase):
 
             self.assertEqual(missing, [])
 
+    def test_metaso_source_requires_its_own_key_and_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            _, missing = mpt_agent.missing_config(
+                config_path, ["--video-source", "metaso_minimax"]
+            )
+            self.assertEqual(
+                missing,
+                ["metaso_minimax_api_key", "confirm_metaso_minimax_charge"],
+            )
+
+            with patch.dict(
+                os.environ,
+                {"METASO_MINIMAX_API_KEY": "environment-metaso-key"},
+                clear=True,
+            ):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    [
+                        "--video-source",
+                        "metaso_minimax",
+                        "--confirm-metaso-minimax-charge",
+                    ],
+                )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_muapi_source_requires_its_own_key_and_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "muapi"]
+                )
+            self.assertEqual(missing, ["muapi_api_key", "confirm_muapi_charge"])
+
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'muapi_api_key = ""', 'muapi_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "muapi", "--confirm-muapi-charge"],
+                )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_muapi_source_accepts_provider_environment_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {"MUAPI_API_KEY": "environment-muapi-key"},
+                clear=True,
+            ):
+                _, missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "muapi", "--confirm-muapi-charge"],
+                )
+            self.assertEqual(missing, [])
+
     def test_existing_provider_key_is_reused_without_asking_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
@@ -226,6 +531,46 @@ class TestMptAgentSkill(unittest.TestCase):
                 config_path.read_text(encoding="utf-8"),
             )
             self.assertNotIn(secret, output.getvalue())
+
+    def test_keyless_providers_stay_aligned_with_the_provider_registry(self):
+        """辅助脚本的无 Key 集合必须与 Provider 注册表保持一致。"""
+        registry_keyless = {
+            provider.provider_id
+            for provider in LLM_PROVIDER_REGISTRY
+            if not provider.requires_api_key
+        }
+
+        self.assertEqual(mpt_agent.KEYLESS_LLM_PROVIDERS, registry_keyless)
+
+    def test_claude_code_subscription_provider_needs_no_api_key(self):
+        """
+        Claude Code 走本机订阅，辅助脚本不能再要求一把并不存在的 API Key。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "claude_code"'
+                ).replace(
+                    'deepseek_api_key = ""',
+                    'deepseek_api_key = "already-configured-key"',
+                ).replace("pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]'),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                provider = mpt_agent.reuse_existing_llm_provider(config_path)
+            active_provider, missing = mpt_agent.missing_config(config_path, [])
+
+            # 即使别的 Provider 已经配置了 Key，也不能悄悄把订阅用户切走。
+            self.assertEqual(provider, "claude_code")
+            self.assertEqual(active_provider, "claude_code")
+            self.assertEqual(missing, [])
+            self.assertIn(
+                'llm_provider = "claude_code"',
+                config_path.read_text(encoding="utf-8"),
+            )
 
     def test_only_missing_pexels_key_does_not_ask_for_llm_again(self):
         output = io.StringIO()
@@ -257,6 +602,42 @@ class TestMptAgentSkill(unittest.TestCase):
         self.assertIn(
             "SEEDANCE_CHARGE_CONFIRMATION_REQUIRED=--confirm-seedance-charge",
             text,
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_missing_metaso_inputs_report_key_environment_and_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "deepseek",
+                ["metaso_minimax_api_key", "confirm_metaso_minimax_charge"],
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(
+            "METASO_MINIMAX_API_KEY_ENV=MPT_METASO_MINIMAX_API_KEY", text
+        )
+        self.assertIn(
+            "METASO_MINIMAX_CHARGE_CONFIRMATION_REQUIRED="
+            "--confirm-metaso-minimax-charge",
+            text,
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_missing_muapi_inputs_report_key_environment_and_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "deepseek", ["muapi_api_key", "confirm_muapi_charge"]
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(f"MUAPI_API_KEY_URL={mpt_agent.MUAPI_API_KEY_URL}", text)
+        self.assertIn("MUAPI_API_KEY_ENV=MPT_MUAPI_API_KEY", text)
+        self.assertIn(
+            "MUAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-muapi-charge", text
         )
         self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
 
@@ -460,6 +841,28 @@ class TestMptAgentSkill(unittest.TestCase):
 
         self.assertNotIn("package-a", stdout.getvalue())
         self.assertNotIn("package-a", stderr.getvalue())
+
+    def test_run_checked_decodes_piped_output_as_utf8(self):
+        # run_checked pipes uv's output and re-decodes it with text=True. Without
+        # an explicit encoding, that decode follows the host locale (cp936/cp1252),
+        # so non-ASCII dependency errors reach the tail as mojibake. PR #1365 pinned
+        # every other PIPE-decoding subprocess.run to UTF-8; derive the requirement
+        # from the call so a future regression fails here instead of in the field.
+        with patch.object(
+            mpt_agent.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=0, stdout=""),
+        ) as run_mock:
+            mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+
+        kwargs = run_mock.call_args.kwargs
+        self.assertEqual(kwargs.get("stdout"), mpt_agent.subprocess.PIPE)
+        self.assertTrue(kwargs.get("text"))
+        self.assertEqual(
+            kwargs.get("encoding"),
+            "utf-8",
+            "piped output must be decoded as UTF-8, not the host locale",
+        )
 
     def test_explicit_voice_is_not_overridden(self):
         self.assertTrue(

@@ -3,6 +3,7 @@ import os
 import pathlib
 import shutil
 from typing import Union
+from urllib.parse import quote
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
@@ -50,8 +51,14 @@ _max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
 
 def _build_redis_url(host: str, port: int, db: int, password: str | None) -> str:
-    auth = f":{password}@" if password else ""
-    return f"redis://{auth}{host}:{port}/{db}"
+    # Passwords are URL userinfo. Escape reserved characters so Redis receives
+    # the exact configured secret rather than parsing part of it as a host,
+    # port, path, query, or fragment.
+    auth = f":{quote(password, safe='')}@" if password else ""
+    # URL authorities require brackets around IPv6 literals. RedisState also
+    # accepts a plain IPv6 host, so keep the queue client compatible with it.
+    url_host = f"[{host}]" if ":" in host and not host.startswith("[") else host
+    return f"redis://{auth}{url_host}:{port}/{db}"
 
 
 redis_url = _build_redis_url(_redis_host, _redis_port, _redis_db, _redis_password)
@@ -207,6 +214,16 @@ def create_task(
     task_id = utils.get_uuid()
     request_id = base.get_task_id(request)
     try:
+        if (
+            stop_at == "video"
+            and isinstance(body, TaskVideoRequest)
+            and body.subtitle_enabled
+        ):
+            # 字体名可由 API 客户端直接提交，不能等到后台渲染时才发现路径越界。
+            # 这里与渲染层共用目录边界校验，让非法请求在创建付费任务前返回 400。
+            file_security.resolve_path_within_directory(
+                utils.font_dir(), body.font_name or "STHeitiMedium.ttc"
+            )
         task = {
             "task_id": task_id,
             "request_id": request_id,
@@ -479,10 +496,11 @@ async def stream_video(request: Request, file_path: str):
     response = StreamingResponse(
         file_iterator(video_path, start, length), media_type="video/mp4"
     )
-    response.headers["Content-Range"] = f"bytes {start}-{end}/{video_size}"
     response.headers["Accept-Ranges"] = "bytes"
     response.headers["Content-Length"] = str(length)
-    response.status_code = 206  # Partial Content
+    if range_header:
+        response.headers["Content-Range"] = f"bytes {start}-{end}/{video_size}"
+        response.status_code = 206  # Partial Content
 
     return response
 

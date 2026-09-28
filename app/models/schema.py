@@ -46,6 +46,31 @@ class VideoAspect(str, Enum):
         raise ValueError(f"unsupported video aspect: {self}")
 
 
+class VideoFitMode(str, Enum):
+    """How source clips with a different aspect ratio fill the output canvas."""
+
+    cover = "cover"
+    contain = "contain"
+
+
+SubtitleDisplayMode = Literal["sentence", "word_by_word"]
+SubtitleAnimation = Literal["none", "pop_spring"]
+_SUBTITLE_DISPLAY_MODES = ("sentence", "word_by_word")
+_SUBTITLE_ANIMATIONS = ("none", "pop_spring")
+
+
+def _get_valid_ui_choice(key: str, allowed_values: tuple[str, ...], default: str) -> str:
+    """
+    读取经过校验的 WebUI 枚举配置，兼容旧用户可能残留的无效值。
+
+    请求体由 Pydantic 的 Literal 严格校验，拼写错误会返回明确的字段校验错误；
+    配置文件则需要宽容处理，避免用户升级后因为历史手工配置错误导致整个服务
+    无法启动。HTTP 状态码由应用统一的校验异常处理器决定，这里不绑定具体数值。
+    """
+    configured_value = config.ui.get(key, default)
+    return configured_value if configured_value in allowed_values else default
+
+
 _Config = ConfigDict(
     arbitrary_types_allowed=True,
     # Note: ensure your key names match renamed V2 parameters if needed
@@ -82,6 +107,7 @@ class VideoParams(BaseModel):
     video_script: str = ""  # Script used to generate the video
     video_terms: Optional[str | list] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
+    video_fit_mode: VideoFitMode = VideoFitMode.cover
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
     video_clip_duration: int = Field(default=5, ge=1)
@@ -113,7 +139,13 @@ class VideoParams(BaseModel):
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = config.ui.get(
         "subtitle_position", "bottom"
-    )  # top, bottom, center, custom
+    )  # top, bottom, center, custom, two_thirds_bottom
+    subtitle_display_mode: SubtitleDisplayMode = _get_valid_ui_choice(
+        "subtitle_display_mode", _SUBTITLE_DISPLAY_MODES, "sentence"
+    )
+    subtitle_animation: SubtitleAnimation = _get_valid_ui_choice(
+        "subtitle_animation", _SUBTITLE_ANIMATIONS, "none"
+    )
     custom_position: float = config.ui.get("custom_position", 70.0)
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
@@ -139,6 +171,12 @@ class SubtitleRequest(BaseModel):
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
     subtitle_position: Optional[str] = config.ui.get("subtitle_position", "bottom")
+    subtitle_display_mode: SubtitleDisplayMode = _get_valid_ui_choice(
+        "subtitle_display_mode", _SUBTITLE_DISPLAY_MODES, "sentence"
+    )
+    subtitle_animation: SubtitleAnimation = _get_valid_ui_choice(
+        "subtitle_animation", _SUBTITLE_ANIMATIONS, "none"
+    )
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = False
@@ -147,7 +185,7 @@ class SubtitleRequest(BaseModel):
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
     video_source: Optional[str] = "local"
-    subtitle_enabled: Optional[str] = "true"
+    subtitle_enabled: Optional[bool] = True
 
 
 class AudioRequest(BaseModel):

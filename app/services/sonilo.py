@@ -23,6 +23,7 @@ MAX_VIDEO_DURATION_SECONDS = 360
 MAX_PROMPT_LENGTH = 2000
 MAX_PROXY_BYTES = 300 * 1024 * 1024
 MAX_GENERATED_AUDIO_BYTES = 30 * 1024 * 1024
+MAX_ERROR_BODY_BYTES = 500
 VIDEO_TO_MUSIC_SERVICE_ID = "video_to_music"
 
 
@@ -74,8 +75,29 @@ def _normalize_service_id(service_id: str) -> str:
 
 
 def _safe_response_error(response: requests.Response) -> str:
-    """仅保留简短响应信息，既方便定位又避免异常页面污染日志。"""
-    body = (response.text or "").strip().replace("\n", " ")[:500]
+    """只读取有限的第三方错误正文，避免异常响应耗尽内存或污染任务日志。"""
+    try:
+        body_bytes = next(
+            response.iter_content(chunk_size=MAX_ERROR_BODY_BYTES),
+            b"",
+        )
+    except requests.RequestException:
+        body_bytes = b""
+    if isinstance(body_bytes, bytes):
+        try:
+            body = body_bytes.decode(
+                response.encoding or "utf-8",
+                errors="replace",
+            )
+        except LookupError:
+            # response.encoding 直接取自上游声明的 charset，未知取值（例如
+            # charset=unknown-charset）会让 codecs 抛 LookupError，而 errors
+            # 只影响 UnicodeDecodeError。旧的 response.text 会在内部退回
+            # UTF-8，这里保持同样行为，避免该异常绕过调用方的 Sonilo 降级链路。
+            body = body_bytes.decode("utf-8", errors="replace")
+    else:
+        body = str(body_bytes)
+    body = body.strip().replace("\n", " ")[:MAX_ERROR_BODY_BYTES]
     return body or response.reason or "request failed"
 
 
@@ -89,22 +111,25 @@ def test_connection() -> dict[str, Any]:
     if not api_key:
         raise SoniloError("Sonilo API key is required")
     try:
-        response = requests.get(
+        with requests.get(
             f"{_base_url()}{SERVICES_PATH}",
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=(15, 30),
-        )
+            stream=True,
+        ) as response:
+            if not response.ok:
+                raise SoniloError(
+                    f"Sonilo connection failed ({response.status_code}): "
+                    f"{_safe_response_error(response)}"
+                )
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise SoniloError(
+                    "Sonilo returned an invalid service response"
+                ) from exc
     except requests.RequestException as exc:
         raise SoniloError(f"failed to connect to Sonilo: {exc}") from exc
-    if not response.ok:
-        raise SoniloError(
-            f"Sonilo connection failed ({response.status_code}): "
-            f"{_safe_response_error(response)}"
-        )
-    try:
-        payload = response.json()
-    except ValueError as exc:
-        raise SoniloError("Sonilo returned an invalid service response") from exc
     if not isinstance(payload, dict):
         raise SoniloError("Sonilo returned an unexpected service response")
     available_services = payload.get("available_services")
@@ -170,6 +195,8 @@ def _create_video_proxy(video_path: str) -> str:
         "yuv420p",
         "-movflags",
         "+faststart",
+        "-fs",
+        str(MAX_PROXY_BYTES),
         proxy_path,
     ]
     try:
@@ -177,6 +204,8 @@ def _create_video_proxy(video_path: str) -> str:
             command,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=600,
             check=False,
         )

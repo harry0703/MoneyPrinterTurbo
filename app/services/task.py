@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import re
@@ -20,6 +21,9 @@ from app.services import (
     llm,
     loomloom,
     material,
+    metaso_minimax,
+    muapi,
+    ofox,
     sonilo,
     subtitle,
     task_artifacts,
@@ -315,7 +319,7 @@ def generate_terms(task_id, params, video_script):
         # 无法改善“后面内容的画面提前出现”的问题。
         video_terms = llm.generate_terms(
             video_subject=params.video_subject,
-            video_script=video_script,
+            video_script=utils.remove_pause_tags(video_script),
             amount=8 if params.match_materials_to_script else 5,
             match_script_order=params.match_materials_to_script,
         )
@@ -482,6 +486,9 @@ def generate_audio(
     voice_preview=None,
     *,
     allow_server_file_input: bool = False,
+    voxcpm_reference_audio: bytes | None = None,
+    voxcpm_prompt_audio: bytes | None = None,
+    voxcpm_prompt_text: str = "",
 ):
     """
     Generate audio for the video script.
@@ -523,12 +530,18 @@ def generate_audio(
 
         logger.info("no custom audio file provided, using TTS to generate audio.")
         audio_file = path.join(utils.task_dir(task_id), "audio.mp3")
-        sub_maker = voice.tts(
-            text=video_script,
-            voice_name=voice.parse_voice_name(params.voice_name),
-            voice_rate=params.voice_rate,
-            voice_file=audio_file,
-        )
+        tts_kwargs = {
+            "text": video_script,
+            "voice_name": voice.parse_voice_name(params.voice_name),
+            "voice_rate": params.voice_rate,
+            "voice_file": audio_file,
+        }
+        if voxcpm_reference_audio is not None:
+            tts_kwargs["voxcpm_reference_audio"] = voxcpm_reference_audio
+        if voxcpm_prompt_audio is not None:
+            tts_kwargs["voxcpm_prompt_audio"] = voxcpm_prompt_audio
+            tts_kwargs["voxcpm_prompt_text"] = voxcpm_prompt_text
+        sub_maker = voice.tts(**tts_kwargs)
         if sub_maker is None:
             _mark_task_failed(
                 task_id,
@@ -594,9 +607,14 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         )
         return ""
 
+    is_word_level = getattr(params, "subtitle_display_mode", "sentence") == "word_by_word"
+
     if subtitle_provider == "edge":
         voice.create_subtitle(
-            text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path
+            text=video_script,
+            sub_maker=sub_maker,
+            subtitle_file=subtitle_path,
+            word_level=is_word_level,
         )
         if not os.path.exists(subtitle_path):
             # Edge 字幕偶尔会因为时间轴与文案无法匹配而没有产出文件。这里不能
@@ -610,9 +628,14 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
             return ""
 
     if subtitle_provider == "whisper":
-        subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
-        logger.info("\n\n## correcting subtitle")
-        subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
+        subtitle.create(
+            audio_file=audio_file,
+            subtitle_file=subtitle_path,
+            word_level=is_word_level,
+        )
+        if not is_word_level:
+            logger.info("\n\n## correcting subtitle")
+            subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
 
     subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
     if not subtitle_lines:
@@ -739,6 +762,59 @@ def get_video_materials(
                 details=details,
             )
             return None
+        except (
+            material.WaveSpeedUnconfirmedTaskError,
+            material.WaveSpeedDownloadError,
+        ) as exc:
+            # Once a paid prediction exists, a polling or download failure must
+            # leave its ID in task state. Earlier successful clips cannot turn
+            # this incomplete run into an apparently completed video task.
+            prediction_id = str(getattr(exc, "prediction_id", "") or "").strip()
+            details = {"wavespeed_prediction_id": prediction_id} if prediction_id else None
+            _mark_task_failed(task_id, "materials", str(exc), details=details)
+            return None
+        except ofox.OFoxError as exc:
+            # 与方舟同一恢复语义：未确认状态和已生成但下载失败都对应一个可在
+            # OFox 控制台恢复的远端任务，统一从异常携带的 task_id 写入失败状态。
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = (
+                {"ofox_task_id": remote_task_id} if remote_task_id else None
+            )
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
+        except metaso_minimax.MetasoMiniMaxError as exc:
+            # 秘塔任务与方舟任务使用不同的恢复入口和字段名，不能合并成一个
+            # 模糊的 remote_task_id。保留明确 Provider 前缀便于 API、WebUI
+            # 和运维日志直接定位对应平台。
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = (
+                {"metaso_minimax_task_id": remote_task_id} if remote_task_id else None
+            )
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
+        except muapi.MuAPIError as exc:
+            # MuAPI tasks are billable after acceptance.  Preserve the remote
+            # request ID on any ambiguous or post-completion failure so the
+            # user can recover it from the provider dashboard.
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = {"muapi_task_id": remote_task_id} if remote_task_id else None
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
         if not downloaded_videos:
             _mark_task_failed(
                 task_id,
@@ -792,19 +868,52 @@ def _record_loomloom_run_reference(
     return None
 
 
+def _get_material_source_groups(task_id: str, video_paths: list[str]) -> dict[str, str]:
+    """Recover keyword groups from the downloaded material manifest."""
+    try:
+        with open(path.join(utils.task_dir(task_id), "script.json"), encoding="utf-8") as file:
+            payload = json.load(file)
+        groups = {
+            record["local_file"]: record["search_term"]
+            for record in payload.get("material_sources", [])
+            if isinstance(record, dict)
+            and isinstance(record.get("local_file"), str)
+            and isinstance(record.get("search_term"), str)
+            and record["search_term"]
+        }
+        return {
+            file: groups[path.basename(file)]
+            for file in video_paths
+            if path.basename(file) in groups
+        }
+    except (OSError, ValueError, AttributeError, TypeError) as exc:
+        logger.warning(f"Cannot read material keyword groups: task_id={task_id}, error={exc}")
+        return {}
+
+
 def generate_final_videos(
     task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
 ):
     final_video_paths = []
     combined_video_paths = []
     warnings = []
+    allocate_batch_materials = params.video_count > 1 and params.video_source in {
+        "pexels", "pixabay", "coverr", "local"
+    }
+    source_usage = {}
+    material_selections = []
+    source_groups = (
+        _get_material_source_groups(task_id, downloaded_videos)
+        if (allocate_batch_materials and params.match_materials_to_script
+            and params.video_source != "local")
+        else {}
+    )
     video_music_provider = _VIDEO_MUSIC_PROVIDERS.get(params.bgm_type)
     video_music_requested = (
         video_music_provider is not None
         and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
     )
-    # 多视频生成默认会打散素材以增加差异；但“按文案顺序匹配素材”追求的是
-    # 时间线稳定性和可解释性，所以开启后所有输出都使用顺序拼接。
+    # Matching preserves keyword order; batch allocation varies each keyword's candidates.
     if params.match_materials_to_script:
         video_concat_mode = VideoConcatMode.sequential
     elif params.video_count == 1:
@@ -820,17 +929,49 @@ def generate_final_videos(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
         logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
+        used_video_paths = []
+        batch_options = (
+            {
+                "source_usage": source_usage,
+                "source_groups": source_groups,
+                "used_video_paths": used_video_paths,
+            }
+            if allocate_batch_materials else {}
+        )
         video.combine_videos(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
             audio_file=audio_file,
             video_aspect=params.video_aspect,
+            video_fit_mode=params.video_fit_mode,
             video_concat_mode=video_concat_mode,
             video_transition_mode=video_transition_mode,
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             clip_speed=params.video_clip_speed,
+            **batch_options,
         )
+        if allocate_batch_materials:
+            selected_sources = list(dict.fromkeys(used_video_paths))
+            reused_sources = [file for file in selected_sources if source_usage.get(file, 0)]
+            for file in selected_sources:
+                source_usage[file] = source_usage.get(file, 0) + 1
+            material_selections.append({
+                "video_index": index,
+                "local_files": [path.basename(file) for file in used_video_paths],
+                "reused_files": [path.basename(file) for file in reused_sources],
+            })
+            task_artifacts.patch_script_data(task_id, material_selections=material_selections)
+            logger.info(
+                f"Batch material allocation: video_index={index}, "
+                f"sources={len(selected_sources)}, reused_sources={len(reused_sources)}"
+            )
+            if reused_sources:
+                warnings.append({
+                    "code": "batch_materials_reused",
+                    "video_index": index,
+                    "count": len(reused_sources),
+                })
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
@@ -974,23 +1115,19 @@ def recover_interrupted_cross_posts(page_size: int = 100) -> int | None:
 
     跨平台发布使用当前进程内的线程池，不是持久化任务队列。进程启动时，
     Redis 中残留的 pending/processing 不会自动继续执行；如果继续把它们视为
-    运行中，用户将永久无法删除任务。这里分页扫描状态，只处理当前进程没有
-    对应 Future 的活动记录，并保留已经生成的视频结果。
+    运行中，用户将永久无法删除任务。这里仅收集一次任务 ID，再读取当前状态；
+    不能跨多次 Redis SCAN 按页码推进，否则扫描顺序变化会漏掉遗留任务。
+    只处理当前进程没有对应 Future 的活动记录，并保留已经生成的视频结果。
     """
     recovered = 0
-    page = 1
-
-    while True:
-        try:
-            tasks, total = sm.state.get_all_tasks(page, page_size)
-        except Exception as exc:
-            logger.exception(f"failed to recover interrupted cross-post tasks: {exc}")
-            return None
-
-        for task in tasks:
-            task_id = str(task.get("task_id") or "")
+    try:
+        task_ids = sm.state.list_task_ids(scan_count=page_size)
+        for task_id in task_ids:
+            # 扫描之后任务可能已被删除或转为终态；以最新状态决定是否恢复，
+            # 不能使用扫描时的旧快照覆盖已经完成的发布结果。
+            task = sm.state.get_task(task_id)
             if (
-                not task_id
+                not task
                 or task.get("cross_post_state") not in _ACTIVE_CROSS_POST_STATES
                 or _is_cross_post_active_in_process(task_id)
                 or _is_cross_post_owner_alive(task.get("cross_post_owner"))
@@ -1005,10 +1142,9 @@ def recover_interrupted_cross_posts(page_size: int = 100) -> int | None:
             )
             if updated is True:
                 recovered += 1
-
-        if page * page_size >= total or not tasks:
-            break
-        page += 1
+    except Exception as exc:
+        logger.exception(f"failed to recover interrupted cross-post tasks: {exc}")
+        return None
 
     if recovered:
         logger.warning(f"recovered interrupted cross-post tasks: {recovered}")
@@ -1023,6 +1159,7 @@ def _run_cross_post(
     video_language: str,
     platforms: tuple[str, ...],
     youtube_privacy_status: str,
+    youtube_made_for_kids: bool = False,
 ) -> None:
     """后台执行跨平台发布，并只补充发布相关的任务字段。"""
     results = []
@@ -1069,6 +1206,7 @@ def _run_cross_post(
                     "youtube_description": metadata.get("caption", ""),
                     "tags": metadata.get("hashtags", []),
                     "privacyStatus": youtube_privacy_status,
+                    "selfDeclaredMadeForKids": youtube_made_for_kids,
                     "containsSyntheticMedia": True,
                 }
             post_title = (
@@ -1193,6 +1331,7 @@ def _schedule_cross_post(
     video_script: str,
     platforms: list[str],
     youtube_privacy_status: str,
+    youtube_made_for_kids: bool = False,
 ) -> str | None:
     """提交后台发布任务；成功返回 None，调度失败返回可查询的错误原因。"""
     if not _cross_post_slots.acquire(blocking=False):
@@ -1219,6 +1358,7 @@ def _schedule_cross_post(
             params.video_language or "",
             tuple(platforms),
             youtube_privacy_status,
+            youtube_made_for_kids,
         )
         _register_cross_post_future(task_id, future)
         future.add_done_callback(partial(_finalize_cross_post_future, task_id))
@@ -1246,6 +1386,9 @@ def _run_pipeline(
     voice_preview: dict | None = None,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
     allow_server_file_input: bool = False,
+    voxcpm_reference_audio: bytes | None = None,
+    voxcpm_prompt_audio: bytes | None = None,
+    voxcpm_prompt_text: str = "",
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
@@ -1259,6 +1402,54 @@ def _run_pipeline(
             task_id,
             "preflight",
             "Volcano Engine Seedance requires an Ark API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "ofox"
+        and not ofox.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "OFox video generation requires an OFox API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "metaso_minimax"
+        and not metaso_minimax.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "Metaso MiniMax requires an API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "muapi"
+        and not muapi.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "MuAPI video generation requires a MuAPI API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "openai_image"
+        and not material.is_openai_image_enabled(
+            config.snapshot_config_with_pending(config.app)
+        )
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "OpenAI image source requires openai_image_base_url and "
+            "openai_image_model in config.toml (openai_image_api_keys is "
+            "optional for local gateways that need no auth)",
         )
 
     # 只有完整成片流程需要视频配乐供应商。尽早阻止缺少 Key 的完整任务，避免
@@ -1314,10 +1505,18 @@ def _run_pipeline(
 
     # 1. Generate script
     video_script = generate_script(task_id, params)
-    if not video_script or "Error: " in video_script:
+    # The LLM adapter uses a leading "Error: " as its failure sentinel. A
+    # user-provided script may legitimately quote that text anywhere, including
+    # at the beginning, so only interpret it for an LLM-generated script.
+    is_provider_error = (
+        not (params.video_script or "").strip()
+        and isinstance(video_script, str)
+        and video_script.startswith("Error: ")
+    )
+    if not video_script or is_provider_error:
         error = (
             video_script.removeprefix("Error: ").strip()
-            if isinstance(video_script, str) and "Error: " in video_script
+            if is_provider_error
             else "failed to generate video script"
         )
         return _mark_task_failed(task_id, "script", error)
@@ -1352,12 +1551,20 @@ def _run_pipeline(
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
     # 3. Generate audio
+    generate_audio_kwargs = {
+        "voice_preview": voice_preview,
+        "allow_server_file_input": allow_server_file_input,
+    }
+    if voxcpm_reference_audio is not None:
+        generate_audio_kwargs["voxcpm_reference_audio"] = voxcpm_reference_audio
+    if voxcpm_prompt_audio is not None:
+        generate_audio_kwargs["voxcpm_prompt_audio"] = voxcpm_prompt_audio
+        generate_audio_kwargs["voxcpm_prompt_text"] = voxcpm_prompt_text
     audio_file, audio_duration, sub_maker = generate_audio(
         task_id,
         params,
         video_script,
-        voice_preview=voice_preview,
-        allow_server_file_input=allow_server_file_input,
+        **generate_audio_kwargs,
     )
     if not audio_file:
         return _mark_task_failed(
@@ -1492,6 +1699,10 @@ def _run_pipeline(
             youtube_privacy_status=(
                 upload_post.upload_post_service.youtube_privacy_status
             ),
+            # 固定排队时的受众选择，之后修改 WebUI 不应改变已排队视频的声明。
+            youtube_made_for_kids=(
+                upload_post.upload_post_service.youtube_made_for_kids
+            ),
         )
         # 队列满或线程池关闭属于同步可知的调度失败。任务状态已经由调度函数
         # 更新，这里同步修正返回快照，避免调用方收到与后续查询不一致的 pending。
@@ -1510,6 +1721,9 @@ def start(
     voice_preview: dict | None = None,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
     allow_server_file_input: bool = False,
+    voxcpm_reference_audio: bytes | None = None,
+    voxcpm_prompt_audio: bytes | None = None,
+    voxcpm_prompt_text: str = "",
 ):
     """
     执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。
@@ -1525,6 +1739,9 @@ def start(
             voice_preview=voice_preview,
             loomloom_video_request=loomloom_video_request,
             allow_server_file_input=allow_server_file_input,
+            voxcpm_reference_audio=voxcpm_reference_audio,
+            voxcpm_prompt_audio=voxcpm_prompt_audio,
+            voxcpm_prompt_text=voxcpm_prompt_text,
         )
     except Exception as exc:
         logger.exception(

@@ -25,6 +25,51 @@ label[data-testid="stWidgetLabel"] > div {
     margin-left: 0.35rem !important;
 }
 
+/* 视频主题与大模型存在直接依赖，把配置入口放在字段标签旁。这里将 tertiary
+   button 收敛为普通文字链接，避免它与下方“生成文案”主操作争夺视觉层级；
+   text_area 仍保留折叠 label，因此屏幕阅读器可以继续读取字段名称。 */
+div[class*="st-key-video_subject_label_row"] {
+    align-items: baseline !important;
+    gap: 0.45rem !important;
+}
+
+/* 自定义标签行和 text_area 是同一字段的两个子元素。覆盖 Streamlit 容器默认
+   的纵向大间距，使它与原生“标签 + 输入框”控件保持相同的视觉节奏。 */
+div[class*="st-key-video_subject_field"] {
+    gap: 0.35rem !important;
+}
+
+div[class*="st-key-video_subject_label_row"]
+    [data-testid="stMarkdownContainer"] p {
+    margin: 0 !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+}
+
+div[class*="st-key-video_subject_label_row"] button {
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: var(--st-link-color, #0068c9) !important;
+    font-size: 0.8rem !important;
+    line-height: 1.25rem !important;
+}
+
+div[class*="st-key-video_subject_label_row"] button p {
+    margin: 0 !important;
+    color: var(--st-link-color, #0068c9) !important;
+    font-size: 0.8rem !important;
+    line-height: 1.25rem !important;
+}
+
+div[class*="st-key-video_subject_label_row"] button:hover {
+    background: transparent !important;
+    text-decoration: underline !important;
+    text-underline-offset: 0.15rem;
+}
+
 /* 配音方式位于四列布局中的窄面板。Streamlit 的 stretch 模式默认让单个分段
    按钮接近半行宽，三个选项会换成两行；这里仅对该控件改为三等分，并压缩
    水平内边距，保持其它 segmented control 的原生尺寸不变。 */
@@ -326,8 +371,10 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
 }
 
 
-/* 中等宽度下将四个设置面板调整为 2×2，避免每列过窄导致标签和按钮频繁换行。 */
-@media (min-width: 701px) and (max-width: 1100px) {
+/* 中等宽度下将四个设置面板调整为 2×2。主内容区还会扣除页面边距，因此
+   1200～1440px 的常见视口不足以稳定容纳四列英文标签；断点覆盖到 1500px，
+   避免下拉内容和标题被裁切，真正的宽屏才恢复四列。 */
+@media (min-width: 701px) and (max-width: 1500px) {
     .mpt-brand__name {
         font-size: 2.25rem;
     }

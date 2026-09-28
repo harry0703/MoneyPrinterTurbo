@@ -7,6 +7,7 @@ import math
 import os
 import re
 import shutil
+import sys
 from typing import TYPE_CHECKING, Any, Sequence
 from uuid import UUID, uuid4
 
@@ -33,6 +34,21 @@ _PIPELINE_STAGES = ("script", "terms", "audio", "subtitle", "materials", "video"
 _CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 _BATCH_FILE_MAX_BYTES = 1024 * 1024
 _BATCH_TASK_MAX_COUNT = 100
+# 单任务 argparse 和批量清单必须共享同一来源集合。此前两处手工维护导致
+# openai_image 只在单任务入口可用；集中定义后，新增 Provider 不会再次遗漏
+# 批量校验。这里仅包含 CLI 已公开支持的来源，不强行暴露 WebUI 专属流程。
+_CLI_VIDEO_SOURCES = (
+    "pexels",
+    "pixabay",
+    "coverr",
+    "wavespeed",
+    "volcengine_seedance",
+    "ofox",
+    "metaso_minimax",
+    "muapi",
+    "openai_image",
+    "local",
+)
 
 
 class _CliHelpFormatter(
@@ -83,6 +99,23 @@ def _positive_float(value: str) -> float:
     return parsed
 
 
+# 片段播放速度的取值范围。app/utils/utils.py 的 normalize_clip_speed() 用同一
+# 范围做限幅，webui/Main.py 的滑块也使用 0.5~2.0。集中定义后，单任务参数、
+# 批量清单校验和 [ui] 保存值不会再次出现取值不一致。
+_CLIP_SPEED_MIN = 0.5
+_CLIP_SPEED_MAX = 2.0
+
+
+def _clip_speed(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or not _CLIP_SPEED_MIN <= parsed <= _CLIP_SPEED_MAX:
+        raise argparse.ArgumentTypeError(
+            "video-clip-speed must be a finite number between "
+            f"{_CLIP_SPEED_MIN} and {_CLIP_SPEED_MAX}, got {value!r}"
+        )
+    return parsed
+
+
 def _percent_position(value: str) -> float:
     parsed = float(value)
     if not math.isfinite(parsed) or parsed < 0 or parsed > 100:
@@ -102,9 +135,30 @@ def _hex_color(value: str) -> str:
 
 def _subtitle_position(value: str) -> str:
     """校验保存的字幕位置，取值范围与命令行参数保持一致。"""
-    if value not in ("top", "center", "bottom", "custom"):
+    if value not in _SUBTITLE_POSITION_VALUES:
         raise argparse.ArgumentTypeError(
-            f"subtitle-position must be one of: top, center, bottom, custom, got {value!r}"
+            "subtitle-position must be one of: "
+            f"{', '.join(_SUBTITLE_POSITION_VALUES)}, got {value!r}"
+        )
+    return value
+
+
+def _subtitle_display_mode(value: str) -> str:
+    """校验保存的字幕展示模式，取值范围与命令行参数保持一致。"""
+    if value not in _SUBTITLE_DISPLAY_MODE_VALUES:
+        raise argparse.ArgumentTypeError(
+            "subtitle-display-mode must be one of: "
+            f"{', '.join(_SUBTITLE_DISPLAY_MODE_VALUES)}, got {value!r}"
+        )
+    return value
+
+
+def _subtitle_animation(value: str) -> str:
+    """校验保存的字幕动画，取值范围与命令行参数保持一致。"""
+    if value not in _SUBTITLE_ANIMATION_VALUES:
+        raise argparse.ArgumentTypeError(
+            "subtitle-animation must be one of: "
+            f"{', '.join(_SUBTITLE_ANIMATION_VALUES)}, got {value!r}"
         )
     return value
 
@@ -126,7 +180,26 @@ _TRANSITION_MODE_VALUES = {
     "fade-out": "FadeOut",
     "slide-in": "SlideIn",
     "slide-out": "SlideOut",
+    "zoom-in": "ZoomIn",
+    "zoom-out": "ZoomOut",
 }
+
+# 单任务 argparse 和批量清单必须共享同一份字幕位置取值，避免再次出现
+# 「WebUI 能保存、CLI 却拒绝」的落差。取值需与 app/services/video.py 的
+# 渲染分支及 webui/Main.py 的下拉框保持一致。
+_SUBTITLE_POSITION_VALUES = (
+    "top",
+    "center",
+    "bottom",
+    "two_thirds_bottom",
+    "custom",
+)
+
+# 字幕展示模式与入场动画由 WebUI 保存进 [ui]。两者随「逐词字幕 + 弹跳动画」
+# 加入时只改了 WebUI 与模型字段默认值，命令行一直缺少开关。取值需与
+# app/models/schema.py 的 _SUBTITLE_DISPLAY_MODES / _SUBTITLE_ANIMATIONS 一致。
+_SUBTITLE_DISPLAY_MODE_VALUES = ("sentence", "word_by_word")
+_SUBTITLE_ANIMATION_VALUES = ("none", "pop_spring")
 
 
 def _transition_mode(value: str) -> str | None:
@@ -139,14 +212,31 @@ def _transition_mode(value: str) -> str | None:
     return _TRANSITION_MODE_VALUES[normalized]
 
 
+def _video_fit_mode(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in {"cover", "contain"}:
+        raise argparse.ArgumentTypeError(
+            "video-fit-mode must be one of: cover, contain"
+        )
+    return normalized
+
+
+# 只有这些取值会请求外部音乐生成服务，因此只有它们消费配乐提示词。取值需与
+# app/services/task.py 的 _VIDEO_MUSIC_PROVIDERS 保持一致；集中定义后，新增
+# 配乐供应商不会再次遗漏 --bgm-type 校验、批量校验和提示词参数。
+_CLI_MUSIC_BGM_TYPES = ("sonilo", "elevenlabs")
+_BGM_TYPE_CHOICES_TEXT = "none, random, custom, " + ", ".join(_CLI_MUSIC_BGM_TYPES)
+_BGM_TYPE_METAVAR = "{none,random,custom," + ",".join(_CLI_MUSIC_BGM_TYPES) + "}"
+
+
 def _bgm_type(value: str) -> str:
     normalized = value.strip().lower()
     if normalized == "none":
         return ""
-    if normalized in {"", "random", "custom", "sonilo"}:
+    if normalized in {"", "random", "custom", *_CLI_MUSIC_BGM_TYPES}:
         return normalized
     raise argparse.ArgumentTypeError(
-        "bgm-type must be one of: none, random, custom, sonilo"
+        f"bgm-type must be one of: {_BGM_TYPE_CHOICES_TEXT}"
     )
 
 
@@ -253,7 +343,7 @@ Batch manifests:
     material_group.add_argument(
         "--video-source",
         default="pexels",
-        choices=["pexels", "pixabay", "coverr", "volcengine_seedance", "local"],
+        choices=_CLI_VIDEO_SOURCES,
         help="video material provider; online providers require matching API keys in config.toml",
     )
     material_group.add_argument(
@@ -273,11 +363,43 @@ Batch manifests:
         help="stop after this pipeline stage; see the stage order below",
     )
     material_group.add_argument(
+        "--confirm-wavespeed-charge",
+        action="store_true",
+        help=(
+            "confirm that WaveSpeed video generation creates paid tasks; required "
+            "with --video-source wavespeed for materials or video output"
+        ),
+    )
+    material_group.add_argument(
         "--confirm-seedance-charge",
         action="store_true",
         help=(
             "confirm that Volcano Engine Seedance creates paid Ark tasks; required "
             "with --video-source volcengine_seedance for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-ofox-charge",
+        action="store_true",
+        help=(
+            "confirm that OFox video generation creates paid tasks; required "
+            "with --video-source ofox for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-metaso-minimax-charge",
+        action="store_true",
+        help=(
+            "confirm that Metaso MiniMax H3 creates paid video tasks; required "
+            "with --video-source metaso_minimax for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-muapi-charge",
+        action="store_true",
+        help=(
+            "confirm that MuAPI video generation creates paid tasks; required "
+            "with --video-source muapi for materials or video output"
         ),
     )
 
@@ -295,6 +417,16 @@ Batch manifests:
         help="output aspect ratio: portrait, landscape, or square",
     )
     video_group.add_argument(
+        "--video-fit-mode",
+        type=_video_fit_mode,
+        choices=["cover", "contain"],
+        default=None,
+        help=(
+            "fit mismatched source clips by filling and center-cropping (cover) "
+            "or preserving the full frame with black bars (contain); default: cover"
+        ),
+    )
+    video_group.add_argument(
         "--video-concat-mode",
         choices=["random", "sequential"],
         default=None,
@@ -304,7 +436,7 @@ Batch manifests:
         "--video-transition-mode",
         type=_transition_mode,
         default=None,
-        metavar="{none,shuffle,fade-in,fade-out,slide-in,slide-out}",
+        metavar="{none,shuffle,fade-in,fade-out,slide-in,slide-out,zoom-in,zoom-out}",
         help="transition applied between source clips (default: none)",
     )
     video_group.add_argument(
@@ -313,6 +445,15 @@ Batch manifests:
         default=None,
         help=(
             "maximum duration of each source clip in seconds, at least 1 (default: 5)"
+        ),
+    )
+    video_group.add_argument(
+        "--video-clip-speed",
+        type=_clip_speed,
+        default=None,
+        help=(
+            "playback speed multiplier applied to every source clip, between "
+            "0.5 and 2.0 (default: 1.0)"
         ),
     )
     video_group.add_argument(
@@ -341,7 +482,8 @@ Batch manifests:
             "[ui].voice_mode of 'none' or 'upload' resolves to no-voice "
             "instead, unless this option is given. "
             "Use 'no-voice' for silent output. Provider-specific identifiers "
-            "use prefixes such as gemini:, mimo:, elevenlabs:, and chatterbox:"
+            "use prefixes such as gemini:, mimo:, elevenlabs:, chatterbox:, "
+            "kokoro:, and voxcpm:"
         ),
     )
     audio_group.add_argument(
@@ -376,17 +518,26 @@ Batch manifests:
         "--bgm-type",
         type=_bgm_type,
         default=None,
-        metavar="{none,random,custom,sonilo}",
+        metavar=_BGM_TYPE_METAVAR,
         help=(
             "background music mode; Sonilo reads its API key from config.toml or "
-            "SONILO_API_KEY; --bgm-file implies custom when omitted "
-            "(default: random)"
+            "SONILO_API_KEY, ElevenLabs from config.toml or ELEVENLABS_API_KEY; "
+            "--bgm-file implies custom when omitted (default: random)"
         ),
     )
     audio_group.add_argument(
         "--sonilo-bgm-prompt",
         default=None,
         help="optional music style prompt for Sonilo, up to 2000 characters",
+    )
+    audio_group.add_argument(
+        "--video-music-prompt",
+        default=None,
+        help=(
+            "optional music style prompt for the selected AI background music "
+            "provider (sonilo or elevenlabs); the provider's own length limit "
+            "is enforced before generation"
+        ),
     )
     audio_group.add_argument(
         "--bgm-file",
@@ -428,11 +579,29 @@ Batch manifests:
     )
     subtitle_group.add_argument(
         "--subtitle-position",
-        choices=["top", "center", "bottom", "custom"],
+        choices=_SUBTITLE_POSITION_VALUES,
         default=None,
         help=(
             "subtitle vertical position (default: [ui].subtitle_position from "
             "config.toml; bottom when unset)"
+        ),
+    )
+    subtitle_group.add_argument(
+        "--subtitle-display-mode",
+        choices=_SUBTITLE_DISPLAY_MODE_VALUES,
+        default=None,
+        help=(
+            "subtitle timing: sentence by sentence, or one word at a time "
+            "(default: [ui].subtitle_display_mode from config.toml; sentence)"
+        ),
+    )
+    subtitle_group.add_argument(
+        "--subtitle-animation",
+        choices=_SUBTITLE_ANIMATION_VALUES,
+        default=None,
+        help=(
+            "subtitle entrance animation (default: [ui].subtitle_animation from "
+            "config.toml; none when unset)"
         ),
     )
     subtitle_group.add_argument(
@@ -560,6 +729,16 @@ Batch manifests:
         parser.error("--video-materials can only be used with --video-source local")
     if (
         not args.batch_file
+        and args.video_source == "wavespeed"
+        and stage_requires_materials
+        and not args.confirm_wavespeed_charge
+    ):
+        parser.error(
+            "--confirm-wavespeed-charge is required with "
+            "--video-source wavespeed"
+        )
+    if (
+        not args.batch_file
         and args.video_source == "volcengine_seedance"
         and stage_requires_materials
         and not args.confirm_seedance_charge
@@ -567,6 +746,34 @@ Batch manifests:
         parser.error(
             "--confirm-seedance-charge is required with "
             "--video-source volcengine_seedance"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "ofox"
+        and stage_requires_materials
+        and not args.confirm_ofox_charge
+    ):
+        parser.error(
+            "--confirm-ofox-charge is required with --video-source ofox"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "metaso_minimax"
+        and stage_requires_materials
+        and not args.confirm_metaso_minimax_charge
+    ):
+        parser.error(
+            "--confirm-metaso-minimax-charge is required with "
+            "--video-source metaso_minimax"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "muapi"
+        and stage_requires_materials
+        and not args.confirm_muapi_charge
+    ):
+        parser.error(
+            "--confirm-muapi-charge is required with --video-source muapi"
         )
 
     if args.bgm_file:
@@ -582,6 +789,18 @@ Batch manifests:
             parser.error(
                 "--sonilo-bgm-prompt can only be combined with --bgm-type sonilo"
             )
+
+    # 提示词字段本身与供应商无关，所以不像 Sonilo 专用参数那样推断 bgm_type：
+    # 推断出来的供应商可能不是用户想要的那个。必须显式选择 AI 配乐供应商，
+    # 否则该提示词会被静默丢弃。批量清单仍可按任务单独设置该字段。
+    if (
+        not args.batch_file
+        and args.video_music_prompt
+        and args.bgm_type not in _CLI_MUSIC_BGM_TYPES
+    ):
+        parser.error(
+            "--video-music-prompt requires --bgm-type sonilo or elevenlabs"
+        )
 
     if (
         not args.batch_file
@@ -719,9 +938,11 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "paragraph_number",
         "video_script_prompt",
         "custom_system_prompt",
+        "video_fit_mode",
         "video_concat_mode",
         "video_transition_mode",
         "video_clip_duration",
+        "video_clip_speed",
         "match_materials_to_script",
         "n_threads",
         "voice_volume",
@@ -731,8 +952,11 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "bgm_file",
         "bgm_volume",
         "sonilo_bgm_prompt",
+        "video_music_prompt",
         "font_name",
         "subtitle_position",
+        "subtitle_display_mode",
+        "subtitle_animation",
         "custom_position",
         "text_fore_color",
         "font_size",
@@ -747,8 +971,15 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
 
     # 没有显式传入命令行参数时，使用 WebUI 保存的值。只补充上面尚未由命令行
     # 设置的字段；若保存值缺失，则继续沿用 VideoParams 的默认值。
+    # VideoParams 里多数可保存字段（subtitle_position、custom_position 等）在
+    # 模型导入时就读取 config.ui，video_clip_speed 却是硬编码的 1.0，因此必须
+    # 在这里显式补上，否则 WebUI 保存的速度在命令行会被静默丢弃。
     ui_defaults = (
+        ("video_clip_speed", float, _clip_speed),
+        ("video_fit_mode", str, _video_fit_mode),
         ("font_name", str, None),
+        ("subtitle_display_mode", str, _subtitle_display_mode),
+        ("subtitle_animation", str, _subtitle_animation),
         ("text_fore_color", str, _hex_color),
         ("font_size", int, _positive_int),
         ("rounded_subtitle_background", bool, None),
@@ -941,21 +1172,18 @@ def _validate_batch_task_params(
     *,
     stop_at: str,
     custom_position_is_explicit: bool,
+    wavespeed_charge_confirmed: bool,
     seedance_charge_confirmed: bool,
+    ofox_charge_confirmed: bool,
+    metaso_minimax_charge_confirmed: bool,
+    muapi_charge_confirmed: bool,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
 
-    if params.video_source not in {
-        "pexels",
-        "pixabay",
-        "coverr",
-        "volcengine_seedance",
-        "local",
-    }:
+    if params.video_source not in _CLI_VIDEO_SOURCES:
         raise ValueError(
-            "video_source must be one of: pexels, pixabay, coverr, "
-            "volcengine_seedance, local"
+            "video_source must be one of: " + ", ".join(_CLI_VIDEO_SOURCES)
         )
     for field_name, value in (
         ("video_aspect", params.video_aspect),
@@ -982,6 +1210,14 @@ def _validate_batch_task_params(
     if params.video_source != "local" and params.video_materials:
         raise ValueError("video_materials can only be used with video_source=local")
     if (
+        params.video_source == "wavespeed"
+        and stop_at in {"materials", "video"}
+        and not wavespeed_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-wavespeed-charge is required for WaveSpeed video generation"
+        )
+    if (
         params.video_source == "volcengine_seedance"
         and stop_at in {"materials", "video"}
         and not seedance_charge_confirmed
@@ -989,12 +1225,33 @@ def _validate_batch_task_params(
         raise ValueError(
             "--confirm-seedance-charge is required for Volcano Engine Seedance"
         )
+    if (
+        params.video_source == "ofox"
+        and stop_at in {"materials", "video"}
+        and not ofox_charge_confirmed
+    ):
+        raise ValueError("--confirm-ofox-charge is required for OFox video generation")
+    if (
+        params.video_source == "metaso_minimax"
+        and stop_at in {"materials", "video"}
+        and not metaso_minimax_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-metaso-minimax-charge is required for Metaso MiniMax H3"
+        )
+    if (
+        params.video_source == "muapi"
+        and stop_at in {"materials", "video"}
+        and not muapi_charge_confirmed
+    ):
+        raise ValueError("--confirm-muapi-charge is required for MuAPI video generation")
 
     if stop_at == "subtitle" and not params.subtitle_enabled:
         raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
-    if params.subtitle_position not in {"top", "center", "bottom", "custom"}:
+    if params.subtitle_position not in _SUBTITLE_POSITION_VALUES:
         raise ValueError(
-            "subtitle_position must be one of: top, center, bottom, custom"
+            "subtitle_position must be one of: "
+            + ", ".join(_SUBTITLE_POSITION_VALUES)
         )
     if custom_position_is_explicit and params.subtitle_position != "custom":
         raise ValueError("custom_position requires subtitle_position=custom")
@@ -1002,9 +1259,12 @@ def _validate_batch_task_params(
         raise ValueError("custom_position must be a finite number between 0 and 100")
     if params.video_clip_speed is not None and (
         not math.isfinite(params.video_clip_speed)
-        or not 0.5 <= params.video_clip_speed <= 2.0
+        or not _CLIP_SPEED_MIN <= params.video_clip_speed <= _CLIP_SPEED_MAX
     ):
-        raise ValueError("video_clip_speed must be a finite number between 0.5 and 2.0")
+        raise ValueError(
+            "video_clip_speed must be a finite number between "
+            f"{_CLIP_SPEED_MIN} and {_CLIP_SPEED_MAX}"
+        )
     if params.text_background_color is False and params.rounded_subtitle_background:
         raise ValueError(
             "rounded_subtitle_background requires an enabled subtitle background"
@@ -1045,12 +1305,16 @@ def _validate_batch_task_params(
         if value is not None and value < 1:
             raise ValueError(f"{name} must be >= 1")
 
-    if params.bgm_type not in {"", "random", "custom", "sonilo"}:
-        raise ValueError("bgm_type must be one of: none, random, custom, sonilo")
+    if params.bgm_type not in {"", "random", "custom", *_CLI_MUSIC_BGM_TYPES}:
+        raise ValueError(f"bgm_type must be one of: {_BGM_TYPE_CHOICES_TEXT}")
     if params.bgm_file and params.bgm_type != "custom":
         raise ValueError("bgm_file requires bgm_type=custom")
     if params.sonilo_bgm_prompt and params.bgm_type != "sonilo":
         raise ValueError("sonilo_bgm_prompt requires bgm_type=sonilo")
+    if params.video_music_prompt and params.bgm_type not in _CLI_MUSIC_BGM_TYPES:
+        raise ValueError(
+            "video_music_prompt requires bgm_type=sonilo or elevenlabs"
+        )
 
 
 def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
@@ -1089,6 +1353,12 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                     or "custom_position" in override_fields
                 ),
                 seedance_charge_confirmed=args.confirm_seedance_charge,
+                wavespeed_charge_confirmed=args.confirm_wavespeed_charge,
+                ofox_charge_confirmed=args.confirm_ofox_charge,
+                metaso_minimax_charge_confirmed=(
+                    args.confirm_metaso_minimax_charge
+                ),
+                muapi_charge_confirmed=args.confirm_muapi_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc
@@ -1496,5 +1766,26 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def _force_utf8_console() -> None:
+    """Make stdout/stderr UTF-8 before anything is printed.
+
+    Windows consoles default to a legacy code page (cp1252 in Western
+    Europe). Generating a French video produces U+202F, the narrow no-break
+    space French typography puts before ':' and '!', and Loguru's own progress
+    lines carry circled digits. Either one raises UnicodeEncodeError, which
+    kills the process *after* the video was written successfully -- so the run
+    reports failure and never prints where the file is.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            continue
+
+
 if __name__ == "__main__":
+    _force_utf8_console()
     raise SystemExit(run_cli())

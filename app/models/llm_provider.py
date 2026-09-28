@@ -42,6 +42,7 @@ class LLMProviderSpec:
     api_key_url: str = ""
     default_model: str = ""
     default_base_url: str = ""
+    model_docs_url: str = ""
     requires_api_key: bool = True
     requires_model_name: bool = True
     requires_base_url: bool = True
@@ -136,6 +137,13 @@ class LLMProviderSpec:
             prefer_international=prefer_international
         )
         return endpoint.api_key_url if endpoint else self.api_key_url
+
+    def effective_model_docs_url(self, *, prefer_international: bool = False) -> str:
+        """统一解析模型列表与文档入口，避免 Endpoint Provider 重复维护链接。"""
+        endpoint = self.preferred_service_endpoint(
+            prefer_international=prefer_international
+        )
+        return endpoint.model_docs_url if endpoint and endpoint.model_docs_url else self.model_docs_url
 
     def find_service_endpoint(
         self, configured_base_url: str | None
@@ -382,12 +390,59 @@ LLM_PROVIDER_REGISTRY = (
         default_model="minimax/minimax-m3:free",
         default_base_url="https://openrouter.ai/api/v1",
     ),
+    LLMProviderSpec(
+        "api_route",
+        "API Route",
+        api_key_url="https://www.api-route.com",
+        default_model="gpt-5.4-mini",
+        default_base_url="https://www.api-route.com/v1",
+        model_docs_url="https://www.api-route.com/pricing",
+    ),
+    # Fluxion 的 OpenAI 分组使用 /v1 接口，复用现有 Chat Completions 适配器。
+    # 分组决定可用模型和地址，因此这里只提供默认值，保留用户覆盖配置的能力；
+    # Anthropic/Gemini 原生分组不能直接使用这个入口，避免协议不匹配。
+    LLMProviderSpec(
+        "fluxionai",
+        "Fluxion AI",
+        api_key_url=(
+            "https://fluxionai.space/register?source=github"
+            "&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO"
+        ),
+        default_model="gpt-5.5",
+        default_base_url="https://fluxionai.space/v1",
+        model_docs_url="https://fluxionai.space/model-plaza",
+    ),
+    LLMProviderSpec(
+        "cheaperinference",
+        "Cheaper Inference",
+        api_key_url="https://cheaperinference.com/signup",
+        default_model="gpt-5.4-mini",
+        default_base_url="https://api.cheaperinference.com/v1",
+        model_docs_url="https://cheaperinference.com/#models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
         "Ollama",
         requires_api_key=False,
         show_api_key=False,
+    ),
+    # Claude 订阅（Pro / Max / Team）不签发 API Key，凭证只能由 Claude Code
+    # 官方客户端使用，因此这个 Provider 不走 HTTP 接口，而是调用本机已登录
+    # 的 claude CLI。模型名留空即沿用 CLI 当前的默认模型。
+    LLMProviderSpec(
+        "claude_code",
+        "Claude Code (Claude subscription)",
+        adapter="claude_code",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        requires_model_name=False,
+        extra_fields=(
+            LLMProviderField("cli_path", "Claude CLI Path"),
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
+        ),
     ),
     LLMProviderSpec(
         "oneapi",
@@ -409,7 +464,7 @@ LLM_PROVIDER_REGISTRY = (
         "groq",
         "Groq",
         api_key_url="https://console.groq.com/keys",
-        default_model="llama-3.3-70b-versatile",
+        default_model="openai/gpt-oss-120b",
         default_base_url="https://api.groq.com/openai/v1",
     ),
     LLMProviderSpec(

@@ -8,15 +8,22 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import redis
 from fastapi.testclient import TestClient
 
 from app import asgi
 from app.config import config
 from app.controllers.manager.base_manager import TaskQueueFullError
+from app.controllers.manager.redis_manager import RedisTaskManager
 from app.controllers.v1 import video as video_controller
 from app.models import const
 from app.models.exception import HttpException
-from app.models.schema import TaskDeletionResponse, TaskListResponse, TaskQueryResponse
+from app.models.schema import (
+    TaskDeletionResponse,
+    TaskListResponse,
+    TaskQueryResponse,
+    TaskVideoRequest,
+)
 from app.services import material_upload
 from app.services import state as sm
 from app.utils import utils
@@ -55,6 +62,26 @@ class TestVideoControllerHelpers(unittest.TestCase):
             asyncio.run(run_lifespan())
 
         recover.assert_called_once_with()
+
+    def test_fastapi_startup_resumes_persisted_redis_queue(self):
+        """A restart must dispatch queued Redis work before serving requests."""
+        from app.services import task as task_service
+
+        with patch("app.controllers.manager.redis_manager.redis.Redis.from_url"):
+            manager = RedisTaskManager(2, "redis://localhost:6379/0")
+
+        with (
+            patch.object(video_controller, "task_manager", manager),
+            patch.object(manager, "check_queue") as check_queue,
+            patch.object(task_service, "recover_interrupted_cross_posts"),
+        ):
+            async def run_lifespan():
+                async with asgi.application_lifespan(asgi.app):
+                    pass
+
+            asyncio.run(run_lifespan())
+
+        self.assertEqual(check_queue.call_count, 2)
 
     def test_sanitize_upload_filename_rejects_empty_name(self):
         """空文件名和目录占位符不能进入服务端存储路径。"""
@@ -118,6 +145,81 @@ class TestVideoControllerTasks(unittest.TestCase):
     @staticmethod
     def _request():
         return SimpleNamespace(headers={"x-task-id": "request-123"})
+
+    def test_video_task_rejects_font_outside_font_directory_before_queueing(self):
+        """非法字体路径必须在任务入队前返回 400，不产生付费后台任务。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            font_dir = Path(temp_dir, "fonts")
+            font_dir.mkdir()
+            outside = Path(temp_dir, "outside.ttf")
+            outside.write_bytes(b"not a font")
+
+            for font_name in (str(outside), "../outside.ttf"):
+                with (
+                    self.subTest(font_name=font_name),
+                    patch.object(video_controller.utils, "font_dir", return_value=str(font_dir)),
+                    patch.object(video_controller.sm.state, "update_task") as update_task,
+                    patch.object(video_controller.task_manager, "add_task") as add_task,
+                ):
+                    body = TaskVideoRequest(video_subject="Coffee", font_name=font_name)
+                    with self.assertRaises(HttpException) as raised:
+                        video_controller.create_task(self._request(), body, stop_at="video")
+
+                    self.assertEqual(raised.exception.status_code, 400)
+                    update_task.assert_not_called()
+                    add_task.assert_not_called()
+
+    def test_video_task_rejects_font_symlink_outside_font_directory(self):
+        """即使路径字符串位于字体目录内，也不能借符号链接读取目录外文件。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            font_dir = Path(temp_dir, "fonts")
+            font_dir.mkdir()
+            outside = Path(temp_dir, "outside.ttf")
+            outside.write_bytes(b"not a font")
+            try:
+                (font_dir / "linked.ttf").symlink_to(outside)
+            except (NotImplementedError, OSError) as exc:
+                self.skipTest(f"symlinks are unavailable: {exc}")
+
+            with (
+                patch.object(video_controller.utils, "font_dir", return_value=str(font_dir)),
+                patch.object(video_controller.sm.state, "update_task") as update_task,
+                patch.object(video_controller.task_manager, "add_task") as add_task,
+            ):
+                body = TaskVideoRequest(video_subject="Coffee", font_name="linked.ttf")
+                with self.assertRaises(HttpException) as raised:
+                    video_controller.create_task(self._request(), body, stop_at="video")
+
+            self.assertEqual(raised.exception.status_code, 400)
+            update_task.assert_not_called()
+            add_task.assert_not_called()
+
+    def test_video_task_accepts_font_inside_directory_and_ignores_disabled_subtitles(self):
+        """正常字体仍能入队，关闭字幕时保留原有的未使用字体兼容行为。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            font_dir = Path(temp_dir, "fonts")
+            font_dir.mkdir()
+            (font_dir / "custom.ttf").write_bytes(b"font file")
+            cases = (
+                TaskVideoRequest(video_subject="Coffee", font_name="custom.ttf"),
+                TaskVideoRequest(
+                    video_subject="Coffee", subtitle_enabled=False, font_name="../unused.ttf"
+                ),
+            )
+            for body in cases:
+                with (
+                    self.subTest(font_name=body.font_name, enabled=body.subtitle_enabled),
+                    patch.object(video_controller.utils, "font_dir", return_value=str(font_dir)),
+                    patch.object(video_controller.sm.state, "update_task") as update_task,
+                    patch.object(video_controller.task_manager, "add_task") as add_task,
+                ):
+                    response = video_controller.create_task(
+                        self._request(), body, stop_at="video"
+                    )
+
+                self.assertEqual(response["status"], 200)
+                update_task.assert_called_once()
+                add_task.assert_called_once()
 
     def test_create_task_queues_requested_pipeline_stage(self):
         """创建任务应持久化初始状态，并把原请求模型与停止阶段交给队列。"""
@@ -371,6 +473,29 @@ class TestVideoControllerTasks(unittest.TestCase):
                     self.assertEqual(raised.exception.status_code, 404)
 
 
+class TestVideoControllerCreateHTTP(unittest.TestCase):
+    """验证越界字体在真实 HTTP 入口返回 400，而不是创建后台任务。"""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        config.app["api_key"] = ""
+        self.client = TestClient(asgi.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    def test_video_request_rejects_font_path_traversal(self):
+        with patch.object(video_controller.task_manager, "add_task") as add_task:
+            response = self.client.post(
+                "/api/v1/videos",
+                json={"video_subject": "Coffee", "font_name": "../../README.md"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        add_task.assert_not_called()
+
+
 class TestVideoControllerDeleteHTTP(unittest.TestCase):
     """DELETE /api/v1/tasks/{task_id} 的真实 HTTP 级回归测试。"""
 
@@ -521,6 +646,26 @@ class TestVideoControllerFiles(unittest.TestCase):
         self.assertEqual(response.headers["content-length"], "4")
         self.assertEqual(body, b"2345")
 
+    def test_stream_video_without_range_returns_complete_response(self):
+        """A normal GET must return the whole video as 200, not partial content."""
+
+        async def consume(response):
+            return b"".join([chunk async for chunk in response.body_iterator])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            Path(temp_dir, "clip.mp4").write_bytes(b"0123456789")
+            with patch.object(video_controller.utils, "task_dir", return_value=temp_dir):
+                response = asyncio.run(
+                    video_controller.stream_video(self._request(), "clip.mp4")
+                )
+                body = asyncio.run(consume(response))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("content-range", response.headers)
+        self.assertEqual(response.headers["accept-ranges"], "bytes")
+        self.assertEqual(response.headers["content-length"], "10")
+        self.assertEqual(body, b"0123456789")
+
     def test_download_video_uses_resolved_file(self):
         """下载响应应使用白名单目录解析后的真实路径和原始文件名。"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -602,6 +747,27 @@ class TestBuildRedisUrl(unittest.TestCase):
             _build_redis_url("redis-host", 6380, 1, "s3cr3t"),
             "redis://:s3cr3t@redis-host:6380/1",
         )
+
+    def test_reserved_characters_in_password_round_trip_through_redis_url(self):
+        from app.controllers.v1.video import _build_redis_url
+
+        password = "p@ss:/?#% word"
+        url = _build_redis_url("redis-host", 6380, 1, password)
+
+        self.assertEqual(
+            redis.Redis.from_url(url).connection_pool.connection_kwargs["password"],
+            password,
+        )
+
+    def test_ipv6_host_round_trips_through_redis_url(self):
+        from app.controllers.v1.video import _build_redis_url
+
+        url = _build_redis_url("::1", 6380, 1, None)
+        connection = redis.Redis.from_url(url).connection_pool.connection_kwargs
+
+        self.assertEqual(connection["host"], "::1")
+        self.assertEqual(connection["port"], 6380)
+        self.assertEqual(connection["db"], 1)
 
 
 if __name__ == "__main__":

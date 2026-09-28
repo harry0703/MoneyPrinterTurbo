@@ -13,7 +13,7 @@ WEBUI_MAIN = ROOT_DIR / "webui" / "Main.py"
 I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
 TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
-SECONDARY_LOCALES = ("de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
+SECONDARY_LOCALES = ("az", "ca", "de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
@@ -24,8 +24,15 @@ ENGLISH_FALLBACK_KEYS = frozenset(
     {
         "AI Video Quote Required",
         "AI Video Quote Retained For Retry",
+        "AI Video Quote Estimate Incomplete",
         "AI Video Quote Summary",
         "AI Video Quote Summary Singular",
+        "AI Video Model",
+        "AI Video Model Reference Price",
+        "AI Video Model List Load Failed",
+        "AI Video Duration Basis Actual",
+        "AI Video Duration Basis Estimated",
+        "AI Video Material Coverage",
         "AI Video Scene Count",
         "Back to Independent Media Console",
         "Confirm AI Video Charge",
@@ -41,24 +48,94 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Local LLM Script Generation",
         "llm_provider_label.apimart",
         "llm_provider_label.openrouter",
+        "llm_provider_label.api_route",
+        "llm_provider_label.fluxionai",
+        "llm_provider_label.cheaperinference",
         "llm_provider_label.shengsuanyun",
         "LoomLoom Poll Retry Pending",
         "LoomLoom Poll Retry Warning",
         "Resume LoomLoom Status Check",
+        "Refresh AI Video Models",
+        "Retry AI Video Quote",
         "LoomLoom Quote Summary Singular",
         "LoomLoom Video Terms Reuse Help",
+        "Metaso MiniMax H3",
+        "Metaso MiniMax H3 Help",
+        "Metaso MiniMax API Key",
+        "Metaso MiniMax API Key Help",
+        "Metaso MiniMax Base URL",
+        "Metaso MiniMax Resolution",
+        "Metaso MiniMax Resolution Help",
+        "Metaso MiniMax Invalid Resolution",
+        "Select Metaso MiniMax Resolution",
+        "Please Enter the Metaso MiniMax API Key",
+        "Metaso MiniMax Billing Notice",
+        "Metaso MiniMax Billing Notice Uploaded Audio",
+        "Metaso MiniMax Billing Notice Without Script",
+        "Confirm Metaso MiniMax Charge",
+        "Confirm Metaso MiniMax Charge Help",
+        "Confirm Metaso MiniMax Charge Required",
+        "MuAPI AI Video",
+        "MuAPI AI Video Help",
+        "MuAPI API Key",
+        "MuAPI API Key Help",
+        "MuAPI Base URL",
+        "MuAPI Base URL Help",
+        "MuAPI Video Endpoint",
+        "MuAPI Video Endpoint Help",
+        "MuAPI Resolution",
+        "MuAPI Resolution Help",
+        "Please Enter the MuAPI API Key",
+        "MuAPI Billing Notice",
+        "MuAPI Billing Notice Without Script",
+        "Confirm MuAPI Charge",
+        "Confirm MuAPI Charge Help",
+        "Confirm MuAPI Charge Required",
         "Script Generation Method",
         "Script Generation Method Help",
         "Shengsuan Cloud AI Video",
         "Shengsuan Cloud AI Video Help",
         "Shengsuan Cloud API Key",
         "Shengsuan Cloud API Key Help",
+        "Shengsuan Cloud API Key Link",
         "Shengsuan Cloud API Key Placeholder",
         "Shengsuan Cloud API Key Required",
         "Shengsuan Cloud API Key Reused",
         "Shengsuan Cloud Batch Script Generation",
+        "Selected AI Video Model Unavailable",
+        "Selected AI Video Ratio Unavailable",
         "Stop Tracking LoomLoom Run",
         "Stop Tracking LoomLoom Run Help",
+        "Unavailable AI Video Model",
+        "VoxCPM Speed Not Supported",
+        "VoxCPM Reference Audio",
+        "VoxCPM Reference Audio Help",
+        "VoxCPM Reference Audio Notice",
+        "VoxCPM Reference Audio Empty",
+        "VoxCPM Reference Audio Upload Too Large",
+        "Validating VoxCPM Reference Audio",
+        "VoxCPM Reference Audio Invalid",
+        "VoxCPM High Fidelity Delivery",
+        "VoxCPM High Fidelity Delivery Help",
+        "VoxCPM Separate Prompt Audio",
+        "VoxCPM Separate Prompt Audio Help",
+        "VoxCPM Prompt Audio",
+        "VoxCPM Prompt Audio Help",
+        "VoxCPM Prompt Text",
+        "VoxCPM Prompt Text Help",
+        "Transcribe VoxCPM Prompt Audio",
+        "Transcribe VoxCPM Prompt Audio Help",
+        "Transcribing VoxCPM Prompt Audio",
+        "VoxCPM Prompt Audio Transcribed",
+        "VoxCPM Prompt Audio Transcription Failed",
+        "VoxCPM Prompt Transcript Review",
+        "VoxCPM Prompt Audio Empty",
+        "VoxCPM Prompt Audio Upload Too Large",
+        "Validating VoxCPM Prompt Audio",
+        "VoxCPM Prompt Text Required",
+        "VoxCPM Prompt Pair Required",
+        "VoxCPM Prompt Invalid",
+        "None (Animation)",
     }
 )
 FORMAT_PLACEHOLDER_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")
@@ -86,6 +163,22 @@ def _load_translation(locale):
     return data.get("Translation", {})
 
 
+def _duplicate_translation_keys(path):
+    """返回 locale 原始文本中重复定义的键，JSON 解析只保留最后一个。"""
+    duplicates = []
+
+    def collect(pairs):
+        seen = set()
+        for key, _ in pairs:
+            if key in seen:
+                duplicates.append(key)
+            seen.add(key)
+        return dict(pairs)
+
+    json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=collect)
+    return duplicates
+
+
 def _required_translation_keys(translations):
     """返回二级语言必须维护的 key，Provider 长说明统一回退英文。"""
     return {
@@ -107,6 +200,28 @@ def _markdown_urls(value):
 
 
 class TestWebuiI18n(unittest.TestCase):
+    def test_catalan_locale_is_discovered_and_matches_browser_variants(self):
+        """语言文件自动注册；区域变体回退到 ca，但不覆盖用户已保存的选择。"""
+        locales = utils.load_locales(str(I18N_DIR))
+        self.assertEqual(locales["ca"]["Language"], "Català")
+        for browser_locale in ("ca", "ca-ES", "ca_AD", "CA-es", "ca-ES-valencia"):
+            with self.subTest(browser_locale=browser_locale):
+                self.assertEqual(
+                    utils.resolve_ui_language("", browser_locale, locales), "ca"
+                )
+        self.assertEqual(utils.resolve_ui_language("en", "ca-ES", locales), "en")
+        self.assertEqual(utils.resolve_ui_language("ca", "en-US", locales), "ca")
+
+    def test_catalan_pause_examples_use_supported_syntax(self):
+        """帮助中的停顿标签必须能被解析，不能把关键字翻成不支持的语法。"""
+        help_text = _load_translation("ca")["Video Script Help"]
+        examples = re.findall(r"\[pausa: [^\]]+\]", help_text)
+        self.assertTrue(examples)
+        for example in examples:
+            with self.subTest(example=example):
+                self.assertTrue(utils.has_pause_tags(example))
+                self.assertEqual(utils.remove_pause_tags(example).strip(), "")
+
     def test_saved_ui_language_takes_priority_over_browser_locale(self):
         language = utils.resolve_ui_language(
             saved_language="de",
@@ -161,6 +276,15 @@ class TestWebuiI18n(unittest.TestCase):
                     default_model=provider.default_model,
                 )
                 self.assertEqual(_markdown_urls(rendered), expected_urls)
+
+    def test_metaso_api_key_label_keeps_mpt_referral_link(self):
+        """秘塔 Key 获取入口必须保留 MPT 追踪参数，避免赞助转化链路失效。"""
+        expected_url = "https://metaso.cn/minimax-h3/?s=MPT"
+
+        for locale in ("zh", "en"):
+            with self.subTest(locale=locale):
+                label = _load_translation(locale)["Metaso MiniMax API Key"]
+                self.assertEqual(_markdown_urls(label), {expected_url})
 
     def test_secondary_locales_cover_english_locale(self):
         en_translations = _load_translation("en")
@@ -225,7 +349,7 @@ class TestWebuiI18n(unittest.TestCase):
                         _markdown_urls(en_translations[key]),
                     )
 
-    def test_script_language_options_include_russian(self):
+    def test_script_language_options_include_russian_and_catalan(self):
         tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
         support_locales = None
 
@@ -241,3 +365,15 @@ class TestWebuiI18n(unittest.TestCase):
 
         self.assertIsNotNone(support_locales)
         self.assertIn("ru-RU", support_locales)
+        self.assertIn("ca-ES", support_locales)
+
+    def test_locale_files_do_not_redefine_a_translation_key(self):
+        """
+        同一 JSON 对象里出现重复键时，解析只保留最后一个，前一个被静默丢弃。
+        视频转场与字幕动画曾共用 "None" 键，中文转场下拉因此显示成「无动画」。
+        这里直接检查原始 locale 文本，避免同类覆盖再次逃过 tr() 键覆盖测试。
+        """
+
+        for path in sorted(I18N_DIR.glob("*.json")):
+            with self.subTest(locale=path.stem):
+                self.assertEqual(_duplicate_translation_keys(path), [])

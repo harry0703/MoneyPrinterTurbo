@@ -1,3 +1,4 @@
+import ast
 import io
 import json
 import os
@@ -5,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -14,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import cli
 from app.config import config as app_config
+from app.models import schema as app_schema
+from app.models.schema import VideoTransitionMode
 
 
 class TestCli(unittest.TestCase):
@@ -31,6 +34,44 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
 
         self.assertEqual(params.voice_name, "zh-CN-XiaoxiaoNeural-Female")
+
+    def test_video_fit_mode_defaults_to_cover_and_accepts_contain(self):
+        default_params = cli.build_video_params(
+            cli.parse_args(["--video-subject", "test"])
+        )
+        contain_params = cli.build_video_params(
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--video-fit-mode",
+                    "contain",
+                ]
+            )
+        )
+
+        self.assertEqual(default_params.video_fit_mode.value, "cover")
+        self.assertEqual(contain_params.video_fit_mode.value, "contain")
+
+    def test_zoom_transition_modes_are_reachable_from_the_cli(self):
+        # Every transition the render pipeline understands must also be
+        # selectable from the CLI. Deriving the expectation from the enum stops
+        # the two lists from drifting apart again.
+        cli_modes = set(cli._TRANSITION_MODE_VALUES.values()) - {None}
+        pipeline_modes = {
+            mode.value
+            for mode in VideoTransitionMode
+            if mode is not VideoTransitionMode.none
+        }
+        self.assertEqual(cli_modes, pipeline_modes)
+
+        zoom_params = cli.build_video_params(
+            cli.parse_args(
+                ["--video-subject", "test", "--video-transition-mode", "zoom-in"]
+            )
+        )
+
+        self.assertEqual(zoom_params.video_transition_mode.value, "ZoomIn")
 
     def test_complete_script_can_replace_video_subject(self):
         args = cli.parse_args(["--video-script", "完整的视频文案"])
@@ -82,6 +123,43 @@ class TestCli(unittest.TestCase):
         self.assertEqual(kwargs["params"].video_subject, "命令行测试")
         self.assertIs(kwargs["allow_server_file_input"], True)
         print_mock.assert_called_once()
+
+    def test_force_utf8_console_keeps_unicode_result_printable(self):
+        """旧版 Windows 代码页下，成功结果中的 Unicode 字符不应让 CLI 失败。"""
+        stdout_buffer = io.BytesIO()
+        stderr_buffer = io.BytesIO()
+        # 使用 errors="strict" 还原问题现场：如果入口没有先切换到 UTF-8，
+        # U+202F 窄不换行空格和带圈数字都会在 cp1252 编码阶段直接抛异常。
+        legacy_stdout = io.TextIOWrapper(
+            stdout_buffer,
+            encoding="cp1252",
+            errors="strict",
+        )
+        legacy_stderr = io.TextIOWrapper(
+            stderr_buffer,
+            encoding="cp1252",
+            errors="strict",
+        )
+        result = {"script": "Température 18\u202f°C ⑤"}
+
+        with (
+            patch.object(cli.sys, "stdout", legacy_stdout),
+            patch.object(cli.sys, "stderr", legacy_stderr),
+            patch("app.services.task.start", return_value=result),
+            patch("app.utils.utils.get_uuid", return_value="task-unicode"),
+        ):
+            cli._force_utf8_console()
+            code = cli.run_cli(
+                ["--video-subject", "Unicode test", "--stop-at", "script"]
+            )
+            legacy_stdout.flush()
+
+        payload = json.loads(stdout_buffer.getvalue().decode("utf-8"))
+        self.assertEqual(code, 0)
+        self.assertEqual(legacy_stdout.encoding, "utf-8")
+        self.assertEqual(legacy_stderr.encoding, "utf-8")
+        self.assertEqual(payload["task_id"], "task-unicode")
+        self.assertEqual(payload["result"], result)
 
     def test_run_cli_returns_error_when_task_fails(self):
         with patch("app.services.task.start", return_value=None), patch(
@@ -154,6 +232,147 @@ class TestCli(unittest.TestCase):
             cli.build_video_params(args).video_source, "volcengine_seedance"
         )
 
+    def test_wavespeed_video_source_requires_explicit_charge_confirmation(self):
+        # WaveSpeed is the WebUI's original per-request billed generator, gated
+        # on the same "Confirm WaveSpeed Charge" checkbox the siblings use.
+        # Rejecting the source outright kept the CLI from reaching a generator
+        # that config.example.toml advertises.
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(["--video-subject", "test", "--video-source", "wavespeed"])
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "wavespeed",
+                "--confirm-wavespeed-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "wavespeed")
+
+    def test_wavespeed_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "wavespeed",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "wavespeed")
+
+    def test_batch_wavespeed_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps([{"video_subject": "ws", "video_source": "wavespeed"}]),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-ws"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-wavespeed-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
+    def test_ofox_video_source_requires_explicit_charge_confirmation(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(
+                ["--video-subject", "test", "--video-source", "ofox"]
+            )
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "ofox",
+                "--confirm-ofox-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "ofox")
+
+    def test_ofox_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "ofox",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "ofox")
+
+    def test_batch_ofox_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "OFox batch task",
+                            "video_source": "ofox",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-ofox"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-ofox-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
     def test_seedance_confirmation_is_not_required_before_material_stage(self):
         args = cli.parse_args(
             [
@@ -166,6 +385,110 @@ class TestCli(unittest.TestCase):
             ]
         )
         self.assertEqual(args.video_source, "volcengine_seedance")
+
+    def test_metaso_minimax_video_source_requires_charge_confirmation(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--video-source",
+                    "metaso_minimax",
+                ]
+            )
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "metaso_minimax",
+                "--confirm-metaso-minimax-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "metaso_minimax")
+
+    def test_metaso_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "metaso_minimax",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "metaso_minimax")
+
+    def test_muapi_video_source_requires_explicit_charge_confirmation(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(
+                ["--video-subject", "test", "--video-source", "muapi"]
+            )
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "muapi",
+                "--confirm-muapi-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "muapi")
+
+    def test_muapi_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "muapi",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "muapi")
+
+    def test_batch_muapi_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [{"video_subject": "MuAPI batch task", "video_source": "muapi"}]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-muapi"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-muapi-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
 
     def test_batch_seedance_source_uses_global_charge_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -203,6 +526,48 @@ class TestCli(unittest.TestCase):
                         "--stop-at",
                         "materials",
                         "--confirm-seedance-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
+    def test_batch_metaso_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "Metaso batch task",
+                            "video_source": "metaso_minimax",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-metaso"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-metaso-minimax-charge",
                     ]
                 )
 
@@ -329,6 +694,20 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.bgm_type, "")
 
+    def test_video_music_providers_are_selectable_from_the_cli(self):
+        # --bgm-type must reach every video-matched music provider the runtime
+        # dispatches on, otherwise CLI users cannot use a mode the WebUI and the
+        # API already accept. Deriving the expectation from the runtime registry
+        # keeps the two lists from drifting apart again.
+        from app.services import task as task_service
+
+        for provider in sorted(task_service._VIDEO_MUSIC_PROVIDERS):
+            args = cli.parse_args(
+                ["--video-subject", "test", "--bgm-type", provider]
+            )
+            params = cli.build_video_params(args)
+            self.assertEqual(params.bgm_type, provider)
+
     def test_sonilo_prompt_implies_sonilo_bgm_mode(self):
         args = cli.parse_args(
             [
@@ -341,6 +720,52 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertEqual(params.bgm_type, "sonilo")
         self.assertEqual(params.sonilo_bgm_prompt, "warm acoustic")
+
+    def test_video_music_prompt_reaches_every_ai_music_provider(self):
+        # video_music_prompt 与供应商无关，WebUI 为每个 AI 配乐供应商都写入
+        # 该字段。CLI 若只提供 Sonilo 专用参数，选中 ElevenLabs 的用户就无法
+        # 传提示词。期望值从运行时注册表推导，避免两份清单再次漂移。
+        from app.services import task as task_service
+
+        for provider in sorted(task_service._VIDEO_MUSIC_PROVIDERS):
+            args = cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--bgm-type",
+                    provider,
+                    "--video-music-prompt",
+                    "warm acoustic",
+                ]
+            )
+            params = cli.build_video_params(args)
+            self.assertEqual(params.bgm_type, provider)
+            self.assertEqual(params.video_music_prompt, "warm acoustic")
+
+    def test_video_music_prompt_requires_an_ai_music_provider(self):
+        # 下游只在 AI 配乐供应商分支读取该提示词。同一个 --bgm-type random 在
+        # 没有提示词时仍然可用，说明这里的拒绝来自提示词与供应商的组合，而不是
+        # 参数本身不被识别。
+        cli.parse_args(["--video-subject", "test", "--bgm-type", "random"])
+        for bgm_type in ("random", "none"):
+            error_output = io.StringIO()
+            with redirect_stderr(error_output):
+                with self.assertRaises(SystemExit) as cm:
+                    cli.parse_args(
+                        [
+                            "--video-subject",
+                            "test",
+                            "--bgm-type",
+                            bgm_type,
+                            "--video-music-prompt",
+                            "warm acoustic",
+                        ]
+                    )
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn(
+                "--video-music-prompt requires --bgm-type sonilo or elevenlabs",
+                error_output.getvalue(),
+            )
 
     def test_local_material_filename_resolved_to_absolute_path(self):
         """After preprocess_video, material.url should be an absolute path, not a bare filename."""
@@ -741,6 +1166,30 @@ class TestCli(unittest.TestCase):
             {"index", "task_id", "status", "result", "failed_stage", "error"},
         )
 
+    def test_batch_accepts_openai_image_source(self):
+        """批量入口必须接受单任务 CLI 已支持的 OpenAI 文生图素材源。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_subject": "batch image source",
+                            "video_source": "openai_image",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            args = cli.parse_args(
+                ["--batch-file", str(manifest), "--stop-at", "script"]
+            )
+
+            tasks = cli._build_batch_tasks(args)
+
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0].video_source, "openai_image")
+
     def test_batch_jsonl_continues_after_runtime_and_structured_failures(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             manifest = Path(temp_dir) / "tasks.jsonl"
@@ -1035,6 +1484,44 @@ class TestCli(unittest.TestCase):
 
         self.assertEqual(code, 2)
         start.assert_not_called()
+
+    def test_video_clip_speed_is_reachable_from_the_cli(self):
+        """
+        WebUI 的滑块把 video_clip_speed 写进 config.toml，批量清单也接受该字段
+        （见 _validate_batch_task_params），但 VideoParams 把它硬编码成 1.0 而不是
+        读取 config.ui，因此单任务命令行此前既没有对应参数、也拿不到保存值。
+        """
+        explicit_params = cli.build_video_params(
+            cli.parse_args(["--video-subject", "test", "--video-clip-speed", "1.5"])
+        )
+        self.assertEqual(explicit_params.video_clip_speed, 1.5)
+
+        saved_args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(app_config.ui, {"video_clip_speed": 1.25}, clear=True):
+            saved_params = cli.build_video_params(saved_args)
+
+        self.assertEqual(saved_params.video_clip_speed, 1.25)
+
+    def test_video_clip_speed_range_matches_the_runtime_normalizer(self):
+        """
+        CLI 的取值范围必须与 app/utils/utils.py 的 normalize_clip_speed() 以及
+        WebUI 滑块一致，否则命令行会接受运行时随后改写的取值。
+        """
+        from app.utils import utils
+
+        self.assertEqual(cli._CLIP_SPEED_MIN, utils._CLIP_SPEED_MIN)
+        self.assertEqual(cli._CLIP_SPEED_MAX, utils._CLIP_SPEED_MAX)
+
+        for value in ("0.4", "3.0", "nan", "inf"):
+            error_output = io.StringIO()
+            with redirect_stderr(error_output):
+                with self.assertRaises(SystemExit) as cm:
+                    cli.parse_args(
+                        ["--video-subject", "test", "--video-clip-speed", value]
+                    )
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn("video-clip-speed", error_output.getvalue())
 
     def test_later_null_runtime_field_prevents_every_batch_task_from_starting(self):
         for field_name in ("video_aspect", "video_concat_mode"):
@@ -1638,6 +2125,108 @@ class TestCliUiDefaults(unittest.TestCase):
 
         self.assertEqual(params.subtitle_position, "custom")
         self.assertEqual(params.custom_position, 42.5)
+
+    def test_two_thirds_bottom_subtitle_position_is_supported(self):
+        """
+        WebUI 的「距底部 2/3」会把 two_thirds_bottom 写进 config.toml，
+        app/services/video.py 也按该取值渲染。CLI 此前只认识另外四个位置，
+        导致同一个 config.toml 在两个入口产出不同画面。
+        """
+        explicit_params = cli.build_video_params(
+            cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--subtitle-position",
+                    "two_thirds_bottom",
+                ]
+            )
+        )
+        self.assertEqual(explicit_params.subtitle_position, "two_thirds_bottom")
+
+        saved_args = cli.parse_args(["--video-subject", "test"])
+
+        with patch.dict(
+            app_config.ui, {"subtitle_position": "two_thirds_bottom"}, clear=True
+        ):
+            saved_params = cli.build_video_params(saved_args)
+
+        self.assertEqual(saved_params.subtitle_position, "two_thirds_bottom")
+
+    def test_subtitle_positions_stay_aligned_with_the_webui(self):
+        """
+        两个入口共享同一份 config.toml，因此 CLI 必须接受 WebUI 能保存的每一个
+        字幕位置，否则保存值会在命令行入口被静默换成 bottom。
+        """
+        source = (Path(__file__).parent.parent.parent / "webui" / "Main.py").read_text(
+            encoding="utf-8"
+        )
+        webui_positions = set()
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.Assign) or not any(
+                isinstance(target, ast.Name) and target.id == "subtitle_positions"
+                for target in node.targets
+            ):
+                continue
+            webui_positions = {
+                ast.literal_eval(element.elts[1]) for element in node.value.elts
+            }
+
+        self.assertTrue(webui_positions)
+        self.assertEqual(
+            sorted(webui_positions - set(cli._SUBTITLE_POSITION_VALUES)), []
+        )
+
+    def test_subtitle_style_options_follow_the_flag_then_the_saved_value(self):
+        """
+        展示模式与入场动画随「逐词字幕 + 弹跳动画」加入，当时只改了 WebUI 与模型
+        字段默认值：命令行既没有开关，也不显式读取 [ui] 保存值。
+        """
+        for flag, field, value in (
+            ("--subtitle-display-mode", "subtitle_display_mode", "word_by_word"),
+            ("--subtitle-animation", "subtitle_animation", "pop_spring"),
+        ):
+            with self.subTest(field=field):
+                explicit = cli.build_video_params(
+                    cli.parse_args(["--video-subject", "test", flag, value])
+                )
+                self.assertEqual(getattr(explicit, field), value)
+
+                args = cli.parse_args(["--video-subject", "test"])
+                with patch.dict(app_config.ui, {field: value}, clear=True):
+                    saved = cli.build_video_params(args)
+                self.assertEqual(getattr(saved, field), value)
+
+    def test_subtitle_style_values_stay_aligned_with_the_model_and_the_webui(self):
+        """
+        取值必须与 app/models/schema.py 的权威枚举一致，并覆盖 WebUI 下拉框能保存
+        的每一个值；将来新增模式时这里会先失败，避免再次出现「WebUI 支持、命令行
+        不支持」的落差。
+        """
+        for cli_values, model_values in (
+            (cli._SUBTITLE_DISPLAY_MODE_VALUES, app_schema._SUBTITLE_DISPLAY_MODES),
+            (cli._SUBTITLE_ANIMATION_VALUES, app_schema._SUBTITLE_ANIMATIONS),
+        ):
+            self.assertEqual(sorted(cli_values), sorted(model_values))
+
+        source = (Path(__file__).parent.parent.parent / "webui" / "Main.py").read_text(
+            encoding="utf-8"
+        )
+        for name, cli_values in (
+            ("subtitle_display_modes", cli._SUBTITLE_DISPLAY_MODE_VALUES),
+            ("subtitle_animations", cli._SUBTITLE_ANIMATION_VALUES),
+        ):
+            webui_values = set()
+            for node in ast.walk(ast.parse(source)):
+                if any(
+                    isinstance(target, ast.Name) and target.id == name
+                    for target in getattr(node, "targets", [])
+                ):
+                    webui_values = {
+                        ast.literal_eval(element.elts[1])
+                        for element in node.value.elts
+                    }
+            self.assertEqual(sorted(webui_values - set(cli_values)), [], name)
 
     def test_unusable_saved_subtitle_position_falls_back(self):
         """超出取值范围的保存位置回退到内置默认值。"""

@@ -94,6 +94,31 @@ class TestVideoCacheManager(unittest.TestCase):
         self.assertTrue(first.exists())
         self.assertFalse(second.exists())
 
+    def test_cleanup_reclaims_only_stale_atomic_downloads(self):
+        """An interrupted download must not accumulate without deleting an active one."""
+        now = 2_000_000_000.0
+        stale = self.cache_dir / f".vid-{'a' * 32}-abcdefgh.mp4"
+        active = self.cache_dir / f".vid-{'b' * 32}-abcdefgh.mp4"
+        unrelated = self.cache_dir / ".personal-download.mp4"
+        for path, mtime in (
+            (stale, now - 2 * 86400),
+            (active, now - 3600),
+            (unrelated, now - 2 * 86400),
+        ):
+            path.write_bytes(b"unfinished")
+            os.utime(path, (mtime, mtime))
+
+        with patch.object(cache_manager.time, "time", return_value=now):
+            stats = cache_manager.get_video_cache_stats()
+            result = cache_manager.clean_video_cache()
+
+        self.assertEqual(stats.file_count, 1)
+        self.assertEqual(stats.total_size, len(b"unfinished"))
+        self.assertEqual(result.deleted_count, 1)
+        self.assertFalse(stale.exists())
+        self.assertTrue(active.exists())
+        self.assertTrue(unrelated.exists())
+
     def test_invalid_cleanup_age_is_rejected(self):
         with self.assertRaises(ValueError):
             cache_manager.get_video_cache_stats(0)

@@ -1,11 +1,14 @@
 import itertools
 import io
+import math
 import os
 import random
 import gc
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unicodedata
 from contextlib import ExitStack, redirect_stdout
 from functools import lru_cache
@@ -31,6 +34,7 @@ from app.models.schema import (
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
+    VideoFitMode,
     VideoParams,
     VideoTransitionMode,
 )
@@ -80,6 +84,13 @@ _MIN_MATERIAL_DIMENSION = 480
 # 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
 _MIN_DIMENSION_TOLERANCE = 10
 _DEFAULT_VIDEO_CODEC = "libx264"
+# ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
+# 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
+_FFMPEG_CONCAT_HEARTBEAT_SECONDS = 30.0
+_DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS = 3600
+_SUBTITLE_SPRING_DURATION_SECONDS = 0.18
+_MIN_SUBTITLE_SPRING_SCALE = 0.05
+_MAX_SUBTITLE_SPRING_SCALE = 1.35
 _SUPPORTED_VIDEO_CODECS = (
     "libx264",
     "h264_nvenc",
@@ -89,6 +100,83 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_videotoolbox",
 )
 _runtime_disabled_video_codecs = set()
+
+
+def _get_subtitle_spring_scale(time_seconds: float, duration_seconds: float) -> float:
+    """返回字幕弹跳动画在指定时间点使用的缩放比例。"""
+    if duration_seconds <= 0 or time_seconds >= duration_seconds:
+        return 1.0
+
+    progress = max(0.0, min(time_seconds / duration_seconds, 1.0))
+    scale = 1.0 - math.exp(-6.0 * progress) * math.cos(2.5 * math.pi * progress)
+    return max(
+        _MIN_SUBTITLE_SPRING_SCALE,
+        min(scale, _MAX_SUBTITLE_SPRING_SCALE),
+    )
+
+
+def _scale_subtitle_frame_on_canvas(frame: np.ndarray, scale: float) -> np.ndarray:
+    """
+    在保持画布尺寸不变的前提下，围绕中心缩放字幕画面或透明蒙版。
+
+    MoviePy 将字幕颜色帧和透明蒙版分开保存。弹跳动画必须对二者使用完全
+    相同的缩放与裁剪，否则动画首帧会把透明区域当成黑色文字轮廓合成到视频
+    上。二维数组表示取值为 0～1 的蒙版，三维数组表示 RGB/RGBA 颜色帧。
+    """
+    if frame.ndim not in (2, 3):
+        raise ValueError("subtitle frame must be a 2D mask or 3D color frame")
+
+    height, width = frame.shape[:2]
+    scaled_width = max(1, int(round(width * scale)))
+    scaled_height = max(1, int(round(height * scale)))
+    offset = ((width - scaled_width) // 2, (height - scaled_height) // 2)
+
+    if frame.ndim == 2:
+        # MoviePy 蒙版使用 0～1 浮点数，Pillow 的 L 模式使用 0～255；转换后
+        # 再恢复原始类型和范围，确保 CompositeVideoClip 的透明度语义不变。
+        mask_image = Image.fromarray(
+            np.clip(frame * 255.0, 0, 255).astype(np.uint8)
+        )
+        resized_mask = mask_image.resize(
+            (scaled_width, scaled_height),
+            Image.Resampling.BILINEAR,
+        )
+        mask_canvas = Image.new("L", (width, height), 0)
+        mask_canvas.paste(resized_mask, offset)
+        return (np.asarray(mask_canvas) / 255.0).astype(frame.dtype, copy=False)
+
+    if frame.shape[2] not in (3, 4):
+        raise ValueError("subtitle color frame must use RGB or RGBA channels")
+    color_image = Image.fromarray(frame)
+    resized_color = color_image.resize(
+        (scaled_width, scaled_height),
+        Image.Resampling.BILINEAR,
+    )
+    background = (0, 0, 0, 0) if frame.shape[2] == 4 else (0, 0, 0)
+    color_canvas = Image.new(color_image.mode, (width, height), background)
+    color_canvas.paste(resized_color, offset)
+    return np.asarray(color_canvas).astype(frame.dtype, copy=False)
+
+
+def _apply_subtitle_spring_animation(clip, subtitle_duration: float):
+    """同时缩放字幕颜色帧与蒙版，避免弹跳动画出现黑色首帧。"""
+    animation_duration = min(
+        _SUBTITLE_SPRING_DURATION_SECONDS,
+        max(0.0, subtitle_duration),
+    )
+    if animation_duration <= 0:
+        return clip
+
+    def transform_frame(get_frame, time_seconds):
+        frame = get_frame(time_seconds)
+        scale = _get_subtitle_spring_scale(time_seconds, animation_duration)
+        if scale == 1.0:
+            return frame
+        return _scale_subtitle_frame_on_canvas(frame, scale)
+
+    # apply_to=["mask"] 是修复的关键：MoviePy 默认只处理颜色帧，旧实现因此
+    # 在每条字幕出现时短暂保留原尺寸蒙版，并显示黑色文字轮廓。
+    return clip.transform(transform_frame, apply_to=["mask"])
 
 
 def _get_required_video_duration(audio_duration: float) -> float:
@@ -116,6 +204,8 @@ def is_material_resolution_acceptable(width: int, height: int) -> bool:
 def _prioritize_unique_source_clips(
     subclipped_items: List[SubClippedVideoClip],
     concat_mode: VideoConcatMode,
+    source_usage: dict[str, int] | None = None,
+    source_groups: dict[str, str] | None = None,
 ) -> List[SubClippedVideoClip]:
     """
     优先让每个源素材只出现一次，降低成片里同一素材反复出现的概率。
@@ -132,7 +222,26 @@ def _prioritize_unique_source_clips(
 
     concat_mode_value = getattr(concat_mode, "value", concat_mode)
     if concat_mode_value != VideoConcatMode.random.value:
-        return subclipped_items
+        if source_usage is None:
+            return subclipped_items
+        if not source_groups:
+            return sorted(
+                subclipped_items,
+                key=lambda item: source_usage.get(item.source_file_path, 0),
+            )
+        # Keep keyword rounds in order while rotating candidates within each keyword.
+        groups = {}
+        for item in subclipped_items:
+            key = source_groups.get(item.source_file_path, item.source_file_path)
+            groups.setdefault(key, []).append(item)
+        for items in groups.values():
+            items.sort(key=lambda item: source_usage.get(item.source_file_path, 0))
+        return [
+            item
+            for row in itertools.zip_longest(*groups.values())
+            for item in row
+            if item is not None
+        ]
 
     grouped_items: dict[str, list[SubClippedVideoClip]] = {}
     for item in subclipped_items:
@@ -147,6 +256,10 @@ def _prioritize_unique_source_clips(
 
     random.shuffle(primary_items)
     random.shuffle(overflow_items)
+    if source_usage is not None:
+        # Stable sorting retains randomness among equally used sources.
+        primary_items.sort(key=lambda item: source_usage.get(item.source_file_path, 0))
+        overflow_items.sort(key=lambda item: source_usage.get(item.source_file_path, 0))
     logger.info(
         "prioritized unique video materials, "
         f"sources: {len(grouped_items)}, "
@@ -200,6 +313,8 @@ def _ffmpeg_encoder_exists(ffmpeg_binary: str, codec: str) -> bool:
             [ffmpeg_binary, "-hide_banner", "-encoders"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=10,
         )
@@ -329,6 +444,71 @@ def _format_ffmpeg_concat_path(file_path: str) -> str:
     return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
 
 
+def _describe_concat_output_progress(output_file: str) -> str:
+    """返回输出文件当前大小的可读描述，用于拼接心跳日志。"""
+    try:
+        size = os.path.getsize(output_file)
+    except OSError:
+        # 输出文件尚未创建时同样要安全降级，不能影响拼接本身。
+        return "output size not available"
+    return f"output size: {size / (1024 * 1024):.2f} MB"
+
+
+def _run_concat_with_heartbeat(command: list[str], output_file: str):
+    """
+    阻塞等待 ffmpeg 完成，期间按间隔记录存活日志。
+
+    ffmpeg 串联片段时没有阶段日志，`subprocess.run` 又把输出缓冲到进程退出，耗时拼接
+    在日志上表现为“无输出”。记录已等待时长与输出文件大小，便于区分仍在编码与已经卡死。
+    """
+    started_at = time.monotonic()
+    stop_event = threading.Event()
+
+    def log_heartbeat() -> None:
+        while not stop_event.wait(_FFMPEG_CONCAT_HEARTBEAT_SECONDS):
+            logger.info(
+                "ffmpeg concat still running: "
+                f"elapsed={time.monotonic() - started_at:.0f}s, "
+                f"{_describe_concat_output_progress(output_file)}"
+            )
+
+    reporter = threading.Thread(target=log_heartbeat, daemon=True)
+    reporter.start()
+    try:
+        configured_timeout = config.app.get(
+            "ffmpeg_concat_timeout_seconds", _DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS
+        )
+        try:
+            timeout_seconds = float(configured_timeout)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ffmpeg_concat_timeout_seconds must be positive") from exc
+        if (
+            isinstance(configured_timeout, bool)
+            or not math.isfinite(timeout_seconds)
+            or timeout_seconds <= 0
+        ):
+            raise ValueError("ffmpeg_concat_timeout_seconds must be positive")
+
+        try:
+            # subprocess.run kills and waits for FFmpeg on timeout, so a stalled
+            # encoder cannot leave an orphaned child or a permanently active task.
+            return subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError(
+                f"ffmpeg concat exceeded {timeout_seconds:g} seconds"
+            ) from exc
+    finally:
+        stop_event.set()
+
+
 def concat_video_clips_with_ffmpeg(
     clip_files: List[str],
     output_file: str,
@@ -366,13 +546,8 @@ def concat_video_clips_with_ffmpeg(
     def run_concat(codec: str):
         command = build_command(codec)
         # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
-        # 从而降低画质劣化与颜色偏移风险。
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        # 从而降低画质劣化与颜色偏移风险。阻塞等待期间由心跳日志体现任务仍在运行。
+        result = _run_concat_with_heartbeat(command, output_file)
         if result.returncode != 0:
             error_message = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(error_message or "ffmpeg concat failed")
@@ -382,6 +557,10 @@ def concat_video_clips_with_ffmpeg(
         effective_codec = _get_effective_video_codec()
         try:
             return run_concat(effective_codec)
+        except TimeoutError:
+            # A hung encoder is not evidence that another codec will work. Do
+            # not spend a second timeout period retrying the same input.
+            raise
         except Exception as exc:
             if effective_codec == _DEFAULT_VIDEO_CODEC:
                 raise
@@ -535,6 +714,67 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     return ""
 
 
+def _fit_clip_to_canvas(
+    clip,
+    *,
+    target_width: int,
+    target_height: int,
+    fit_mode: VideoFitMode | str = VideoFitMode.cover,
+):
+    """Resize a clip to an exact canvas using cover/crop or contain/letterbox."""
+    source_width, source_height = (int(value) for value in clip.size)
+    target_width = int(target_width)
+    target_height = int(target_height)
+    if min(source_width, source_height, target_width, target_height) <= 0:
+        raise ValueError(
+            "video dimensions must be positive: "
+            f"source={source_width}x{source_height}, "
+            f"target={target_width}x{target_height}"
+        )
+
+    mode = VideoFitMode(fit_mode)
+    if (source_width, source_height) == (target_width, target_height):
+        return clip
+
+    # Exact aspect-ratio matches do not need either a crop or a background.
+    if source_width * target_height == source_height * target_width:
+        return clip.resized(new_size=(target_width, target_height))
+
+    width_scale = target_width / source_width
+    height_scale = target_height / source_height
+
+    if mode == VideoFitMode.cover:
+        # ceil guarantees the resized clip covers the complete canvas despite
+        # floating-point rounding. Any excess is removed symmetrically.
+        scale_factor = max(width_scale, height_scale)
+        resized_width = max(target_width, math.ceil(source_width * scale_factor))
+        resized_height = max(target_height, math.ceil(source_height * scale_factor))
+        resized_clip = clip.resized(new_size=(resized_width, resized_height))
+        crop_x = max(0, (resized_width - target_width) // 2)
+        crop_y = max(0, (resized_height - target_height) // 2)
+        return resized_clip.cropped(
+            x1=crop_x,
+            y1=crop_y,
+            width=target_width,
+            height=target_height,
+        )
+
+    # contain preserves the legacy behavior: show the complete source frame,
+    # centered over a black canvas when the aspect ratios differ.
+    scale_factor = min(width_scale, height_scale)
+    resized_width = max(1, min(target_width, int(source_width * scale_factor)))
+    resized_height = max(1, min(target_height, int(source_height * scale_factor)))
+    background = ColorClip(
+        size=(target_width, target_height), color=(0, 0, 0)
+    ).with_duration(clip.duration)
+    resized_clip = clip.resized(
+        new_size=(resized_width, resized_height)
+    ).with_position("center")
+    return CompositeVideoClip(
+        [background, resized_clip], size=(target_width, target_height)
+    ).with_duration(clip.duration)
+
+
 def combine_videos(
     combined_video_path: str,
     video_paths: List[str],
@@ -545,6 +785,10 @@ def combine_videos(
     max_clip_duration: int = 5,
     threads: int = 2,
     clip_speed: float = 1.0,
+    video_fit_mode: VideoFitMode = VideoFitMode.cover,
+    source_usage: dict[str, int] | None = None,
+    source_groups: dict[str, str] | None = None,
+    used_video_paths: List[str] | None = None,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -577,6 +821,7 @@ def combine_videos(
     output_dir = os.path.dirname(combined_video_path)
 
     aspect = VideoAspect(video_aspect)
+    fit_mode = VideoFitMode(video_fit_mode)
     video_width, video_height = aspect.to_resolution()
 
     processed_clips = []
@@ -615,6 +860,8 @@ def combine_videos(
     subclipped_items = _prioritize_unique_source_clips(
         subclipped_items=subclipped_items,
         concat_mode=video_concat_mode,
+        **({"source_usage": source_usage, "source_groups": source_groups}
+           if source_usage is not None else {}),
     )
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
@@ -631,8 +878,12 @@ def combine_videos(
             f"remaining: {required_video_duration - video_duration:.2f}s"
         )
         
+        source_clip = None
+        clip = None
+        clip_file = None
         try:
-            clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
+            source_clip = _open_video_clip_quietly(subclipped_item.file_path)
+            clip = source_clip.subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
             # 播放速度属于素材本身属性，应在转场前应用。这样 Fade/Slide 等一秒转场
@@ -640,29 +891,26 @@ def combine_videos(
             # 浮点误差或异常素材时长的安全兜底，保证最终片段不突破配置上限。
             if normalized_clip_speed != 1.0:
                 clip = clip.with_speed_scaled(normalized_clip_speed)
-            clip_duration = clip.duration
-            # Not all videos are same size, so we need to resize them
+            # Normalize every source clip before transitions are applied. In cover mode
+            # the clip fills the canvas and the excess edges are cropped; contain keeps
+            # the complete source frame and uses black bars for the unused area.
             clip_w, clip_h = clip.size
             if clip_w != video_width or clip_h != video_height:
                 clip_ratio = clip.w / clip.h
                 video_ratio = video_width / video_height
-                logger.debug(f"resizing clip, source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, target: {video_width}x{video_height}, ratio: {video_ratio:.2f}")
-                
-                if clip_ratio == video_ratio:
-                    clip = clip.resized(new_size=(video_width, video_height))
-                else:
-                    if clip_ratio > video_ratio:
-                        scale_factor = video_width / clip_w
-                    else:
-                        scale_factor = video_height / clip_h
+                logger.debug(
+                    "resizing clip, "
+                    f"source: {clip_w}x{clip_h}, ratio: {clip_ratio:.2f}, "
+                    f"target: {video_width}x{video_height}, ratio: {video_ratio:.2f}, "
+                    f"fit_mode: {fit_mode.value}"
+                )
+                clip = _fit_clip_to_canvas(
+                    clip,
+                    target_width=video_width,
+                    target_height=video_height,
+                    fit_mode=fit_mode,
+                )
 
-                    new_width = int(clip_w * scale_factor)
-                    new_height = int(clip_h * scale_factor)
-
-                    background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
-                    clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
-                    clip = CompositeVideoClip([background, clip_resized])
-                    
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
             if transition_value in (None, VideoTransitionMode.none.value):
                 clip = clip
@@ -705,7 +953,6 @@ def combine_videos(
 
             # Store clip duration before closing
             clip_duration_saved = clip.duration
-            close_clip(clip)
 
             processed_clips.append(
                 SubClippedVideoClip(
@@ -717,9 +964,19 @@ def combine_videos(
                 )
             )
             video_duration += clip_duration_saved
+            clip_file = None
             
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
+        finally:
+            # The derived clip shares its FFmpeg reader with the source. If
+            # subclipping itself failed, close the original source instead.
+            close_clip(clip if clip is not None else source_clip)
+            # MoviePy may leave a truncated MP4 even when encoding raises. It
+            # was never added to processed_clips, so concat cleanup cannot see it.
+            # Close the reader first so Windows can remove the partial file.
+            if clip_file:
+                delete_files(clip_file)
     
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
     if video_duration < required_video_duration:
@@ -747,16 +1004,26 @@ def combine_videos(
     
     clip_files = [clip.file_path for clip in processed_clips]
     logger.info(f"concatenating {len(clip_files)} clips with ffmpeg")
-    concat_video_clips_with_ffmpeg(
-        clip_files=clip_files,
-        output_file=combined_video_path,
-        threads=threads,
-        output_dir=output_dir,
-        max_duration=audio_duration,
-    )
-    
-    # clean temp files
-    delete_files(clip_files)
+    try:
+        concat_video_clips_with_ffmpeg(
+            clip_files=clip_files,
+            output_file=combined_video_path,
+            threads=threads,
+            output_dir=output_dir,
+            max_duration=audio_duration,
+        )
+        if used_video_paths is not None:
+            # Exclude safety-margin clips that FFmpeg trims entirely from the output.
+            elapsed = 0.0
+            for clip in processed_clips:
+                if elapsed >= audio_duration:
+                    break
+                used_video_paths.append(clip.source_file_path)
+                elapsed += clip.duration
+    finally:
+        # FFmpeg failures and timeouts must not strand one encoded MP4 per clip.
+        # Repeated clips share a path; delete_files already deduplicates them.
+        delete_files(clip_files)
             
     logger.info("video combining completed")
     return combined_video_path
@@ -1021,7 +1288,12 @@ def generate_video(
     if params.subtitle_enabled:
         if not params.font_name:
             params.font_name = "STHeitiMedium.ttc"
-        font_path = os.path.join(utils.font_dir(), params.font_name)
+        # API 入口虽已预检，WebUI、CLI 和内部调用仍可直接进入渲染层；
+        # 始终以真实路径校验字体必须留在 resource/fonts，阻断绝对路径、
+        # ../ 穿越及指向目录外的符号链接，再交给 PIL/MoviePy 打开。
+        font_path = file_security.resolve_path_within_directory(
+            utils.font_dir(), params.font_name
+        )
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
 
@@ -1177,10 +1449,20 @@ def generate_video(
         _clip = _clip.with_start(subtitle_item[0][0])
         _clip = _clip.with_end(subtitle_item[0][1])
         _clip = _clip.with_duration(duration)
+
+        # 弹跳动画只在用户显式选择时启用；默认 none 完全沿用原字幕渲染路径。
+        anim_type = getattr(params, "subtitle_animation", "none")
+        if anim_type in ("pop_spring", "spring", "pop"):
+            _clip = _apply_subtitle_spring_animation(_clip, duration)
+
         if params.subtitle_position == "bottom":
             _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
         elif params.subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
+        elif params.subtitle_position in ("two_thirds_bottom", "two_thirds", "2/3_bottom"):
+            # 2/3 from the bottom = 1/3 from the top: y = (video_height - _clip.h) * (1/3)
+            y_two_thirds = (video_height - _clip.h) / 3.0
+            _clip = _clip.with_position(("center", y_two_thirds))
         elif params.subtitle_position == "custom":
             # Ensure the subtitle is fully within the screen bounds
             margin = 10  # Additional margin, in pixels
@@ -1297,6 +1579,40 @@ def generate_video(
         return bgm_mix_succeeded
 
 
+def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
+    """
+    将单张本地图片渲染为带缓慢放大效果的 mp4 片段，返回输出文件路径。
+
+    local 素材预处理和 OpenAI 兼容文生图素材共用这段"图片 → 片段"渲染
+    逻辑：ImageClip 按 clip_duration 固定时长播放，并叠加每秒约 3% 的
+    动态放大，避免静态画面在成片中显得呆板。渲染异常由调用方按各自
+    素材源的失败约定处理。
+    """
+    clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
+    try:
+        # Apply a zoom effect using the resize method.
+        # A lambda function is used to make the zoom effect dynamic over time.
+        # The zoom effect starts from the original size and gradually scales up to 120%.
+        # t represents the current time, and clip.duration is the total duration of the clip.
+        # Note: 1 represents 100% size, so 1.2 represents 120%.
+        zoom_clip = clip.resized(
+            lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+        )
+
+        # Optionally, create a composite video clip containing the zoomed clip.
+        # This is useful if you want to add other elements to the video.
+        final_clip = CompositeVideoClip([zoom_clip])
+        try:
+            # Output the video to a file.
+            video_file = f"{image_path}.mp4"
+            final_clip.write_videofile(video_file, fps=30, logger=None)
+            return video_file
+        finally:
+            close_clip(final_clip)
+    finally:
+        close_clip(clip)
+
+
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
     # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
     if not materials:
@@ -1359,32 +1675,12 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
 
             if ext in const.FILE_TYPE_IMAGES:
                 logger.info(f"processing image: {material_source_path}")
-                # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再重新创建用于导出的图片 clip。
+                # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再渲染
+                # 用于导出的图片片段。
                 close_clip(clip)
-                # Create an image clip and set its duration to 3 seconds
-                clip = (
-                    ImageClip(material_source_path)
-                    .with_duration(clip_duration)
-                    .with_position("center")
+                video_file = render_image_zoom_video(
+                    material_source_path, clip_duration
                 )
-                # Apply a zoom effect using the resize method.
-                # A lambda function is used to make the zoom effect dynamic over time.
-                # The zoom effect starts from the original size and gradually scales up to 120%.
-                # t represents the current time, and clip.duration is the total duration of the clip (3 seconds).
-                # Note: 1 represents 100% size, so 1.2 represents 120% size.
-                zoom_clip = clip.resized(
-                    lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
-                )
-
-                # Optionally, create a composite video clip containing the zoomed clip.
-                # This is useful when you want to add other elements to the video.
-                final_clip = CompositeVideoClip([zoom_clip])
-
-                # Output the video to a file.
-                video_file = f"{material_source_path}.mp4"
-                final_clip.write_videofile(video_file, fps=30, logger=None)
-                close_clip(clip)
-                close_clip(final_clip)
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
             else:

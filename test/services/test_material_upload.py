@@ -9,6 +9,7 @@ from uuid import UUID
 
 from PIL import Image, UnidentifiedImageError
 
+from app.models import const
 from app.services import material_upload
 
 
@@ -43,6 +44,79 @@ class TestMaterialUploadService(unittest.TestCase):
             with self.subTest(filename=filename):
                 with self.assertRaises(material_upload.MaterialUploadError):
                     material_upload.sanitize_material_filename(filename)
+
+    def test_sanitize_filename_rejects_windows_invalid_and_reserved_names(self):
+        # bgm.sanitize_upload_filename already applies these Windows rules to the
+        # background-music upload. The local material upload also stores its file
+        # under a UUID, so the two endpoints must agree on which client-supplied
+        # names they accept instead of diverging by platform.
+        for filename in (
+            "CON.mp4",
+            "con.mp4",
+            "lpt1.webm",
+            "COM¹.mp4",
+            "lpt².webm",
+            "com³.png",
+            "aux.extra.mp4",
+            "bad:name.mp4",
+            "bad?.mp4",
+            "bad<1>.mp4",
+            'quote".mp4',
+            "pipe|name.mp4",
+            "star*.mp4",
+        ):
+            with self.subTest(filename=filename):
+                with self.assertRaises(material_upload.MaterialUploadError):
+                    material_upload.sanitize_material_filename(filename)
+
+        # Names that merely contain a reserved word, or an invalid character in
+        # the extension-less stem, are still ordinary uploads.
+        self.assertEqual(
+            material_upload.sanitize_material_filename("console.mp4"), "console.mp4"
+        )
+        self.assertEqual(
+            material_upload.sanitize_material_filename(r"C:\videos\aux-extra.png"),
+            "aux-extra.png",
+        )
+
+    def test_sanitize_filename_rejects_control_and_bidi_characters(self):
+        """控制符与双向控制符会破坏日志和界面上的文件名显示，必须拒绝。"""
+        for filename in (
+            # C0 控制符（原有行为，此处只作回归保护）
+            "clip\x00.mp4",
+            "clip\n.mp4",
+            "clip\t.mp4",
+            # C1 控制符：U+0085 会被部分日志查看器渲染成换行
+            "clip\x7f.mp4",
+            "clip\x85.mp4",
+            "clip\x9b.mp4",
+            # 双向文本控制符：U+202E 之后的文本会被反向渲染
+            "photo\u202egnp.mp4",
+            "clip\u200e.mp4",
+            "clip\u2069.mp4",
+            # Unicode 行/段分隔符
+            "clip\u2028.mp4",
+            "clip\u2029.mp4",
+        ):
+            with self.subTest(filename=filename):
+                with self.assertRaises(material_upload.MaterialUploadError):
+                    material_upload.sanitize_material_filename(filename)
+
+    def test_sanitize_filename_keeps_printable_unicode_names(self):
+        """只拦截控制符和双向控制符，不误伤中文、组合符等正常文件名。"""
+        for filename in (
+            "用户素材.mp4",
+            "my clip.mp4",
+            "clip\u00a0.mp4",  # 不换行空格：可直接输入，也不改变显示顺序
+            "e\u0301tude.mp4",  # 组合重音符
+            "clip\u2019s.mp4",  # 弯引号
+            "clip\ufe0f.mp4",  # 变体选择符（Cf，但不影响显示顺序）
+            "family\u200d.mp4",  # ZWJ（Cf，emoji 序列依赖它）
+        ):
+            with self.subTest(filename=filename):
+                self.assertEqual(
+                    material_upload.sanitize_material_filename(filename), filename
+                )
 
     def test_video_upload_is_chunked_validated_and_atomically_persisted(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -117,7 +191,7 @@ class TestMaterialUploadService(unittest.TestCase):
                         "renamed.png", io.BytesIO(_image_bytes("JPEG"))
                     )
                 with self.assertRaisesRegex(
-                    material_upload.MaterialUploadError, "valid JPEG or PNG"
+                    material_upload.MaterialUploadError, "valid JPEG, PNG, or BMP"
                 ):
                     material_upload.save_material_upload(
                         "broken.jpg", io.BytesIO(b"not-an-image")
@@ -125,6 +199,71 @@ class TestMaterialUploadService(unittest.TestCase):
 
             self.assertTrue(stored_name.endswith(".png"))
             self.assertEqual(len(os.listdir(temp_dir)), 1)
+
+    def test_truncated_jpeg_is_rejected_before_publishing(self):
+        # Pillow's verify() accepts this missing end marker, but decoding the
+        # pixels later raises OSError and would fail an otherwise valid task.
+        truncated_jpeg = _image_bytes("JPEG")[:-2]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                material_upload, "uploaded_material_dir", return_value=temp_dir
+            ):
+                with self.assertRaisesRegex(
+                    material_upload.MaterialUploadError, "valid JPEG"
+                ):
+                    material_upload.save_material_upload(
+                        "truncated.jpg", io.BytesIO(truncated_jpeg)
+                    )
+            self.assertEqual(os.listdir(temp_dir), [])
+
+    def test_webm_and_bmp_materials_are_accepted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(
+                    material_upload, "uploaded_material_dir", return_value=temp_dir
+                ),
+                patch.object(material_upload, "_validate_video") as validate_video,
+            ):
+                video_name = material_upload.save_material_upload(
+                    "clip.webm", io.BytesIO(b"decodable-video-placeholder")
+                )
+                image_name = material_upload.save_material_upload(
+                    "photo.bmp", io.BytesIO(_image_bytes("BMP"))
+                )
+
+                # The declared extension still has to match the real image format.
+                with self.assertRaisesRegex(
+                    material_upload.MaterialUploadError, "does not match"
+                ):
+                    material_upload.save_material_upload(
+                        "renamed.bmp", io.BytesIO(_image_bytes("PNG"))
+                    )
+
+            self.assertTrue(video_name.endswith(".webm"))
+            self.assertTrue(image_name.endswith(".bmp"))
+            validate_video.assert_called_once()
+            self.assertEqual(len(os.listdir(temp_dir)), 2)
+
+    def test_supported_extensions_cover_cli_accepted_formats(self):
+        cli_accepted_formats = {
+            *(f".{extension}" for extension in const.FILE_TYPE_VIDEOS),
+            *(f".{extension}" for extension in const.FILE_TYPE_IMAGES),
+            ".avi",
+            ".flv",
+        }
+        supported = set(material_upload.SUPPORTED_MATERIAL_EXTENSIONS)
+
+        self.assertTrue(
+            cli_accepted_formats.issubset(supported),
+            "local material upload must accept every format the CLI accepts; "
+            f"missing: {sorted(cli_accepted_formats - supported)}",
+        )
+        # Every accepted image extension needs a declared Pillow format, otherwise
+        # image validation raises instead of returning MaterialUploadError.
+        self.assertEqual(
+            set(material_upload.SUPPORTED_IMAGE_EXTENSIONS),
+            set(material_upload._IMAGE_FORMATS_BY_EXTENSION),
+        )
 
     def test_renamed_image_is_not_accepted_as_video(self):
         with tempfile.TemporaryDirectory() as temp_dir:

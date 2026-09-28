@@ -1,8 +1,12 @@
 import os
 import tempfile
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from unittest.mock import patch
+
+import requests
 
 from app.services import elevenlabs_music
 
@@ -71,6 +75,72 @@ class TestElevenLabsMusicService(unittest.TestCase):
             detail,
             "x" * elevenlabs_music.MAX_ERROR_BODY_BYTES,
         )
+
+    def test_request_bgm_reports_unknown_charset_body_as_music_error(self):
+        """上游错误正文声明未知 charset 时，取证降级不能变成 LookupError。"""
+        received = []
+
+        class Receiver(BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = b"unknown-charset upstream failure"
+                self.send_response(500)
+                self.send_header("Content-Type", "text/plain; charset=unknown-charset")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_args):
+                # 本机接收器不打印请求头，测试输出无需包含认证信息。
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Receiver)
+        worker = Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            # 只访问环回地址，绕过开发机代理，避免把测试请求交给外部代理服务。
+            with requests.Session() as session:
+                session.trust_env = False
+
+                def post(*args, **kwargs):
+                    response = session.post(*args, **kwargs)
+                    received.append(response)
+                    return response
+
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    video_path = Path(temp_dir) / "proxy.mp4"
+                    output_path = Path(temp_dir) / "music.mp3"
+                    video_path.write_bytes(b"video")
+                    with (
+                        patch.object(
+                            elevenlabs_music.config,
+                            "elevenlabs",
+                            {
+                                "api_key": "test-key",
+                                "music_base_url": (
+                                    f"http://127.0.0.1:{server.server_port}"
+                                ),
+                            },
+                        ),
+                        patch.object(
+                            elevenlabs_music.requests, "post", side_effect=post
+                        ),
+                    ):
+                        with self.assertRaisesRegex(
+                            elevenlabs_music.ElevenLabsMusicError,
+                            "unknown-charset upstream failure",
+                        ):
+                            elevenlabs_music._request_bgm(
+                                str(video_path), str(output_path), ""
+                            )
+
+                    self.assertEqual(
+                        list(Path(temp_dir).glob(".elevenlabs-music-*")), []
+                    )
+                    self.assertTrue(received[0].raw.closed)
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(timeout=5)
 
     def test_api_key_prefers_config_and_falls_back_to_environment(self):
         with (

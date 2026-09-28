@@ -1,6 +1,7 @@
 import io
 import json
 import sys
+import tempfile
 import unittest
 import wave
 from pathlib import Path
@@ -82,11 +83,154 @@ class TestWebuiBackgroundMusic(unittest.TestCase):
         source_select.set_value("elevenlabs").run()
         return app
 
+    def _open_preset_bgm_panel(self, locale):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = locale
+        app.run()
+        source_select = self._widget_by_key(app.selectbox, "bgm_type_select")
+        source_select.set_value("preset").run()
+        return app
+
     def _uploader(self, app):
         return self._widget_by_key(app.file_uploader, "custom_bgm_uploader")
 
     def _volume_select(self, app):
         return self._widget_by_key(app.selectbox, "bgm_volume_select")
+
+    def test_preset_song_selection_is_previewed_and_persisted(self):
+        """切换预设歌曲后应立即更新播放器，并保留稳定的文件名配置。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            first_song = Path(temp_dir) / "first.wav"
+            second_song = Path(temp_dir) / "second.wav"
+            first_song.write_bytes(_valid_wav_bytes())
+            second_song.write_bytes(_valid_wav_bytes())
+            test_ui = dict(
+                config.ui,
+                language="en",
+                bgm_type="random",
+                preset_song=first_song.name,
+            )
+
+            with (
+                patch.object(config, "ui", test_ui),
+                patch.object(config, "try_save_config", return_value=True),
+                patch.object(
+                    bgm,
+                    "list_builtin_bgm_files",
+                    return_value=[str(first_song), str(second_song)],
+                ),
+            ):
+                app = self._open_preset_bgm_panel("en")
+                preset_select = self._widget_by_key(
+                    app.selectbox, "preset_song_select"
+                )
+                self.assertEqual(preset_select.value, first_song.name)
+                self.assertEqual(len(app.get("audio")), 1)
+
+                preset_select.set_value(second_song.name).run()
+
+            updated_select = self._widget_by_key(
+                app.selectbox, "preset_song_select"
+            )
+            self.assertEqual(updated_select.value, second_song.name)
+            self.assertEqual(test_ui["preset_song"], second_song.name)
+            self.assertEqual(len(app.get("audio")), 1)
+            self.assertEqual([str(item.value) for item in app.exception], [])
+
+    def test_empty_preset_song_list_shows_localized_warning(self):
+        """没有可用歌曲时应给出当前语言提示，而不是渲染无效选择框。"""
+        for locale in TEST_LOCALES:
+            with self.subTest(locale=locale):
+                test_ui = dict(config.ui, language=locale, bgm_type="random")
+                with (
+                    patch.object(config, "ui", test_ui),
+                    patch.object(config, "try_save_config", return_value=True),
+                    patch.object(bgm, "list_builtin_bgm_files", return_value=[]),
+                ):
+                    app = self._open_preset_bgm_panel(locale)
+
+                self.assertTrue(
+                    any(
+                        item.value
+                        == self._translation(locale, "No Background Music Available")
+                        for item in app.warning
+                    )
+                )
+                self.assertFalse(
+                    any(
+                        str(getattr(item, "key", "")).startswith(
+                            "preset_song_select"
+                        )
+                        for item in app.selectbox
+                    )
+                )
+                self.assertEqual([str(item.value) for item in app.exception], [])
+
+    def test_task_restore_selects_the_original_preset_song(self):
+        """恢复历史任务时不能被全局保存的预设歌曲覆盖。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            saved_song = Path(temp_dir) / "saved.wav"
+            restored_song = Path(temp_dir) / "restored.wav"
+            saved_song.write_bytes(_valid_wav_bytes())
+            restored_song.write_bytes(_valid_wav_bytes())
+            test_ui = dict(
+                config.ui,
+                language="en",
+                bgm_type="random",
+                preset_song=saved_song.name,
+            )
+
+            with (
+                patch.object(config, "ui", test_ui),
+                patch.object(config, "try_save_config", return_value=True),
+                patch.object(
+                    bgm,
+                    "list_builtin_bgm_files",
+                    return_value=[str(saved_song), str(restored_song)],
+                ),
+            ):
+                app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+                app.session_state["ui_language"] = "en"
+                app.session_state["task_restore_payload"] = {
+                    "task_id": "preset-bgm-restore-test",
+                    "params": {
+                        "bgm_type": "preset",
+                        "bgm_file": str(restored_song),
+                    },
+                }
+                app.run()
+
+            preset_select = self._widget_by_key(
+                app.selectbox, "preset_song_select"
+            )
+            self.assertEqual(preset_select.value, restored_song.name)
+            self.assertEqual(test_ui["preset_song"], restored_song.name)
+            self.assertEqual(len(app.get("audio")), 1)
+            self.assertEqual([str(item.value) for item in app.exception], [])
+
+    def test_missing_preset_song_does_not_interrupt_the_page(self):
+        """枚举后文件失效时应显示提示，并且不能创建损坏的播放器。"""
+        missing_song = Path(tempfile.gettempdir()) / "mpt-missing-preset.wav"
+        missing_song.unlink(missing_ok=True)
+        test_ui = dict(config.ui, language="en", bgm_type="random")
+
+        with (
+            patch.object(config, "ui", test_ui),
+            patch.object(config, "try_save_config", return_value=True),
+            patch.object(
+                bgm,
+                "list_builtin_bgm_files",
+                return_value=[str(missing_song)],
+            ),
+        ):
+            app = self._open_preset_bgm_panel("en")
+
+        self.assertIn(
+            self._translation("en", "Background Music Preview Failed"),
+            [item.value for item in app.warning],
+        )
+        self.assertEqual(len(app.get("audio")), 0)
+        self.assertEqual([str(item.value) for item in app.exception], [])
 
     def test_invalid_audio_shows_error_without_ready_state_or_player(self):
         for locale in TEST_LOCALES:

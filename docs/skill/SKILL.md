@@ -110,11 +110,32 @@ MPT_LLM_BASE_URL
 MPT_LLM_MODEL_NAME
 MPT_PEXELS_API_KEY
 MPT_VOLCENGINE_ARK_API_KEY
+MPT_OFOX_API_KEY
+MPT_METASO_MINIMAX_API_KEY
+MPT_MUAPI_API_KEY
 ```
 
 When `SEEDANCE_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated Seedance clip creates a paid Ark task. Only after the user explicitly
 confirms, rerun with `--confirm-seedance-charge`; never add this flag silently.
+
+When `WAVESPEED_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
+generated WaveSpeed clip is billed per request by WaveSpeed. Only after the user
+explicitly confirms, rerun with `--confirm-wavespeed-charge`; never add this
+flag silently.
+
+When `OFOX_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
+generated OFox clip creates a paid task. Only after the user explicitly
+confirms, rerun with `--confirm-ofox-charge`; never add this flag silently.
+
+When `METASO_MINIMAX_CHARGE_CONFIRMATION_REQUIRED` is present, explain that
+every generated MiniMax H3 clip creates a paid Metaso task. Only after the user
+explicitly confirms, rerun with `--confirm-metaso-minimax-charge`; never add
+this flag silently.
+
+When `MUAPI_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
+generated MuAPI clip creates a paid task. Only after the user explicitly
+confirms, rerun with `--confirm-muapi-charge`; never add this flag silently.
 
 ### Exit code 1: repair or report
 

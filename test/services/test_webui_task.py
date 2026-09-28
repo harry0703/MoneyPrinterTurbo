@@ -156,6 +156,7 @@ def test_completed_task_renders_subject_named_video_download(
     selected_nodes = []
     target_names = {
         "_DOWNLOAD_FILENAME_INVALID_PATTERN",
+        "_WINDOWS_RESERVED_FILENAMES",
         "_build_video_download_name",
         "_normalize_task_state",
         "_render_generation_task_snapshot",
@@ -181,6 +182,7 @@ def test_completed_task_renders_subject_named_video_download(
             self.session_state = {}
             self.downloads = []
             self.videos = []
+            self.warnings = []
 
         def columns(self, count):
             return [FakeColumn() for _ in range(count)]
@@ -194,8 +196,8 @@ def test_completed_task_renders_subject_named_video_download(
         def success(self, _message):
             pass
 
-        def warning(self, _message):
-            pass
+        def warning(self, message):
+            self.warnings.append(message)
 
         def error(self, _message):
             pass
@@ -214,7 +216,10 @@ def test_completed_task_renders_subject_named_video_download(
         "os": os,
         "re": re,
         "st": fake_st,
-        "tr": lambda key: key,
+        "tr": lambda key: (
+            "Video {index} reused {count} source clips."
+            if key == "Batch Material Reuse Warning" else key
+        ),
         "_render_generation_logs": lambda _task_id: None,
     }
     module = ast.fix_missing_locations(ast.Module(body=selected_nodes, type_ignores=[]))
@@ -226,12 +231,15 @@ def test_completed_task_renders_subject_named_video_download(
             "state": const.TASK_STATE_COMPLETE,
             "progress": 100,
             "videos": [str(video_path)],
-            "warnings": [],
+            "warnings": [
+                {"code": "batch_materials_reused", "video_index": 2, "count": 3}
+            ],
             "video_subject": "A day: in / Shanghai?",
         },
     )
 
     assert fake_st.videos == [str(video_path)]
+    assert fake_st.warnings == ["Video 2 reused 3 source clips."]
     assert fake_st.downloads == [
         (
             "Download Video",
@@ -301,6 +309,36 @@ def test_submit_generation_copies_params_before_starting_worker():
     webui_task.sm.state.delete_task("copied-params-test")
 
 
+def test_submit_generation_keeps_voxcpm_reference_audio_out_of_params():
+    """参考音频仅属于内存中的当前请求，不能进入可持久化任务参数。"""
+    params = VideoParams(video_subject="task isolation")
+    reference_audio = b"bounded-reference-wav"
+    prompt_audio = b"bounded-prompt-wav"
+    prompt_text = "delivery transcript"
+    with patch.object(webui_task._task_manager, "add_task") as add_task:
+        webui_task.submit_generation(
+            "reference-audio-isolation",
+            params,
+            capture_logs=False,
+            voxcpm_reference_audio=reference_audio,
+            voxcpm_prompt_audio=prompt_audio,
+            voxcpm_prompt_text=prompt_text,
+        )
+
+    submitted_params = add_task.call_args.kwargs["params"]
+    serialized_params = submitted_params.model_dump_json()
+    assert "voxcpm_reference_audio" not in serialized_params
+    assert "voxcpm_prompt_audio" not in serialized_params
+    assert "voxcpm_prompt_text" not in serialized_params
+    assert reference_audio.decode("ascii") not in serialized_params
+    assert prompt_audio.decode("ascii") not in serialized_params
+    assert prompt_text not in serialized_params
+    assert add_task.call_args.kwargs["voxcpm_reference_audio"] == reference_audio
+    assert add_task.call_args.kwargs["voxcpm_prompt_audio"] == prompt_audio
+    assert add_task.call_args.kwargs["voxcpm_prompt_text"] == prompt_text
+    webui_task.sm.state.delete_task("reference-audio-isolation")
+
+
 def test_scheduling_failure_is_saved_as_terminal_task_state():
     """队列或线程启动失败时不能让任务管理器永久停留在“生成中”。"""
     task_id = "scheduling-failure-test"
@@ -353,6 +391,32 @@ def test_worker_logs_are_available_without_streamlit_session_state():
         r"- unique background task log",
         records[0],
     )
+
+
+def test_webui_worker_forwards_reference_audio_to_pipeline():
+    reference_audio = b"task-local-reference-wav"
+    prompt_audio = b"task-local-prompt-wav"
+    prompt_text = "task-local transcript"
+    with (
+        patch.object(webui_task.tm, "start", return_value={"videos": []}) as start,
+        patch.object(
+            webui_task.config,
+            "runtime_config_lock",
+            return_value=nullcontext(),
+        ),
+    ):
+        webui_task._run_generation(
+            "reference-audio-forwarding",
+            VideoParams(video_subject="reference forwarding"),
+            capture_logs=False,
+            voxcpm_reference_audio=reference_audio,
+            voxcpm_prompt_audio=prompt_audio,
+            voxcpm_prompt_text=prompt_text,
+        )
+
+    assert start.call_args.kwargs["voxcpm_reference_audio"] == reference_audio
+    assert start.call_args.kwargs["voxcpm_prompt_audio"] == prompt_audio
+    assert start.call_args.kwargs["voxcpm_prompt_text"] == prompt_text
 
 
 def test_log_paths_stay_posix_style_on_every_platform():
