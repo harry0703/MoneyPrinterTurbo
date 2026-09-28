@@ -1931,6 +1931,50 @@ class TestWaveSpeedProvider(unittest.TestCase):
         self.assertEqual(generate.call_count, 2)
         self.assertEqual(result, ["/tmp/1.mp4", "/tmp/2.mp4"])
 
+    def test_download_videos_wavespeed_rejects_nonfinite_duration_before_submission(self):
+        """NaN/Infinity must not buy a video for every script keyword."""
+        for duration in (float("nan"), float("inf"), -float("inf")):
+            with self.subTest(duration=duration):
+                with patch("app.services.material.generate_videos_wavespeed") as generate:
+                    with self.assertRaisesRegex(ValueError, "finite"):
+                        material.download_videos(
+                            task_id="test-wavespeed-invalid-duration",
+                            search_terms=["term-1", "term-2"],
+                            source="wavespeed",
+                            audio_duration=duration,
+                            max_clip_duration=5,
+                        )
+                    generate.assert_not_called()
+
+    def test_download_videos_wavespeed_rejects_nonpositive_clip_duration(self):
+        """A zero clip duration cannot advance paid coverage."""
+        with patch("app.services.material.generate_videos_wavespeed") as generate:
+            with self.assertRaisesRegex(ValueError, "clip duration"):
+                material.download_videos(
+                    task_id="test-wavespeed-invalid-clip",
+                    search_terms=["term-1", "term-2"],
+                    source="wavespeed",
+                    audio_duration=10,
+                    max_clip_duration=0,
+                )
+            generate.assert_not_called()
+
+    def test_download_videos_wavespeed_skips_nonpositive_audio_duration(self):
+        """An empty narration must not start a paid generation request."""
+        with (
+            patch("app.services.material.generate_videos_wavespeed") as generate,
+            patch("app.services.material._persist_material_sources"),
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed-empty-audio",
+                search_terms=["term-1", "term-2"],
+                source="wavespeed",
+                audio_duration=0,
+                max_clip_duration=5,
+            )
+        self.assertEqual(result, [])
+        generate.assert_not_called()
+
     def test_download_videos_wavespeed_skips_failed_segment_and_continues(self):
         """单个片段生成失败(空结果)时跳过该关键词,继续为后续片段生成。"""
         generated = {
