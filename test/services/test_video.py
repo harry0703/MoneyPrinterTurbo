@@ -1152,6 +1152,69 @@ class TestVideoService(unittest.TestCase):
             self.assertFalse(Path(temp_dir, "temp-clip-1.mp4").exists())
             self.assertFalse(Path(temp_dir, "temp-clip-2.mp4").exists())
 
+    def test_combine_videos_skips_unreadable_source_when_good_clip_remains(self):
+        """A stale corrupt cache clip must not discard healthy downloaded footage."""
+        class FakeAudioClip:
+            duration = 0.5
+
+        class FakeVideoClip:
+            duration = 1.0
+            size = (1080, 1920)
+            w = 1080
+            h = 1920
+
+            def subclipped(self, _start, _end):
+                return self
+
+        def open_clip(source):
+            if source == "corrupt.mp4":
+                raise OSError("FFmpeg could not read video metadata")
+            return FakeVideoClip()
+
+        used_sources = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()),
+                patch.object(vd, "_open_video_clip_quietly", side_effect=open_clip),
+                patch.object(vd, "_write_videofile_with_codec_fallback"),
+                patch.object(vd, "concat_video_clips_with_ffmpeg") as concat,
+                patch.object(vd, "delete_files"),
+            ):
+                vd.combine_videos(
+                    combined_video_path=os.path.join(temp_dir, "combined.mp4"),
+                    video_paths=["corrupt.mp4", "healthy.mp4"],
+                    audio_file="audio.mp3",
+                    video_concat_mode=vd.VideoConcatMode.sequential,
+                    used_video_paths=used_sources,
+                )
+
+        concat.assert_called_once()
+        self.assertEqual(used_sources, ["healthy.mp4"])
+
+    def test_combine_videos_reports_failure_if_every_source_is_unreadable(self):
+        """Never return an output path for an input set that yielded no clips."""
+        class FakeAudioClip:
+            duration = 1.0
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()),
+                patch.object(
+                    vd,
+                    "_open_video_clip_quietly",
+                    side_effect=OSError("invalid cached video"),
+                ),
+                patch.object(vd, "concat_video_clips_with_ffmpeg") as concat,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "no readable video clips"):
+                    vd.combine_videos(
+                        combined_video_path=os.path.join(temp_dir, "combined.mp4"),
+                        video_paths=["corrupt.mp4"],
+                        audio_file="audio.mp3",
+                    )
+
+        concat.assert_not_called()
+
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 

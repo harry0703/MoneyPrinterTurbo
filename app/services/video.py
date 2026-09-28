@@ -858,10 +858,27 @@ def combine_videos(
     subclipped_items = []
     video_duration = 0
     for video_path in video_paths:
-        clip = _open_video_clip_quietly(video_path)
-        clip_duration = clip.duration
-        clip_w, clip_h = clip.size
-        close_clip(clip)
+        clip = None
+        try:
+            clip = _open_video_clip_quietly(video_path)
+            clip_duration = float(clip.duration)
+            clip_w, clip_h = clip.size
+            if (
+                not math.isfinite(clip_duration)
+                or clip_duration <= 0
+                or not all(
+                    math.isfinite(float(dimension)) and float(dimension) > 0
+                    for dimension in (clip_w, clip_h)
+                )
+            ):
+                raise ValueError("invalid video duration or dimensions")
+        except Exception as exc:
+            logger.warning(
+                f"skipping unreadable video source: path={video_path}, error={exc}"
+            )
+            continue
+        finally:
+            close_clip(clip)
         
         start_time = 0
 
@@ -1029,6 +1046,8 @@ def combine_videos(
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
     if not processed_clips:
+        if video_paths:
+            raise RuntimeError("no readable video clips available for merging")
         logger.warning("no clips available for merging")
         return combined_video_path
     
