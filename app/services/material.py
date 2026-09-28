@@ -263,7 +263,7 @@ def _matches_video_aspect(
     try:
         normalized_width = int(float(width))
         normalized_height = int(float(height))
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         normalized_width = 0
         normalized_height = 0
 
@@ -338,21 +338,40 @@ def search_videos_pexels(
         )
         response = r.json()
         video_items = []
-        if "videos" not in response:
+        if not isinstance(response, dict) or not isinstance(
+            response.get("videos"), list
+        ):
             logger.error("pexels video search returned an unsupported response")
             return video_items
         videos = response["videos"]
         # loop through each video in the result
         for v in videos:
-            duration = v["duration"]
-            # check if video has desired minimum duration
-            if duration < minimum_duration:
+            if not isinstance(v, dict):
                 continue
-            video_files = v["video_files"]
+            duration = v.get("duration")
+            # check if video has desired minimum duration
+            if (
+                isinstance(duration, bool)
+                or not isinstance(duration, (int, float))
+                or not math.isfinite(duration)
+                or duration < minimum_duration
+            ):
+                continue
+            video_files = v.get("video_files")
+            if not isinstance(video_files, list):
+                continue
             # loop through each url to determine the best quality
             for video in video_files:
-                w = int(video["width"])
-                h = int(video["height"])
+                if not isinstance(video, dict):
+                    continue
+                try:
+                    w = int(video.get("width"))
+                    h = int(video.get("height"))
+                except (OverflowError, TypeError, ValueError):
+                    continue
+                video_url = video.get("link")
+                if not isinstance(video_url, str) or not video_url:
+                    continue
                 if (
                     _matches_video_aspect(w, h, aspect)
                     and w == video_width
@@ -360,7 +379,7 @@ def search_videos_pexels(
                 ):
                     item = MaterialInfo()
                     item.provider = "pexels"
-                    item.url = video["link"]
+                    item.url = video_url
                     item.duration = duration
                     item.source_info = {
                         "provider": "pexels",
@@ -457,24 +476,39 @@ def search_videos_pixabay(
             return []
 
         video_items = []
-        if "hits" not in response:
+        if not isinstance(response, dict) or not isinstance(
+            response.get("hits"), list
+        ):
             logger.error("pixabay video search returned an unsupported response")
             return video_items
         videos = response["hits"]
         # loop through each video in the result
         for v in videos:
-            duration = v["duration"]
-            # check if video has desired minimum duration
-            if duration < minimum_duration:
+            if not isinstance(v, dict):
                 continue
-            video_files = v["videos"]
+            duration = v.get("duration")
+            # check if video has desired minimum duration
+            if (
+                isinstance(duration, bool)
+                or not isinstance(duration, (int, float))
+                or not math.isfinite(duration)
+                or duration < minimum_duration
+            ):
+                continue
+            video_files = v.get("videos")
+            if not isinstance(video_files, dict):
+                continue
             # loop through each url to determine the best quality
-            for video_type in video_files:
-                video = video_files[video_type]
+            for video_type, video in video_files.items():
+                if not isinstance(video, dict):
+                    continue
                 try:
                     w = int(video["width"])
                     h = int(video["height"])
-                except (KeyError, TypeError, ValueError):
+                except (KeyError, OverflowError, TypeError, ValueError):
+                    continue
+                video_url = video.get("url")
+                if not isinstance(video_url, str) or not video_url:
                     continue
                 # Pixabay 很少返回原生方形视频；1:1 输出继续接受满足分辨率的
                 # 候选并由合成阶段裁剪。横竖屏则必须严格匹配目标方向。
@@ -484,7 +518,7 @@ def search_videos_pixabay(
                 if orientation_matches and w >= video_width:
                     item = MaterialInfo()
                     item.provider = "pixabay"
-                    item.url = video["url"]
+                    item.url = video_url
                     item.duration = duration
                     item.source_info = {
                         "provider": "pixabay",
@@ -570,22 +604,33 @@ def search_videos_coverr(
         response = r.json()
         video_items: List[MaterialInfo] = []
 
-        if not isinstance(response, dict) or "hits" not in response:
+        if not isinstance(response, dict) or not isinstance(
+            response.get("hits"), list
+        ):
             logger.error("coverr video search returned an unsupported response")
             return video_items
 
         for v in response["hits"]:
+            if not isinstance(v, dict):
+                continue
             # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
             try:
                 duration = int(float(v.get("duration") or 0))
-            except (TypeError, ValueError):
+            except (OverflowError, TypeError, ValueError):
                 continue
             if duration < minimum_duration:
                 continue
 
             video_id = v.get("id")
-            mp4_download_url = (v.get("urls") or {}).get("mp4_download")
-            if not video_id or not mp4_download_url:
+            urls = v.get("urls")
+            if not isinstance(urls, dict):
+                continue
+            mp4_download_url = urls.get("mp4_download")
+            if (
+                not video_id
+                or not isinstance(mp4_download_url, str)
+                or not mp4_download_url
+            ):
                 continue
             if aspect != VideoAspect.square and not _matches_video_aspect(
                 v.get("max_width"),
