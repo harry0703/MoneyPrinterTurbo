@@ -957,24 +957,26 @@ def combine_videos(
     
     clip_files = [clip.file_path for clip in processed_clips]
     logger.info(f"concatenating {len(clip_files)} clips with ffmpeg")
-    concat_video_clips_with_ffmpeg(
-        clip_files=clip_files,
-        output_file=combined_video_path,
-        threads=threads,
-        output_dir=output_dir,
-        max_duration=audio_duration,
-    )
-    if used_video_paths is not None:
-        # Exclude safety-margin clips that FFmpeg trims entirely from the output.
-        elapsed = 0.0
-        for clip in processed_clips:
-            if elapsed >= audio_duration:
-                break
-            used_video_paths.append(clip.source_file_path)
-            elapsed += clip.duration
-    
-    # clean temp files
-    delete_files(clip_files)
+    try:
+        concat_video_clips_with_ffmpeg(
+            clip_files=clip_files,
+            output_file=combined_video_path,
+            threads=threads,
+            output_dir=output_dir,
+            max_duration=audio_duration,
+        )
+        if used_video_paths is not None:
+            # Exclude safety-margin clips that FFmpeg trims entirely from the output.
+            elapsed = 0.0
+            for clip in processed_clips:
+                if elapsed >= audio_duration:
+                    break
+                used_video_paths.append(clip.source_file_path)
+                elapsed += clip.duration
+    finally:
+        # FFmpeg failures and timeouts must not strand one encoded MP4 per clip.
+        # Repeated clips share a path; delete_files already deduplicates them.
+        delete_files(clip_files)
             
     logger.info("video combining completed")
     return combined_video_path

@@ -1002,6 +1002,49 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(write_mock.call_count, 4)
         self.assertEqual(concat_mock.call_args.kwargs["max_duration"], 10.0)
 
+    def test_combine_videos_cleans_temp_clips_when_concat_fails(self):
+        """A failed final merge must not strand encoded clips on disk."""
+
+        class FakeAudioClip:
+            duration = 1.0
+
+        class FakeVideoClip:
+            duration = 2.0
+            size = (1080, 1920)
+            w = 1080
+            h = 1920
+
+            def subclipped(self, _start, _end):
+                return self
+
+        def write_clip(_clip, output_file, **_kwargs):
+            Path(output_file).write_bytes(b"encoded clip")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            temp_clip = Path(temp_dir, "temp-clip-1.mp4")
+            with (
+                patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()),
+                patch.object(vd, "_open_video_clip_quietly", return_value=FakeVideoClip()),
+                patch.object(
+                    vd, "_write_videofile_with_codec_fallback", side_effect=write_clip
+                ),
+                patch.object(
+                    vd,
+                    "concat_video_clips_with_ffmpeg",
+                    side_effect=RuntimeError("concat failed"),
+                ),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "concat failed"):
+                    vd.combine_videos(
+                        combined_video_path=output_file,
+                        video_paths=["clip.mp4"],
+                        audio_file="audio.mp3",
+                        video_concat_mode=vd.VideoConcatMode.sequential,
+                    )
+
+            self.assertFalse(temp_clip.exists())
+
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 
