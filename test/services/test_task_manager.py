@@ -227,6 +227,22 @@ class TestRedisTaskManager(unittest.TestCase):
         )
         from_url.assert_called_once_with("redis://localhost:6379/0")
 
+    def test_resume_queued_tasks_fills_available_slots_after_restart(self):
+        """Persisted Redis entries should run without waiting for a new API request."""
+        self.manager.max_concurrent_tasks = 2
+        self.redis_client.llen.return_value = 2
+        self.redis_client.lpop.side_effect = [
+            _queued_payload("start", task_id="first", params=_video_params()),
+            _queued_payload("start", task_id="second", params=_video_params()),
+        ]
+
+        with patch.object(self.manager, "execute_task") as execute_task:
+            self.manager.resume_queued_tasks()
+
+        self.assertEqual(execute_task.call_count, 2)
+        self.assertEqual(self.manager.current_tasks, 2)
+        self.assertEqual(self.redis_client.lpop.call_count, 2)
+
     def test_enqueue_serializes_video_params_without_mutating_task(self):
         """
         Redis 只能存 JSON；VideoParams 应转换成字典，但原任务仍需保留模型，
