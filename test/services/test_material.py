@@ -118,6 +118,65 @@ class TestMaterialTlsVerification(unittest.TestCase):
             ["https://example.com/first.mp4", "https://example.com/second.mp4"],
         )
 
+    def test_search_pixabay_skips_malformed_hit_without_losing_good_video(self):
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {
+                "hits": [
+                    {"duration": "unknown", "videos": {}},
+                    {
+                        "id": 2,
+                        "duration": 8,
+                        "videos": {
+                            "large": {
+                                "width": 1080,
+                                "height": 1920,
+                                "url": "https://example.com/pixabay-good.mp4",
+                            }
+                        },
+                    },
+                ]
+            },
+        )
+
+        with patch("app.services.material.requests.get", return_value=fake_response):
+            results = material.search_videos_pixabay("cat", minimum_duration=1)
+
+        self.assertEqual(
+            [item.url for item in results],
+            ["https://example.com/pixabay-good.mp4"],
+        )
+
+    def test_search_coverr_skips_malformed_hit_without_losing_good_video(self):
+        config.app["coverr_api_keys"] = ["coverr-key"]
+        fake_response = SimpleNamespace(
+            json=lambda: {
+                "hits": [
+                    {"id": "bad", "duration": 8, "urls": ["unexpected"]},
+                    {
+                        "id": "good",
+                        "duration": 8,
+                        "max_width": 1080,
+                        "max_height": 1920,
+                        "urls": {
+                            "mp4_download": "https://example.com/coverr-good.mp4"
+                        },
+                    },
+                ]
+            }
+        )
+
+        with patch("app.services.material.requests.get", return_value=fake_response):
+            results = material.search_videos_coverr("cat", minimum_duration=1)
+
+        self.assertEqual(
+            [item.url for item in results],
+            ["https://example.com/coverr-good.mp4"],
+        )
+
     def test_search_pixabay_allows_explicit_tls_disable_for_proxy(self):
         """
         少数企业代理会使用自签证书。该场景必须显式配置关闭 TLS 校验，
