@@ -16,6 +16,12 @@ from app.utils import utils
 # 在线素材使用 URL 的 MD5 作为稳定文件名。缓存管理只接受该命名格式，避免把
 # 用户误放到目录中的视频、说明文件或其它业务文件当作缓存删除。
 _VIDEO_CACHE_FILE_PATTERN = re.compile(r"^vid-[0-9a-f]{32}\.mp4$")
+# save_video writes to this same-directory name before atomically publishing a
+# validated clip. A forced process exit can leave one behind, so include only
+# aged temporary files in cache cleanup and never touch an active download.
+_VIDEO_CACHE_TEMP_FILE_PATTERN = re.compile(
+    r"^\.vid-[0-9a-f]{32}-[a-z0-9_]+\.mp4$"
+)
 _SECONDS_PER_DAY = 24 * 60 * 60
 
 
@@ -54,7 +60,7 @@ def video_cache_dir() -> str:
     return os.path.realpath(utils.storage_dir("cache_videos"))
 
 
-def _iter_video_cache_entries() -> Iterator[_VideoCacheEntry]:
+def _iter_video_cache_entries(include_temp: bool = False) -> Iterator[_VideoCacheEntry]:
     """
     顺序扫描默认缓存目录第一层。
 
@@ -76,7 +82,9 @@ def _iter_video_cache_entries() -> Iterator[_VideoCacheEntry]:
 
     with entries:
         for entry in entries:
-            if not _VIDEO_CACHE_FILE_PATTERN.fullmatch(entry.name):
+            if not _VIDEO_CACHE_FILE_PATTERN.fullmatch(entry.name) and not (
+                include_temp and _VIDEO_CACHE_TEMP_FILE_PATTERN.fullmatch(entry.name)
+            ):
                 continue
 
             try:
@@ -103,6 +111,11 @@ def _is_cleanup_candidate(
     max_age_days: int | None,
     now: float,
 ) -> bool:
+    if (
+        _VIDEO_CACHE_TEMP_FILE_PATTERN.fullmatch(entry.name)
+        and entry.mtime >= now - _SECONDS_PER_DAY
+    ):
+        return False
     if max_age_days is None:
         return True
     return entry.mtime < now - max_age_days * _SECONDS_PER_DAY
@@ -135,7 +148,7 @@ def get_video_cache_stats(max_age_days: int | None = None) -> VideoCacheStats:
     oldest_mtime = None
     newest_mtime = None
 
-    for entry in _iter_video_cache_entries():
+    for entry in _iter_video_cache_entries(include_temp=True):
         if not _is_cleanup_candidate(entry, max_age_days, now):
             continue
         file_count += 1
@@ -180,7 +193,7 @@ def clean_video_cache(max_age_days: int | None = None) -> VideoCacheCleanupResul
     # 边扫描边删除，不在内存中保留完整候选列表。即使目录增长到几十万个文件，
     # 清理过程的额外内存仍保持常量级；执行时使用统一 now，避免长清理过程中
     # 截止时间不断移动而产生不可预测的候选范围。
-    for entry in _iter_video_cache_entries():
+    for entry in _iter_video_cache_entries(include_temp=True):
         if not _is_cleanup_candidate(entry, max_age_days, now):
             continue
         candidate_count += 1
@@ -190,7 +203,10 @@ def clean_video_cache(max_age_days: int | None = None) -> VideoCacheCleanupResul
             # 文件名，防止未来修改扫描逻辑时意外扩大可删除范围。
             if (
                 os.path.realpath(os.path.dirname(entry.path)) != cache_dir
-                or not _VIDEO_CACHE_FILE_PATTERN.fullmatch(entry.name)
+                or not (
+                    _VIDEO_CACHE_FILE_PATTERN.fullmatch(entry.name)
+                    or _VIDEO_CACHE_TEMP_FILE_PATTERN.fullmatch(entry.name)
+                )
                 or os.path.islink(entry.path)
             ):
                 raise ValueError("cache file is outside the managed directory")

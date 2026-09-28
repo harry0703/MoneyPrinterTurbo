@@ -3,6 +3,7 @@ import io
 import math
 import os
 import random
+import tempfile
 import threading
 import time
 import uuid
@@ -1053,43 +1054,66 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     }
 
-    # if video does not exist, download it
-    with open(video_path, "wb") as f:
-        f.write(
-            requests.get(
-                video_url,
-                headers=headers,
-                proxies=config.proxy,
-                verify=_get_tls_verify(),
-                timeout=(60, 240),
-            ).content
-        )
+    # A nonempty file is treated as a cache hit above. Keep the final path
+    # unpublished until the complete download has passed media validation, so a
+    # failed download cannot poison this or another concurrent task's cache.
+    temp_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            prefix=f".{video_id}-",
+            suffix=".mp4",
+            dir=save_dir,
+            delete=False,
+        ) as temp_file:
+            temp_path = temp_file.name
+            temp_file.write(
+                requests.get(
+                    video_url,
+                    headers=headers,
+                    proxies=config.proxy,
+                    verify=_get_tls_verify(),
+                    timeout=(60, 240),
+                ).content
+            )
 
-    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        if os.path.getsize(temp_path) == 0:
+            return ""
+
         clip = None
         try:
-            clip = VideoFileClip(video_path)
+            clip = VideoFileClip(temp_path)
             duration = clip.duration
             fps = clip.fps
-            if duration > 0 and fps > 0:
-                return video_path
+            if not (duration > 0 and fps > 0):
+                logger.warning(f"invalid video file: {temp_path} => invalid duration or fps")
+                return ""
         except Exception as e:
-            logger.warning(f"invalid video file: {video_path} => {str(e)}")
-            try:
-                os.remove(video_path)
-            except Exception as remove_error:
-                logger.warning(
-                    f"failed to remove invalid video file: {video_path}, error: {str(remove_error)}"
-                )
+            logger.warning(f"invalid video file: {temp_path} => {str(e)}")
+            return ""
         finally:
             if clip is not None:
                 try:
                     clip.close()
                 except Exception as close_error:
                     logger.warning(
-                        f"failed to close video clip: {video_path}, error: {str(close_error)}"
+                        f"failed to close video clip: {temp_path}, error: {str(close_error)}"
                     )
-    return ""
+
+        os.replace(temp_path, video_path)
+        temp_path = ""
+        return video_path
+    finally:
+        if temp_path:
+            try:
+                os.remove(temp_path)
+            except FileNotFoundError:
+                pass
+            except OSError as remove_error:
+                logger.warning(
+                    f"failed to remove temporary video file: {temp_path}, "
+                    f"error: {str(remove_error)}"
+                )
 
 
 # OpenAI 兼容文生图（Issue #1274）通过 /images/generations 协议为脚本关键词
