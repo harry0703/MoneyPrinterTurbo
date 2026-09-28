@@ -1067,15 +1067,18 @@ def save_video(video_url: str, save_dir: str = "") -> str:
             delete=False,
         ) as temp_file:
             temp_path = temp_file.name
-            temp_file.write(
-                requests.get(
-                    video_url,
-                    headers=headers,
-                    proxies=config.proxy,
-                    verify=_get_tls_verify(),
-                    timeout=(60, 240),
-                ).content
-            )
+            with requests.get(
+                video_url,
+                headers=headers,
+                proxies=config.proxy,
+                verify=_get_tls_verify(),
+                timeout=(60, 240),
+                stream=True,
+            ) as response:
+                response.raise_for_status()
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        temp_file.write(chunk)
 
         if os.path.getsize(temp_path) == 0:
             return ""
