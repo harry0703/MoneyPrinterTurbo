@@ -66,6 +66,14 @@ from app.services import task as tm
 from app.services import version_checker
 from app.utils.logging_utils import configure_terminal_logger
 from app.utils import utils
+from webui.service_navigation import parse_console_navigation
+
+
+console_navigation = parse_console_navigation(
+    os.environ.get("INDEPENDENT_MEDIA_CONSOLE_URL")
+)
+if console_navigation.state == "IGNORED":
+    logger.warning(console_navigation.warning_code)
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -1759,6 +1767,16 @@ def _render_top_bar():
             gap="small",
             width="stretch",
         ):
+            if console_navigation.state == "ENABLED":
+                console_url = html.escape(console_navigation.url or "", quote=True)
+                console_label = html.escape(
+                    tr("Back to Independent Media Console"), quote=True
+                )
+                st.markdown(
+                    f'<a href="{console_url}" target="_self">{console_label}</a>',
+                    unsafe_allow_html=True,
+                )
+
             _render_task_manager_entry()
 
             st.button(

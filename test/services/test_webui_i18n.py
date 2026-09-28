@@ -34,6 +34,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "AI Video Duration Basis Estimated",
         "AI Video Material Coverage",
         "AI Video Scene Count",
+        "Back to Independent Media Console",
         "Confirm AI Video Charge",
         "Confirm AI Video Charge Help",
         "Confirm AI Video Charge Required",
