@@ -1,6 +1,8 @@
 import sys
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,6 +14,48 @@ from app.services import subtitle
 
 
 class TestSubtitleService(unittest.TestCase):
+    def test_concurrent_subtitles_initialize_whisper_once(self):
+        """Concurrent jobs must not load the large Whisper model twice."""
+        first_constructor_started = threading.Event()
+        release_constructor = threading.Event()
+        second_constructor_started = threading.Event()
+        constructor_calls = []
+
+        class FakeWhisperModel:
+            def __init__(self, **_kwargs):
+                constructor_calls.append(1)
+                if len(constructor_calls) == 1:
+                    first_constructor_started.set()
+                else:
+                    second_constructor_started.set()
+                release_constructor.wait(timeout=2)
+
+            def transcribe(self, _audio_file, **_kwargs):
+                return [], SimpleNamespace(language="en", language_probability=1.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(subtitle, "model", None),
+                patch.object(subtitle, "WhisperModel", FakeWhisperModel),
+            ):
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    first = executor.submit(
+                        subtitle.create, "audio-1.mp3", str(Path(temp_dir) / "1.srt")
+                    )
+                    self.assertTrue(first_constructor_started.wait(timeout=1))
+                    second = executor.submit(
+                        subtitle.create, "audio-2.mp3", str(Path(temp_dir) / "2.srt")
+                    )
+                    try:
+                        duplicate_load = second_constructor_started.wait(timeout=0.2)
+                    finally:
+                        release_constructor.set()
+                    first.result(timeout=2)
+                    second.result(timeout=2)
+
+        self.assertFalse(duplicate_load, "Whisper was loaded twice")
+        self.assertEqual(len(constructor_calls), 1)
+
     def test_file_to_subtitles_returns_empty_for_missing_input(self):
         """空路径和不存在的文件都应安全返回空列表。"""
         self.assertEqual(subtitle.file_to_subtitles(""), [])
