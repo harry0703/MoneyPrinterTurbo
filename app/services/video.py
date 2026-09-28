@@ -404,13 +404,43 @@ def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason:
     return _DEFAULT_VIDEO_CODEC
 
 
-def _write_videofile_with_codec_fallback(clip, output_file: str, codec: str, **kwargs):
+def _write_videofile_with_codec_fallback(
+    clip, output_file: str, codec: str, atomic_output: bool = False, **kwargs
+):
     """
     使用指定编码器写出视频，失败时自动用 libx264 重试一次。
 
     硬件编码器是否可用不仅取决于 FFmpeg，还取决于显卡、驱动和当前运行环境。
     生成任务不能因为高级编码器不可用而整体失败，所以这里把回退集中处理。
     """
+    if atomic_output:
+        # Final videos can be downloaded by path while they are being rendered.
+        # Keep both failed encodes and in-progress writes away from that path.
+        output_dir = os.path.dirname(os.path.abspath(output_file))
+        descriptor, temp_output = tempfile.mkstemp(
+            prefix=f".{os.path.basename(output_file)}.",
+            suffix=os.path.splitext(output_file)[1] or ".mp4",
+            dir=output_dir,
+        )
+        os.close(descriptor)
+        os.unlink(temp_output)
+        try:
+            used_codec = _write_videofile_with_codec_fallback(
+                clip, temp_output, codec, **kwargs
+            )
+            os.replace(temp_output, output_file)
+            return used_codec
+        finally:
+            try:
+                os.unlink(temp_output)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(
+                    f"failed to remove temporary final video: {temp_output}, "
+                    f"error: {exc}"
+                )
+
     effective_codec = _get_effective_video_codec(codec)
     try:
         clip.write_videofile(output_file, codec=effective_codec, **kwargs)
@@ -1568,6 +1598,7 @@ def generate_video(
             final_video_clip,
             output_file=output_file,
             codec=_get_configured_video_codec(),
+            atomic_output=True,
             audio_codec=audio_codec,
             audio_fps=output_audio_fps,
             audio_bitrate=audio_bitrate,

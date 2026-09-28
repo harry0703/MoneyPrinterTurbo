@@ -286,6 +286,7 @@ class TestVideoService(unittest.TestCase):
 
         self.assertTrue(result)
         writer.assert_called_once()
+        self.assertTrue(writer.call_args.kwargs["atomic_output"])
         self.assertEqual(writer.call_args.kwargs["audio_fps"], 48000)
         self.assertEqual(source_video.close_calls, 1)
         self.assertEqual(voice_source.close_calls, 1)
@@ -651,6 +652,52 @@ class TestVideoService(unittest.TestCase):
                 )
 
         self.assertNotIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
+    def test_failed_final_encode_keeps_previous_video_and_removes_partial_file(self):
+        """A failed encode must not replace a downloadable final video with partial bytes."""
+
+        class FailingClip:
+            def write_videofile(self, output_file, codec, **_kwargs):
+                Path(output_file).write_bytes(b"partial mp4")
+                raise RuntimeError("encoder stopped")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            final_path = Path(temp_dir, "final-1.mp4")
+            final_path.write_bytes(b"previous complete mp4")
+
+            with self.assertRaisesRegex(RuntimeError, "encoder stopped"):
+                vd._write_videofile_with_codec_fallback(
+                    FailingClip(),
+                    str(final_path),
+                    codec="libx264",
+                    atomic_output=True,
+                )
+
+            self.assertEqual(final_path.read_bytes(), b"previous complete mp4")
+            self.assertEqual(list(Path(temp_dir).iterdir()), [final_path])
+
+    def test_final_encode_publishes_only_after_writer_returns(self):
+        """Readers keep the old final video until the new encode completes."""
+        test = self
+
+        class SuccessfulClip:
+            def write_videofile(self, output_file, codec, **_kwargs):
+                test.assertNotEqual(Path(output_file), final_path)
+                test.assertEqual(final_path.read_bytes(), b"previous complete mp4")
+                Path(output_file).write_bytes(b"new complete mp4")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            final_path = Path(temp_dir, "final-1.mp4")
+            final_path.write_bytes(b"previous complete mp4")
+            vd._write_videofile_with_codec_fallback(
+                SuccessfulClip(),
+                str(final_path),
+                codec="libx264",
+                atomic_output=True,
+            )
+
+            self.assertEqual(final_path.read_bytes(), b"new complete mp4")
+            self.assertEqual(list(Path(temp_dir).iterdir()), [final_path])
 
     def test_format_ffmpeg_concat_path_normalizes_windows_path(self):
         """
