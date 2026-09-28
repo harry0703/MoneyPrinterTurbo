@@ -125,7 +125,13 @@ def test_connection() -> dict[str, Any]:
             headers={"xi-api-key": api_key},
             timeout=(15, 30),
             stream=True,
+            allow_redirects=False,
         ) as response:
+            if 300 <= response.status_code < 400:
+                raise ElevenLabsMusicError(
+                    "ElevenLabs account check returned a redirect; "
+                    "the API key was not forwarded"
+                )
             if response.status_code == 401:
                 raise ElevenLabsAuthenticationError(
                     "ElevenLabs API key was rejected (401): "
@@ -336,8 +342,14 @@ def _request_bgm(video_path: str, output_path: str, prompt: str) -> str:
                     data=request_data,
                     stream=True,
                     timeout=_request_timeout(),
+                    allow_redirects=False,
                 )
                 with response:
+                    if 300 <= response.status_code < 400:
+                        raise ElevenLabsMusicError(
+                            "ElevenLabs generation returned a redirect; "
+                            "the video and API key were not forwarded"
+                        )
                     if not response.ok:
                         raise ElevenLabsMusicError(
                             "ElevenLabs generation failed "

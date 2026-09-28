@@ -440,6 +440,17 @@ subtitle_provider = "edge"
 # Windows example: ffmpeg_path = "C:\\path\\to\\ffmpeg.exe"
 # ffmpeg_path = ""
 
+# Fail a stalled FFmpeg concatenation after this many seconds (default: 3600).
+# Increase this for unusually long videos or slow machines. On timeout, FFmpeg
+# is stopped and the task reports a failure instead of staying at 50% forever.
+# ffmpeg_concat_timeout_seconds = 3600
+
+# No-voice MP3 and pause-tag narration use FFmpeg. Bound each invocation so a
+# stuck conversion fails the task rather than waiting indefinitely (default:
+# 600 seconds per invocation). Increase this on unusually slow machines or for
+# very long narration chunks.
+# ffmpeg_tts_timeout_seconds = 600
+
 # Leave unset to follow the app default (libx264). Hardware encoders are optional;
 # unsupported encoders automatically fall back to libx264.
 # Available values: "libx264", "h264_nvenc", "h264_amf", "h264_qsv",

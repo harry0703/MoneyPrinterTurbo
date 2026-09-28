@@ -43,7 +43,10 @@ def test_audience_payload_and_snapshot_override(
     video = tmp_path / "video.mp4"
     video.write_bytes(b"test-media")
     with patch("app.services.upload_post.requests.post") as post:
-        post.return_value.json.return_value = {"success": True}
+        post.return_value.json.return_value = {
+            "success": True,
+            "results": {"youtube": {"success": True}},
+        }
         result = UploadPostService().upload_video(
             str(video), "test", youtube_extra=extra
         )
@@ -74,7 +77,13 @@ def test_other_platforms_ignore_youtube_audience(tmp_path, upload_config):
     video = tmp_path / "video.mp4"
     video.touch()
     with patch("app.services.upload_post.requests.post") as post:
-        post.return_value.json.return_value = {"success": True}
+        post.return_value.json.return_value = {
+            "success": True,
+            "results": {
+                "tiktok": {"success": True},
+                "instagram": {"success": True},
+            },
+        }
         result = UploadPostService().upload_video(
             str(video),
             "test",
@@ -148,7 +157,7 @@ def test_real_http_multipart_audience(tmp_path, upload_config, selected):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(b'{"success": true, "request_id": "local-only"}')
+            self.wfile.write(b'{"success": true, "results": {"youtube": {"success": true}}}')
 
         def log_message(self, *_args):
             # 本机接收器不打印请求头，测试输出无需包含认证信息。

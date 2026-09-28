@@ -116,7 +116,13 @@ def test_connection() -> dict[str, Any]:
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=(15, 30),
             stream=True,
+            allow_redirects=False,
         ) as response:
+            if 300 <= response.status_code < 400:
+                raise SoniloError(
+                    "Sonilo connection check returned a redirect; "
+                    "the API key was not forwarded"
+                )
             if not response.ok:
                 raise SoniloError(
                     f"Sonilo connection failed ({response.status_code}): "
@@ -321,8 +327,14 @@ def _request_bgm(video_path: str, output_path: str, prompt: str) -> str:
                     data={"prompt": prompt} if prompt else None,
                     stream=True,
                     timeout=_request_timeout(),
+                    allow_redirects=False,
                 )
                 with response:
+                    if 300 <= response.status_code < 400:
+                        raise SoniloError(
+                            "Sonilo generation returned a redirect; "
+                            "the video and API key were not forwarded"
+                        )
                     if not response.ok:
                         raise SoniloError(
                             f"Sonilo generation failed ({response.status_code}): "

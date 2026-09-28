@@ -44,6 +44,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
+from app.services import material_upload as material_upload_service
 from app.services import (
     cache_manager,
     llm,
@@ -612,6 +613,43 @@ def _build_uploaded_file_path(uploaded_file, target_dir, allowed_extensions, pre
         logger.warning(f"invalid uploaded file path: {file_path}")
         raise ValueError("invalid uploaded file path")
     return file_path
+
+
+def _save_uploaded_local_materials(uploaded_files):
+    """Validate a WebUI material batch and undo earlier files on failure."""
+    local_videos_dir = utils.storage_dir("local_videos", create=True)
+    materials = []
+    persisted = []
+    saved_paths = []
+    try:
+        for uploaded_file in uploaded_files:
+            stored_name = material_upload_service.save_material_upload(
+                uploaded_file.name, uploaded_file
+            )
+            file_path = os.path.join(local_videos_dir, stored_name)
+            saved_paths.append(file_path)
+            material_info = MaterialInfo()
+            material_info.provider = "local"
+            material_info.url = file_path
+            materials.append(material_info)
+            persisted.append(
+                {
+                    "provider": material_info.provider,
+                    "url": material_info.url,
+                    "duration": material_info.duration,
+                }
+            )
+    except Exception:
+        for file_path in saved_paths:
+            try:
+                os.remove(file_path)
+            except OSError as exc:
+                logger.warning(
+                    f"failed to remove local material after batch error: "
+                    f"path={file_path}, error={exc}"
+                )
+        raise
+    return materials, persisted
 
 
 def _initialize_session_state():
@@ -8138,6 +8176,22 @@ def _render_generation_controls(
                     CUSTOM_AUDIO_EXTENSIONS,
                     "custom-audio",
                 )
+                # Voiceover uploads previously bypassed the same full-decode
+                # and size checks used for background-music uploads. Validate
+                # before storing or scheduling the generation task.
+                bgm_service.validate_bgm_upload(
+                    uploaded_audio_file.name, uploaded_audio_file
+                )
+            except bgm_service.BgmUploadError as exc:
+                _remove_active_generation_task(task_id)
+                logger.warning(f"WebUI custom audio upload rejected: {exc}")
+                st.error(str(exc))
+                st.stop()
+            except bgm_service.BgmServiceError as exc:
+                _remove_active_generation_task(task_id)
+                logger.error(f"WebUI custom audio validation failed: {exc}")
+                st.error(str(exc))
+                st.stop()
             except ValueError:
                 _remove_active_generation_task(task_id)
                 st.error(tr("Unsupported Upload File Type"))
@@ -8147,35 +8201,21 @@ def _render_generation_controls(
             params.custom_audio_file = custom_audio_path
 
         if uploaded_files:
-            local_videos_dir = utils.storage_dir("local_videos", create=True)
             # 每次重新上传时都以本次选择的素材为准，避免旧素材不断重复追加。
-            params.video_materials = []
-            persisted_local_materials = []
-            for file in uploaded_files:
-                try:
-                    file_path = _build_uploaded_file_path(
-                        file,
-                        local_videos_dir,
-                        LOCAL_MATERIAL_EXTENSIONS,
-                        "material",
-                    )
-                except ValueError:
-                    _remove_active_generation_task(task_id)
-                    st.error(tr("Unsupported Upload File Type"))
-                    st.stop()
-                with open(file_path, "wb") as f:
-                    f.write(file.getbuffer())
-                    m = MaterialInfo()
-                    m.provider = "local"
-                    m.url = file_path
-                    params.video_materials.append(m)
-                    persisted_local_materials.append(
-                        {
-                            "provider": m.provider,
-                            "url": m.url,
-                            "duration": m.duration,
-                        }
-                    )
+            try:
+                params.video_materials, persisted_local_materials = (
+                    _save_uploaded_local_materials(uploaded_files)
+                )
+            except material_upload_service.MaterialUploadError as exc:
+                _remove_active_generation_task(task_id)
+                logger.warning(f"WebUI local material upload rejected: {exc}")
+                st.error(str(exc))
+                st.stop()
+            except material_upload_service.MaterialServiceError as exc:
+                _remove_active_generation_task(task_id)
+                logger.error(f"WebUI local material upload failed: {exc}")
+                st.error(str(exc))
+                st.stop()
             # 将已上传并保存到本地的视频素材写入会话，供后续只改文案时直接复用。
             st.session_state["local_video_materials"] = persisted_local_materials
         elif (

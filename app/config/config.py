@@ -458,9 +458,16 @@ def _load_toml_config(config_path: str):
 
 
 def load_config():
-    # fix: IsADirectoryError: [Errno 21] Is a directory: '/MoneyPrinterTurbo/config.toml'
+    # Docker may create an empty directory when a missing config.toml is bind-mounted.
+    # Only remove that empty placeholder; a nonempty directory may contain user data.
     if os.path.isdir(config_file):
-        shutil.rmtree(config_file)
+        try:
+            os.rmdir(config_file)
+        except OSError as exc:
+            raise IsADirectoryError(
+                f"{config_file} is a directory and cannot be used as the config file; "
+                "move or rename it, then restart"
+            ) from exc
 
     if not os.path.isfile(config_file):
         example_file = f"{root_dir}/config.example.toml"
