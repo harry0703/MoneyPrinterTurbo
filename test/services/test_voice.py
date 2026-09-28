@@ -188,6 +188,20 @@ class TestVoiceService(unittest.TestCase):
 
             self.assertFalse(vs.generate_silent_audio(3.0, voice_file))
 
+    def test_no_voice_ffmpeg_timeout_preserves_previous_output(self):
+        def timed_out(command, **kwargs):
+            self.assertIn("-nostdin", command)
+            self.assertGreater(kwargs.get("timeout", 0), 0)
+            Path(command[-1]).write_bytes(b"partial-silence")
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "silent.mp3"
+            output.write_bytes(b"previous-success")
+            with patch.object(vs.subprocess, "run", side_effect=timed_out):
+                self.assertFalse(vs.generate_silent_audio(3.0, str(output)))
+            self.assertEqual(output.read_bytes(), b"previous-success")
+
     def test_empty_voice_name_does_not_enable_no_voice_mode(self):
         """
         空 voice 通常意味着配置缺失或接口参数错误，不能自动切到无配音模式。
