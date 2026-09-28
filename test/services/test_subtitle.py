@@ -259,6 +259,22 @@ class TestSubtitleService(unittest.TestCase):
         self.assertEqual(items[0][1], "00:00:00,100 --> 00:00:02,000")
         self.assertEqual(items[0][2], "Hello world")
 
+    def test_correct_removes_transcription_after_script_ends(self):
+        """Whisper's trailing hallucinations must not appear as final captions."""
+        original_srt = (
+            "1\n00:00:00,100 --> 00:00:01,000\nHello world\n\n"
+            "2\n00:00:01,000 --> 00:00:02,000\nUnspoken words\n\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+
+            subtitle.correct(str(subtitle_file), "Hello world")
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+
+        self.assertEqual([item[2] for item in items], ["Hello world"])
+
     def test_correct_replaces_mismatch_and_appends_missing_script_line(self):
         """
         转写结果与脚本完全不一致时仍应以脚本为准；脚本多出的句子没有可复用
