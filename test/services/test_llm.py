@@ -387,6 +387,13 @@ class TestLiteLLMProvider(unittest.TestCase):
             cheaperinference.model_docs_url,
             "https://cheaperinference.com/#models",
         )
+        requesty = get_llm_provider("requesty")
+        self.assertEqual(requesty.default_model, "openai/gpt-5.4-mini")
+        self.assertEqual(requesty.default_base_url, "https://router.requesty.ai/v1")
+        self.assertEqual(requesty.adapter, "openai_compatible")
+        self.assertTrue(requesty.requires_api_key)
+        self.assertEqual(requesty.api_key_url, "https://app.requesty.ai/api-keys")
+        self.assertEqual(requesty.model_docs_url, "https://www.requesty.ai/models")
         pollinations = get_llm_provider("pollinations")
         self.assertEqual(pollinations.default_model, "openai-fast")
         self.assertEqual(
@@ -446,6 +453,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "api_route",
                 "fluxionai",
                 "cheaperinference",
+                "requesty",
                 "ollama",
                 "claude_code",
                 "oneapi",
