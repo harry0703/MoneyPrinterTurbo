@@ -773,9 +773,9 @@ def get_video_materials(
             details = {"wavespeed_prediction_id": prediction_id} if prediction_id else None
             _mark_task_failed(task_id, "materials", str(exc), details=details)
             return None
-        except material.OpenAIImageUnconfirmedError as exc:
-            # An earlier image does not make a later ambiguous paid request a
-            # successful task. Stop before placing another image order.
+        except material.OpenAIImagePaidResultError as exc:
+            # A paid request with an uncertain response, failed result download,
+            # or failed local render must stop before another image order.
             _mark_task_failed(task_id, "materials", str(exc))
             return None
         except ofox.OFoxError as exc:

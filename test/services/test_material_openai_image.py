@@ -445,6 +445,31 @@ class TestOpenAIImageProvider(unittest.TestCase):
 
         self.assertEqual(os.listdir(self.save_dir), [])
 
+    def test_generated_image_download_failure_does_not_buy_another_image(self):
+        """A confirmed paid result remains a task failure if its URL cannot download."""
+        response = _image_response(
+            {"data": [{"url": "https://cdn.example.com/generated/x.png"}]}
+        )
+        with (
+            patch("app.services.material.requests.post", return_value=response) as post,
+            patch(
+                "app.services.material.requests.get",
+                return_value=_download_response(b"", status_code=502),
+            ) as get,
+            patch("app.services.material.time.sleep"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "could not be downloaded"):
+                material.download_videos(
+                    task_id="test-openai-image-download-failure",
+                    search_terms=["first", "second"],
+                    source="openai_image",
+                    audio_duration=10,
+                    max_clip_duration=5,
+                )
+
+        self.assertEqual(post.call_count, 1)
+        self.assertEqual(get.call_count, material.OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS)
+
     def test_generate_images_openai_returns_empty_on_rejected_request(self):
         """业务拒绝(如内容策略)返回空结果,不做退避重试。"""
         response = _image_response(
@@ -852,10 +877,9 @@ class TestOpenAIImageProvider(unittest.TestCase):
         cached_search.assert_not_called()
         self.assertEqual(result, ["/tmp/img-1.png.mp4"])
 
-    def test_download_videos_openai_image_skips_failed_segment_and_continues(self):
+    def test_download_videos_openai_image_skips_rejected_segment(self):
         """
-        单张生成失败(空结果)或渲染失败时跳过该关键词,继续为后续片段生成,
-        已成功的素材照常返回。
+        明确拒绝的生成结果为空时跳过该关键词，继续处理下一片段。
         """
         generated = {
             "term-1": [],  # 生成失败
@@ -867,8 +891,6 @@ class TestOpenAIImageProvider(unittest.TestCase):
             return generated[search_term]
 
         def fake_render(image_path, clip_duration):
-            if "img-2" in image_path:
-                return ""  # term-2 渲染失败
             return f"{image_path}.mp4"
 
         with (
@@ -889,9 +911,29 @@ class TestOpenAIImageProvider(unittest.TestCase):
                 max_clip_duration=5,
             )
 
-        self.assertEqual(generate.call_count, 3)
-        # term-2 渲染失败被跳过,只有 term-3 的片段进入成片
-        self.assertEqual(result, ["/tmp/img-3.png.mp4"])
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(result, ["/tmp/img-2.png.mp4"])
+
+    def test_download_videos_openai_image_stops_after_render_failure(self):
+        """A paid image saved locally should not trigger another purchase if render fails."""
+        generated_item = self._generated_item("first", "/tmp/img-1.png")
+        with (
+            patch(
+                "app.services.material.generate_images_openai",
+                return_value=[generated_item],
+            ) as generate,
+            patch("app.services.material._render_openai_image_video", return_value=""),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "could not be rendered"):
+                material.download_videos(
+                    task_id="test-openai-image-render-failure",
+                    search_terms=["first", "second"],
+                    source="openai_image",
+                    audio_duration=10,
+                    max_clip_duration=5,
+                )
+
+        self.assertEqual(generate.call_count, 1)
 
     def test_download_videos_openai_image_skips_generation_without_audio(self):
         """配音时长非正数时直接空手返回,不为不可能凑够的任务按张付费。"""

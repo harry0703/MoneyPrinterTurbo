@@ -43,7 +43,11 @@ class _OpenAIImageDecodeError(ValueError):
     """表示兼容接口返回的字节无法解码为图片，不包含本地文件写入故障。"""
 
 
-class OpenAIImageUnconfirmedError(RuntimeError):
+class OpenAIImagePaidResultError(RuntimeError):
+    """A paid image request cannot provide a usable local video material."""
+
+
+class OpenAIImageUnconfirmedError(OpenAIImagePaidResultError):
     """A paid image request may have succeeded without returning a response."""
 
 
@@ -1341,7 +1345,7 @@ def _openai_image_download_bytes(
     下载已生成图片的临时 URL。
 
     图片已经按张计费，下载失败时优先重试原地址，而不是回退到重新生成，
-    避免为同一张图重复付费。
+    避免为同一张图重复付费。全部重试失败时抛错，阻止外层购买下一张图。
     """
     failure_detail = "no download attempt was made"
     for attempt in range(1, OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS + 1):
@@ -1380,7 +1384,8 @@ def _openai_image_download_bytes(
                 failure_detail = f"HTTP {response.status_code} while downloading image"
         except Exception as e:
             failure_detail = (
-                f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+                f"error={type(e).__name__}, "
+                f"detail={_redact_request_error(e, api_key, image_url)}"
             )
         finally:
             if response is not None:
@@ -1398,7 +1403,9 @@ def _openai_image_download_bytes(
                 f"{failure_detail}"
             )
             time.sleep(OPENAI_IMAGE_DOWNLOAD_BACKOFF_SECONDS)
-    return None, failure_detail
+    raise OpenAIImagePaidResultError(
+        "generated image could not be downloaded after retries"
+    )
 
 
 def _parse_openai_image_response(
@@ -1652,7 +1659,7 @@ def _render_openai_image_video(image_path: str, clip_duration: int) -> str:
     """
     把生成的图片渲染成 mp4 片段，复用 local 素材的"图片 → 动态片段"管线。
 
-    渲染失败按素材源约定返回空字符串，由调用方跳过该图片继续。
+    渲染失败返回空字符串，由调用方停止后续付费请求。
     """
     try:
         return video.render_image_zoom_video(image_path, clip_duration)
@@ -1679,8 +1686,8 @@ def _download_videos_openai_image_on_demand(
     与 WaveSpeed 按需生成同一付费安全语义：文生图按张计费，先全量生成再
     挑选会为用不到的画面付费。每张图片生成后立即渲染成 mp4 片段并累计
     有效时长（与库存流程一致，按片段时长封顶），累计达到所需配音时长后
-    不再发起新的付费请求。明确失败的单张图片可跳过；请求结果不明时必须
-    终止任务，避免后续关键词再次计费。
+    不再发起新的付费请求。明确拒绝的单张图片可跳过；请求结果不明、付费
+    结果下载失败或本地渲染失败时必须终止任务，避免后续关键词再次计费。
     """
     if not material_directory:
         # 生成图片按任务计费且不可复用，默认落在任务目录便于追溯。
@@ -1712,13 +1719,16 @@ def _download_videos_openai_image_on_demand(
                 video_aspect=video_aspect,
                 save_dir=material_directory,
             )
-        except OpenAIImageUnconfirmedError:
+        except OpenAIImagePaidResultError:
             _persist_material_sources(task_id, material_sources)
             raise
         for item in items:
             video_file = _render_openai_image_video(item.url, max_clip_duration)
             if not video_file:
-                continue
+                _persist_material_sources(task_id, material_sources)
+                raise OpenAIImagePaidResultError(
+                    "generated image could not be rendered locally"
+                )
             logger.info(f"image material rendered: {video_file}")
             video_paths.append(video_file)
             try:
