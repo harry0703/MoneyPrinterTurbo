@@ -182,6 +182,29 @@ class TestAsyncUpdateChecker(unittest.TestCase):
         self.assertTrue(completed.complete)
         self.assertIsNone(completed.available_version)
 
+    def test_thread_start_failure_does_not_leave_check_pending(self):
+        now = [100.0]
+        checker = version_checker.AsyncUpdateChecker(
+            check=lambda _: "1.4.0",
+            ttl_seconds=10,
+            clock=lambda: now[0],
+        )
+        with patch.object(version_checker.threading, "Thread") as make_thread:
+            make_thread.return_value.start.side_effect = RuntimeError(
+                "can't start new thread"
+            )
+            failed = checker.poll("1.3.2")
+
+        self.assertTrue(failed.complete)
+        self.assertIsNone(failed.available_version)
+        self.assertTrue(checker.poll("1.3.2").complete)
+
+        now[0] += 11
+        self.assertEqual(
+            self._wait_for_completion(checker).available_version,
+            "1.4.0",
+        )
+
     def test_old_check_cannot_complete_new_check_for_same_version(self):
         started = [Event() for _ in range(3)]
         release = [Event() for _ in range(3)]
