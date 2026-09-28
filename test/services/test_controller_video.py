@@ -311,6 +311,49 @@ class TestVideoControllerTasks(unittest.TestCase):
         )
         get_all.assert_called_once_with(2, 10)
 
+    def test_task_list_returns_download_urls_without_mutating_state(self):
+        """List and detail endpoints must expose the same usable video URLs."""
+        task_id = "listed-task-url"
+        task_dir = utils.task_dir(task_id)
+        video_path = os.path.join(task_dir, "final-1.mp4")
+        audio_path = os.path.join(task_dir, "audio.mp3")
+        subtitle_path = os.path.join(task_dir, "subtitle.srt")
+        Path(video_path).write_bytes(b"fake-video")
+        Path(audio_path).write_bytes(b"fake-audio")
+        Path(subtitle_path).write_text("subtitle", encoding="utf-8")
+        stored_task = {
+            "task_id": task_id,
+            "state": const.TASK_STATE_COMPLETE,
+            "videos": [video_path],
+            "combined_videos": [video_path],
+            "audio_file": audio_path,
+            "subtitle_path": subtitle_path,
+        }
+
+        try:
+            with (
+                patch.object(
+                    video_controller.sm.state,
+                    "get_all_tasks",
+                    return_value=([stored_task], 1),
+                ),
+                patch.dict(config.app, {"endpoint": ""}),
+            ):
+                response = video_controller.get_all_tasks(
+                    self._request(), page=1, page_size=10
+                )
+
+            listed = response["data"]["tasks"][0]
+            expected_url = f"/tasks/{task_id}/final-1.mp4"
+            self.assertEqual(listed["videos"], [expected_url])
+            self.assertEqual(listed["combined_videos"], [expected_url])
+            self.assertEqual(listed["audio_file"], f"/tasks/{task_id}/audio.mp3")
+            self.assertEqual(listed["subtitle_path"], f"/tasks/{task_id}/subtitle.srt")
+            self.assertEqual(stored_task["videos"], [video_path])
+            self.assertEqual(stored_task["audio_file"], audio_path)
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+
     def test_task_query_returns_relative_url_without_mutating_state(self):
         """
         endpoint 未配置时应返回相对任务 URL，且不能把展示用 URL 回写到状态，
@@ -319,7 +362,11 @@ class TestVideoControllerTasks(unittest.TestCase):
         task_id = "controller-task-url"
         task_dir = utils.task_dir(task_id)
         video_path = os.path.join(task_dir, "final-1.mp4")
+        audio_path = os.path.join(task_dir, "audio.mp3")
+        subtitle_path = os.path.join(task_dir, "subtitle.srt")
         Path(video_path).write_bytes(b"fake-video")
+        Path(audio_path).write_bytes(b"fake-audio")
+        Path(subtitle_path).write_text("subtitle", encoding="utf-8")
 
         try:
             sm.state.update_task(
@@ -327,6 +374,8 @@ class TestVideoControllerTasks(unittest.TestCase):
                 state=const.TASK_STATE_COMPLETE,
                 videos=[video_path],
                 combined_videos=[video_path],
+                audio_file=audio_path,
+                subtitle_path=subtitle_path,
                 cross_post_owner="localhost:123:internal",
             )
             with patch.dict(config.app, {"endpoint": ""}):
@@ -338,6 +387,8 @@ class TestVideoControllerTasks(unittest.TestCase):
                 response["data"]["videos"],
                 [f"/tasks/{task_id}/final-1.mp4"],
             )
+            self.assertEqual(response["data"]["audio_file"], f"/tasks/{task_id}/audio.mp3")
+            self.assertEqual(response["data"]["subtitle_path"], f"/tasks/{task_id}/subtitle.srt")
             self.assertNotIn("cross_post_owner", response["data"])
             self.assertIn("cross_post_owner", sm.state.get_task(task_id))
             self.assertEqual(sm.state.get_task(task_id)["videos"], [video_path])

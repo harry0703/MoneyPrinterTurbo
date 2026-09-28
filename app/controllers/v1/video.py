@@ -136,6 +136,22 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
     return f"/{uri_path}"
 
 
+def _task_response_data(task: dict, endpoint: str, task_dir: str, request_id: str) -> dict:
+    response_task = _public_task_data(task)
+    for key in ("videos", "combined_videos"):
+        if key in task:
+            response_task[key] = [
+                _task_file_to_uri(file, endpoint, task_dir, request_id)
+                for file in task[key]
+            ]
+    for key in ("audio_file", "subtitle_path"):
+        if task.get(key):
+            response_task[key] = _task_file_to_uri(
+                task[key], endpoint, task_dir, request_id
+            )
+    return response_task
+
+
 def _parse_byte_range(
     range_header: str | None, file_size: int, request_id: str
 ) -> tuple[int, int]:
@@ -261,9 +277,14 @@ def get_all_tasks(
     page_size: int = Query(10, ge=1),
 ):
     tasks, total = sm.state.get_all_tasks(page, page_size)
+    request_id = base.get_task_id(request)
+    endpoint = config.app.get("endpoint", "").rstrip("/")
+    task_dir = utils.task_dir()
 
     response = {
-        "tasks": [_public_task_data(task) for task in tasks],
+        "tasks": [
+            _task_response_data(task, endpoint, task_dir, request_id) for task in tasks
+        ],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -285,18 +306,7 @@ def get_task(
     task = sm.state.get_task(task_id)
     if task:
         task_dir = utils.task_dir()
-        response_task = _public_task_data(task)
-
-        if "videos" in task:
-            response_task["videos"] = [
-                _task_file_to_uri(v, endpoint, task_dir, request_id)
-                for v in task["videos"]
-            ]
-        if "combined_videos" in task:
-            response_task["combined_videos"] = [
-                _task_file_to_uri(v, endpoint, task_dir, request_id)
-                for v in task["combined_videos"]
-            ]
+        response_task = _task_response_data(task, endpoint, task_dir, request_id)
         return utils.get_response(200, response_task)
 
     raise HttpException(
