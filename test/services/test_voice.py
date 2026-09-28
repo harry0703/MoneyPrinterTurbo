@@ -2,6 +2,7 @@ import asyncio
 import base64
 import os
 import shutil
+import subprocess
 import unittest
 import sys
 import tempfile
@@ -187,6 +188,20 @@ class TestVoiceService(unittest.TestCase):
 
             self.assertFalse(vs.generate_silent_audio(3.0, voice_file))
 
+    def test_no_voice_ffmpeg_timeout_preserves_previous_output(self):
+        def timed_out(command, **kwargs):
+            self.assertIn("-nostdin", command)
+            self.assertGreater(kwargs.get("timeout", 0), 0)
+            Path(command[-1]).write_bytes(b"partial-silence")
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "silent.mp3"
+            output.write_bytes(b"previous-success")
+            with patch.object(vs.subprocess, "run", side_effect=timed_out):
+                self.assertFalse(vs.generate_silent_audio(3.0, str(output)))
+            self.assertEqual(output.read_bytes(), b"previous-success")
+
     def test_empty_voice_name_does_not_enable_no_voice_mode(self):
         """
         空 voice 通常意味着配置缺失或接口参数错误，不能自动切到无配音模式。
@@ -315,6 +330,45 @@ class TestVoiceService(unittest.TestCase):
             self.assertEqual(Path(voice_file).read_bytes(), b"legacy-audio")
             self.assertEqual(len(sub_maker.events), 1)
             self.assertEqual(sub_maker.events[0]["type"], "WordBoundary")
+
+    def test_azure_tts_v1_rejects_boundary_only_stream(self):
+        """Subtitle events without audio must not produce a successful TTS result."""
+
+        class _BoundaryOnlyCommunicate:
+            def __init__(self, text, voice, rate="+0%", boundary=None):
+                pass
+
+            def stream_sync(self):
+                yield {
+                    "type": "WordBoundary",
+                    "offset": 0,
+                    "duration": 10000000,
+                    "text": "hello",
+                }
+
+        class _FakeSubMaker:
+            def __init__(self):
+                self.events = []
+
+            def feed(self, chunk):
+                self.events.append(chunk)
+
+            def get_srt(self):
+                return "1\n00:00:00,000 --> 00:00:01,000\nhello\n" if self.events else ""
+
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
+            vs.edge_tts, "Communicate", _BoundaryOnlyCommunicate
+        ), patch.object(vs.edge_tts, "SubMaker", _FakeSubMaker):
+            voice_file = Path(tmp_dir) / "boundary-only.mp3"
+            result = vs.azure_tts_v1(
+                text="hello",
+                voice_name="en-US-AriaNeural-Female",
+                voice_file=str(voice_file),
+                voice_rate=1.0,
+            )
+
+            self.assertIsNone(result)
+            self.assertFalse(voice_file.exists())
 
     def test_azure_tts_v1_times_out_hanging_stream_sync(self):
         """
@@ -976,6 +1030,12 @@ class TestVoiceService(unittest.TestCase):
             content = b"fake-mp3"
             text = ""
 
+            def iter_content(self, chunk_size):
+                yield self.content
+
+            def close(self):
+                pass
+
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
             out = f.name
         try:
@@ -1428,6 +1488,7 @@ class TestElevenLabsVoice(unittest.TestCase):
         mock_config.elevenlabs.get.return_value = "fake-api-key"
         mock_post.return_value.status_code = 200
         mock_post.return_value.content = b"fake-mp3-bytes"
+        mock_post.return_value.iter_content.return_value = iter((b"fake-mp3-bytes",))
         mock_clip_cls.return_value.duration = 3.0
         mock_clip_cls.return_value.close = lambda: None
 
@@ -1442,6 +1503,54 @@ class TestElevenLabsVoice(unittest.TestCase):
         finally:
             if os.path.exists(out_path):
                 os.remove(out_path)
+
+    def test_elevenlabs_tts_rejects_oversize_audio_without_replacing_existing_file(self):
+        """A paid 200 response can be much larger than usable speech."""
+        response = SimpleNamespace(
+            status_code=200,
+            content=b"oversize-audio",
+            iter_content=lambda chunk_size: iter((b"oversize-audio",)),
+            close=lambda: None,
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "voice.mp3"
+            output.write_bytes(b"previous-valid-audio")
+            with (
+                patch.object(vs, "get_elevenlabs_api_key", return_value="test-key"),
+                patch.object(vs.requests, "post", return_value=response) as post,
+                patch.object(vs, "AudioFileClip") as clip,
+                patch.object(vs, "_ELEVENLABS_TTS_MAX_AUDIO_BYTES", 5, create=True),
+            ):
+                clip.return_value.duration = 1.0
+                result = vs.elevenlabs_tts("Hello", "voice-id", str(output))
+
+            self.assertIsNone(result)
+            self.assertEqual(output.read_bytes(), b"previous-valid-audio")
+            self.assertEqual(post.call_count, 1)
+            self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["voice.mp3"])
+
+    def test_elevenlabs_tts_decode_failure_preserves_existing_file(self):
+        """A corrupt successful response must not publish a partial final MP3."""
+        response = SimpleNamespace(
+            status_code=200,
+            content=b"corrupt-audio",
+            iter_content=lambda chunk_size: iter((b"corrupt-audio",)),
+            close=lambda: None,
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "voice.mp3"
+            output.write_bytes(b"previous-valid-audio")
+            with (
+                patch.object(vs, "get_elevenlabs_api_key", return_value="test-key"),
+                patch.object(vs.requests, "post", return_value=response) as post,
+                patch.object(vs, "AudioFileClip", side_effect=OSError("bad mp3")),
+            ):
+                result = vs.elevenlabs_tts("Hello", "voice-id", str(output))
+
+            self.assertIsNone(result)
+            self.assertEqual(output.read_bytes(), b"previous-valid-audio")
+            self.assertEqual(post.call_count, 1)
+            self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["voice.mp3"])
 
     @patch("app.services.voice.config")
     def test_elevenlabs_tts_no_api_key(self, mock_config):
@@ -1544,6 +1653,144 @@ class TestElevenLabsVoice(unittest.TestCase):
             f"({expected_end_100ns} units = {audio_duration_seconds}s)",
         )
 
+    def test_siliconflow_tts_bounds_each_network_attempt(self):
+        """A pre-connect timeout can be retried without submitting paid work."""
+        timeouts = []
+
+        def stalled_post(_url, **kwargs):
+            timeouts.append(kwargs.get("timeout"))
+            raise vs.requests.exceptions.ConnectTimeout("could not connect")
+
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(vs.requests, "post", side_effect=stalled_post),
+            patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+        ):
+            voice_file = str(Path(temp_dir) / "narration.mp3")
+            result = vs.siliconflow_tts(
+                text="An example narration",
+                model="FunAudioLLM/CosyVoice2-0.5B",
+                voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                voice_rate=1.0,
+                voice_file=voice_file,
+            )
+            self.assertFalse(Path(voice_file).exists())
+
+        self.assertIsNone(result)
+        self.assertEqual(timeouts, [(10, 300)] * 3)
+
+    def test_paid_tts_does_not_repeat_ambiguous_read_timeout(self):
+        """A lost POST response may still have created billable speech remotely."""
+        settings = {
+            "api_key": "test-key",
+            "model_id": vs.MINIMAX_TTS_DEFAULT_MODEL,
+            "audio_format": "mp3",
+        }
+        cases = (
+            ("elevenlabs", lambda path: vs.elevenlabs_tts("Hello", "voice", path)),
+            ("fish", lambda path: vs.fish_audio_tts("Hello", path)),
+            (
+                "minimax",
+                lambda path: vs.minimax_tts("Hello", "voice", 1.0, path),
+            ),
+            (
+                "siliconflow",
+                lambda path: vs.siliconflow_tts(
+                    "Hello", "model", "voice", 1.0, path
+                ),
+            ),
+        )
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(vs.requests, "post", side_effect=vs.requests.exceptions.ReadTimeout("response lost")) as post,
+            patch.object(vs, "get_elevenlabs_api_key", return_value="test-key"),
+            patch.object(vs, "get_fish_audio_api_key", return_value="test-key"),
+            patch.object(vs, "get_minimax_tts_api_key", return_value="test-key"),
+            patch.object(vs, "get_minimax_tts_endpoint", return_value="https://example.test/v1/t2a_v2"),
+            patch.object(vs.config, "fish_audio", {"model": vs.FISH_AUDIO_DEFAULT_MODEL}),
+            patch.object(vs.config, "minimax_tts", settings),
+            patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+        ):
+            for provider, synthesize in cases:
+                with self.subTest(provider=provider):
+                    post.reset_mock()
+                    result = synthesize(str(Path(tmp_dir) / f"{provider}.mp3"))
+                    self.assertIsNone(result)
+                    post.assert_called_once()
+
+    def test_siliconflow_tts_rejects_invalid_success_audio(self):
+        """HTTP 200 with corrupt audio must not become a fake 10-second success."""
+        fake_response = SimpleNamespace(status_code=200, content=b"invalid mp3")
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(vs.requests, "post", return_value=fake_response) as post,
+            patch.object(vs, "AudioFileClip", side_effect=OSError("invalid audio")),
+            patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+        ):
+            voice_file = str(Path(temp_dir) / "narration.mp3")
+            result = vs.siliconflow_tts(
+                text="An example narration",
+                model="FunAudioLLM/CosyVoice2-0.5B",
+                voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                voice_rate=1.0,
+                voice_file=voice_file,
+            )
+            self.assertFalse(Path(voice_file).exists())
+
+        self.assertIsNone(result)
+        post.assert_called_once()
+
+    def test_siliconflow_tts_invalid_audio_preserves_existing_narration(self):
+        fake_response = SimpleNamespace(status_code=200, content=b"invalid mp3")
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(vs.requests, "post", return_value=fake_response),
+            patch.object(vs, "AudioFileClip", side_effect=OSError("invalid audio")),
+            patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+        ):
+            voice_file = Path(temp_dir) / "narration.mp3"
+            voice_file.write_bytes(b"previous valid narration")
+            result = vs.siliconflow_tts(
+                text="An example narration",
+                model="FunAudioLLM/CosyVoice2-0.5B",
+                voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                voice_rate=1.0,
+                voice_file=str(voice_file),
+            )
+
+            self.assertIsNone(result)
+            self.assertEqual(voice_file.read_bytes(), b"previous valid narration")
+            self.assertEqual(list(Path(temp_dir).iterdir()), [voice_file])
+
+    def test_siliconflow_tts_publishes_only_after_audio_validation(self):
+        fake_response = SimpleNamespace(status_code=200, content=b"new mp3")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            voice_file = Path(temp_dir) / "narration.mp3"
+            voice_file.write_bytes(b"previous valid narration")
+
+            def validate_audio(candidate):
+                self.assertNotEqual(Path(candidate), voice_file)
+                self.assertEqual(voice_file.read_bytes(), b"previous valid narration")
+                self.assertEqual(Path(candidate).read_bytes(), b"new mp3")
+                return SimpleNamespace(duration=2.5, close=lambda: None)
+
+            with (
+                patch.object(vs.requests, "post", return_value=fake_response),
+                patch.object(vs, "AudioFileClip", side_effect=validate_audio),
+                patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+            ):
+                result = vs.siliconflow_tts(
+                    text="An example narration",
+                    model="FunAudioLLM/CosyVoice2-0.5B",
+                    voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                    voice_rate=1.0,
+                    voice_file=str(voice_file),
+                )
+
+            self.assertIsNotNone(result)
+            self.assertEqual(voice_file.read_bytes(), b"new mp3")
+            self.assertEqual(list(Path(temp_dir).iterdir()), [voice_file])
+
     def test_pause_tag_detection_and_parsing(self):
         """测试多语言停顿标签的检测、解析与清洗。"""
         sample_script = (
@@ -1597,6 +1844,88 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertNotIn("[pausa", flex_cleaned)
         self.assertNotIn("(pausa", flex_cleaned)
         self.assertNotIn("[pause", flex_cleaned)
+
+    def test_concat_audio_files_reads_pcm_in_bounded_chunks(self):
+        """Long pause-aware narration should not load each WAV into memory."""
+        real_wave_open = vs.wave.open
+        read_sizes = []
+
+        class RecordingReader:
+            def __init__(self, reader):
+                self.reader = reader
+
+            def __enter__(self):
+                self.reader.__enter__()
+                return self
+
+            def __exit__(self, *args):
+                return self.reader.__exit__(*args)
+
+            def __getattr__(self, name):
+                return getattr(self.reader, name)
+
+            def readframes(self, frame_count):
+                read_sizes.append(frame_count)
+                return self.reader.readframes(frame_count)
+
+        def recording_wave_open(file, mode):
+            opened = real_wave_open(file, mode)
+            return RecordingReader(opened) if mode == "rb" else opened
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            inputs = [str(Path(temp_dir) / f"input-{i}.wav") for i in range(2)]
+            output = str(Path(temp_dir) / "joined.wav")
+            for input_path in inputs:
+                with real_wave_open(input_path, "wb") as writer:
+                    writer.setnchannels(1)
+                    writer.setsampwidth(2)
+                    writer.setframerate(24000)
+                    writer.writeframes(b"\x01\x00" * 20000)
+
+            with patch.object(vs.wave, "open", side_effect=recording_wave_open):
+                self.assertTrue(vs._concat_audio_files(inputs, output))
+
+            with real_wave_open(output, "rb") as result:
+                self.assertEqual(result.getnframes(), 40000)
+
+        self.assertTrue(read_sizes)
+        self.assertLessEqual(max(read_sizes), 8192)
+
+    def test_pause_audio_decode_timeout_fails_without_publishing(self):
+        def timed_out(command, **kwargs):
+            self.assertIn("-nostdin", command)
+            self.assertGreater(kwargs.get("timeout", 0), 0)
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            inputs = [str(Path(temp_dir) / f"chunk-{index}.mp3") for index in range(2)]
+            for input_path in inputs:
+                Path(input_path).write_bytes(b"compressed-audio")
+            output = str(Path(temp_dir) / "voice.mp3")
+            with patch.object(vs.subprocess, "run", side_effect=timed_out):
+                self.assertFalse(vs._concat_audio_files(inputs, output))
+            self.assertFalse(Path(output).exists())
+
+    def test_pause_audio_encode_timeout_preserves_previous_output(self):
+        def timed_out(command, **kwargs):
+            self.assertIn("-nostdin", command)
+            self.assertGreater(kwargs.get("timeout", 0), 0)
+            Path(command[-1]).write_bytes(b"partial-output")
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            inputs = [str(Path(temp_dir) / f"chunk-{index}.wav") for index in range(2)]
+            for input_path in inputs:
+                with vs.wave.open(input_path, "wb") as writer:
+                    writer.setnchannels(1)
+                    writer.setsampwidth(2)
+                    writer.setframerate(24000)
+                    writer.writeframes(b"\0\0" * 20)
+            output = Path(temp_dir) / "voice.mp3"
+            output.write_bytes(b"previous-success")
+            with patch.object(vs.subprocess, "run", side_effect=timed_out):
+                self.assertFalse(vs._concat_audio_files(inputs, str(output)))
+            self.assertEqual(output.read_bytes(), b"previous-success")
 
     def test_tts_with_pauses_shifts_submaker_timeline(self):
         """测试包含停顿标签时，SubMaker 时间轴和音频拼接正确偏移。"""
@@ -2092,6 +2421,31 @@ class TestElevenLabsVoice(unittest.TestCase):
                     voice_file=out_file,
                 )
             self.assertIsNone(result)
+
+    def test_tts_with_pauses_decode_timeout_returns_failure(self):
+        def fake_single_tts(text, voice_name, voice_rate, voice_file, voice_volume=1.0):
+            Path(voice_file).write_bytes(b"synthesized-audio")
+            return vs.SubMaker()
+
+        def timed_out(command, **kwargs):
+            self.assertIn("-nostdin", command)
+            self.assertGreater(kwargs.get("timeout", 0), 0)
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "narration.mp3"
+            with (
+                patch.object(vs, "_single_tts", side_effect=fake_single_tts),
+                patch.object(vs.subprocess, "run", side_effect=timed_out),
+            ):
+                result = vs._tts_with_pauses(
+                    text="Hello [pause: 1s] world",
+                    voice_name="zh-CN-XiaoxiaoNeural",
+                    voice_rate=1.0,
+                    voice_file=str(output),
+                )
+            self.assertIsNone(result)
+            self.assertFalse(output.exists())
 
     def test_tts_passes_original_text_unchanged_without_pauses(self):
         """测试无停顿标签时，tts 将原始文本原样直通给 _single_tts，不执行正则替换或清洗。"""

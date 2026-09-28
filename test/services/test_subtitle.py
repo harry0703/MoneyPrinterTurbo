@@ -1,6 +1,8 @@
 import sys
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,6 +14,48 @@ from app.services import subtitle
 
 
 class TestSubtitleService(unittest.TestCase):
+    def test_concurrent_subtitles_initialize_whisper_once(self):
+        """Concurrent jobs must not load the large Whisper model twice."""
+        first_constructor_started = threading.Event()
+        release_constructor = threading.Event()
+        second_constructor_started = threading.Event()
+        constructor_calls = []
+
+        class FakeWhisperModel:
+            def __init__(self, **_kwargs):
+                constructor_calls.append(1)
+                if len(constructor_calls) == 1:
+                    first_constructor_started.set()
+                else:
+                    second_constructor_started.set()
+                release_constructor.wait(timeout=2)
+
+            def transcribe(self, _audio_file, **_kwargs):
+                return [], SimpleNamespace(language="en", language_probability=1.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(subtitle, "model", None),
+                patch.object(subtitle, "WhisperModel", FakeWhisperModel),
+            ):
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    first = executor.submit(
+                        subtitle.create, "audio-1.mp3", str(Path(temp_dir) / "1.srt")
+                    )
+                    self.assertTrue(first_constructor_started.wait(timeout=1))
+                    second = executor.submit(
+                        subtitle.create, "audio-2.mp3", str(Path(temp_dir) / "2.srt")
+                    )
+                    try:
+                        duplicate_load = second_constructor_started.wait(timeout=0.2)
+                    finally:
+                        release_constructor.set()
+                    first.result(timeout=2)
+                    second.result(timeout=2)
+
+        self.assertFalse(duplicate_load, "Whisper was loaded twice")
+        self.assertEqual(len(constructor_calls), 1)
+
     def test_file_to_subtitles_returns_empty_for_missing_input(self):
         """空路径和不存在的文件都应安全返回空列表。"""
         self.assertEqual(subtitle.file_to_subtitles(""), [])
@@ -174,6 +218,37 @@ class TestSubtitleService(unittest.TestCase):
         self.assertIn("00:00:00,100 --> 00:00:00,400", items[0][1])
         self.assertIn("00:00:00,400 --> 00:00:00,800", items[1][1])
 
+    def test_create_falls_back_to_segment_when_word_alignment_is_missing(self):
+        """Whisper may return a segment with no aligned words in either mode."""
+
+        class FakeWhisperModel:
+            def __init__(self, **_kwargs):
+                pass
+
+            def transcribe(self, _audio_file, **_kwargs):
+                segments = [
+                    SimpleNamespace(start=0.1, end=0.8, text="Hello", words=None),
+                    SimpleNamespace(start=0.9, end=1.4, text="world", words=[]),
+                ]
+                info = SimpleNamespace(language="en", language_probability=0.99)
+                return segments, info
+
+        for word_level in (False, True):
+            with self.subTest(word_level=word_level):
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    subtitle_file = Path(tmp_dir) / "unaligned.srt"
+                    with (
+                        patch.object(subtitle, "model", None),
+                        patch.object(subtitle, "WhisperModel", FakeWhisperModel),
+                    ):
+                        subtitle.create(
+                            "audio.mp3", str(subtitle_file), word_level=word_level
+                        )
+                    items = subtitle.file_to_subtitles(str(subtitle_file))
+
+                self.assertEqual([item[2] for item in items], ["Hello", "world"])
+                self.assertIn("00:00:00,100 --> 00:00:00,800", items[0][1])
+
     def test_correct_ignores_markdown_separator_lines(self):
         """
         Whisper fallback 校正阶段也必须忽略 `---` 这类不可发声脚本行。
@@ -227,6 +302,22 @@ class TestSubtitleService(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0][1], "00:00:00,100 --> 00:00:02,000")
         self.assertEqual(items[0][2], "Hello world")
+
+    def test_correct_removes_transcription_after_script_ends(self):
+        """Whisper's trailing hallucinations must not appear as final captions."""
+        original_srt = (
+            "1\n00:00:00,100 --> 00:00:01,000\nHello world\n\n"
+            "2\n00:00:01,000 --> 00:00:02,000\nUnspoken words\n\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+
+            subtitle.correct(str(subtitle_file), "Hello world")
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+
+        self.assertEqual([item[2] for item in items], ["Hello world"])
 
     def test_correct_replaces_mismatch_and_appends_missing_script_line(self):
         """

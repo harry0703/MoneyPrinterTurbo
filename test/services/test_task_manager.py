@@ -1,4 +1,5 @@
 import json
+import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -83,6 +84,55 @@ class TestInMemoryTaskManager(unittest.TestCase):
         self.assertEqual(manager.current_tasks, 1)
         execute_task.assert_called_once_with(len, [1, 2])
         self.assertTrue(manager.is_queue_empty())
+
+    def test_new_request_cannot_take_slot_before_waiting_task(self):
+        """A completion must reserve its freed slot for the oldest queued task."""
+        manager = InMemoryTaskManager(max_concurrent_tasks=1, max_queued_tasks=2)
+        manager.current_tasks = 1
+
+        def queued_task():
+            pass
+
+        def incoming_task():
+            pass
+
+        manager.enqueue({"func": queued_task, "args": (), "kwargs": {}})
+        released = threading.Event()
+        resume = threading.Event()
+
+        class PausingLock:
+            def __init__(self):
+                self.lock = threading.Lock()
+                self.worker = None
+                self.paused = False
+
+            def __enter__(self):
+                self.lock.acquire()
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                self.lock.release()
+                if threading.current_thread() is self.worker and not self.paused:
+                    self.paused = True
+                    released.set()
+                    resume.wait(timeout=2)
+
+        manager.lock = PausingLock()
+        started = []
+        with patch.object(manager, "execute_task", side_effect=lambda func: started.append(func)):
+            worker = threading.Thread(target=manager.task_done)
+            manager.lock.worker = worker
+            worker.start()
+            try:
+                self.assertTrue(released.wait(timeout=2))
+                manager.add_task(incoming_task)
+            finally:
+                resume.set()
+                worker.join(timeout=2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(started, [queued_task])
+        self.assertEqual(manager.dequeue()["func"], incoming_task)
 
     def test_task_done_requeues_task_when_thread_cannot_start(self):
         """出队后若线程启动失败，应回滚名额并把任务放回队列，避免任务丢失。"""
@@ -226,6 +276,22 @@ class TestRedisTaskManager(unittest.TestCase):
             max_queued_tasks=3,
         )
         from_url.assert_called_once_with("redis://localhost:6379/0")
+
+    def test_resume_queued_tasks_fills_available_slots_after_restart(self):
+        """Persisted Redis entries should run without waiting for a new API request."""
+        self.manager.max_concurrent_tasks = 2
+        self.redis_client.llen.return_value = 2
+        self.redis_client.lpop.side_effect = [
+            _queued_payload("start", task_id="first", params=_video_params()),
+            _queued_payload("start", task_id="second", params=_video_params()),
+        ]
+
+        with patch.object(self.manager, "execute_task") as execute_task:
+            self.manager.resume_queued_tasks()
+
+        self.assertEqual(execute_task.call_count, 2)
+        self.assertEqual(self.manager.current_tasks, 2)
+        self.assertEqual(self.redis_client.lpop.call_count, 2)
 
     def test_enqueue_serializes_video_params_without_mutating_task(self):
         """

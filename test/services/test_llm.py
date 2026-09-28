@@ -5,8 +5,10 @@ import tempfile
 import tomllib
 import types
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+from threading import Barrier
 from unittest.mock import patch
 
 from pydantic import ValidationError
@@ -155,6 +157,37 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIs(captured["app_config"], app_config)
         self.assertEqual(captured["app_config"]["openai_api_key"], "snapshot-key")
 
+    def test_generate_script_retries_provider_error_instead_of_using_it_as_narration(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            side_effect=["Error: temporary provider failure", "Real narration."],
+        ) as generate_response:
+            result = llm.generate_script(video_subject="Coffee")
+
+        self.assertEqual(result, "Real narration.")
+        self.assertEqual(generate_response.call_count, 2)
+
+    def test_generate_script_returns_empty_when_provider_always_fails(self):
+        with patch.object(
+            llm, "_generate_response", return_value="Error: invalid API key"
+        ):
+            result = llm.generate_script(video_subject="Coffee")
+
+        self.assertEqual(result, "")
+
+    def test_generate_script_does_not_return_stale_quota_error_after_retries(self):
+        responses = ["当日额度已消耗完"] + [
+            RuntimeError("provider unavailable")
+        ] * (llm._max_retries - 1)
+        with patch.object(
+            llm, "_generate_response", side_effect=responses
+        ) as generate_response:
+            result = llm.generate_script(video_subject="Coffee")
+
+        self.assertEqual(result, "")
+        self.assertEqual(generate_response.call_count, llm._max_retries)
+
     def test_generate_script_strips_each_bracket_group_independently(self):
         """
         format_response must remove each [bracket] and (paren) group in
@@ -233,6 +266,24 @@ class TestScriptPromptOptions(unittest.TestCase):
 
         self.assertEqual(result, [])
         self.assertIsInstance(result, list)
+
+    def test_generate_terms_retries_non_string_items_in_recovered_json(self):
+        """The prose-wrapped JSON recovery path must enforce List[str] too."""
+        with patch.object(
+            llm,
+            "_generate_response",
+            side_effect=[
+                'Search terms: [123, {"query": "coffee"}]',
+                'Search terms: ["coffee beans", "barista tools"]',
+            ],
+        ) as generate_response:
+            result = llm.generate_terms(
+                video_subject="Coffee",
+                video_script="How to brew coffee.",
+            )
+
+        self.assertEqual(result, ["coffee beans", "barista tools"])
+        self.assertEqual(generate_response.call_count, 2)
 
     def test_video_script_request_rejects_invalid_advanced_options(self):
         """
@@ -1160,6 +1211,47 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("returned empty choices", result)
         self.assertNotIn("NoneType", result)
 
+    def test_qwen_concurrent_snapshots_keep_their_own_api_keys(self):
+        class FakeGenerationResponse(dict):
+            status_code = 200
+
+        barrier = Barrier(2, timeout=5)
+        calls = {}
+        fake_dashscope = types.SimpleNamespace(api_key="unrelated-global-key")
+
+        def call(**kwargs):
+            barrier.wait()
+            prompt = kwargs["messages"][0]["content"]
+            calls[prompt] = kwargs.get("api_key")
+            return FakeGenerationResponse({"output": {"text": prompt}})
+
+        fake_dashscope.Generation = types.SimpleNamespace(call=call)
+        modules = {
+            "dashscope": fake_dashscope,
+            "dashscope.api_entities": types.SimpleNamespace(),
+            "dashscope.api_entities.dashscope_response": types.SimpleNamespace(
+                GenerationResponse=FakeGenerationResponse
+            ),
+        }
+        with patch.dict(sys.modules, modules), ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(
+                llm._generate_response,
+                "first prompt",
+                {"llm_provider": "qwen", "qwen_api_key": "first-key"},
+            )
+            second = pool.submit(
+                llm._generate_response,
+                "second prompt",
+                {"llm_provider": "qwen", "qwen_api_key": "second-key"},
+            )
+            self.assertEqual(first.result(), "first prompt")
+            self.assertEqual(second.result(), "second prompt")
+
+        self.assertEqual(
+            calls, {"first prompt": "first-key", "second prompt": "second-key"}
+        )
+        self.assertEqual(fake_dashscope.api_key, "unrelated-global-key")
+
     def test_apimart_provider_uses_unwrapped_openai_compatible_endpoint(self):
         """
         APIMart 文档同时展示 `/api/v1` 和 `/v1` 两组入口。前者的示例响应
@@ -1757,6 +1849,25 @@ class TestClaudeCodeProvider(unittest.TestCase):
             command[command.index("--system-prompt") + 1],
             llm.CLAUDE_CODE_SYSTEM_PROMPT,
         )
+
+    def test_prompt_is_sent_through_stdin_not_argv(self):
+        """Windows 上 npm 安装的 claude 是 claude.cmd，cmd.exe 会在第一个换行处截断
+        参数，多行 prompt 及其后的隔离参数都会丢失，因此 prompt 必须走 stdin。"""
+        prompt = "# Role: Generator\n\n## Goals:\nwrite something"
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/bin/claude"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._cli_payload("ok")),
+            ) as run,
+        ):
+            llm._generate_response(prompt)
+
+        command = run.call_args.args[0]
+        self.assertFalse(any("\n" in arg for arg in command))
+        self.assertNotIn(prompt, command)
+        self.assertEqual(run.call_args.kwargs["input"], prompt)
 
     def test_model_name_is_only_passed_when_configured(self):
         """模型名留空时应沿用 CLI 默认模型，而不是硬编码一个可能失效的 ID。"""

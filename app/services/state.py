@@ -2,6 +2,7 @@ import ast
 import copy
 import threading
 from abc import ABC, abstractmethod
+from itertools import islice
 
 from app.config import config
 from app.models import const
@@ -35,6 +36,11 @@ class BaseState(ABC):
         pass
 
     @abstractmethod
+    def list_task_ids(self, scan_count: int = 100) -> list[str]:
+        """获取一次遍历中的任务 ID，供启动恢复等全量操作使用。"""
+        pass
+
+    @abstractmethod
     def patch_task(self, task_id: str, **kwargs) -> bool:
         """只更新已有任务的指定字段；任务不存在时返回 False。"""
         pass
@@ -50,9 +56,16 @@ class MemoryState(BaseState):
         start = (page - 1) * page_size
         end = start + page_size
         with self._lock:
-            tasks = [copy.deepcopy(task) for task in self._tasks.values()]
-            total = len(tasks)
-        return tasks[start:end], total
+            total = len(self._tasks)
+            tasks = [
+                copy.deepcopy(task)
+                for task in islice(self._tasks.values(), start, end)
+            ]
+        return tasks, total
+
+    def list_task_ids(self, scan_count: int = 100) -> list[str]:
+        with self._lock:
+            return list(self._tasks)
 
     def update_task(
         self,
@@ -67,6 +80,10 @@ class MemoryState(BaseState):
 
         with self._lock:
             self._tasks[task_id] = {
+                # Keep fields from earlier pipeline stages, matching Redis
+                # HSET updates. A progress-only update must not erase the
+                # WebUI subject or diagnostic details already stored.
+                **self._tasks.get(task_id, {}),
                 "task_id": task_id,
                 "state": state,
                 "progress": progress,
@@ -114,41 +131,48 @@ class RedisState(BaseState):
     def get_all_tasks(self, page: int, page_size: int):
         start = (page - 1) * page_size
         end = start + page_size
+        # 每一页都以同一套确定性顺序切片，而不是依赖 SCAN 的返回顺序。
+        # 这仍不是并发增删任务时的事务快照；无索引时优先保证静态任务集
+        # 的分页正确性，并让 total 统计去重后的任务键。
+        task_ids = self.list_task_ids(scan_count=page_size)
         tasks = []
+        for task_id in task_ids[start:end]:
+            task = self.get_task(task_id)
+            if task is not None:
+                tasks.append(task)
+        return tasks, len(task_ids)
+
+    def list_task_ids(self, scan_count: int = 100) -> list[str]:
+        """Return only this application's task hashes from a possibly shared DB."""
+        task_keys = set()
         cursor = 0
-        total = 0
         while True:
             # Redis 数据库中除了任务 Hash，还可能存在 RedisTaskManager 使用的
             # List 队列。只扫描 Hash 可以避免对队列执行 HGETALL 时触发
-            # WRONGTYPE，同时保证 total 只统计真正的任务记录。
+            # WRONGTYPE。COUNT 是扫描工作量提示，不保证每批返回的数量。
             cursor, keys = self._redis.scan(
                 cursor,
-                count=page_size,
+                count=scan_count,
                 _type="HASH",
             )
-            batch_start = total
-            batch_size = len(keys)
-            total += batch_size
-
-            # Redis SCAN 是分批返回 key。分页切片必须基于“当前批次起始索引”
-            # 计算，而不能用累积后的 total 反推，否则第一页会切到空数组，
-            # 第二页也可能只返回部分数据。
-            if batch_start < end and total > start:
-                slice_start = max(0, start - batch_start)
-                slice_end = min(batch_size, end - batch_start)
-                for key in keys[slice_start:slice_end]:
-                    task_data = self._redis.hgetall(key)
-                    task = {
-                        k.decode("utf-8"): self._convert_to_original_type(v)
-                        for k, v in task_data.items()
-                    }
-                    tasks.append(task)
-
-            # 即使当前页已经取满，也要继续 SCAN 到 cursor=0，
-            # 因为调用方需要准确 total 来渲染分页信息。
+            # Redis db 0 may also contain hashes belonging to other services.
+            # Check the task marker in one pipelined round trip per SCAN batch;
+            # exposing all HASH keys here can leak their fields through /tasks.
+            candidates = [key for key in dict.fromkeys(keys) if key not in task_keys]
+            if candidates:
+                with self._redis.pipeline(transaction=False) as pipeline:
+                    for key in candidates:
+                        pipeline.hget(key, "task_id")
+                    embedded_ids = pipeline.execute()
+                task_keys.update(
+                    key
+                    for key, embedded_id in zip(candidates, embedded_ids)
+                    if embedded_id == key
+                )
             if cursor == 0:
                 break
-        return tasks, total
+        # 按任务键排序不依赖 Hash 扫描顺序；不额外维护索引，也不改变旧任务。
+        return [key.decode("utf-8") for key in sorted(task_keys)]
 
     def update_task(
         self,
@@ -168,12 +192,19 @@ class RedisState(BaseState):
             **kwargs,
         }
 
-        for field, value in fields.items():
-            self._redis.hset(task_id, field, str(value))
+        # One HSET writes the whole task state atomically. Separate commands
+        # could expose a new state with the previous progress or result fields
+        # to readers, and leave a partially updated record on network failure.
+        self._redis.hset(
+            task_id,
+            mapping={field: str(value) for field, value in fields.items()},
+        )
 
     def get_task(self, task_id: str):
         task_data = self._redis.hgetall(task_id)
-        if not task_data:
+        # An API caller may ask for any Redis key by name. Require the same
+        # marker as list_task_ids before returning a hash's contents.
+        if not task_data or task_data.get(b"task_id") != task_id.encode("utf-8"):
             return None
 
         task = {

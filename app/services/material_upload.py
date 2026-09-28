@@ -148,6 +148,11 @@ def _validate_image(file_path: str, extension: str) -> None:
                         "uploaded image content does not match its file extension"
                     )
                 image.verify()
+            # verify() checks structure but may accept truncated JPEG pixel data.
+            # Reopen after verify() (which invalidates the decoder) and decode
+            # every pixel before publishing the upload to later render tasks.
+            with Image.open(file_path) as image:
+                image.load()
     except MaterialUploadError:
         raise
     except (

@@ -2,6 +2,7 @@ import json
 import os.path
 import re
 import tempfile
+import threading
 from timeit import default_timer as timer
 
 try:
@@ -18,19 +19,18 @@ device = config.whisper.get("device", "cpu")
 compute_type = config.whisper.get("compute_type", "int8")
 initial_prompt = config.whisper.get("initial_prompt", "") or None
 model = None
+_model_init_lock = threading.Lock()
 
 
-def create(
-    audio_file,
-    subtitle_file: str = "",
-    word_level: bool = False,
-    log_details: bool = True,
-):
+def _ensure_model_loaded() -> bool:
+    """Load the large Whisper model once, even when jobs start concurrently."""
     global model
-    if WhisperModel is None:
-        logger.warning("faster_whisper not available, skipping whisper subtitle generation")
-        return ""
-    if not model:
+    if model is not None:
+        return True
+
+    with _model_init_lock:
+        if model is not None:
+            return True
         model_path = f"{utils.root_dir()}/models/whisper-{model_size}"
         model_bin_file = f"{model_path}/model.bin"
         if not os.path.isdir(model_path) or not os.path.isfile(model_bin_file):
@@ -52,7 +52,21 @@ def create(
                 f"see [README.md FAQ](https://github.com/harry0703/MoneyPrinterTurbo) for more details.\n"
                 f"********************************************\n\n"
             )
-            return None
+            return False
+    return True
+
+
+def create(
+    audio_file,
+    subtitle_file: str = "",
+    word_level: bool = False,
+    log_details: bool = True,
+):
+    if WhisperModel is None:
+        logger.warning("faster_whisper not available, skipping whisper subtitle generation")
+        return ""
+    if not _ensure_model_loaded():
+        return None
 
     if log_details:
         logger.info(f"start, output file: {subtitle_file}")
@@ -89,7 +103,14 @@ def create(
         )
 
     for segment in segments:
-        if word_level and segment.words:
+        if not segment.words:
+            # Faster Whisper exposes words as Optional[List[Word]]. A segment
+            # can still have usable text and timestamps when alignment yields
+            # no words; keep that subtitle in both sentence and word modes.
+            recognized(segment.text, segment.start, segment.end)
+            continue
+
+        if word_level:
             for word in segment.words:
                 cleaned_word = word.word.strip()
                 if cleaned_word:
@@ -319,6 +340,13 @@ def correct(subtitle_file, video_script):
                 )
             )
         script_index += 1
+        corrected = True
+
+    if subtitle_index < len(subtitle_items):
+        logger.warning(
+            f"Dropping {len(subtitle_items) - subtitle_index} transcription cue(s) "
+            "after the script ends"
+        )
         corrected = True
 
     if corrected:

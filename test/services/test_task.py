@@ -343,6 +343,39 @@ class TestTaskService(unittest.TestCase):
         generate_script.assert_called_once()
         self.assertEqual(result, {"script": "脚本"})
 
+    def test_custom_script_keeps_literal_error_text(self):
+        """A user's narration about errors is not an LLM provider failure."""
+        scripts = (
+            "The server logged Error: 404 before the page loaded.",
+            "Error: 404 is the status shown when a page is missing.",
+        )
+        for index, script in enumerate(scripts):
+            with self.subTest(script=script):
+                task_id = f"literal-error-script-{index}"
+                state = MemoryState()
+                params = VideoParams(video_subject="debugging", video_script=script)
+                with patch.object(tm.sm, "state", state):
+                    result = tm.start(task_id, params, stop_at="script")
+
+                self.assertEqual(result, {"script": script})
+                self.assertEqual(
+                    state.get_task(task_id)["state"], tm.const.TASK_STATE_COMPLETE
+                )
+
+    def test_generated_script_still_rejects_provider_error_prefix(self):
+        """The provider's error sentinel must still stop generated scripts."""
+        state = MemoryState()
+        params = VideoParams(video_subject="debugging")
+        with (
+            patch.object(tm, "generate_script", return_value="Error: invalid API key"),
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("generated-script-error", params, stop_at="script")
+
+        self.assertEqual(result["state"], tm.const.TASK_STATE_FAILED)
+        self.assertEqual(result["failed_stage"], "script")
+        self.assertEqual(result["error"], "invalid API key")
+
     def test_run_pipeline_skips_ffmpeg_check_for_terms_stage(self):
         """搜索词阶段同样不需要 FFmpeg，不应触发探测。"""
         params = VideoParams(video_subject="test")
@@ -478,6 +511,36 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(failed_task["failed_stage"], "materials")
         self.assertEqual(failed_task["loomloom_run_id"], "run-1")
         self.assertEqual(failed_task["loomloom_listing_version_id"], "version-1")
+
+    def test_wavespeed_paid_material_failure_keeps_prediction_id(self):
+        """未确认或已付款但下载失败的任务都应在状态中保留恢复用 ID。"""
+        params = VideoParams(video_subject="test", video_source="wavespeed")
+        for error_type in (
+            tm.material.WaveSpeedUnconfirmedTaskError,
+            tm.material.WaveSpeedDownloadError,
+        ):
+            with self.subTest(error_type=error_type):
+                state = MemoryState()
+                state.update_task("wavespeed-paid-failure", progress=40)
+                with (
+                    patch.object(tm.sm, "state", state),
+                    patch.object(
+                        tm.material,
+                        "download_videos",
+                        side_effect=error_type(
+                            "paid run unavailable", prediction_id="pred-123"
+                        ),
+                    ),
+                ):
+                    result = tm.get_video_materials(
+                        "wavespeed-paid-failure", params, ["scene"], 10
+                    )
+
+                self.assertIsNone(result)
+                failed_task = state.get_task("wavespeed-paid-failure")
+                self.assertEqual(failed_task["state"], tm.const.TASK_STATE_FAILED)
+                self.assertEqual(failed_task["failed_stage"], "materials")
+                self.assertEqual(failed_task["wavespeed_prediction_id"], "pred-123")
 
     def test_loomloom_state_failure_does_not_abandon_paid_remote_run(self):
         """状态后端不可用时仍需等待并下载已经开始计费的远端任务。"""
@@ -1594,6 +1657,92 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
         self.assertIn("metadata provider unavailable", task["cross_post_error"])
 
+    def test_background_upload_request_id_is_saved_while_polling(self):
+        """An interrupted worker must leave the remote upload ID in task state."""
+        state = MemoryState()
+        state.update_task(
+            "background-upload",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+        observed = {}
+
+        def upload_with_background_start(**kwargs):
+            kwargs["on_background_start"]("request-42")
+            observed.update(state.get_task("background-upload"))
+            return {"success": True, "request_id": "request-42"}
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(tm.llm, "generate_social_metadata", return_value={}),
+            patch.object(
+                tm.upload_post,
+                "cross_post_video",
+                side_effect=upload_with_background_start,
+            ),
+        ):
+            tm._run_cross_post(
+                "background-upload",
+                ("final.mp4",),
+                "Coffee",
+                "Coffee script",
+                "en",
+                ("tiktok",),
+                "public",
+            )
+
+        self.assertEqual(
+            observed["cross_post_state"], tm.const.CROSS_POST_STATE_PROCESSING
+        )
+        self.assertEqual(
+            observed["cross_post_results"][0]["request_id"], "request-42"
+        )
+        finished = state.get_task("background-upload")
+        self.assertEqual(finished["cross_post_state"], tm.const.CROSS_POST_STATE_COMPLETE)
+        self.assertEqual(finished["cross_post_results"], [{"success": True, "request_id": "request-42"}])
+
+    def test_background_upload_request_id_survives_worker_error(self):
+        """A polling exception must not erase the only remote recovery handle."""
+        state = MemoryState()
+        state.update_task(
+            "background-upload-error",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+
+        def interrupted_upload(**kwargs):
+            kwargs["on_background_start"]("request-lost")
+            raise RuntimeError("worker stopped during status polling")
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(tm.llm, "generate_social_metadata", return_value={}),
+            patch.object(
+                tm.upload_post,
+                "cross_post_video",
+                side_effect=interrupted_upload,
+            ),
+        ):
+            tm._run_cross_post(
+                "background-upload-error",
+                ("final.mp4",),
+                "Coffee",
+                "Coffee script",
+                "en",
+                ("tiktok",),
+                "public",
+            )
+
+        failed = state.get_task("background-upload-error")
+        self.assertEqual(failed["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
+        self.assertEqual(
+            failed["cross_post_results"][0]["request_id"], "request-lost"
+        )
+
     def test_start_returns_cross_post_scheduling_failure(self):
         """同步调度失败必须同时体现在任务状态和 start() 返回快照中。"""
         params = VideoParams(video_subject="Coffee")
@@ -2021,6 +2170,43 @@ class TestTaskService(unittest.TestCase):
         )
         active_future.set_result(None)
 
+    def test_recover_interrupted_cross_posts_scans_ids_only_once(self):
+        """启动恢复不能依赖多次独立扫描的分页顺序。"""
+        state = MemoryState()
+        for task_id, cross_post_state in (
+            ("stale-pending", tm.const.CROSS_POST_STATE_PENDING),
+            ("stale-processing", tm.const.CROSS_POST_STATE_PROCESSING),
+            ("already-complete", tm.const.CROSS_POST_STATE_COMPLETE),
+        ):
+            state.update_task(
+                task_id,
+                state=tm.const.TASK_STATE_COMPLETE,
+                progress=100,
+                videos=["final.mp4"],
+                cross_post_state=cross_post_state,
+            )
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(state, "list_task_ids", wraps=state.list_task_ids) as list_ids,
+            patch.object(
+                state, "get_all_tasks", side_effect=AssertionError("pagination used")
+            ) as get_all_tasks,
+        ):
+            recovered = tm.recover_interrupted_cross_posts(page_size=1)
+
+        self.assertEqual(recovered, 2)
+        list_ids.assert_called_once_with(scan_count=1)
+        get_all_tasks.assert_not_called()
+        for task_id in ("stale-pending", "stale-processing"):
+            task = state.get_task(task_id)
+            self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
+            self.assertEqual(task["videos"], ["final.mp4"])
+        self.assertEqual(
+            state.get_task("already-complete")["cross_post_state"],
+            tm.const.CROSS_POST_STATE_COMPLETE,
+        )
+
     def test_cross_post_owner_uses_future_registry_for_current_process(self):
         """当前进程无活动 Future 时，同 PID 的新旧 owner 都应视为中断。"""
         stale_owner = f"{tm.socket.gethostname()}:{tm.os.getpid()}:old-instance"
@@ -2093,7 +2279,7 @@ class TestTaskService(unittest.TestCase):
     def test_cross_post_recovery_reports_state_backend_failure(self):
         """启动恢复读取状态失败时应返回 None，允许 WebUI 后续 rerun 重试。"""
         state = MagicMock()
-        state.get_all_tasks.side_effect = RuntimeError("redis unavailable")
+        state.list_task_ids.side_effect = RuntimeError("redis unavailable")
 
         with (
             patch.object(tm.sm, "state", state),
@@ -2135,33 +2321,49 @@ class TestTaskService(unittest.TestCase):
         "MPT_TEST_REDIS_HOST not set",
     )
     def test_real_redis_recovers_interrupted_cross_post_state(self):
-        """真实 Redis 中的遗留发布状态必须在恢复后保留视频并进入失败终态。"""
+        """真实 Redis 的多批扫描应恢复全部遗留发布状态并保留视频。"""
         state = RedisState(
             host=os.environ["MPT_TEST_REDIS_HOST"],
             port=int(os.getenv("MPT_TEST_REDIS_PORT", "6379")),
             db=int(os.getenv("MPT_TEST_REDIS_DB", "15")),
         )
-        task_id = f"ci-cross-post-recovery-{uuid4()}"
-        state.update_task(
-            task_id,
-            state=tm.const.TASK_STATE_COMPLETE,
-            progress=100,
-            videos=["final.mp4"],
-            cross_post_state=tm.const.CROSS_POST_STATE_PROCESSING,
-            cross_post_owner="",
-        )
+        task_ids = [f"ci-cross-post-recovery-{uuid4()}" for _ in range(3)]
+        for task_id, cross_post_state in zip(
+            task_ids,
+            (
+                tm.const.CROSS_POST_STATE_PENDING,
+                tm.const.CROSS_POST_STATE_PROCESSING,
+                tm.const.CROSS_POST_STATE_COMPLETE,
+            ),
+        ):
+            state.update_task(
+                task_id,
+                state=tm.const.TASK_STATE_COMPLETE,
+                progress=100,
+                videos=["final.mp4"],
+                cross_post_state=cross_post_state,
+                cross_post_owner="",
+            )
 
         try:
             with patch.object(tm.sm, "state", state):
-                recovered = tm.recover_interrupted_cross_posts(page_size=10)
+                recovered = tm.recover_interrupted_cross_posts(page_size=1)
 
-            self.assertGreaterEqual(recovered, 1)
-            task = state.get_task(task_id)
-            self.assertEqual(task["videos"], ["final.mp4"])
-            self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
-            self.assertEqual(task["cross_post_error"], tm._INTERRUPTED_CROSS_POST_ERROR)
+            self.assertGreaterEqual(recovered, 2)
+            for task_id in task_ids[:2]:
+                task = state.get_task(task_id)
+                self.assertEqual(task["videos"], ["final.mp4"])
+                self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
+                self.assertEqual(
+                    task["cross_post_error"], tm._INTERRUPTED_CROSS_POST_ERROR
+                )
+            self.assertEqual(
+                state.get_task(task_ids[2])["cross_post_state"],
+                tm.const.CROSS_POST_STATE_COMPLETE,
+            )
         finally:
-            state.delete_task(task_id)
+            for task_id in task_ids:
+                state.delete_task(task_id)
 
     def test_cross_post_future_exception_is_observed(self):
         """线程池自身抛出的异常必须进入日志，不能留在无人读取的 Future 中。"""

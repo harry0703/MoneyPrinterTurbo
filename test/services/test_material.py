@@ -14,6 +14,23 @@ from app.config import config
 from app.services import material
 
 
+class _FakeVideoDownloadResponse:
+    def __init__(self, content: bytes):
+        self.content_bytes = content
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def raise_for_status(self):
+        pass
+
+    def iter_content(self, chunk_size):
+        yield self.content_bytes
+
+
 class TestMaterialTlsVerification(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
@@ -74,6 +91,139 @@ class TestMaterialTlsVerification(unittest.TestCase):
             "https://www.pexels.com/@creator/",
         )
         self.assertEqual(results[0].source_info["rendition"]["id"], "987")
+
+    def test_search_pexels_skips_malformed_entries_without_losing_good_videos(self):
+        config.app["pexels_api_keys"] = ["pexels-key"]
+        fake_response = SimpleNamespace(
+            json=lambda: {
+                "videos": [
+                    {"id": 1, "duration": "unknown", "video_files": []},
+                    {
+                        "id": 10,
+                        "duration": 8,
+                        "video_files": [
+                            {
+                                "width": float("inf"),
+                                "height": 1920,
+                                "link": "https://example.com/overflow.mp4",
+                            }
+                        ],
+                    },
+                    {
+                        "id": 2,
+                        "duration": 8,
+                        "video_files": [
+                            {"width": None, "height": 1920, "link": "bad"},
+                            {
+                                "id": 22,
+                                "width": 1080,
+                                "height": 1920,
+                                "link": "https://example.com/first.mp4",
+                            },
+                        ],
+                    },
+                    {
+                        "id": 3,
+                        "duration": 8,
+                        "video_files": [
+                            {
+                                "id": 33,
+                                "width": 1080,
+                                "height": 1920,
+                                "link": "https://example.com/second.mp4",
+                            }
+                        ],
+                    },
+                ]
+            }
+        )
+
+        with patch("app.services.material.requests.get", return_value=fake_response):
+            results = material.search_videos_pexels("cat", minimum_duration=1)
+
+        self.assertEqual(
+            [item.url for item in results],
+            ["https://example.com/first.mp4", "https://example.com/second.mp4"],
+        )
+
+    def test_search_pixabay_skips_malformed_hit_without_losing_good_video(self):
+        config.app["pixabay_api_keys"] = ["pixabay-key"]
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            text="",
+            json=lambda: {
+                "hits": [
+                    {"duration": "unknown", "videos": {}},
+                    {
+                        "id": 10,
+                        "duration": 8,
+                        "videos": {
+                            "large": {
+                                "width": float("inf"),
+                                "height": 1920,
+                                "url": "https://example.com/overflow.mp4",
+                            }
+                        },
+                    },
+                    {
+                        "id": 2,
+                        "duration": 8,
+                        "videos": {
+                            "large": {
+                                "width": 1080,
+                                "height": 1920,
+                                "url": "https://example.com/pixabay-good.mp4",
+                            }
+                        },
+                    },
+                ]
+            },
+        )
+
+        with patch("app.services.material.requests.get", return_value=fake_response):
+            results = material.search_videos_pixabay("cat", minimum_duration=1)
+
+        self.assertEqual(
+            [item.url for item in results],
+            ["https://example.com/pixabay-good.mp4"],
+        )
+
+    def test_search_coverr_skips_malformed_hit_without_losing_good_video(self):
+        config.app["coverr_api_keys"] = ["coverr-key"]
+        fake_response = SimpleNamespace(
+            json=lambda: {
+                "hits": [
+                    {"id": "bad", "duration": 8, "urls": ["unexpected"]},
+                    {
+                        "id": "overflow",
+                        "duration": 8,
+                        "max_width": float("inf"),
+                        "max_height": 1920,
+                        "urls": {
+                            "mp4_download": "https://example.com/overflow.mp4"
+                        },
+                    },
+                    {
+                        "id": "good",
+                        "duration": 8,
+                        "max_width": 1080,
+                        "max_height": 1920,
+                        "urls": {
+                            "mp4_download": "https://example.com/coverr-good.mp4"
+                        },
+                    },
+                ]
+            }
+        )
+
+        with patch("app.services.material.requests.get", return_value=fake_response):
+            results = material.search_videos_coverr("cat", minimum_duration=1)
+
+        self.assertEqual(
+            [item.url for item in results],
+            ["https://example.com/coverr-good.mp4"],
+        )
 
     def test_search_pixabay_allows_explicit_tls_disable_for_proxy(self):
         """
@@ -299,6 +449,11 @@ class TestMaterialTlsVerification(unittest.TestCase):
                 1080,
                 1920,
                 material.VideoAspect.square,
+            )
+        )
+        self.assertFalse(
+            material._matches_video_aspect(
+                float("inf"), 1920, material.VideoAspect.portrait
             )
         )
 
@@ -559,7 +714,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         config.app.pop("tls_verify", None)
         config.proxy.clear()
 
-        fake_response = SimpleNamespace(content=b"fake-video")
+        fake_response = _FakeVideoDownloadResponse(b"fake-video")
 
         class FakeVideoFileClip:
             duration = 1
@@ -581,6 +736,203 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
             self.assertTrue(os.path.exists(video_path))
             self.assertTrue(get.call_args.kwargs["verify"])
+
+    def test_save_video_streams_chunks_without_materializing_response_content(self):
+        class StreamingResponse:
+            def __init__(self):
+                self.closed = False
+                self.chunk_size = None
+
+            @property
+            def content(self):
+                raise AssertionError("the complete video must not be buffered in memory")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.closed = True
+
+            def raise_for_status(self):
+                pass
+
+            def iter_content(self, chunk_size):
+                self.chunk_size = chunk_size
+                yield b"first"
+                yield b"second"
+
+        class FakeVideoFileClip:
+            duration = 1
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        response = StreamingResponse()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "app.services.material.requests.get", return_value=response
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+                video_path = material.save_video(
+                    "https://example.com/large.mp4", save_dir=temp_dir
+                )
+
+            self.assertEqual(Path(video_path).read_bytes(), b"firstsecond")
+            self.assertTrue(response.closed)
+            self.assertLessEqual(response.chunk_size, 1024 * 1024)
+            self.assertTrue(get.call_args.kwargs["stream"])
+
+    def test_save_video_distinguishes_assets_in_download_query(self):
+        """Different paid assets can share a /download path and differ only by query."""
+        first_url = "https://cdn.example.com/download?file_id=first"
+        second_url = "https://cdn.example.com/download?file_id=second"
+
+        class FakeVideoFileClip:
+            duration = 1
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "app.services.material.requests.get",
+                side_effect=[
+                    _FakeVideoDownloadResponse(b"first generated scene"),
+                    _FakeVideoDownloadResponse(b"second generated scene"),
+                ],
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+                first_path = material.save_video(first_url, save_dir=temp_dir)
+                second_path = material.save_video(second_url, save_dir=temp_dir)
+                cached_path = material.save_video(first_url, save_dir=temp_dir)
+
+            self.assertNotEqual(first_path, second_path)
+            self.assertEqual(Path(first_path).read_bytes(), b"first generated scene")
+            self.assertEqual(Path(second_path).read_bytes(), b"second generated scene")
+            self.assertEqual(cached_path, first_path)
+            self.assertEqual(get.call_count, 2)
+
+    def test_save_video_cleans_partial_stream_when_download_fails(self):
+        class FailingResponse(_FakeVideoDownloadResponse):
+            def __init__(self):
+                super().__init__(b"partial")
+                self.closed = False
+
+            def __exit__(self, *args):
+                self.closed = True
+
+            def iter_content(self, chunk_size):
+                yield b"partial"
+                raise requests.ConnectionError("connection dropped")
+
+        response = FailingResponse()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("app.services.material.requests.get", return_value=response):
+                with self.assertRaises(requests.ConnectionError):
+                    material.save_video(
+                        "https://example.com/interrupted.mp4", save_dir=temp_dir
+                    )
+
+            self.assertTrue(response.closed)
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
+    def test_save_video_rejects_declared_oversized_download_before_streaming(self):
+        class OversizedResponse(_FakeVideoDownloadResponse):
+            headers = {"Content-Length": "9"}
+
+            def iter_content(self, chunk_size):
+                raise AssertionError("oversized body should not be read")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch("app.services.material.MAX_VIDEO_DOWNLOAD_BYTES", 8, create=True),
+                patch(
+                    "app.services.material.requests.get",
+                    return_value=OversizedResponse(b""),
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "download exceeds"):
+                    material.save_video("https://example.com/large.mp4", temp_dir)
+
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
+    def test_save_video_stops_undeclared_oversized_stream_and_cleans_temp(self):
+        class StreamingResponse(_FakeVideoDownloadResponse):
+            def iter_content(self, chunk_size):
+                yield b"first"
+                yield b"second"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch("app.services.material.MAX_VIDEO_DOWNLOAD_BYTES", 8, create=True),
+                patch(
+                    "app.services.material.requests.get",
+                    return_value=StreamingResponse(b""),
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "download exceeds"):
+                    material.save_video("https://example.com/stream.mp4", temp_dir)
+
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
+    def test_invalid_download_is_not_reused_as_cached_video(self):
+        url = "https://example.com/broken-then-valid.mp4"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        class FakeVideoFileClip:
+            fps = 24
+
+            def __init__(self, path):
+                self.duration = 0 if Path(path).read_bytes() == b"broken" else 1
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "app.services.material.requests.get",
+                side_effect=[
+                    _FakeVideoDownloadResponse(b"broken"),
+                    _FakeVideoDownloadResponse(b"valid"),
+                ],
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+                self.assertEqual(material.save_video(url, save_dir=temp_dir), "")
+                self.assertFalse((Path(temp_dir) / cached_name).exists())
+                self.assertEqual(
+                    material.save_video(url, save_dir=temp_dir),
+                    str(Path(temp_dir) / cached_name),
+                )
+
+            self.assertEqual(get.call_count, 2)
+            self.assertEqual((Path(temp_dir) / cached_name).read_bytes(), b"valid")
+
+    def test_nonfinite_video_metadata_is_not_published(self):
+        class FakeVideoFileClip:
+            duration = float("nan")
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "app.services.material.requests.get",
+                return_value=_FakeVideoDownloadResponse(b"bad metadata"),
+            ), patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+                self.assertEqual(
+                    material.save_video("https://example.com/nan.mp4", save_dir=temp_dir),
+                    "",
+                )
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
 
     def test_download_videos_accepts_plain_string_concat_mode(self):
         """
@@ -1342,7 +1694,7 @@ class TestWaveSpeedProvider(unittest.TestCase):
         """
         回归:某个片段的任务状态不明时,后续关键词绝不能再触发新的付费生成
         请求——否则第一个任务可能仍在运行/已完成,造成重复生成和额外扣费。
-        已经下载成功的素材照常返回。
+        已经下载成功的素材不能让整个任务被错误地标记为完成。
         """
         first_item = self._generated_item("term-1", "https://cdn.example.com/1.mp4")
 
@@ -1363,17 +1715,44 @@ class TestWaveSpeedProvider(unittest.TestCase):
                 return_value="/tmp/1.mp4",
             ),
         ):
-            result = material.download_videos(
-                task_id="test-wavespeed-unconfirmed",
-                search_terms=["term-1", "term-2", "term-3"],
-                source="wavespeed",
-                audio_duration=100,
-                max_clip_duration=5,
-            )
+            with self.assertRaises(material.WaveSpeedUnconfirmedTaskError) as ctx:
+                material.download_videos(
+                    task_id="test-wavespeed-unconfirmed",
+                    search_terms=["term-1", "term-2", "term-3"],
+                    source="wavespeed",
+                    audio_duration=100,
+                    max_clip_duration=5,
+                )
 
         # term-2 抛出状态不明后立即停止,term-3 不能再产生生成请求
         self.assertEqual(generate.call_count, 2)
-        self.assertEqual(result, ["/tmp/1.mp4"])
+        self.assertEqual(ctx.exception.prediction_id, "pred-stuck")
+
+    def test_download_videos_wavespeed_stops_after_paid_download_failure(self):
+        """下载耗尽重试后不能悄悄为下一个关键词再次付费。"""
+        item = self._generated_item("term-1", "https://cdn.example.com/1.mp4")
+        with (
+            patch(
+                "app.services.material.generate_videos_wavespeed",
+                return_value=[item],
+            ) as generate,
+            patch("app.services.material.save_video", return_value="") as save,
+            patch("app.services.material.time.sleep"),
+        ):
+            with self.assertRaises(material.WaveSpeedDownloadError) as ctx:
+                material.download_videos(
+                    task_id="test-wavespeed-paid-download-failure",
+                    search_terms=["term-1", "term-2"],
+                    source="wavespeed",
+                    audio_duration=10,
+                    max_clip_duration=5,
+                )
+
+        self.assertEqual(ctx.exception.prediction_id, "pred-term-1")
+        self.assertEqual(generate.call_count, 1)
+        self.assertEqual(
+            save.call_count, material.WAVESPEED_MAX_DOWNLOAD_RETRIES + 1
+        )
 
     def test_download_videos_wavespeed_retries_original_download_url(self):
         """
@@ -1623,6 +2002,50 @@ class TestWaveSpeedProvider(unittest.TestCase):
         # 5s + 5s == 10s,恰好覆盖,第 3 段绝不能生成
         self.assertEqual(generate.call_count, 2)
         self.assertEqual(result, ["/tmp/1.mp4", "/tmp/2.mp4"])
+
+    def test_download_videos_wavespeed_rejects_nonfinite_duration_before_submission(self):
+        """NaN/Infinity must not buy a video for every script keyword."""
+        for duration in (float("nan"), float("inf"), -float("inf")):
+            with self.subTest(duration=duration):
+                with patch("app.services.material.generate_videos_wavespeed") as generate:
+                    with self.assertRaisesRegex(ValueError, "finite"):
+                        material.download_videos(
+                            task_id="test-wavespeed-invalid-duration",
+                            search_terms=["term-1", "term-2"],
+                            source="wavespeed",
+                            audio_duration=duration,
+                            max_clip_duration=5,
+                        )
+                    generate.assert_not_called()
+
+    def test_download_videos_wavespeed_rejects_nonpositive_clip_duration(self):
+        """A zero clip duration cannot advance paid coverage."""
+        with patch("app.services.material.generate_videos_wavespeed") as generate:
+            with self.assertRaisesRegex(ValueError, "clip duration"):
+                material.download_videos(
+                    task_id="test-wavespeed-invalid-clip",
+                    search_terms=["term-1", "term-2"],
+                    source="wavespeed",
+                    audio_duration=10,
+                    max_clip_duration=0,
+                )
+            generate.assert_not_called()
+
+    def test_download_videos_wavespeed_skips_nonpositive_audio_duration(self):
+        """An empty narration must not start a paid generation request."""
+        with (
+            patch("app.services.material.generate_videos_wavespeed") as generate,
+            patch("app.services.material._persist_material_sources"),
+        ):
+            result = material.download_videos(
+                task_id="test-wavespeed-empty-audio",
+                search_terms=["term-1", "term-2"],
+                source="wavespeed",
+                audio_duration=0,
+                max_clip_duration=5,
+            )
+        self.assertEqual(result, [])
+        generate.assert_not_called()
 
     def test_download_videos_wavespeed_skips_failed_segment_and_continues(self):
         """单个片段生成失败(空结果)时跳过该关键词,继续为后续片段生成。"""

@@ -30,6 +30,16 @@ class RedisTaskManager(TaskManager):
     def create_queue(self):
         return "task_queue"
 
+    def resume_queued_tasks(self):
+        """Dispatch persisted queue entries when a new API process starts.
+
+        Queued Redis items survive a restart, but no worker calls check_queue
+        until an active task finishes. Fill each available local worker slot so
+        an idle process does not leave old requests stuck in processing.
+        """
+        for _ in range(max(0, self.max_concurrent_tasks - self.current_tasks)):
+            self.check_queue()
+
     def enqueue(self, task: Dict):
         task_with_serializable_params = task.copy()
         # task.copy() 只复制最外层字典；如果直接改写嵌套 kwargs，会把调用方

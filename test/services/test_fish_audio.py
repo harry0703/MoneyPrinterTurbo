@@ -255,6 +255,46 @@ class TestFishAudioErrorHandling(unittest.TestCase):
             result = vs.fish_audio_tts("Test.", voice_file)
         self.assertIsNone(result)
 
+    def test_invalid_success_preserves_existing_audio_without_repeat_charge(self):
+        response = _FakeResponse(content=b"invalid audio" * 20)
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(vs.config, "fish_audio", {"api_key": "test-key"}),
+            patch.object(vs.requests, "post", return_value=response) as post,
+            patch.object(vs, "AudioFileClip", side_effect=OSError("bad mp3")),
+        ):
+            voice_file = Path(tmp_dir) / "fish.mp3"
+            voice_file.write_bytes(b"previous valid audio")
+            result = vs.fish_audio_tts("Test.", str(voice_file))
+
+            self.assertIsNone(result)
+            self.assertEqual(voice_file.read_bytes(), b"previous valid audio")
+            self.assertEqual(list(Path(tmp_dir).iterdir()), [voice_file])
+            post.assert_called_once()
+
+    def test_valid_audio_replaces_existing_file_after_decoding(self):
+        response = _FakeResponse(content=b"new mp3" * 30)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            voice_file = Path(tmp_dir) / "fish.mp3"
+            voice_file.write_bytes(b"previous valid audio")
+
+            def validate(candidate):
+                self.assertNotEqual(Path(candidate), voice_file)
+                self.assertEqual(voice_file.read_bytes(), b"previous valid audio")
+                self.assertEqual(Path(candidate).read_bytes(), response.content)
+                return _FakeClip()
+
+            with (
+                patch.object(vs.config, "fish_audio", {"api_key": "test-key"}),
+                patch.object(vs.requests, "post", return_value=response),
+                patch.object(vs, "AudioFileClip", side_effect=validate),
+            ):
+                result = vs.fish_audio_tts("Test.", str(voice_file))
+
+            self.assertIsNotNone(result)
+            self.assertEqual(voice_file.read_bytes(), response.content)
+            self.assertEqual(list(Path(tmp_dir).iterdir()), [voice_file])
+
     def test_missing_api_key_returns_none(self):
         with patch.object(vs.config, "fish_audio", {"api_key": ""}), \
              patch.dict(os.environ, {"FISH_API_KEY": ""}, clear=False):

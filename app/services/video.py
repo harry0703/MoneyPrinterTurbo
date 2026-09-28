@@ -87,6 +87,7 @@ _DEFAULT_VIDEO_CODEC = "libx264"
 # ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
 # 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
 _FFMPEG_CONCAT_HEARTBEAT_SECONDS = 30.0
+_DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS = 3600
 _SUBTITLE_SPRING_DURATION_SECONDS = 0.18
 _MIN_SUBTITLE_SPRING_SCALE = 0.05
 _MAX_SUBTITLE_SPRING_SCALE = 1.35
@@ -403,13 +404,43 @@ def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason:
     return _DEFAULT_VIDEO_CODEC
 
 
-def _write_videofile_with_codec_fallback(clip, output_file: str, codec: str, **kwargs):
+def _write_videofile_with_codec_fallback(
+    clip, output_file: str, codec: str, atomic_output: bool = False, **kwargs
+):
     """
     使用指定编码器写出视频，失败时自动用 libx264 重试一次。
 
     硬件编码器是否可用不仅取决于 FFmpeg，还取决于显卡、驱动和当前运行环境。
     生成任务不能因为高级编码器不可用而整体失败，所以这里把回退集中处理。
     """
+    if atomic_output:
+        # Final videos can be downloaded by path while they are being rendered.
+        # Keep both failed encodes and in-progress writes away from that path.
+        output_dir = os.path.dirname(os.path.abspath(output_file))
+        descriptor, temp_output = tempfile.mkstemp(
+            prefix=f".{os.path.basename(output_file)}.",
+            suffix=os.path.splitext(output_file)[1] or ".mp4",
+            dir=output_dir,
+        )
+        os.close(descriptor)
+        os.unlink(temp_output)
+        try:
+            used_codec = _write_videofile_with_codec_fallback(
+                clip, temp_output, codec, **kwargs
+            )
+            os.replace(temp_output, output_file)
+            return used_codec
+        finally:
+            try:
+                os.unlink(temp_output)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(
+                    f"failed to remove temporary final video: {temp_output}, "
+                    f"error: {exc}"
+                )
+
     effective_codec = _get_effective_video_codec(codec)
     try:
         clip.write_videofile(output_file, codec=effective_codec, **kwargs)
@@ -474,7 +505,36 @@ def _run_concat_with_heartbeat(command: list[str], output_file: str):
     reporter = threading.Thread(target=log_heartbeat, daemon=True)
     reporter.start()
     try:
-        return subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+        configured_timeout = config.app.get(
+            "ffmpeg_concat_timeout_seconds", _DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS
+        )
+        try:
+            timeout_seconds = float(configured_timeout)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ffmpeg_concat_timeout_seconds must be positive") from exc
+        if (
+            isinstance(configured_timeout, bool)
+            or not math.isfinite(timeout_seconds)
+            or timeout_seconds <= 0
+        ):
+            raise ValueError("ffmpeg_concat_timeout_seconds must be positive")
+
+        try:
+            # subprocess.run kills and waits for FFmpeg on timeout, so a stalled
+            # encoder cannot leave an orphaned child or a permanently active task.
+            return subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError(
+                f"ffmpeg concat exceeded {timeout_seconds:g} seconds"
+            ) from exc
     finally:
         stop_event.set()
 
@@ -527,6 +587,10 @@ def concat_video_clips_with_ffmpeg(
         effective_codec = _get_effective_video_codec()
         try:
             return run_concat(effective_codec)
+        except TimeoutError:
+            # A hung encoder is not evidence that another codec will work. Do
+            # not spend a second timeout period retrying the same input.
+            raise
         except Exception as exc:
             if effective_codec == _DEFAULT_VIDEO_CODEC:
                 raise
@@ -794,10 +858,27 @@ def combine_videos(
     subclipped_items = []
     video_duration = 0
     for video_path in video_paths:
-        clip = _open_video_clip_quietly(video_path)
-        clip_duration = clip.duration
-        clip_w, clip_h = clip.size
-        close_clip(clip)
+        clip = None
+        try:
+            clip = _open_video_clip_quietly(video_path)
+            clip_duration = float(clip.duration)
+            clip_w, clip_h = clip.size
+            if (
+                not math.isfinite(clip_duration)
+                or clip_duration <= 0
+                or not all(
+                    math.isfinite(float(dimension)) and float(dimension) > 0
+                    for dimension in (clip_w, clip_h)
+                )
+            ):
+                raise ValueError("invalid video duration or dimensions")
+        except Exception as exc:
+            logger.warning(
+                f"skipping unreadable video source: path={video_path}, error={exc}"
+            )
+            continue
+        finally:
+            close_clip(clip)
         
         start_time = 0
 
@@ -844,8 +925,12 @@ def combine_videos(
             f"remaining: {required_video_duration - video_duration:.2f}s"
         )
         
+        source_clip = None
+        clip = None
+        clip_file = None
         try:
-            clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
+            source_clip = _open_video_clip_quietly(subclipped_item.file_path)
+            clip = source_clip.subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
             # 播放速度属于素材本身属性，应在转场前应用。这样 Fade/Slide 等一秒转场
@@ -915,7 +1000,6 @@ def combine_videos(
 
             # Store clip duration before closing
             clip_duration_saved = clip.duration
-            close_clip(clip)
 
             processed_clips.append(
                 SubClippedVideoClip(
@@ -927,9 +1011,19 @@ def combine_videos(
                 )
             )
             video_duration += clip_duration_saved
+            clip_file = None
             
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
+        finally:
+            # The derived clip shares its FFmpeg reader with the source. If
+            # subclipping itself failed, close the original source instead.
+            close_clip(clip if clip is not None else source_clip)
+            # MoviePy may leave a truncated MP4 even when encoding raises. It
+            # was never added to processed_clips, so concat cleanup cannot see it.
+            # Close the reader first so Windows can remove the partial file.
+            if clip_file:
+                delete_files(clip_file)
     
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
     if video_duration < required_video_duration:
@@ -952,29 +1046,33 @@ def combine_videos(
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
     if not processed_clips:
+        if video_paths:
+            raise RuntimeError("no readable video clips available for merging")
         logger.warning("no clips available for merging")
         return combined_video_path
     
     clip_files = [clip.file_path for clip in processed_clips]
     logger.info(f"concatenating {len(clip_files)} clips with ffmpeg")
-    concat_video_clips_with_ffmpeg(
-        clip_files=clip_files,
-        output_file=combined_video_path,
-        threads=threads,
-        output_dir=output_dir,
-        max_duration=audio_duration,
-    )
-    if used_video_paths is not None:
-        # Exclude safety-margin clips that FFmpeg trims entirely from the output.
-        elapsed = 0.0
-        for clip in processed_clips:
-            if elapsed >= audio_duration:
-                break
-            used_video_paths.append(clip.source_file_path)
-            elapsed += clip.duration
-    
-    # clean temp files
-    delete_files(clip_files)
+    try:
+        concat_video_clips_with_ffmpeg(
+            clip_files=clip_files,
+            output_file=combined_video_path,
+            threads=threads,
+            output_dir=output_dir,
+            max_duration=audio_duration,
+        )
+        if used_video_paths is not None:
+            # Exclude safety-margin clips that FFmpeg trims entirely from the output.
+            elapsed = 0.0
+            for clip in processed_clips:
+                if elapsed >= audio_duration:
+                    break
+                used_video_paths.append(clip.source_file_path)
+                elapsed += clip.duration
+    finally:
+        # FFmpeg failures and timeouts must not strand one encoded MP4 per clip.
+        # Repeated clips share a path; delete_files already deduplicates them.
+        delete_files(clip_files)
             
     logger.info("video combining completed")
     return combined_video_path
@@ -1519,6 +1617,7 @@ def generate_video(
             final_video_clip,
             output_file=output_file,
             codec=_get_configured_video_codec(),
+            atomic_output=True,
             audio_codec=audio_codec,
             audio_fps=output_audio_fps,
             audio_bitrate=audio_bitrate,
@@ -1540,6 +1639,7 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
     素材源的失败约定处理。
     """
     clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
+    temp_path = ""
     try:
         # Apply a zoom effect using the resize method.
         # A lambda function is used to make the zoom effect dynamic over time.
@@ -1554,14 +1654,26 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
         # This is useful if you want to add other elements to the video.
         final_clip = CompositeVideoClip([zoom_clip])
         try:
-            # Output the video to a file.
-            video_file = f"{image_path}.mp4"
-            final_clip.write_videofile(video_file, fps=30, logger=None)
-            return video_file
+            # The duration changes the rendered content, so it must be part of
+            # the output identity. Different tasks may render the same image
+            # concurrently; only publish a complete MP4 after MoviePy closes it.
+            video_file = f"{image_path}.zoom-{clip_duration}.mp4"
+            descriptor, temp_path = tempfile.mkstemp(
+                prefix=".image-zoom-",
+                suffix=".mp4",
+                dir=os.path.dirname(os.path.abspath(video_file)),
+            )
+            os.close(descriptor)
+            final_clip.write_videofile(temp_path, fps=30, logger=None)
         finally:
             close_clip(final_clip)
+        os.replace(temp_path, video_file)
+        temp_path = ""
+        return video_file
     finally:
         close_clip(clip)
+        if temp_path:
+            delete_files(temp_path)
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):

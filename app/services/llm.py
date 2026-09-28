@@ -339,9 +339,10 @@ def _generate_response(prompt: str, app_config=None) -> str:
             import dashscope
             from dashscope.api_entities.dashscope_response import GenerationResponse
 
-            dashscope.api_key = api_key
             response = dashscope.Generation.call(
-                model=model_name, messages=[{"role": "user", "content": prompt}]
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=api_key,
             )
             if response:
                 if isinstance(response, GenerationResponse):
@@ -526,10 +527,12 @@ def _generate_response(prompt: str, app_config=None) -> str:
             except ValueError as timeout_error:
                 raise ValueError(f"{llm_provider}: {timeout_error}") from None
 
+            # prompt 通过 stdin 传入，不放在命令行里：Windows 上 npm 安装的
+            # claude 是 claude.cmd，cmd.exe 会在第一个换行处截断参数，多行
+            # prompt 和其后的隔离参数都会丢失。
             command = [
                 cli_path,
                 "-p",
-                prompt,
                 "--output-format",
                 "json",
                 "--system-prompt",
@@ -561,6 +564,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 try:
                     completed = subprocess.run(
                         command,
+                        input=prompt,
                         capture_output=True,
                         text=True,
                         # The CLI always emits UTF-8. Without an explicit encoding,
@@ -823,24 +827,30 @@ def generate_script(
                 response = _generate_response(prompt=prompt)
             else:
                 response = _generate_response(prompt=prompt, app_config=app_config)
+            if isinstance(response, str) and response.startswith("Error: "):
+                # _generate_response returns provider failures as text. Passing
+                # that text through would make the task treat it as narration.
+                raise ValueError(response)
             if response:
-                final_script = format_response(response)
+                candidate = format_response(response)
             else:
                 logging.error("gpt returned an empty response")
+                candidate = ""
 
             # Some upstream providers may return quota errors as plain text.
-            if final_script and "当日额度已消耗完" in final_script:
-                raise ValueError(final_script)
+            if candidate and "当日额度已消耗完" in candidate:
+                raise ValueError(candidate)
 
-            if final_script:
+            if candidate:
+                final_script = candidate
                 break
         except Exception as e:
             logger.error(f"failed to generate script: {e}")
 
         if i < _max_retries - 1:
             logger.warning(f"failed to generate video script, trying again... {i + 1}")
-    if "Error: " in final_script:
-        logger.error(f"failed to generate video script: {final_script}")
+    if not final_script:
+        logger.error("failed to generate video script after retries")
     else:
         logger.success(f"completed: \n{final_script}")
     return final_script.strip()
@@ -930,6 +940,7 @@ Please note that you must use English for generating video search terms; Chinese
     search_terms = []
     response = ""
     for i in range(_max_retries):
+        search_terms = []
         try:
             if app_config is None:
                 response = _generate_response(prompt)
@@ -943,12 +954,6 @@ Please note that you must use English for generating video search terms; Chinese
                 logger.error(f"failed to generate video terms: {response}")
                 return []
             search_terms = json.loads(_strip_code_fence(response))
-            if not isinstance(search_terms, list) or not all(
-                isinstance(term, str) for term in search_terms
-            ):
-                logger.error("response is not a list of strings.")
-                continue
-
         except Exception as e:
             logger.warning(f"failed to generate video terms: {str(e)}")
             if response:
@@ -961,6 +966,14 @@ Please note that you must use English for generating video search terms; Chinese
                         # 否则后续排查搜索词为空时无法定位
                         # 是模型格式问题还是解析逻辑问题。
                         logger.warning(f"failed to generate video terms: {str(e)}")
+
+        # Apply the same contract to direct JSON and prose-wrapped recovery.
+        # Otherwise a nonempty array of numbers or objects reaches material search.
+        if not isinstance(search_terms, list) or not all(
+            isinstance(term, str) for term in search_terms
+        ):
+            logger.error("response is not a list of strings.")
+            search_terms = []
 
         if search_terms and len(search_terms) > 0:
             break
