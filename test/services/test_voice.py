@@ -1015,6 +1015,12 @@ class TestVoiceService(unittest.TestCase):
             content = b"fake-mp3"
             text = ""
 
+            def iter_content(self, chunk_size):
+                yield self.content
+
+            def close(self):
+                pass
+
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
             out = f.name
         try:
@@ -1467,6 +1473,7 @@ class TestElevenLabsVoice(unittest.TestCase):
         mock_config.elevenlabs.get.return_value = "fake-api-key"
         mock_post.return_value.status_code = 200
         mock_post.return_value.content = b"fake-mp3-bytes"
+        mock_post.return_value.iter_content.return_value = iter((b"fake-mp3-bytes",))
         mock_clip_cls.return_value.duration = 3.0
         mock_clip_cls.return_value.close = lambda: None
 
@@ -1481,6 +1488,54 @@ class TestElevenLabsVoice(unittest.TestCase):
         finally:
             if os.path.exists(out_path):
                 os.remove(out_path)
+
+    def test_elevenlabs_tts_rejects_oversize_audio_without_replacing_existing_file(self):
+        """A paid 200 response can be much larger than usable speech."""
+        response = SimpleNamespace(
+            status_code=200,
+            content=b"oversize-audio",
+            iter_content=lambda chunk_size: iter((b"oversize-audio",)),
+            close=lambda: None,
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "voice.mp3"
+            output.write_bytes(b"previous-valid-audio")
+            with (
+                patch.object(vs, "get_elevenlabs_api_key", return_value="test-key"),
+                patch.object(vs.requests, "post", return_value=response) as post,
+                patch.object(vs, "AudioFileClip") as clip,
+                patch.object(vs, "_ELEVENLABS_TTS_MAX_AUDIO_BYTES", 5, create=True),
+            ):
+                clip.return_value.duration = 1.0
+                result = vs.elevenlabs_tts("Hello", "voice-id", str(output))
+
+            self.assertIsNone(result)
+            self.assertEqual(output.read_bytes(), b"previous-valid-audio")
+            self.assertEqual(post.call_count, 1)
+            self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["voice.mp3"])
+
+    def test_elevenlabs_tts_decode_failure_preserves_existing_file(self):
+        """A corrupt successful response must not publish a partial final MP3."""
+        response = SimpleNamespace(
+            status_code=200,
+            content=b"corrupt-audio",
+            iter_content=lambda chunk_size: iter((b"corrupt-audio",)),
+            close=lambda: None,
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "voice.mp3"
+            output.write_bytes(b"previous-valid-audio")
+            with (
+                patch.object(vs, "get_elevenlabs_api_key", return_value="test-key"),
+                patch.object(vs.requests, "post", return_value=response) as post,
+                patch.object(vs, "AudioFileClip", side_effect=OSError("bad mp3")),
+            ):
+                result = vs.elevenlabs_tts("Hello", "voice-id", str(output))
+
+            self.assertIsNone(result)
+            self.assertEqual(output.read_bytes(), b"previous-valid-audio")
+            self.assertEqual(post.call_count, 1)
+            self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["voice.mp3"])
 
     @patch("app.services.voice.config")
     def test_elevenlabs_tts_no_api_key(self, mock_config):
