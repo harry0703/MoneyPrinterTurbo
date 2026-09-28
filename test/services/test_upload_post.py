@@ -129,6 +129,20 @@ class TestUploadPostService(unittest.TestCase):
         self.assertEqual(result["success"], False)
         self.assertIn("invalid response", result["error"])
 
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_upload_does_not_treat_string_false_as_success(self, mock_post, _exists):
+        response = _mock_response()
+        response.json.return_value = {"success": "false", "request_id": "abc123"}
+        mock_post.return_value = response
+
+        result = UploadPostService().upload_video("/fake/v.mp4", "Title")
+
+        self.assertIs(result["success"], False)
+        self.assertIn("invalid response", result["error"])
+
 
 class TestUploadPostYouTubePayload(unittest.TestCase):
     @patch("app.services.upload_post.config.app", _CONFIG_BASE)

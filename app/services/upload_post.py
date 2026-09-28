@@ -121,7 +121,9 @@ class UploadPostService:
 
                 response.raise_for_status()
                 result = response.json()
-                if not isinstance(result, dict):
+                if not isinstance(result, dict) or not isinstance(
+                    result.get("success"), bool
+                ):
                     logger.error("Upload-Post returned an invalid response to upload")
                     return {
                         "success": False,
