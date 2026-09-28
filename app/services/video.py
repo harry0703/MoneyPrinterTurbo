@@ -878,8 +878,12 @@ def combine_videos(
             f"remaining: {required_video_duration - video_duration:.2f}s"
         )
         
+        source_clip = None
+        clip = None
+        clip_file = None
         try:
-            clip = _open_video_clip_quietly(subclipped_item.file_path).subclipped(
+            source_clip = _open_video_clip_quietly(subclipped_item.file_path)
+            clip = source_clip.subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
             # 播放速度属于素材本身属性，应在转场前应用。这样 Fade/Slide 等一秒转场
@@ -949,7 +953,6 @@ def combine_videos(
 
             # Store clip duration before closing
             clip_duration_saved = clip.duration
-            close_clip(clip)
 
             processed_clips.append(
                 SubClippedVideoClip(
@@ -961,9 +964,19 @@ def combine_videos(
                 )
             )
             video_duration += clip_duration_saved
+            clip_file = None
             
         except Exception as e:
             logger.error(f"failed to process clip: {str(e)}")
+        finally:
+            # The derived clip shares its FFmpeg reader with the source. If
+            # subclipping itself failed, close the original source instead.
+            close_clip(clip if clip is not None else source_clip)
+            # MoviePy may leave a truncated MP4 even when encoding raises. It
+            # was never added to processed_clips, so concat cleanup cannot see it.
+            # Close the reader first so Windows can remove the partial file.
+            if clip_file:
+                delete_files(clip_file)
     
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
     if video_duration < required_video_duration:

@@ -1046,6 +1046,65 @@ class TestVideoService(unittest.TestCase):
 
             self.assertFalse(temp_clip.exists())
 
+    def test_combine_videos_cleans_failed_encoded_clip_and_reader(self):
+        """A bad source must not strand a partial MP4 or an FFmpeg reader."""
+
+        class FakeAudioClip:
+            duration = 0.5
+
+            def close(self):
+                pass
+
+        class FakeVideoClip:
+            duration = 1.0
+            size = (1080, 1920)
+            w = 1080
+            h = 1920
+
+            def __init__(self, source):
+                self.source = source
+                self.close_calls = 0
+                self.reader = self
+
+            def subclipped(self, _start, _end):
+                derived = FakeVideoClip(self.source)
+                derived_clips.append(derived)
+                return derived
+
+            def close(self):
+                self.close_calls += 1
+
+        derived_clips = []
+
+        def open_clip(source):
+            return FakeVideoClip(source)
+
+        def write_clip(clip, output_file, **_kwargs):
+            Path(output_file).write_bytes(b"partial")
+            if clip.source == "bad.mp4":
+                raise RuntimeError("encode failed")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()),
+                patch.object(vd, "_open_video_clip_quietly", side_effect=open_clip),
+                patch.object(
+                    vd, "_write_videofile_with_codec_fallback", side_effect=write_clip
+                ),
+                patch.object(vd, "concat_video_clips_with_ffmpeg") as concat,
+            ):
+                vd.combine_videos(
+                    combined_video_path=os.path.join(temp_dir, "combined.mp4"),
+                    video_paths=["bad.mp4", "good.mp4"],
+                    audio_file="audio.mp3",
+                    video_concat_mode=vd.VideoConcatMode.sequential,
+                )
+
+            concat.assert_called_once()
+            self.assertEqual(derived_clips[0].close_calls, 1)
+            self.assertFalse(Path(temp_dir, "temp-clip-1.mp4").exists())
+            self.assertFalse(Path(temp_dir, "temp-clip-2.mp4").exists())
+
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 
