@@ -13,6 +13,25 @@ from app.models import const
 from app.services.state import MemoryState, RedisState
 
 
+class _FakeRedisPipeline:
+    def __init__(self, redis):
+        self.redis = redis
+        self.keys = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
+
+    def hget(self, key, field):
+        self.keys.append((key, field))
+        return self
+
+    def execute(self):
+        return [self.redis.data.get(key, {}).get(field.encode("utf-8")) for key, field in self.keys]
+
+
 class _FakeRedis:
     def __init__(self, batches):
         self.batches = batches
@@ -38,6 +57,9 @@ class _FakeRedis:
         if isinstance(key, str):
             key = key.encode("utf-8")
         return self.data[key]
+
+    def pipeline(self, transaction=False):
+        return _FakeRedisPipeline(self)
 
     def exists(self, key):
         if isinstance(key, str):
@@ -250,6 +272,22 @@ class TestRedisState(unittest.TestCase):
             ["task:0", "task:1", "task:2"],
         )
         self.assertEqual(state.list_task_ids(scan_count=1), ["task:0", "task:1", "task:2"])
+
+    def test_shared_redis_db_does_not_expose_unrelated_hashes(self):
+        """Only hashes whose embedded task_id matches the key belong to this app."""
+        state = self._build_state([3])
+        state._redis.data[b"task:1"] = {b"secret": b"another service's token"}
+        state._redis.data[b"task:2"] = {
+            b"task_id": b"different-task",
+            b"secret": b"another service's token",
+        }
+
+        self.assertIsNone(state.get_task("task:1"))
+        self.assertIsNone(state.get_task("task:2"))
+        self.assertEqual(state.list_task_ids(), ["task:0"])
+        tasks, total = state.get_all_tasks(page=1, page_size=10)
+        self.assertEqual(total, 1)
+        self.assertEqual([task["task_id"] for task in tasks], ["task:0"])
 
     @unittest.skipUnless(
         os.getenv("MPT_TEST_REDIS_HOST"),
