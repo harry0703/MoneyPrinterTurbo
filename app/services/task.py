@@ -1505,10 +1505,18 @@ def _run_pipeline(
 
     # 1. Generate script
     video_script = generate_script(task_id, params)
-    if not video_script or "Error: " in video_script:
+    # The LLM adapter uses a leading "Error: " as its failure sentinel. A
+    # user-provided script may legitimately quote that text anywhere, including
+    # at the beginning, so only interpret it for an LLM-generated script.
+    is_provider_error = (
+        not (params.video_script or "").strip()
+        and isinstance(video_script, str)
+        and video_script.startswith("Error: ")
+    )
+    if not video_script or is_provider_error:
         error = (
             video_script.removeprefix("Error: ").strip()
-            if isinstance(video_script, str) and "Error: " in video_script
+            if is_provider_error
             else "failed to generate video script"
         )
         return _mark_task_failed(task_id, "script", error)
