@@ -37,6 +37,7 @@ from app.models.llm_provider import (
     normalize_provider_override,
 )
 from app.models.schema import (
+    CreativeExperiment,
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
@@ -48,6 +49,7 @@ from app.services import bgm as bgm_service
 from app.services import material_upload as material_upload_service
 from app.services import (
     cache_manager,
+    creative_studio,
     llm,
     loomloom,
     material,
@@ -4968,6 +4970,119 @@ def _render_loomloom_script_generation(params):
     _render_loomloom_candidates()
 
 
+def _render_creative_variant_picker(params):
+    """Offer three scripts that can enter the ordinary generation flow."""
+    with st.expander(tr("Creative Experiment"), expanded=False):
+        st.caption(tr("Creative Experiment Help"))
+        st.caption(tr("Creative Source Persistence"))
+        goal = st.text_input(tr("Campaign Goal"), max_chars=300, key="creative_goal")
+        audience = st.text_input(tr("Target Audience"), max_chars=300,
+                                 key="creative_audience")
+        sources = st.text_area(tr("Source Notes"), max_chars=1000,
+                               key="creative_source_notes")
+        metric = st.selectbox(
+            tr("Primary Outcome Metric"),
+            options=("three_second_hold_rate", "completion_rate"),
+            key="creative_metric",
+        )
+        if st.button(tr("Draft Three Variants"), key="creative_generate"):
+            try:
+                with st.spinner(tr("Drafting Variants")):
+                    experiment = _run_llm_read_operation(
+                        "creative_variants",
+                        lambda app_config: creative_studio.create_experiment(
+                            {"subject": params.video_subject, "goal": goal,
+                             "audience": audience, "source_notes": sources,
+                             "metric": metric},
+                            language=params.video_language,
+                            app_config=app_config,
+                        ),
+                    )
+                st.session_state["creative_experiment"] = experiment
+                st.session_state.pop("creative_selected_variant", None)
+            except ValueError as exc:
+                st.error(str(exc))
+        experiment = st.session_state.get("creative_experiment")
+        if experiment:
+            st.caption(
+                f"{tr('Script Model')}: "
+                f"{experiment['script_model']['provider']} / "
+                f"{experiment['script_model']['model']} · "
+                f"{tr('Recorded Cost')}: {tr('Unknown Cost')}"
+            )
+            current_brief = {
+                "subject": params.video_subject,
+                "goal": goal.strip(),
+                "audience": audience.strip(),
+                "source_notes": sources.strip(),
+                "metric": metric,
+            }
+            if experiment["brief"] != current_brief:
+                st.info(tr("Creative Brief Changed"))
+            else:
+                variant_ids = [variant["id"] for variant in experiment["variants"]]
+                selected = st.selectbox(tr("Choose Creative Variant"), variant_ids,
+                                        key="creative_variant_choice")
+                variant = next(item for item in experiment["variants"]
+                               if item["id"] == selected)
+                st.write(variant["script"])
+                st.dataframe(variant["storyboard"], hide_index=True)
+                if st.button(tr("Use Creative Variant"), key="creative_use_variant"):
+                    st.session_state["video_script"] = variant["script"]
+                    st.session_state["creative_selected_variant"] = selected
+                    st.toast(tr("Creative Variant Applied"))
+
+
+def _render_creative_outcome_panel():
+    """Connect exported aggregate analytics to task-owned experiment manifests."""
+    with st.expander(tr("Creative Outcomes"), expanded=False):
+        st.caption(tr("Creative Outcomes Help"))
+        uploaded = st.file_uploader(tr("Aggregate Analytics CSV"), type=["csv"],
+                                    key="creative_analytics_csv")
+        if uploaded and st.button(tr("Import and Compare"),
+                                  key="creative_import_analytics"):
+            try:
+                if uploaded.size > creative_studio.MAX_CSV_BYTES:
+                    raise ValueError(tr("Creative CSV Too Large"))
+                rows = creative_studio.parse_analytics_csv(uploaded.getvalue())
+                manifests = {row["task_id"]: creative_studio.task_manifest(row["task_id"])
+                             for row in rows}
+                if any(manifest is None for manifest in manifests.values()):
+                    raise ValueError(tr("Creative Task Missing"))
+                report = creative_studio.compare_outcomes(rows, manifests)
+                saved = creative_studio.save_outcomes(rows)
+                if saved != len(rows):
+                    st.warning(tr("Creative Outcome Partial Save"))
+                st.session_state["creative_outcome_report"] = report
+                st.session_state["creative_outcome_provenance"] = [
+                    {
+                        "task_id": task_id,
+                        "variant": entry["manifest"]["selected_variant_id"],
+                        "model": entry["manifest"]["script_model"]["model"],
+                        "cost": (
+                            entry["manifest"]["cost_usd"]
+                            if entry["manifest"]["cost_usd"] is not None
+                            else tr("Unknown Cost")
+                        ),
+                        "asset_sources": len(entry["assets"]),
+                        "selected_materials": len(entry["selected_materials"]),
+                    }
+                    for task_id, entry in manifests.items()
+                ]
+            except ValueError as exc:
+                st.error(str(exc))
+        report = st.session_state.get("creative_outcome_report")
+        if report:
+            st.write(f"**{tr('Observed Outcomes')}**")
+            st.dataframe(report["observed"], hide_index=True)
+            st.write(f"**{tr('Creative Provenance')}**")
+            st.dataframe(st.session_state.get("creative_outcome_provenance", []),
+                         hide_index=True)
+            st.write(report["next_batch_suggestion"])
+            st.caption(report["caveat"])
+            st.caption(tr("No Predicted Outcome"))
+
+
 def _render_script_settings(panel, params):
     """渲染文案设置并更新生成参数。"""
     with panel:
@@ -5120,12 +5235,29 @@ def _render_script_settings(panel, params):
                 _render_loomloom_script_generation(params)
             else:
                 _render_local_script_generation(params)
+            _render_creative_variant_picker(params)
             params.video_script = st.text_area(
                 tr("Video Script"),
                 help=tr("Video Script Help"),
                 height=180,
                 key="video_script",
             )
+            experiment = st.session_state.get("creative_experiment")
+            selected = st.session_state.get("creative_selected_variant")
+            current_brief = {
+                "subject": params.video_subject,
+                "goal": st.session_state.get("creative_goal", "").strip(),
+                "audience": st.session_state.get("creative_audience", "").strip(),
+                "source_notes": st.session_state.get("creative_source_notes", "").strip(),
+                "metric": st.session_state.get("creative_metric"),
+            }
+            if experiment and selected and experiment["brief"] == current_brief:
+                chosen = next((item for item in experiment["variants"]
+                               if item["id"] == selected), None)
+                if chosen and chosen["script"] == params.video_script:
+                    params.creative_experiment = CreativeExperiment.model_validate(
+                        creative_studio.selected_manifest(experiment, selected)
+                    )
             if _effective_script_generation_backend() == "loomloom":
                 st.caption(tr("LoomLoom Video Terms Reuse Help"))
             elif st.button(
@@ -8403,6 +8535,7 @@ def _render_application():
         uploaded_bgm_file,
         voice_mode,
     )
+    _render_creative_outcome_panel()
 
     # 生成分支在启动后台线程前已经请求过保存。普通控件交互继续请求非阻塞保存；
     # 如果后台任务正在使用配置，配置层会在任务结束时自动应用并落盘最新值。
