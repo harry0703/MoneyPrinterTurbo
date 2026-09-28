@@ -1570,6 +1570,28 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertIsNone(result)
         self.assertEqual(timeouts, [(10, 300)] * 3)
 
+    def test_siliconflow_tts_rejects_invalid_success_audio(self):
+        """HTTP 200 with corrupt audio must not become a fake 10-second success."""
+        fake_response = SimpleNamespace(status_code=200, content=b"invalid mp3")
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(vs.requests, "post", return_value=fake_response) as post,
+            patch.object(vs, "AudioFileClip", side_effect=OSError("invalid audio")),
+            patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+        ):
+            voice_file = str(Path(temp_dir) / "narration.mp3")
+            result = vs.siliconflow_tts(
+                text="An example narration",
+                model="FunAudioLLM/CosyVoice2-0.5B",
+                voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                voice_rate=1.0,
+                voice_file=voice_file,
+            )
+            self.assertFalse(Path(voice_file).exists())
+
+        self.assertIsNone(result)
+        post.assert_called_once()
+
     def test_pause_tag_detection_and_parsing(self):
         """测试多语言停顿标签的检测、解析与清洗。"""
         sample_script = (

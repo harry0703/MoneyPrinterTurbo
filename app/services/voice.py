@@ -1437,6 +1437,9 @@ def siliconflow_tts(
             )
 
             if response.status_code == 200:
+                if not response.content:
+                    logger.error("siliconflow tts returned empty audio")
+                    return None
                 # 保存音频文件
                 with open(voice_file, "wb") as f:
                     f.write(response.content)
@@ -1449,9 +1452,24 @@ def siliconflow_tts(
                         audio_duration = audio_clip.duration
                     finally:
                         audio_clip.close()
+                    if (
+                        not isinstance(audio_duration, (int, float))
+                        or not math.isfinite(audio_duration)
+                        or audio_duration <= 0
+                    ):
+                        raise ValueError("audio duration must be positive and finite")
                 except Exception as e:
-                    logger.warning(f"Failed to read audio duration: {str(e)}")
-                    audio_duration = 10.0
+                    # A 200 response is not proof that the bytes contain usable
+                    # narration. Returning a fabricated duration lets an invalid
+                    # file advance into the costly video pipeline.
+                    logger.error(f"siliconflow tts returned invalid audio: {e}")
+                    try:
+                        os.remove(voice_file)
+                    except OSError as cleanup_error:
+                        logger.warning(
+                            f"failed to remove invalid siliconflow audio: {cleanup_error}"
+                        )
+                    return None
 
                 logger.success(f"siliconflow tts succeeded: {voice_file}")
                 return populate_legacy_submaker_with_full_text(
