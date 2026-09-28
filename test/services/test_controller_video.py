@@ -646,6 +646,26 @@ class TestVideoControllerFiles(unittest.TestCase):
         self.assertEqual(response.headers["content-length"], "4")
         self.assertEqual(body, b"2345")
 
+    def test_stream_video_without_range_returns_complete_response(self):
+        """A normal GET must return the whole video as 200, not partial content."""
+
+        async def consume(response):
+            return b"".join([chunk async for chunk in response.body_iterator])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            Path(temp_dir, "clip.mp4").write_bytes(b"0123456789")
+            with patch.object(video_controller.utils, "task_dir", return_value=temp_dir):
+                response = asyncio.run(
+                    video_controller.stream_video(self._request(), "clip.mp4")
+                )
+                body = asyncio.run(consume(response))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("content-range", response.headers)
+        self.assertEqual(response.headers["accept-ranges"], "bytes")
+        self.assertEqual(response.headers["content-length"], "10")
+        self.assertEqual(body, b"0123456789")
+
     def test_download_video_uses_resolved_file(self):
         """下载响应应使用白名单目录解析后的真实路径和原始文件名。"""
         with tempfile.TemporaryDirectory() as temp_dir:
