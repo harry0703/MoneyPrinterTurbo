@@ -2441,6 +2441,8 @@ def fish_audio_tts(
         payload["reference_id"] = reference_id
 
     for i in range(3):
+        temporary_audio = None
+        received_success = False
         try:
             logger.info(
                 f"start fish audio tts, model: {model_name}, "
@@ -2473,24 +2475,33 @@ def fish_audio_tts(
                     f"{response.status_code}: {response.text[:200]}"
                 )
                 continue
+            received_success = True
 
             # Validate response contains audio data
             if not response.content or len(response.content) < 100:
                 logger.error(
                     "Fish Audio TTS returned empty or invalid audio data"
                 )
-                continue
+                return None
 
-            with open(voice_file, "wb") as f:
+            with tempfile.NamedTemporaryFile(
+                dir=os.path.dirname(os.path.abspath(voice_file)),
+                suffix=".mp3",
+                delete=False,
+            ) as f:
+                temporary_audio = f.name
                 f.write(response.content)
 
-            audio_clip = AudioFileClip(voice_file)
+            audio_clip = AudioFileClip(temporary_audio)
             try:
                 audio_duration = audio_clip.duration
             finally:
                 audio_clip.close()
+            if not math.isfinite(audio_duration) or audio_duration <= 0:
+                raise ValueError("Fish Audio returned an invalid audio duration")
 
             sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            os.replace(temporary_audio, voice_file)
             logger.success(f"fish audio tts succeeded: {voice_file}")
             return populate_legacy_submaker_with_full_text(
                 sub_maker=sub_maker,
@@ -2499,6 +2510,17 @@ def fish_audio_tts(
             )
         except Exception as e:
             logger.error(f"fish audio tts failed: {str(e)}")
+            if received_success:
+                # A successful provider response may already have been billed.
+                return None
+        finally:
+            if temporary_audio and os.path.exists(temporary_audio):
+                try:
+                    os.unlink(temporary_audio)
+                except OSError as cleanup_error:
+                    logger.warning(
+                        f"failed to remove temporary Fish Audio file: {cleanup_error}"
+                    )
 
     return None
 
