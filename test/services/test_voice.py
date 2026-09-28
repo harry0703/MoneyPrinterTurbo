@@ -1584,12 +1584,12 @@ class TestElevenLabsVoice(unittest.TestCase):
         )
 
     def test_siliconflow_tts_bounds_each_network_attempt(self):
-        """A stalled speech endpoint must not block the task indefinitely."""
+        """A pre-connect timeout can be retried without submitting paid work."""
         timeouts = []
 
         def stalled_post(_url, **kwargs):
             timeouts.append(kwargs.get("timeout"))
-            raise vs.requests.exceptions.ReadTimeout("server stalled")
+            raise vs.requests.exceptions.ConnectTimeout("could not connect")
 
         with (
             tempfile.TemporaryDirectory() as temp_dir,
@@ -1608,6 +1608,45 @@ class TestElevenLabsVoice(unittest.TestCase):
 
         self.assertIsNone(result)
         self.assertEqual(timeouts, [(10, 300)] * 3)
+
+    def test_paid_tts_does_not_repeat_ambiguous_read_timeout(self):
+        """A lost POST response may still have created billable speech remotely."""
+        settings = {
+            "api_key": "test-key",
+            "model_id": vs.MINIMAX_TTS_DEFAULT_MODEL,
+            "audio_format": "mp3",
+        }
+        cases = (
+            ("elevenlabs", lambda path: vs.elevenlabs_tts("Hello", "voice", path)),
+            ("fish", lambda path: vs.fish_audio_tts("Hello", path)),
+            (
+                "minimax",
+                lambda path: vs.minimax_tts("Hello", "voice", 1.0, path),
+            ),
+            (
+                "siliconflow",
+                lambda path: vs.siliconflow_tts(
+                    "Hello", "model", "voice", 1.0, path
+                ),
+            ),
+        )
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir,
+            patch.object(vs.requests, "post", side_effect=vs.requests.exceptions.ReadTimeout("response lost")) as post,
+            patch.object(vs, "get_elevenlabs_api_key", return_value="test-key"),
+            patch.object(vs, "get_fish_audio_api_key", return_value="test-key"),
+            patch.object(vs, "get_minimax_tts_api_key", return_value="test-key"),
+            patch.object(vs, "get_minimax_tts_endpoint", return_value="https://example.test/v1/t2a_v2"),
+            patch.object(vs.config, "fish_audio", {"model": vs.FISH_AUDIO_DEFAULT_MODEL}),
+            patch.object(vs.config, "minimax_tts", settings),
+            patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+        ):
+            for provider, synthesize in cases:
+                with self.subTest(provider=provider):
+                    post.reset_mock()
+                    result = synthesize(str(Path(tmp_dir) / f"{provider}.mp3"))
+                    self.assertIsNone(result)
+                    post.assert_called_once()
 
     def test_siliconflow_tts_rejects_invalid_success_audio(self):
         """HTTP 200 with corrupt audio must not become a fake 10-second success."""

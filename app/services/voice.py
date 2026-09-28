@@ -1497,6 +1497,16 @@ def siliconflow_tts(
                 logger.error(
                     f"siliconflow tts failed with status code {response.status_code}: {response.text}"
                 )
+        except requests.exceptions.ConnectTimeout as e:
+            logger.warning(f"siliconflow tts could not connect, retrying: {e}")
+        except requests.exceptions.RequestException as e:
+            # The server may have synthesized and charged for the POST even
+            # though its response was lost. A fresh POST could bill again.
+            logger.error(
+                "siliconflow tts result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(e).__name__}"
+            )
+            return None
         except Exception as e:
             logger.error(f"siliconflow tts failed: {str(e)}")
 
@@ -2085,7 +2095,15 @@ def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, vo
             return populate_legacy_submaker_with_full_text(
                 ensure_legacy_submaker_fields(SubMaker()), text, audio_duration
             )
-        except (OSError, ValueError, requests.RequestException) as exc:
+        except requests.exceptions.ConnectTimeout as exc:
+            logger.warning(f"MiniMax TTS could not connect, retrying: {exc}")
+        except requests.exceptions.RequestException as exc:
+            logger.error(
+                "MiniMax TTS result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(exc).__name__}"
+            )
+            return None
+        except (OSError, ValueError) as exc:
             logger.error(f"MiniMax TTS failed: {str(exc)}")
     return None
 
@@ -2175,6 +2193,14 @@ def elevenlabs_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
+        except requests.exceptions.ConnectTimeout as e:
+            logger.warning(f"elevenlabs tts could not connect, retrying: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                "elevenlabs tts result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(e).__name__}"
+            )
+            return None
         except Exception as e:
             logger.error(f"elevenlabs tts failed: {str(e)}")
 
@@ -2497,6 +2523,14 @@ def fish_audio_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
+        except requests.exceptions.ConnectTimeout as e:
+            logger.warning(f"fish audio tts could not connect, retrying: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                "fish audio tts result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(e).__name__}"
+            )
+            return None
         except Exception as e:
             logger.error(f"fish audio tts failed: {str(e)}")
 
@@ -2780,10 +2814,19 @@ def voxcpm_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
-        except requests.RequestException as exc:
-            logger.error(f"VoxCPM TTS request failed: {exc}")
+        except requests.exceptions.ConnectTimeout as exc:
+            logger.error(f"VoxCPM TTS connection timed out: {exc}")
+            # A timeout before POST returns is safe to retry only when no
+            # response has been received. Never resubmit after SSE started.
+            if response is not None:
+                return None
             if attempt < 2:
                 time.sleep(_VOXCPM_RETRY_DELAY_SECONDS[attempt])
+        except requests.RequestException as exc:
+            # The server may have generated speech before a read timeout or
+            # stream disconnect. Resubmitting can create duplicate work.
+            logger.error(f"VoxCPM TTS request outcome is unconfirmed: {exc}")
+            return None
         except Exception as exc:
             # Invalid SSE/WAV data and local conversion failures are deterministic;
             # retrying the same response cannot repair them.
