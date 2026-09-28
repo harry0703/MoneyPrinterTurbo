@@ -334,9 +334,10 @@ def _generate_response(prompt: str, app_config=None) -> str:
             import dashscope
             from dashscope.api_entities.dashscope_response import GenerationResponse
 
-            dashscope.api_key = api_key
             response = dashscope.Generation.call(
-                model=model_name, messages=[{"role": "user", "content": prompt}]
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=api_key,
             )
             if response:
                 if isinstance(response, GenerationResponse):
