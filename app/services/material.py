@@ -1085,10 +1085,8 @@ def save_video(video_url: str, save_dir: str = "") -> str:
             clip = VideoFileClip(temp_path)
             duration = clip.duration
             fps = clip.fps
-            if duration <= 0 or fps <= 0:
-                logger.warning(
-                    f"invalid video file: {temp_path} => nonpositive duration or fps"
-                )
+            if not (duration > 0 and fps > 0):
+                logger.warning(f"invalid video file: {temp_path} => invalid duration or fps")
                 return ""
         except Exception as e:
             logger.warning(f"invalid video file: {temp_path} => {str(e)}")

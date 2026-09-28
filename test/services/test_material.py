@@ -613,6 +613,28 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertEqual(get.call_count, 2)
             self.assertEqual((Path(temp_dir) / cached_name).read_bytes(), b"valid")
 
+    def test_nonfinite_video_metadata_is_not_published(self):
+        class FakeVideoFileClip:
+            duration = float("nan")
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "app.services.material.requests.get",
+                return_value=SimpleNamespace(content=b"bad metadata"),
+            ), patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+                self.assertEqual(
+                    material.save_video("https://example.com/nan.mp4", save_dir=temp_dir),
+                    "",
+                )
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
     def test_download_videos_accepts_plain_string_concat_mode(self):
         """
         download_videos 可能被服务层或测试直接传入字符串模式，而不是
