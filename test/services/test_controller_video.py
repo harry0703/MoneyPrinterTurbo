@@ -584,6 +584,26 @@ class TestVideoControllerCreateHTTP(unittest.TestCase):
         add_task.assert_not_called()
 
 
+class TestVideoControllerListHTTP(unittest.TestCase):
+    def test_task_page_size_is_bounded_before_state_scan(self):
+        """A client cannot request an unbounded Redis scan and response body."""
+        with (
+            patch.dict(config.app, {"api_key": ""}),
+            patch.object(
+                video_controller.sm.state,
+                "get_all_tasks",
+                return_value=([], 0),
+            ) as get_all,
+        ):
+            client = TestClient(asgi.app)
+            allowed = client.get("/api/v1/tasks?page_size=1000")
+            rejected = client.get("/api/v1/tasks?page_size=1001")
+
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(rejected.status_code, 400)
+        get_all.assert_called_once_with(1, 1000)
+
+
 class TestVideoControllerDeleteHTTP(unittest.TestCase):
     """DELETE /api/v1/tasks/{task_id} 的真实 HTTP 级回归测试。"""
 
