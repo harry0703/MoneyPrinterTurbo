@@ -1027,12 +1027,28 @@ def _scan_history_tasks(limit=30):
 
 def _collect_task_summaries(limit=20):
     history_tasks = {task["task_id"]: task for task in _scan_history_tasks(limit=50)}
+    active_tasks = _active_generation_tasks()
 
     try:
         runtime_tasks, _ = sm.state.get_all_tasks(1, 50)
     except Exception as e:
         logger.warning(f"failed to load runtime tasks: {e}")
         runtime_tasks = []
+
+    # The paginated state view can omit this session's newer tasks after 50
+    # older records. Read those active IDs directly so a completed or failed
+    # task cannot remain labelled as processing forever.
+    runtime_ids = {task.get("task_id") for task in runtime_tasks}
+    for task_id in active_tasks:
+        if task_id in runtime_ids:
+            continue
+        try:
+            task = sm.state.get_task(task_id)
+        except Exception as e:
+            logger.warning(f"failed to load active task {task_id}: {e}")
+            continue
+        if task:
+            runtime_tasks.append(task)
 
     for task in runtime_tasks:
         task_id = task.get("task_id", "")
@@ -1051,6 +1067,16 @@ def _collect_task_summaries(limit=20):
             or (task.get("script", "")[:40] if task.get("script") else "")
             or task_id
         )
+        task_mtime = active_tasks.get(task_id, {}).get("mtime") or history_task.get(
+            "mtime", 0
+        )
+        if os.path.isdir(task_path):
+            try:
+                task_mtime = os.path.getmtime(task_path)
+            except OSError:
+                # Another session can delete this directory between isdir and
+                # getmtime. Keep rendering the persisted task state.
+                pass
 
         history_tasks[task_id] = {
             "task_id": task_id,
@@ -1058,15 +1084,13 @@ def _collect_task_summaries(limit=20):
             "state": task.get("state"),
             "cross_post_state": task.get("cross_post_state"),
             "progress": int(task.get("progress", 0) or 0),
-            "mtime": os.path.getmtime(task_path)
-            if os.path.isdir(task_path)
-            else history_task.get("mtime", 0),
+            "mtime": task_mtime,
             "task_path": task_path,
             "video_file": video_file,
             "source": "runtime",
         }
 
-    for task_id, active_task in _active_generation_tasks().items():
+    for task_id, active_task in active_tasks.items():
         history_task = history_tasks.get(task_id, {})
         if history_task and _task_state_filter_key(history_task) in {
             "complete",
