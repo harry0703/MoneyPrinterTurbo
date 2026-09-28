@@ -666,6 +666,37 @@ class TestVideoControllerFiles(unittest.TestCase):
         self.assertEqual(response.headers["content-length"], "10")
         self.assertEqual(body, b"0123456789")
 
+    def test_stream_video_keeps_file_open_after_response_is_created(self):
+        """Streaming must not reopen a file after sending the headers."""
+
+        async def consume(response):
+            return b"".join([chunk async for chunk in response.body_iterator])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            Path(temp_dir, "clip.mp4").write_bytes(b"0123456789")
+            with patch.object(video_controller.utils, "task_dir", return_value=temp_dir):
+                response = asyncio.run(
+                    video_controller.stream_video(self._request("bytes=2-5"), "clip.mp4")
+                )
+                with patch("builtins.open", side_effect=OSError("file vanished")):
+                    body = asyncio.run(consume(response))
+
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(response.headers["content-range"], "bytes 2-5/10")
+        self.assertEqual(body, b"2345")
+
+    def test_stream_video_returns_404_if_file_disappears_before_open(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            Path(temp_dir, "clip.mp4").write_bytes(b"video")
+            with (
+                patch.object(video_controller.utils, "task_dir", return_value=temp_dir),
+                patch("builtins.open", side_effect=FileNotFoundError),
+            ):
+                with self.assertRaises(HttpException) as raised:
+                    asyncio.run(video_controller.stream_video(self._request(), "clip.mp4"))
+
+        self.assertEqual(raised.exception.status_code, 404)
+
     def test_download_video_uses_resolved_file(self):
         """下载响应应使用白名单目录解析后的真实路径和原始文件名。"""
         with tempfile.TemporaryDirectory() as temp_dir:

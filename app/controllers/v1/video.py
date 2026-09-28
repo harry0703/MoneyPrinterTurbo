@@ -9,6 +9,7 @@ from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
 from fastapi.responses import FileResponse, StreamingResponse
 from loguru import logger
+from starlette.background import BackgroundTask
 
 from app.config import config
 from app.controllers import base
@@ -477,24 +478,42 @@ async def stream_video(request: Request, file_path: str):
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     range_header = request.headers.get("Range")
-    video_size = os.path.getsize(video_path)
-    start, end = _parse_byte_range(range_header, video_size, request_id)
+    # The body is produced after this handler returns. Open now so a task
+    # deletion or replacement between headers and iteration cannot make the
+    # stream fail or mismatch the size used for Content-Range.
+    try:
+        video_file = open(video_path, "rb")
+    except FileNotFoundError as exc:
+        raise HttpException(
+            task_id=request_id,
+            status_code=404,
+            message=f"{request_id}: file no longer exists",
+        ) from exc
+    try:
+        video_size = os.fstat(video_file.fileno()).st_size
+        start, end = _parse_byte_range(range_header, video_size, request_id)
+    except Exception:
+        video_file.close()
+        raise
     length = end - start + 1
 
-    def file_iterator(file_path, offset=0, bytes_to_read=None):
-        with open(file_path, "rb") as f:
-            f.seek(offset, os.SEEK_SET)
-            remaining = bytes_to_read or video_size
+    def file_iterator():
+        try:
+            video_file.seek(start, os.SEEK_SET)
+            remaining = length
             while remaining > 0:
-                bytes_to_read = min(4096, remaining)
-                data = f.read(bytes_to_read)
+                data = video_file.read(min(4096, remaining))
                 if not data:
                     break
                 remaining -= len(data)
                 yield data
+        finally:
+            video_file.close()
 
     response = StreamingResponse(
-        file_iterator(video_path, start, length), media_type="video/mp4"
+        file_iterator(),
+        media_type="video/mp4",
+        background=BackgroundTask(video_file.close),
     )
     response.headers["Accept-Ranges"] = "bytes"
     response.headers["Content-Length"] = str(length)
