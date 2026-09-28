@@ -343,6 +343,39 @@ class TestTaskService(unittest.TestCase):
         generate_script.assert_called_once()
         self.assertEqual(result, {"script": "脚本"})
 
+    def test_custom_script_keeps_literal_error_text(self):
+        """A user's narration about errors is not an LLM provider failure."""
+        scripts = (
+            "The server logged Error: 404 before the page loaded.",
+            "Error: 404 is the status shown when a page is missing.",
+        )
+        for index, script in enumerate(scripts):
+            with self.subTest(script=script):
+                task_id = f"literal-error-script-{index}"
+                state = MemoryState()
+                params = VideoParams(video_subject="debugging", video_script=script)
+                with patch.object(tm.sm, "state", state):
+                    result = tm.start(task_id, params, stop_at="script")
+
+                self.assertEqual(result, {"script": script})
+                self.assertEqual(
+                    state.get_task(task_id)["state"], tm.const.TASK_STATE_COMPLETE
+                )
+
+    def test_generated_script_still_rejects_provider_error_prefix(self):
+        """The provider's error sentinel must still stop generated scripts."""
+        state = MemoryState()
+        params = VideoParams(video_subject="debugging")
+        with (
+            patch.object(tm, "generate_script", return_value="Error: invalid API key"),
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("generated-script-error", params, stop_at="script")
+
+        self.assertEqual(result["state"], tm.const.TASK_STATE_FAILED)
+        self.assertEqual(result["failed_stage"], "script")
+        self.assertEqual(result["error"], "invalid API key")
+
     def test_run_pipeline_skips_ffmpeg_check_for_terms_stage(self):
         """搜索词阶段同样不需要 FFmpeg，不应触发探测。"""
         params = VideoParams(video_subject="test")
