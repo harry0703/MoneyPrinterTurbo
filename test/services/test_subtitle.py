@@ -174,6 +174,37 @@ class TestSubtitleService(unittest.TestCase):
         self.assertIn("00:00:00,100 --> 00:00:00,400", items[0][1])
         self.assertIn("00:00:00,400 --> 00:00:00,800", items[1][1])
 
+    def test_create_falls_back_to_segment_when_word_alignment_is_missing(self):
+        """Whisper may return a segment with no aligned words in either mode."""
+
+        class FakeWhisperModel:
+            def __init__(self, **_kwargs):
+                pass
+
+            def transcribe(self, _audio_file, **_kwargs):
+                segments = [
+                    SimpleNamespace(start=0.1, end=0.8, text="Hello", words=None),
+                    SimpleNamespace(start=0.9, end=1.4, text="world", words=[]),
+                ]
+                info = SimpleNamespace(language="en", language_probability=0.99)
+                return segments, info
+
+        for word_level in (False, True):
+            with self.subTest(word_level=word_level):
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    subtitle_file = Path(tmp_dir) / "unaligned.srt"
+                    with (
+                        patch.object(subtitle, "model", None),
+                        patch.object(subtitle, "WhisperModel", FakeWhisperModel),
+                    ):
+                        subtitle.create(
+                            "audio.mp3", str(subtitle_file), word_level=word_level
+                        )
+                    items = subtitle.file_to_subtitles(str(subtitle_file))
+
+                self.assertEqual([item[2] for item in items], ["Hello", "world"])
+                self.assertIn("00:00:00,100 --> 00:00:00,800", items[0][1])
+
     def test_correct_ignores_markdown_separator_lines(self):
         """
         Whisper fallback 校正阶段也必须忽略 `---` 这类不可发声脚本行。
