@@ -200,6 +200,22 @@ class TestMaterialUploadService(unittest.TestCase):
             self.assertTrue(stored_name.endswith(".png"))
             self.assertEqual(len(os.listdir(temp_dir)), 1)
 
+    def test_truncated_jpeg_is_rejected_before_publishing(self):
+        # Pillow's verify() accepts this missing end marker, but decoding the
+        # pixels later raises OSError and would fail an otherwise valid task.
+        truncated_jpeg = _image_bytes("JPEG")[:-2]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                material_upload, "uploaded_material_dir", return_value=temp_dir
+            ):
+                with self.assertRaisesRegex(
+                    material_upload.MaterialUploadError, "valid JPEG"
+                ):
+                    material_upload.save_material_upload(
+                        "truncated.jpg", io.BytesIO(truncated_jpeg)
+                    )
+            self.assertEqual(os.listdir(temp_dir), [])
+
     def test_webm_and_bmp_materials_are_accepted(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             with (
