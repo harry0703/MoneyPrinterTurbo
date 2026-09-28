@@ -1093,8 +1093,11 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    url_without_query = video_url.split("?")[0]
-    url_hash = utils.md5(url_without_query)
+    # Query parameters can identify the asset itself (for example,
+    # /download?file_id=123). Dropping the query makes unrelated paid videos
+    # share one cache entry and silently reuse the first scene. Fragments are
+    # not sent in HTTP requests, so they do not affect the downloaded bytes.
+    url_hash = utils.md5(video_url.split("#", 1)[0])
     video_id = f"vid-{url_hash}"
     video_path = f"{save_dir}/{video_id}.mp4"
 

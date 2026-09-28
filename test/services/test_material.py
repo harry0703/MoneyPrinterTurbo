@@ -785,6 +785,39 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertLessEqual(response.chunk_size, 1024 * 1024)
             self.assertTrue(get.call_args.kwargs["stream"])
 
+    def test_save_video_distinguishes_assets_in_download_query(self):
+        """Different paid assets can share a /download path and differ only by query."""
+        first_url = "https://cdn.example.com/download?file_id=first"
+        second_url = "https://cdn.example.com/download?file_id=second"
+
+        class FakeVideoFileClip:
+            duration = 1
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "app.services.material.requests.get",
+                side_effect=[
+                    _FakeVideoDownloadResponse(b"first generated scene"),
+                    _FakeVideoDownloadResponse(b"second generated scene"),
+                ],
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+                first_path = material.save_video(first_url, save_dir=temp_dir)
+                second_path = material.save_video(second_url, save_dir=temp_dir)
+                cached_path = material.save_video(first_url, save_dir=temp_dir)
+
+            self.assertNotEqual(first_path, second_path)
+            self.assertEqual(Path(first_path).read_bytes(), b"first generated scene")
+            self.assertEqual(Path(second_path).read_bytes(), b"second generated scene")
+            self.assertEqual(cached_path, first_path)
+            self.assertEqual(get.call_count, 2)
+
     def test_save_video_cleans_partial_stream_when_download_fails(self):
         class FailingResponse(_FakeVideoDownloadResponse):
             def __init__(self):
