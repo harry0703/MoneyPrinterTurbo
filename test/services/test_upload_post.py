@@ -99,6 +99,50 @@ class TestUploadPostService(unittest.TestCase):
         self.assertFalse(failed["success"])
         self.assertIn("offline", failed["error"])
 
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_upload_rejects_unexpected_json_shape(self, mock_post, _exists):
+        """A malformed provider payload must not abort subsequent video uploads."""
+        response = _mock_response()
+        response.json.return_value = ["unexpected"]
+        mock_post.side_effect = [response, _mock_response()]
+
+        service = UploadPostService()
+        result = service.upload_video("/fake/v.mp4", "Title")
+
+        self.assertEqual(result["success"], False)
+        self.assertIn("invalid response", result["error"])
+        self.assertTrue(service.upload_video("/fake/next.mp4", "Next")["success"])
+        self.assertEqual(mock_post.call_count, 2)
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.requests.get")
+    def test_status_rejects_unexpected_json_shape(self, mock_get):
+        response = _mock_response()
+        response.json.return_value = ["unexpected"]
+        mock_get.return_value = response
+
+        result = UploadPostService().check_status("request-123")
+
+        self.assertEqual(result["success"], False)
+        self.assertIn("invalid response", result["error"])
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_upload_does_not_treat_string_false_as_success(self, mock_post, _exists):
+        response = _mock_response()
+        response.json.return_value = {"success": "false", "request_id": "abc123"}
+        mock_post.return_value = response
+
+        result = UploadPostService().upload_video("/fake/v.mp4", "Title")
+
+        self.assertIs(result["success"], False)
+        self.assertIn("invalid response", result["error"])
+
 
 class TestUploadPostYouTubePayload(unittest.TestCase):
     @patch("app.services.upload_post.config.app", _CONFIG_BASE)
