@@ -479,6 +479,36 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(failed_task["loomloom_run_id"], "run-1")
         self.assertEqual(failed_task["loomloom_listing_version_id"], "version-1")
 
+    def test_wavespeed_paid_material_failure_keeps_prediction_id(self):
+        """未确认或已付款但下载失败的任务都应在状态中保留恢复用 ID。"""
+        params = VideoParams(video_subject="test", video_source="wavespeed")
+        for error_type in (
+            tm.material.WaveSpeedUnconfirmedTaskError,
+            tm.material.WaveSpeedDownloadError,
+        ):
+            with self.subTest(error_type=error_type):
+                state = MemoryState()
+                state.update_task("wavespeed-paid-failure", progress=40)
+                with (
+                    patch.object(tm.sm, "state", state),
+                    patch.object(
+                        tm.material,
+                        "download_videos",
+                        side_effect=error_type(
+                            "paid run unavailable", prediction_id="pred-123"
+                        ),
+                    ),
+                ):
+                    result = tm.get_video_materials(
+                        "wavespeed-paid-failure", params, ["scene"], 10
+                    )
+
+                self.assertIsNone(result)
+                failed_task = state.get_task("wavespeed-paid-failure")
+                self.assertEqual(failed_task["state"], tm.const.TASK_STATE_FAILED)
+                self.assertEqual(failed_task["failed_stage"], "materials")
+                self.assertEqual(failed_task["wavespeed_prediction_id"], "pred-123")
+
     def test_loomloom_state_failure_does_not_abandon_paid_remote_run(self):
         """状态后端不可用时仍需等待并下载已经开始计费的远端任务。"""
         params = VideoParams(video_subject="AI 办公", video_source="loomloom")

@@ -762,6 +762,17 @@ def get_video_materials(
                 details=details,
             )
             return None
+        except (
+            material.WaveSpeedUnconfirmedTaskError,
+            material.WaveSpeedDownloadError,
+        ) as exc:
+            # Once a paid prediction exists, a polling or download failure must
+            # leave its ID in task state. Earlier successful clips cannot turn
+            # this incomplete run into an apparently completed video task.
+            prediction_id = str(getattr(exc, "prediction_id", "") or "").strip()
+            details = {"wavespeed_prediction_id": prediction_id} if prediction_id else None
+            _mark_task_failed(task_id, "materials", str(exc), details=details)
+            return None
         except ofox.OFoxError as exc:
             # 与方舟同一恢复语义：未确认状态和已生成但下载失败都对应一个可在
             # OFox 控制台恢复的远端任务，统一从异常携带的 task_id 写入失败状态。
