@@ -72,6 +72,22 @@ class _FakeRedis:
 
 
 class TestMemoryState(unittest.TestCase):
+    def test_progress_update_preserves_existing_task_details(self):
+        state = MemoryState()
+        state.update_task(
+            "task-1",
+            state=const.TASK_STATE_PROCESSING,
+            video_subject="A day in Shanghai",
+            material_sources=["source.mp4"],
+        )
+
+        state.update_task("task-1", progress=25)
+
+        task = state.get_task("task-1")
+        self.assertEqual(task["progress"], 25)
+        self.assertEqual(task["video_subject"], "A day in Shanghai")
+        self.assertEqual(task["material_sources"], ["source.mp4"])
+
     def test_get_task_and_get_all_tasks_return_isolated_snapshots(self):
         state = MemoryState()
         state.update_task(
