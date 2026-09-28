@@ -901,6 +901,7 @@ Please note that you must use English for generating video search terms; Chinese
     search_terms = []
     response = ""
     for i in range(_max_retries):
+        search_terms = []
         try:
             if app_config is None:
                 response = _generate_response(prompt)
@@ -914,12 +915,6 @@ Please note that you must use English for generating video search terms; Chinese
                 logger.error(f"failed to generate video terms: {response}")
                 return []
             search_terms = json.loads(_strip_code_fence(response))
-            if not isinstance(search_terms, list) or not all(
-                isinstance(term, str) for term in search_terms
-            ):
-                logger.error("response is not a list of strings.")
-                continue
-
         except Exception as e:
             logger.warning(f"failed to generate video terms: {str(e)}")
             if response:
@@ -932,6 +927,14 @@ Please note that you must use English for generating video search terms; Chinese
                         # 否则后续排查搜索词为空时无法定位
                         # 是模型格式问题还是解析逻辑问题。
                         logger.warning(f"failed to generate video terms: {str(e)}")
+
+        # Apply the same contract to direct JSON and prose-wrapped recovery.
+        # Otherwise a nonempty array of numbers or objects reaches material search.
+        if not isinstance(search_terms, list) or not all(
+            isinstance(term, str) for term in search_terms
+        ):
+            logger.error("response is not a list of strings.")
+            search_terms = []
 
         if search_terms and len(search_terms) > 0:
             break

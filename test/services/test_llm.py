@@ -253,6 +253,24 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertEqual(result, [])
         self.assertIsInstance(result, list)
 
+    def test_generate_terms_retries_non_string_items_in_recovered_json(self):
+        """The prose-wrapped JSON recovery path must enforce List[str] too."""
+        with patch.object(
+            llm,
+            "_generate_response",
+            side_effect=[
+                'Search terms: [123, {"query": "coffee"}]',
+                'Search terms: ["coffee beans", "barista tools"]',
+            ],
+        ) as generate_response:
+            result = llm.generate_terms(
+                video_subject="Coffee",
+                video_script="How to brew coffee.",
+            )
+
+        self.assertEqual(result, ["coffee beans", "barista tools"])
+        self.assertEqual(generate_response.call_count, 2)
+
     def test_video_script_request_rejects_invalid_advanced_options(self):
         """
         API 请求模型需要限制高级 prompt 参数，避免外部调用绕过 WebUI
