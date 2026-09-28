@@ -1657,6 +1657,92 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(task["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
         self.assertIn("metadata provider unavailable", task["cross_post_error"])
 
+    def test_background_upload_request_id_is_saved_while_polling(self):
+        """An interrupted worker must leave the remote upload ID in task state."""
+        state = MemoryState()
+        state.update_task(
+            "background-upload",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+        observed = {}
+
+        def upload_with_background_start(**kwargs):
+            kwargs["on_background_start"]("request-42")
+            observed.update(state.get_task("background-upload"))
+            return {"success": True, "request_id": "request-42"}
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(tm.llm, "generate_social_metadata", return_value={}),
+            patch.object(
+                tm.upload_post,
+                "cross_post_video",
+                side_effect=upload_with_background_start,
+            ),
+        ):
+            tm._run_cross_post(
+                "background-upload",
+                ("final.mp4",),
+                "Coffee",
+                "Coffee script",
+                "en",
+                ("tiktok",),
+                "public",
+            )
+
+        self.assertEqual(
+            observed["cross_post_state"], tm.const.CROSS_POST_STATE_PROCESSING
+        )
+        self.assertEqual(
+            observed["cross_post_results"][0]["request_id"], "request-42"
+        )
+        finished = state.get_task("background-upload")
+        self.assertEqual(finished["cross_post_state"], tm.const.CROSS_POST_STATE_COMPLETE)
+        self.assertEqual(finished["cross_post_results"], [{"success": True, "request_id": "request-42"}])
+
+    def test_background_upload_request_id_survives_worker_error(self):
+        """A polling exception must not erase the only remote recovery handle."""
+        state = MemoryState()
+        state.update_task(
+            "background-upload-error",
+            state=tm.const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final.mp4"],
+            cross_post_state=tm.const.CROSS_POST_STATE_PENDING,
+        )
+
+        def interrupted_upload(**kwargs):
+            kwargs["on_background_start"]("request-lost")
+            raise RuntimeError("worker stopped during status polling")
+
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(tm.llm, "generate_social_metadata", return_value={}),
+            patch.object(
+                tm.upload_post,
+                "cross_post_video",
+                side_effect=interrupted_upload,
+            ),
+        ):
+            tm._run_cross_post(
+                "background-upload-error",
+                ("final.mp4",),
+                "Coffee",
+                "Coffee script",
+                "en",
+                ("tiktok",),
+                "public",
+            )
+
+        failed = state.get_task("background-upload-error")
+        self.assertEqual(failed["cross_post_state"], tm.const.CROSS_POST_STATE_FAILED)
+        self.assertEqual(
+            failed["cross_post_results"][0]["request_id"], "request-lost"
+        )
+
     def test_start_returns_cross_post_scheduling_failure(self):
         """同步调度失败必须同时体现在任务状态和 start() 返回快照中。"""
         params = VideoParams(video_subject="Coffee")

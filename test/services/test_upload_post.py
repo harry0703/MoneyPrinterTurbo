@@ -22,7 +22,11 @@ _CONFIG_BASE = {
 
 def _mock_response(success=True):
     r = MagicMock()
-    r.json.return_value = {"success": success, "request_id": "abc123"}
+    r.json.return_value = {
+        "success": success,
+        "request_id": "abc123",
+        "results": {"tiktok": {"success": success}},
+    }
     r.raise_for_status = MagicMock()
     return r
 
@@ -142,6 +146,177 @@ class TestUploadPostService(unittest.TestCase):
 
         self.assertIs(result["success"], False)
         self.assertIn("invalid response", result["error"])
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_sync_upload_reports_failed_platform(self, mock_post, _exists):
+        """Top-level success means accepted even when one platform failed."""
+        response = _mock_response()
+        response.json.return_value = {
+            "success": True,
+            "results": {
+                "instagram": {"success": True},
+                "linkedin": {"success": False, "error": "account expired"},
+            },
+        }
+        mock_post.return_value = response
+
+        result = UploadPostService().upload_video(
+            "/fake/v.mp4", "Title", platforms=["instagram", "linkedin"]
+        )
+
+        self.assertIs(result["success"], False)
+        self.assertIn("linkedin", result["error"])
+        self.assertIn("results", result)
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_upload_without_results_uses_request_id_to_confirm_status(
+        self, mock_post, _exists
+    ):
+        """A returned request ID is still an in-flight upload without results."""
+        response = _mock_response()
+        response.json.return_value = {"success": True, "request_id": "req-only"}
+        mock_post.return_value = response
+
+        with patch.object(
+            UploadPostService,
+            "check_status",
+            return_value={
+                "status": "completed",
+                "results": [{"platform": "tiktok", "success": True}],
+            },
+        ) as check_status:
+            result = UploadPostService().upload_video(
+                "/fake/v.mp4", "Title", platforms=["tiktok"]
+            )
+
+        self.assertIs(result["success"], True)
+        check_status.assert_called_once_with("req-only")
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_upload_with_malformed_platform_results_fails(self, mock_post, _exists):
+        response = _mock_response()
+        response.json.return_value = {"success": True, "results": "unavailable"}
+        mock_post.return_value = response
+
+        result = UploadPostService().upload_video(
+            "/fake/v.mp4", "Title", platforms=["tiktok"]
+        )
+
+        self.assertIs(result["success"], False)
+        self.assertIn("invalid platform results", result["error"])
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_background_upload_waits_for_platform_results(self, mock_post, _exists):
+        """A 200 background acceptance must not become a completed cross-post."""
+        response = _mock_response()
+        response.json.return_value = {
+            "success": True,
+            "message": "Upload initiated successfully in background.",
+            "request_id": "req-123",
+            "total_platforms": 2,
+        }
+        mock_post.return_value = response
+
+        with (
+            patch.object(
+                UploadPostService,
+                "check_status",
+                side_effect=[
+                    {"request_id": "req-123", "status": "processing"},
+                    {
+                        "request_id": "req-123",
+                        "status": "completed",
+                        "results": [
+                            {"platform": "instagram", "success": True},
+                            {"platform": "linkedin", "success": False},
+                        ],
+                    },
+                ],
+            ) as check_status,
+            patch("app.services.upload_post.time", create=True) as clock,
+        ):
+            clock.monotonic.return_value = 0
+            result = UploadPostService().upload_video(
+                "/fake/v.mp4", "Title", platforms=["instagram", "linkedin"]
+            )
+
+        self.assertIs(result["success"], False)
+        self.assertIn("linkedin", result["error"])
+        self.assertEqual(result["request_id"], "req-123")
+        self.assertEqual(check_status.call_count, 2)
+        clock.sleep.assert_called_once()
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_background_upload_reports_completed_platforms(self, mock_post, _exists):
+        response = _mock_response()
+        response.json.return_value = {
+            "success": True,
+            "message": "Upload initiated successfully in background.",
+            "request_id": "req-complete",
+            "total_platforms": 1,
+        }
+        mock_post.return_value = response
+        completed = {
+            "status": "completed",
+            "results": [{"platform": "tiktok", "success": True}],
+        }
+        with patch.object(
+            UploadPostService, "check_status", return_value=completed
+        ) as check_status:
+            result = UploadPostService().upload_video(
+                "/fake/v.mp4", "Title", platforms=["tiktok"]
+            )
+
+        self.assertIs(result["success"], True)
+        self.assertEqual(result["request_id"], "req-complete")
+        check_status.assert_called_once_with("req-complete")
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_background_upload_timeout_keeps_request_id(self, mock_post, _exists):
+        response = _mock_response()
+        response.json.return_value = {
+            "success": True,
+            "message": "Upload initiated successfully in background.",
+            "request_id": "req-slow",
+        }
+        mock_post.return_value = response
+        with (
+            patch.object(
+                UploadPostService,
+                "check_status",
+                return_value={"status": "processing"},
+            ) as check_status,
+            patch("app.services.upload_post._UPLOAD_STATUS_TIMEOUT_SECONDS", 0),
+            patch("app.services.upload_post.time") as clock,
+        ):
+            clock.monotonic.return_value = 0
+            result = UploadPostService().upload_video(
+                "/fake/v.mp4", "Title", platforms=["tiktok"]
+            )
+
+        self.assertIs(result["success"], False)
+        self.assertEqual(result["request_id"], "req-slow")
+        self.assertIn("did not complete", result["error"])
+        check_status.assert_called_once()
+        clock.sleep.assert_not_called()
 
 
 class TestUploadPostYouTubePayload(unittest.TestCase):
