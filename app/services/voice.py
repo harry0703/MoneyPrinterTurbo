@@ -1440,6 +1440,7 @@ def siliconflow_tts(
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     for i in range(3):  # 尝试3次
+        temporary_audio = None
         try:
             logger.info(
                 f"start siliconflow tts, model: {model}, voice: {voice}, try: {i + 1}"
@@ -1456,14 +1457,22 @@ def siliconflow_tts(
                 if not response.content:
                     logger.error("siliconflow tts returned empty audio")
                     return None
-                # 保存音频文件
-                with open(voice_file, "wb") as f:
+                # Decode a temporary file before publishing it. A 200 response
+                # may contain invalid audio, and must not destroy a previous
+                # successful narration at the same path.
+                ensure_file_path_exists(voice_file)
+                with tempfile.NamedTemporaryFile(
+                    dir=os.path.dirname(os.path.abspath(voice_file)),
+                    suffix=".mp3",
+                    delete=False,
+                ) as f:
+                    temporary_audio = f.name
                     f.write(response.content)
 
                 sub_maker = ensure_legacy_submaker_fields(SubMaker())
 
                 try:
-                    audio_clip = AudioFileClip(voice_file)
+                    audio_clip = AudioFileClip(temporary_audio)
                     try:
                         audio_duration = audio_clip.duration
                     finally:
@@ -1479,14 +1488,9 @@ def siliconflow_tts(
                     # narration. Returning a fabricated duration lets an invalid
                     # file advance into the costly video pipeline.
                     logger.error(f"siliconflow tts returned invalid audio: {e}")
-                    try:
-                        os.remove(voice_file)
-                    except OSError as cleanup_error:
-                        logger.warning(
-                            f"failed to remove invalid siliconflow audio: {cleanup_error}"
-                        )
                     return None
 
+                os.replace(temporary_audio, voice_file)
                 logger.success(f"siliconflow tts succeeded: {voice_file}")
                 return populate_legacy_submaker_with_full_text(
                     sub_maker=sub_maker,
@@ -1499,6 +1503,14 @@ def siliconflow_tts(
                 )
         except Exception as e:
             logger.error(f"siliconflow tts failed: {str(e)}")
+        finally:
+            if temporary_audio and os.path.exists(temporary_audio):
+                try:
+                    os.unlink(temporary_audio)
+                except OSError as cleanup_error:
+                    logger.warning(
+                        f"failed to remove temporary siliconflow audio: {cleanup_error}"
+                    )
 
     return None
 

@@ -1631,6 +1631,57 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertIsNone(result)
         post.assert_called_once()
 
+    def test_siliconflow_tts_invalid_audio_preserves_existing_narration(self):
+        fake_response = SimpleNamespace(status_code=200, content=b"invalid mp3")
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.object(vs.requests, "post", return_value=fake_response),
+            patch.object(vs, "AudioFileClip", side_effect=OSError("invalid audio")),
+            patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+        ):
+            voice_file = Path(temp_dir) / "narration.mp3"
+            voice_file.write_bytes(b"previous valid narration")
+            result = vs.siliconflow_tts(
+                text="An example narration",
+                model="FunAudioLLM/CosyVoice2-0.5B",
+                voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                voice_rate=1.0,
+                voice_file=str(voice_file),
+            )
+
+            self.assertIsNone(result)
+            self.assertEqual(voice_file.read_bytes(), b"previous valid narration")
+            self.assertEqual(list(Path(temp_dir).iterdir()), [voice_file])
+
+    def test_siliconflow_tts_publishes_only_after_audio_validation(self):
+        fake_response = SimpleNamespace(status_code=200, content=b"new mp3")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            voice_file = Path(temp_dir) / "narration.mp3"
+            voice_file.write_bytes(b"previous valid narration")
+
+            def validate_audio(candidate):
+                self.assertNotEqual(Path(candidate), voice_file)
+                self.assertEqual(voice_file.read_bytes(), b"previous valid narration")
+                self.assertEqual(Path(candidate).read_bytes(), b"new mp3")
+                return SimpleNamespace(duration=2.5, close=lambda: None)
+
+            with (
+                patch.object(vs.requests, "post", return_value=fake_response),
+                patch.object(vs, "AudioFileClip", side_effect=validate_audio),
+                patch.object(vs.config, "siliconflow", {"api_key": "test-key"}),
+            ):
+                result = vs.siliconflow_tts(
+                    text="An example narration",
+                    model="FunAudioLLM/CosyVoice2-0.5B",
+                    voice="FunAudioLLM/CosyVoice2-0.5B:alex",
+                    voice_rate=1.0,
+                    voice_file=str(voice_file),
+                )
+
+            self.assertIsNotNone(result)
+            self.assertEqual(voice_file.read_bytes(), b"new mp3")
+            self.assertEqual(list(Path(temp_dir).iterdir()), [voice_file])
+
     def test_pause_tag_detection_and_parsing(self):
         """测试多语言停顿标签的检测、解析与清洗。"""
         sample_script = (
