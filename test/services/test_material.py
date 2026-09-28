@@ -14,6 +14,23 @@ from app.config import config
 from app.services import material
 
 
+class _FakeVideoDownloadResponse:
+    def __init__(self, content: bytes):
+        self.content_bytes = content
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def raise_for_status(self):
+        pass
+
+    def iter_content(self, chunk_size):
+        yield self.content_bytes
+
+
 class TestMaterialTlsVerification(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
@@ -559,7 +576,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         config.app.pop("tls_verify", None)
         config.proxy.clear()
 
-        fake_response = SimpleNamespace(content=b"fake-video")
+        fake_response = _FakeVideoDownloadResponse(b"fake-video")
 
         class FakeVideoFileClip:
             duration = 1
@@ -582,6 +599,78 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertTrue(os.path.exists(video_path))
             self.assertTrue(get.call_args.kwargs["verify"])
 
+    def test_save_video_streams_chunks_without_materializing_response_content(self):
+        class StreamingResponse:
+            def __init__(self):
+                self.closed = False
+                self.chunk_size = None
+
+            @property
+            def content(self):
+                raise AssertionError("the complete video must not be buffered in memory")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.closed = True
+
+            def raise_for_status(self):
+                pass
+
+            def iter_content(self, chunk_size):
+                self.chunk_size = chunk_size
+                yield b"first"
+                yield b"second"
+
+        class FakeVideoFileClip:
+            duration = 1
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        response = StreamingResponse()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "app.services.material.requests.get", return_value=response
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+                video_path = material.save_video(
+                    "https://example.com/large.mp4", save_dir=temp_dir
+                )
+
+            self.assertEqual(Path(video_path).read_bytes(), b"firstsecond")
+            self.assertTrue(response.closed)
+            self.assertLessEqual(response.chunk_size, 1024 * 1024)
+            self.assertTrue(get.call_args.kwargs["stream"])
+
+    def test_save_video_cleans_partial_stream_when_download_fails(self):
+        class FailingResponse(_FakeVideoDownloadResponse):
+            def __init__(self):
+                super().__init__(b"partial")
+                self.closed = False
+
+            def __exit__(self, *args):
+                self.closed = True
+
+            def iter_content(self, chunk_size):
+                yield b"partial"
+                raise requests.ConnectionError("connection dropped")
+
+        response = FailingResponse()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("app.services.material.requests.get", return_value=response):
+                with self.assertRaises(requests.ConnectionError):
+                    material.save_video(
+                        "https://example.com/interrupted.mp4", save_dir=temp_dir
+                    )
+
+            self.assertTrue(response.closed)
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
     def test_invalid_download_is_not_reused_as_cached_video(self):
         url = "https://example.com/broken-then-valid.mp4"
         cached_name = f"vid-{material.utils.md5(url)}.mp4"
@@ -599,8 +688,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
             with patch(
                 "app.services.material.requests.get",
                 side_effect=[
-                    SimpleNamespace(content=b"broken"),
-                    SimpleNamespace(content=b"valid"),
+                    _FakeVideoDownloadResponse(b"broken"),
+                    _FakeVideoDownloadResponse(b"valid"),
                 ],
             ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
                 self.assertEqual(material.save_video(url, save_dir=temp_dir), "")
@@ -627,7 +716,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with patch(
                 "app.services.material.requests.get",
-                return_value=SimpleNamespace(content=b"bad metadata"),
+                return_value=_FakeVideoDownloadResponse(b"bad metadata"),
             ), patch("app.services.material.VideoFileClip", FakeVideoFileClip):
                 self.assertEqual(
                     material.save_video("https://example.com/nan.mp4", save_dir=temp_dir),
