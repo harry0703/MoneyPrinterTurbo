@@ -420,6 +420,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.cheaperinference.com/v1",
         model_docs_url="https://cheaperinference.com/#models",
     ),
+    LLMProviderSpec(
+        "requesty",
+        "Requesty",
+        api_key_url="https://app.requesty.ai/api-keys",
+        default_model="openai/gpt-5.4-mini",
+        default_base_url="https://router.requesty.ai/v1",
+        model_docs_url="https://www.requesty.ai/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
