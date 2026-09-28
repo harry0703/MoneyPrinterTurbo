@@ -328,6 +328,13 @@ def correct(subtitle_file, video_script):
         script_index += 1
         corrected = True
 
+    if subtitle_index < len(subtitle_items):
+        logger.warning(
+            f"Dropping {len(subtitle_items) - subtitle_index} transcription cue(s) "
+            "after the script ends"
+        )
+        corrected = True
+
     if corrected:
         with open(subtitle_file, "w", encoding="utf-8") as fd:
             for i, item in enumerate(new_subtitle_items):
