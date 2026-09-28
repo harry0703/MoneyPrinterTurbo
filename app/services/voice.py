@@ -76,6 +76,8 @@ GEMINI_TTS_VOICES = (
     ("Sulafat", "Warm"),
 )
 _MINIMAX_TTS_MAX_AUDIO_HEX_CHARS = 100 * 1024 * 1024
+_ELEVENLABS_TTS_MAX_AUDIO_BYTES = 50 * 1024 * 1024
+_ELEVENLABS_TTS_MAX_ERROR_BYTES = 4096
 VOXCPM_DEFAULT_BASE_URL = "https://api.modelbest.cn/v1"
 VOXCPM_DEFAULT_VOICE = "default"
 VOXCPM_REFERENCE_AUDIO_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -2132,41 +2134,75 @@ def elevenlabs_tts(
     _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized"}
 
     for i in range(3):
+        response = None
+        temp_path = None
         try:
             logger.info(f"start elevenlabs tts, voice_id: {voice_id}, try: {i + 1}")
             ensure_file_path_exists(voice_file)
 
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            response = requests.post(
+                url, json=payload, headers=headers, timeout=60, stream=True
+            )
             if response.status_code != 200:
                 error_status = ""
+                error_bytes = bytearray()
                 try:
-                    detail = response.json().get("detail", {})
+                    for chunk in response.iter_content(chunk_size=4096):
+                        error_bytes.extend(
+                            chunk[:_ELEVENLABS_TTS_MAX_ERROR_BYTES - len(error_bytes)]
+                        )
+                        if len(error_bytes) >= _ELEVENLABS_TTS_MAX_ERROR_BYTES:
+                            break
+                    detail = json.loads(error_bytes).get("detail", {})
                     if isinstance(detail, dict):
                         error_status = detail.get("status", "")
-                except Exception:
+                except (ValueError, TypeError, AttributeError, requests.RequestException):
                     pass
+                error_text = error_bytes.decode("utf-8", errors="replace")[:200]
 
                 if response.status_code in _NON_RETRYABLE_CODES or error_status in _NON_RETRYABLE_STATUSES:
                     logger.error(
                         f"ElevenLabs TTS failed (non-retryable) — voice_id: {voice_id}, "
-                        f"status: {response.status_code}, error: {error_status or response.text[:200]}. "
+                        f"status: {response.status_code}, error: {error_status or error_text}. "
                         "Please select a different ElevenLabs voice."
                     )
                     return None
 
                 logger.error(
-                    f"elevenlabs tts failed with status {response.status_code}: {response.text[:200]}"
+                    f"elevenlabs tts failed with status {response.status_code}: {error_text}"
                 )
                 continue
 
-            with open(voice_file, "wb") as f:
-                f.write(response.content)
+            descriptor, temp_path = tempfile.mkstemp(
+                prefix=".elevenlabs-tts-",
+                suffix=os.path.splitext(voice_file)[1] or ".mp3",
+                dir=os.path.dirname(os.path.abspath(voice_file)),
+            )
+            audio_bytes = 0
+            with os.fdopen(descriptor, "wb") as output:
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    if not chunk:
+                        continue
+                    audio_bytes += len(chunk)
+                    if audio_bytes > _ELEVENLABS_TTS_MAX_AUDIO_BYTES:
+                        logger.error("ElevenLabs TTS audio exceeds the 50 MB limit")
+                        return None
+                    output.write(chunk)
+            if audio_bytes == 0:
+                logger.error("ElevenLabs TTS returned no audio data")
+                return None
 
-            audio_clip = AudioFileClip(voice_file)
+            audio_clip = AudioFileClip(temp_path)
             try:
-                audio_duration = audio_clip.duration
+                audio_duration = float(audio_clip.duration)
             finally:
                 audio_clip.close()
+            if not math.isfinite(audio_duration) or audio_duration <= 0:
+                logger.error("ElevenLabs TTS returned audio with invalid duration")
+                return None
+
+            os.replace(temp_path, voice_file)
+            temp_path = None
 
             sub_maker = ensure_legacy_submaker_fields(SubMaker())
             logger.success(f"elevenlabs tts succeeded: {voice_file}")
@@ -2175,8 +2211,28 @@ def elevenlabs_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
+        except requests.exceptions.ConnectTimeout as e:
+            logger.warning(f"elevenlabs tts could not connect, retrying: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                "elevenlabs tts result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(e).__name__}"
+            )
+            return None
         except Exception as e:
             logger.error(f"elevenlabs tts failed: {str(e)}")
+            if response is not None and response.status_code == 200:
+                # The provider may already have charged for a successful
+                # request. Retrying cannot repair a corrupt returned file.
+                return None
+        finally:
+            if temp_path is not None:
+                try:
+                    os.remove(temp_path)
+                except OSError as exc:
+                    logger.warning(f"failed to remove ElevenLabs TTS temp file: {exc}")
+            if response is not None:
+                response.close()
 
     return None
 
