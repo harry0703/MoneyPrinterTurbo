@@ -215,7 +215,18 @@ class UploadPostService:
                     data=data,
                     files=files,
                     timeout=300,
+                    allow_redirects=False,
                 )
+
+                if 300 <= response.status_code < 400:
+                    logger.error(
+                        "Upload-Post upload returned an unexpected redirect: "
+                        f"status={response.status_code}"
+                    )
+                    return {
+                        "success": False,
+                        "error": "Upload-Post upload returned an unexpected redirect",
+                    }
 
                 response.raise_for_status()
                 try:
