@@ -2,7 +2,7 @@ import unittest
 import time
 import tomllib
 from pathlib import Path
-from threading import Event
+from threading import Event, Thread
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -181,6 +181,48 @@ class TestAsyncUpdateChecker(unittest.TestCase):
 
         self.assertTrue(completed.complete)
         self.assertIsNone(completed.available_version)
+
+    def test_old_check_cannot_complete_new_check_for_same_version(self):
+        started = [Event() for _ in range(3)]
+        release = [Event() for _ in range(3)]
+        calls = []
+        workers = []
+
+        def make_thread(*args, **kwargs):
+            worker = Thread(*args, **kwargs)
+            workers.append(worker)
+            return worker
+
+        def check(current_version):
+            index = len(calls)
+            calls.append(current_version)
+            started[index].set()
+            release[index].wait(timeout=2)
+            return ("stale-a", "release-b", "fresh-a")[index]
+
+        checker = version_checker.AsyncUpdateChecker(check=check)
+        try:
+            with patch.object(
+                version_checker.threading, "Thread", side_effect=make_thread
+            ):
+                checker.poll("1.3.2")
+                self.assertTrue(started[0].wait(timeout=1))
+                checker.poll("1.3.3")
+                self.assertTrue(started[1].wait(timeout=1))
+                checker.poll("1.3.2")
+                self.assertTrue(started[2].wait(timeout=1))
+
+            release[0].set()
+            workers[0].join(timeout=1)
+            self.assertFalse(workers[0].is_alive())
+            self.assertFalse(checker.poll("1.3.2").complete)
+
+            release[2].set()
+            completed = self._wait_for_completion(checker)
+            self.assertEqual(completed.available_version, "fresh-a")
+        finally:
+            for event in release:
+                event.set()
 
 
 class TestProjectVersionMetadata(unittest.TestCase):
