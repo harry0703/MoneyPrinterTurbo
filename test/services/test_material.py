@@ -842,6 +842,45 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertTrue(response.closed)
             self.assertEqual(list(Path(temp_dir).iterdir()), [])
 
+    def test_save_video_rejects_declared_oversized_download_before_streaming(self):
+        class OversizedResponse(_FakeVideoDownloadResponse):
+            headers = {"Content-Length": "9"}
+
+            def iter_content(self, chunk_size):
+                raise AssertionError("oversized body should not be read")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch("app.services.material.MAX_VIDEO_DOWNLOAD_BYTES", 8, create=True),
+                patch(
+                    "app.services.material.requests.get",
+                    return_value=OversizedResponse(b""),
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "download exceeds"):
+                    material.save_video("https://example.com/large.mp4", temp_dir)
+
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
+    def test_save_video_stops_undeclared_oversized_stream_and_cleans_temp(self):
+        class StreamingResponse(_FakeVideoDownloadResponse):
+            def iter_content(self, chunk_size):
+                yield b"first"
+                yield b"second"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch("app.services.material.MAX_VIDEO_DOWNLOAD_BYTES", 8, create=True),
+                patch(
+                    "app.services.material.requests.get",
+                    return_value=StreamingResponse(b""),
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "download exceeds"):
+                    material.save_video("https://example.com/stream.mp4", temp_dir)
+
+            self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
     def test_invalid_download_is_not_reused_as_cached_video(self):
         url = "https://example.com/broken-then-valid.mp4"
         cached_name = f"vid-{material.utils.md5(url)}.mp4"

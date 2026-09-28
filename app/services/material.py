@@ -33,6 +33,10 @@ from app.utils import utils
 _api_key_counter = 0
 _api_key_lock = threading.Lock()
 
+# A provider URL can point to an unexpectedly large object or never-ending stream.
+# Short stock and generated clips should stay well below this conservative cap.
+MAX_VIDEO_DOWNLOAD_BYTES = 512 * 1024 * 1024
+
 
 class _OpenAIImageDecodeError(ValueError):
     """表示兼容接口返回的字节无法解码为图片，不包含本地文件写入故障。"""
@@ -1132,8 +1136,20 @@ def save_video(video_url: str, save_dir: str = "") -> str:
                 stream=True,
             ) as response:
                 response.raise_for_status()
+                headers = getattr(response, "headers", {}) or {}
+                try:
+                    declared_size = int(headers.get("Content-Length", ""))
+                except (TypeError, ValueError):
+                    declared_size = 0
+                if declared_size > MAX_VIDEO_DOWNLOAD_BYTES:
+                    raise ValueError("video download exceeds 512 MB limit")
+
+                downloaded_bytes = 0
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
+                        downloaded_bytes += len(chunk)
+                        if downloaded_bytes > MAX_VIDEO_DOWNLOAD_BYTES:
+                            raise ValueError("video download exceeds 512 MB limit")
                         temp_file.write(chunk)
 
         if os.path.getsize(temp_path) == 0:
