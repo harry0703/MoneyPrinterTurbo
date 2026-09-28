@@ -121,6 +121,12 @@ class UploadPostService:
 
                 response.raise_for_status()
                 result = response.json()
+                if not isinstance(result, dict):
+                    logger.error("Upload-Post returned an invalid response to upload")
+                    return {
+                        "success": False,
+                        "error": "Upload-Post returned an invalid response",
+                    }
 
                 if result.get('success'):
                     logger.info(f"✅ Video cross-posted successfully! Request ID: {result.get('request_id')}")
@@ -156,7 +162,14 @@ class UploadPostService:
             )
 
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            if not isinstance(result, dict):
+                logger.error("Upload-Post returned an invalid response to status query")
+                return {
+                    "success": False,
+                    "error": "Upload-Post returned an invalid response",
+                }
+            return result
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to check status: {str(e)}")
