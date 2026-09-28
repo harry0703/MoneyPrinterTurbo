@@ -2,6 +2,7 @@ import asyncio
 import base64
 import os
 import shutil
+import subprocess
 import unittest
 import sys
 import tempfile
@@ -1770,6 +1771,42 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertTrue(read_sizes)
         self.assertLessEqual(max(read_sizes), 8192)
 
+    def test_pause_audio_decode_timeout_fails_without_publishing(self):
+        def timed_out(command, **kwargs):
+            self.assertIn("-nostdin", command)
+            self.assertGreater(kwargs.get("timeout", 0), 0)
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            inputs = [str(Path(temp_dir) / f"chunk-{index}.mp3") for index in range(2)]
+            for input_path in inputs:
+                Path(input_path).write_bytes(b"compressed-audio")
+            output = str(Path(temp_dir) / "voice.mp3")
+            with patch.object(vs.subprocess, "run", side_effect=timed_out):
+                self.assertFalse(vs._concat_audio_files(inputs, output))
+            self.assertFalse(Path(output).exists())
+
+    def test_pause_audio_encode_timeout_preserves_previous_output(self):
+        def timed_out(command, **kwargs):
+            self.assertIn("-nostdin", command)
+            self.assertGreater(kwargs.get("timeout", 0), 0)
+            Path(command[-1]).write_bytes(b"partial-output")
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            inputs = [str(Path(temp_dir) / f"chunk-{index}.wav") for index in range(2)]
+            for input_path in inputs:
+                with vs.wave.open(input_path, "wb") as writer:
+                    writer.setnchannels(1)
+                    writer.setsampwidth(2)
+                    writer.setframerate(24000)
+                    writer.writeframes(b"\0\0" * 20)
+            output = Path(temp_dir) / "voice.mp3"
+            output.write_bytes(b"previous-success")
+            with patch.object(vs.subprocess, "run", side_effect=timed_out):
+                self.assertFalse(vs._concat_audio_files(inputs, str(output)))
+            self.assertEqual(output.read_bytes(), b"previous-success")
+
     def test_tts_with_pauses_shifts_submaker_timeline(self):
         """测试包含停顿标签时，SubMaker 时间轴和音频拼接正确偏移。"""
         from edge_tts.srt_composer import Subtitle
@@ -2264,6 +2301,31 @@ class TestElevenLabsVoice(unittest.TestCase):
                     voice_file=out_file,
                 )
             self.assertIsNone(result)
+
+    def test_tts_with_pauses_decode_timeout_returns_failure(self):
+        def fake_single_tts(text, voice_name, voice_rate, voice_file, voice_volume=1.0):
+            Path(voice_file).write_bytes(b"synthesized-audio")
+            return vs.SubMaker()
+
+        def timed_out(command, **kwargs):
+            self.assertIn("-nostdin", command)
+            self.assertGreater(kwargs.get("timeout", 0), 0)
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir) / "narration.mp3"
+            with (
+                patch.object(vs, "_single_tts", side_effect=fake_single_tts),
+                patch.object(vs.subprocess, "run", side_effect=timed_out),
+            ):
+                result = vs._tts_with_pauses(
+                    text="Hello [pause: 1s] world",
+                    voice_name="zh-CN-XiaoxiaoNeural",
+                    voice_rate=1.0,
+                    voice_file=str(output),
+                )
+            self.assertIsNone(result)
+            self.assertFalse(output.exists())
 
     def test_tts_passes_original_text_unchanged_without_pauses(self):
         """测试无停顿标签时，tts 将原始文本原样直通给 _single_tts，不执行正则替换或清洗。"""
