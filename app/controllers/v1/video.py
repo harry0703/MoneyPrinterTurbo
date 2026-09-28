@@ -3,6 +3,7 @@ import os
 import pathlib
 import shutil
 from typing import Union
+from urllib.parse import quote
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
@@ -50,8 +51,14 @@ _max_queued_tasks = config.app.get("max_queued_tasks", 100)
 
 
 def _build_redis_url(host: str, port: int, db: int, password: str | None) -> str:
-    auth = f":{password}@" if password else ""
-    return f"redis://{auth}{host}:{port}/{db}"
+    # Passwords are URL userinfo. Escape reserved characters so Redis receives
+    # the exact configured secret rather than parsing part of it as a host,
+    # port, path, query, or fragment.
+    auth = f":{quote(password, safe='')}@" if password else ""
+    # URL authorities require brackets around IPv6 literals. RedisState also
+    # accepts a plain IPv6 host, so keep the queue client compatible with it.
+    url_host = f"[{host}]" if ":" in host and not host.startswith("[") else host
+    return f"redis://{auth}{url_host}:{port}/{db}"
 
 
 redis_url = _build_redis_url(_redis_host, _redis_port, _redis_db, _redis_password)
