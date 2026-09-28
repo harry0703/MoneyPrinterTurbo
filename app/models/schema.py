@@ -265,7 +265,9 @@ class VideoScriptRequest(VideoScriptParams, BaseModel):
 
 
 class VideoTermsRequest(VideoTermsParams, BaseModel):
-    pass
+    # Ordered term generation allocates an example list proportional to amount
+    # before contacting the model. Reject malformed or excessive API requests.
+    amount: int = Field(default=5, ge=1, le=50)
 
 
 class VideoSocialMetadataRequest(VideoSocialMetadataParams, BaseModel):
