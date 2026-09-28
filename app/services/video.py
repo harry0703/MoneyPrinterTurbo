@@ -1639,6 +1639,7 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
     素材源的失败约定处理。
     """
     clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
+    temp_path = ""
     try:
         # Apply a zoom effect using the resize method.
         # A lambda function is used to make the zoom effect dynamic over time.
@@ -1653,14 +1654,26 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
         # This is useful if you want to add other elements to the video.
         final_clip = CompositeVideoClip([zoom_clip])
         try:
-            # Output the video to a file.
-            video_file = f"{image_path}.mp4"
-            final_clip.write_videofile(video_file, fps=30, logger=None)
-            return video_file
+            # The duration changes the rendered content, so it must be part of
+            # the output identity. Different tasks may render the same image
+            # concurrently; only publish a complete MP4 after MoviePy closes it.
+            video_file = f"{image_path}.zoom-{clip_duration}.mp4"
+            descriptor, temp_path = tempfile.mkstemp(
+                prefix=".image-zoom-",
+                suffix=".mp4",
+                dir=os.path.dirname(os.path.abspath(video_file)),
+            )
+            os.close(descriptor)
+            final_clip.write_videofile(temp_path, fps=30, logger=None)
         finally:
             close_clip(final_clip)
+        os.replace(temp_path, video_file)
+        temp_path = ""
+        return video_file
     finally:
         close_clip(clip)
+        if temp_path:
+            delete_files(temp_path)
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):

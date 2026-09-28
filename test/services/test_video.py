@@ -489,6 +489,89 @@ class TestVideoService(unittest.TestCase):
             if os.path.exists(safe_img_path):
                 os.remove(safe_img_path)
 
+    def test_image_zoom_renders_keep_distinct_clip_durations(self):
+        """Two tasks must not overwrite one image render with another duration."""
+        class FakeImageClip:
+            def __init__(self, _path):
+                self.duration = 0
+
+            def with_duration(self, duration):
+                self.duration = duration
+                return self
+
+            def with_position(self, _position):
+                return self
+
+            def resized(self, _scale):
+                return self
+
+        class FakeCompositeClip:
+            def __init__(self, clips):
+                self.duration = clips[0].duration
+
+            def write_videofile(self, output, **_kwargs):
+                Path(output).write_bytes(f"duration={self.duration}".encode())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = os.path.join(temp_dir, "image.png")
+            with (
+                patch.object(vd, "ImageClip", FakeImageClip),
+                patch.object(vd, "CompositeVideoClip", FakeCompositeClip),
+            ):
+                first = vd.render_image_zoom_video(image_path, clip_duration=4)
+                second = vd.render_image_zoom_video(image_path, clip_duration=7)
+
+            self.assertNotEqual(first, second)
+            self.assertEqual(Path(first).read_bytes(), b"duration=4")
+            self.assertEqual(Path(second).read_bytes(), b"duration=7")
+
+    def test_failed_image_zoom_render_preserves_previous_complete_clip(self):
+        """A failed rerender must leave the last verified MP4 available."""
+        class FakeImageClip:
+            duration = 0
+
+            def __init__(self, _path):
+                pass
+
+            def with_duration(self, duration):
+                self.duration = duration
+                return self
+
+            def with_position(self, _position):
+                return self
+
+            def resized(self, _scale):
+                return self
+
+        writes = 0
+
+        class FakeCompositeClip:
+            def __init__(self, _clips):
+                pass
+
+            def write_videofile(self, output, **_kwargs):
+                nonlocal writes
+                writes += 1
+                Path(output).write_bytes(b"complete" if writes == 1 else b"partial")
+                if writes == 2:
+                    raise RuntimeError("render interrupted")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = os.path.join(temp_dir, "image.png")
+            with (
+                patch.object(vd, "ImageClip", FakeImageClip),
+                patch.object(vd, "CompositeVideoClip", FakeCompositeClip),
+            ):
+                output = vd.render_image_zoom_video(image_path, clip_duration=5)
+                with self.assertRaisesRegex(RuntimeError, "render interrupted"):
+                    vd.render_image_zoom_video(image_path, clip_duration=5)
+
+            self.assertEqual(Path(output).read_bytes(), b"complete")
+            self.assertEqual(
+                sorted(path.name for path in Path(temp_dir).iterdir()),
+                ["image.png.zoom-5.mp4"],
+            )
+
     def test_preprocess_video_rejects_material_outside_local_videos(self):
         """
         local 素材路径来自 API 参数，不能允许任意绝对路径进入 MoviePy。
