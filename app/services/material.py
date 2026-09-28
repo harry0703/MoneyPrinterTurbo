@@ -263,7 +263,7 @@ def _matches_video_aspect(
     try:
         normalized_width = int(float(width))
         normalized_height = int(float(height))
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         normalized_width = 0
         normalized_height = 0
 
@@ -367,7 +367,7 @@ def search_videos_pexels(
                 try:
                     w = int(video.get("width"))
                     h = int(video.get("height"))
-                except (TypeError, ValueError):
+                except (OverflowError, TypeError, ValueError):
                     continue
                 video_url = video.get("link")
                 if not isinstance(video_url, str) or not video_url:
@@ -505,7 +505,7 @@ def search_videos_pixabay(
                 try:
                     w = int(video["width"])
                     h = int(video["height"])
-                except (KeyError, TypeError, ValueError):
+                except (KeyError, OverflowError, TypeError, ValueError):
                     continue
                 video_url = video.get("url")
                 if not isinstance(video_url, str) or not video_url:

@@ -82,6 +82,17 @@ class TestMaterialTlsVerification(unittest.TestCase):
                 "videos": [
                     {"id": 1, "duration": "unknown", "video_files": []},
                     {
+                        "id": 10,
+                        "duration": 8,
+                        "video_files": [
+                            {
+                                "width": float("inf"),
+                                "height": 1920,
+                                "link": "https://example.com/overflow.mp4",
+                            }
+                        ],
+                    },
+                    {
                         "id": 2,
                         "duration": 8,
                         "video_files": [
@@ -128,6 +139,17 @@ class TestMaterialTlsVerification(unittest.TestCase):
                 "hits": [
                     {"duration": "unknown", "videos": {}},
                     {
+                        "id": 10,
+                        "duration": 8,
+                        "videos": {
+                            "large": {
+                                "width": float("inf"),
+                                "height": 1920,
+                                "url": "https://example.com/overflow.mp4",
+                            }
+                        },
+                    },
+                    {
                         "id": 2,
                         "duration": 8,
                         "videos": {
@@ -156,6 +178,15 @@ class TestMaterialTlsVerification(unittest.TestCase):
             json=lambda: {
                 "hits": [
                     {"id": "bad", "duration": 8, "urls": ["unexpected"]},
+                    {
+                        "id": "overflow",
+                        "duration": 8,
+                        "max_width": float("inf"),
+                        "max_height": 1920,
+                        "urls": {
+                            "mp4_download": "https://example.com/overflow.mp4"
+                        },
+                    },
                     {
                         "id": "good",
                         "duration": 8,
@@ -401,6 +432,11 @@ class TestMaterialTlsVerification(unittest.TestCase):
                 1080,
                 1920,
                 material.VideoAspect.square,
+            )
+        )
+        self.assertFalse(
+            material._matches_video_aspect(
+                float("inf"), 1920, material.VideoAspect.portrait
             )
         )
 
