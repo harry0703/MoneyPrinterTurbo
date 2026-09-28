@@ -2,6 +2,7 @@ import ast
 import copy
 import threading
 from abc import ABC, abstractmethod
+from itertools import islice
 
 from app.config import config
 from app.models import const
@@ -55,9 +56,12 @@ class MemoryState(BaseState):
         start = (page - 1) * page_size
         end = start + page_size
         with self._lock:
-            tasks = [copy.deepcopy(task) for task in self._tasks.values()]
-            total = len(tasks)
-        return tasks[start:end], total
+            total = len(self._tasks)
+            tasks = [
+                copy.deepcopy(task)
+                for task in islice(self._tasks.values(), start, end)
+            ]
+        return tasks, total
 
     def list_task_ids(self, scan_count: int = 100) -> list[str]:
         with self._lock:

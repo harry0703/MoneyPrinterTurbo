@@ -129,6 +129,32 @@ class TestMemoryState(unittest.TestCase):
         self.assertEqual(total, 1)
         self.assertEqual(state.get_task("task-1")["videos"], ["first.mp4"])
 
+    def test_get_all_tasks_copies_only_the_requested_page(self):
+        """A small page should not clone every historical task payload."""
+
+        class CopyTracked:
+            def __init__(self):
+                self.copies = 0
+
+            def __deepcopy__(self, memo):
+                self.copies += 1
+                return CopyTracked()
+
+        state = MemoryState()
+        off_page = CopyTracked()
+        state.update_task("task-1", videos=["first.mp4"])
+        state.update_task("task-2", payload=off_page)
+
+        first_page, total = state.get_all_tasks(page=1, page_size=1)
+
+        self.assertEqual(total, 2)
+        self.assertEqual([task["task_id"] for task in first_page], ["task-1"])
+        self.assertEqual(off_page.copies, 0)
+
+        second_page, _ = state.get_all_tasks(page=2, page_size=1)
+        self.assertEqual([task["task_id"] for task in second_page], ["task-2"])
+        self.assertEqual(off_page.copies, 1)
+
     def test_concurrent_memory_updates_are_preserved(self):
         state = MemoryState()
         thread_count = 5
