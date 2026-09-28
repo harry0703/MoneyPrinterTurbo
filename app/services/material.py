@@ -43,6 +43,10 @@ class _OpenAIImageDecodeError(ValueError):
     """表示兼容接口返回的字节无法解码为图片，不包含本地文件写入故障。"""
 
 
+class OpenAIImageUnconfirmedError(RuntimeError):
+    """A paid image request may have succeeded without returning a response."""
+
+
 def _safe_public_url(value: Any) -> str | None:
     """
     只保留可公开展示的 HTTP(S) 页面地址，并移除查询参数和凭据。
@@ -1448,8 +1452,8 @@ def _request_openai_image(endpoint: str, payload: dict) -> tuple[bytes | None, s
 
     计费安全：POST 的读超时与连接中断视为"未确认"状态——服务端可能已经
     生成并扣费，只是响应没有返回，自动重新提交可能造成重复生成和重复
-    计费，因此不做重试。只有连接阶段超时（ConnectTimeout，请求确定没有
-    送达服务端）才确认没有创建生成任务，可以安全重试。
+    计费，因此抛出专用异常终止本地任务。只有连接阶段超时（ConnectTimeout，
+    请求确定没有送达服务端）才确认没有创建生成任务，可以安全重试。
 
     API Key 允许为空：完全本地的 ComfyUI/SD 网关通常不需要鉴权，为空时
     不发送 Authorization 头。
@@ -1487,11 +1491,11 @@ def _request_openai_image(endpoint: str, payload: dict) -> tuple[bytes | None, s
             retryable = True
         except Exception as e:
             # 读超时/连接中断等属于"未确认"状态：服务端可能已经受理并扣费，
-            # 自动重新提交可能重复生成、重复计费，交由上层跳过该关键词。
-            failure_detail = (
-                f"unconfirmed request error (no retry to avoid double billing): "
+            # 自动重新提交或处理后续关键词都可能重复计费，必须终止本地任务。
+            raise OpenAIImageUnconfirmedError(
+                "unconfirmed image request (no retry to avoid double billing): "
                 f"{type(e).__name__}, detail={_redact_request_error(e, api_key)}"
-            )
+            ) from e
         else:
             status = int(getattr(response, "status_code", 200) or 200)
             if status in OPENAI_IMAGE_KEY_ERROR_STATUS_CODES:
@@ -1675,7 +1679,8 @@ def _download_videos_openai_image_on_demand(
     与 WaveSpeed 按需生成同一付费安全语义：文生图按张计费，先全量生成再
     挑选会为用不到的画面付费。每张图片生成后立即渲染成 mp4 片段并累计
     有效时长（与库存流程一致，按片段时长封顶），累计达到所需配音时长后
-    不再发起新的付费请求。单张失败按素材源约定跳过并继续下一个关键词。
+    不再发起新的付费请求。明确失败的单张图片可跳过；请求结果不明时必须
+    终止任务，避免后续关键词再次计费。
     """
     if not material_directory:
         # 生成图片按任务计费且不可复用，默认落在任务目录便于追溯。
@@ -1700,12 +1705,16 @@ def _download_videos_openai_image_on_demand(
         return video_paths
 
     for search_term in search_terms:
-        items = generate_images_openai(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-            save_dir=material_directory,
-        )
+        try:
+            items = generate_images_openai(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+                save_dir=material_directory,
+            )
+        except OpenAIImageUnconfirmedError:
+            _persist_material_sources(task_id, material_sources)
+            raise
         for item in items:
             video_file = _render_openai_image_video(item.url, max_clip_duration)
             if not video_file:

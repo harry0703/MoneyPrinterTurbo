@@ -535,7 +535,7 @@ class TestOpenAIImageProvider(unittest.TestCase):
         """
         读超时/连接中断属于"未确认"状态:服务端可能已经生成并扣费,只是
         响应没有返回。自动重新提交会造成重复生成和重复计费,必须直接
-        失败交由上层跳过该关键词。
+        失败并终止任务，不能继续向后续关键词提交付费请求。
         """
         for error in (
             requests.exceptions.ReadTimeout("read timed out"),
@@ -548,13 +548,48 @@ class TestOpenAIImageProvider(unittest.TestCase):
                     ) as post,
                     patch("app.services.material.time.sleep") as sleep,
                 ):
-                    results = material.generate_images_openai(
-                        "unconfirmed term", minimum_duration=5, save_dir=self.save_dir
-                    )
+                    with self.assertRaisesRegex(RuntimeError, "unconfirmed"):
+                        material.generate_images_openai(
+                            "unconfirmed term",
+                            minimum_duration=5,
+                            save_dir=self.save_dir,
+                        )
 
-                self.assertEqual(results, [])
                 self.assertEqual(post.call_count, 1)
                 sleep.assert_not_called()
+
+    def test_download_videos_openai_image_stops_after_unconfirmed_paid_request(self):
+        """Earlier images must not hide a later ambiguous paid submission."""
+        image_response = _image_response(
+            {"data": [{"b64_json": base64.b64encode(_png_bytes()).decode("ascii")}]}
+        )
+        config.app["material_directory"] = self.save_dir
+
+        with (
+            patch(
+                "app.services.material.requests.post",
+                side_effect=[
+                    image_response,
+                    requests.exceptions.ReadTimeout("response lost"),
+                    image_response,
+                ],
+            ) as post,
+            patch(
+                "app.services.material._render_openai_image_video",
+                return_value="/tmp/rendered.mp4",
+            ),
+            patch("app.services.material._persist_material_sources"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "unconfirmed"):
+                material.download_videos(
+                    task_id="test-openai-image-unconfirmed",
+                    search_terms=["first", "uncertain", "third"],
+                    source="openai_image",
+                    audio_duration=20,
+                    max_clip_duration=5,
+                )
+
+        self.assertEqual(post.call_count, 2)
 
     def test_generate_images_openai_size_defaults_and_override(self):
         """

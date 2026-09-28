@@ -542,6 +542,31 @@ class TestTaskService(unittest.TestCase):
                 self.assertEqual(failed_task["failed_stage"], "materials")
                 self.assertEqual(failed_task["wavespeed_prediction_id"], "pred-123")
 
+    def test_unconfirmed_openai_image_request_fails_at_material_stage(self):
+        """An ambiguous paid image request should remain visible as a failure."""
+        params = VideoParams(video_subject="test", video_source="openai_image")
+        state = MemoryState()
+        state.update_task("openai-image-unconfirmed", progress=40)
+        with (
+            patch.object(tm.sm, "state", state),
+            patch.object(
+                tm.material,
+                "download_videos",
+                side_effect=tm.material.OpenAIImageUnconfirmedError(
+                    "unconfirmed image request"
+                ),
+            ),
+        ):
+            result = tm.get_video_materials(
+                "openai-image-unconfirmed", params, ["scene"], 10
+            )
+
+        self.assertIsNone(result)
+        failed_task = state.get_task("openai-image-unconfirmed")
+        self.assertEqual(failed_task["state"], tm.const.TASK_STATE_FAILED)
+        self.assertEqual(failed_task["failed_stage"], "materials")
+        self.assertIn("unconfirmed", failed_task["error"])
+
     def test_loomloom_state_failure_does_not_abandon_paid_remote_run(self):
         """状态后端不可用时仍需等待并下载已经开始计费的远端任务。"""
         params = VideoParams(video_subject="AI 办公", video_source="loomloom")

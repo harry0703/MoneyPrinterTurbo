@@ -773,6 +773,11 @@ def get_video_materials(
             details = {"wavespeed_prediction_id": prediction_id} if prediction_id else None
             _mark_task_failed(task_id, "materials", str(exc), details=details)
             return None
+        except material.OpenAIImageUnconfirmedError as exc:
+            # An earlier image does not make a later ambiguous paid request a
+            # successful task. Stop before placing another image order.
+            _mark_task_failed(task_id, "materials", str(exc))
+            return None
         except ofox.OFoxError as exc:
             # 与方舟同一恢复语义：未确认状态和已生成但下载失败都对应一个可在
             # OFox 控制台恢复的远端任务，统一从异常携带的 task_id 写入失败状态。
