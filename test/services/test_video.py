@@ -1,5 +1,6 @@
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -1060,6 +1061,35 @@ class TestVideoService(unittest.TestCase):
         ]
         self.assertTrue(heartbeats, "耗时拼接期间必须记录存活日志")
         self.assertRegex(heartbeats[0], r"elapsed=\d+s, output size: 0\.00 MB")
+
+    def test_concat_timeout_fails_without_retrying_another_codec(self):
+        """A stalled FFmpeg must fail the task and release the concat list file."""
+        config.app["ffmpeg_concat_timeout_seconds"] = 12
+        config.app["video_codec"] = "h264_nvenc"
+
+        def timed_out_run(command, **kwargs):
+            self.assertEqual(kwargs["timeout"], 12)
+            raise subprocess.TimeoutExpired(
+                command, kwargs["timeout"], stderr=b"stalled"
+            )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with patch.object(vd, "_ffmpeg_encoder_exists", return_value=True):
+                with patch.object(vd.subprocess, "run", side_effect=timed_out_run) as run:
+                    with self.assertRaisesRegex(TimeoutError, "12 seconds"):
+                        vd.concat_video_clips_with_ffmpeg(
+                            clip_files=[clip_file],
+                            output_file=output_file,
+                            threads=1,
+                            output_dir=temp_dir,
+                        )
+
+            self.assertEqual(run.call_count, 1)
+            self.assertFalse(Path(temp_dir, "ffmpeg-concat-list.txt").exists())
 
     def test_concat_video_clips_heartbeat_tolerates_missing_output_file(self):
         """

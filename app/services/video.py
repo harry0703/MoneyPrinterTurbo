@@ -87,6 +87,7 @@ _DEFAULT_VIDEO_CODEC = "libx264"
 # ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
 # 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
 _FFMPEG_CONCAT_HEARTBEAT_SECONDS = 30.0
+_DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS = 3600
 _SUBTITLE_SPRING_DURATION_SECONDS = 0.18
 _MIN_SUBTITLE_SPRING_SCALE = 0.05
 _MAX_SUBTITLE_SPRING_SCALE = 1.35
@@ -474,7 +475,36 @@ def _run_concat_with_heartbeat(command: list[str], output_file: str):
     reporter = threading.Thread(target=log_heartbeat, daemon=True)
     reporter.start()
     try:
-        return subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+        configured_timeout = config.app.get(
+            "ffmpeg_concat_timeout_seconds", _DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS
+        )
+        try:
+            timeout_seconds = float(configured_timeout)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ffmpeg_concat_timeout_seconds must be positive") from exc
+        if (
+            isinstance(configured_timeout, bool)
+            or not math.isfinite(timeout_seconds)
+            or timeout_seconds <= 0
+        ):
+            raise ValueError("ffmpeg_concat_timeout_seconds must be positive")
+
+        try:
+            # subprocess.run kills and waits for FFmpeg on timeout, so a stalled
+            # encoder cannot leave an orphaned child or a permanently active task.
+            return subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError(
+                f"ffmpeg concat exceeded {timeout_seconds:g} seconds"
+            ) from exc
     finally:
         stop_event.set()
 
@@ -527,6 +557,10 @@ def concat_video_clips_with_ffmpeg(
         effective_codec = _get_effective_video_codec()
         try:
             return run_concat(effective_codec)
+        except TimeoutError:
+            # A hung encoder is not evidence that another codec will work. Do
+            # not spend a second timeout period retrying the same input.
+            raise
         except Exception as exc:
             if effective_codec == _DEFAULT_VIDEO_CODEC:
                 raise
