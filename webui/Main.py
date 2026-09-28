@@ -254,6 +254,9 @@ SETTINGS_PRESET_FILE_NAME = "moneyprinterturbo-settings.json"
 KEY_BACKUP_SCHEMA = "moneyprinterturbo.key-backup"
 KEY_BACKUP_VERSION = 1
 KEY_BACKUP_FILE_NAME = "moneyprinterturbo-keys.json"
+# Export files contain only settings or credentials, not media. Reject oversized
+# uploads before decoding and parsing them in the Streamlit process.
+MAX_SETTINGS_TRANSFER_BYTES = 2 * 1024 * 1024
 # 预设只描述生成参数。素材、配音和配乐都是本机文件路径，预设通常要在另一台
 # 机器或另一个容器里导入，带上这些路径只会指向不存在的文件。
 PRESET_EXCLUDED_PARAM_KEYS = frozenset(
@@ -2911,6 +2914,8 @@ def _load_transfer_payload(raw_bytes, schema, version):
     提示停留在导入入口，而不是把无法识别的内容写进配置或控件状态。
     Windows 编辑器可能保存带 BOM 的 JSON，因此按 utf-8-sig 解码。
     """
+    if len(raw_bytes) > MAX_SETTINGS_TRANSFER_BYTES:
+        raise ValueError("settings import exceeds the 2 MB limit")
     payload = json.loads(raw_bytes.decode("utf-8-sig"))
     if not isinstance(payload, dict):
         raise ValueError("exported file must contain a JSON object")

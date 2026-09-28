@@ -26,6 +26,7 @@ SETTINGS_TRANSFER_HELPERS = {
     "_parse_settings_preset",
 }
 SETTINGS_TRANSFER_CONSTANTS = {
+    "MAX_SETTINGS_TRANSFER_BYTES",
     "SETTINGS_PRESET_SCHEMA",
     "SETTINGS_PRESET_VERSION",
     "SETTINGS_PRESET_FILE_NAME",
@@ -106,6 +107,7 @@ SETTINGS_PRESET_SCHEMA = NAMESPACE["SETTINGS_PRESET_SCHEMA"]
 SETTINGS_PRESET_VERSION = NAMESPACE["SETTINGS_PRESET_VERSION"]
 KEY_BACKUP_SCHEMA = NAMESPACE["KEY_BACKUP_SCHEMA"]
 KEY_BACKUP_VERSION = NAMESPACE["KEY_BACKUP_VERSION"]
+MAX_SETTINGS_TRANSFER_BYTES = NAMESPACE.get("MAX_SETTINGS_TRANSFER_BYTES", 2 * 1024 * 1024)
 
 
 def _encode(payload):
@@ -234,6 +236,20 @@ def test_settings_preset_rejects_foreign_or_outdated_files():
         )
     with pytest.raises(json.JSONDecodeError):
         parse_settings_preset(b"not json at all")
+
+
+def test_settings_import_rejects_oversized_json_before_parsing():
+    """An uploaded export must not turn a WebUI session into a huge JSON parse."""
+    raw = _encode({
+        "schema": SETTINGS_PRESET_SCHEMA,
+        "version": SETTINGS_PRESET_VERSION,
+        "params": {"font_size": 72},
+        "padding": "x" * MAX_SETTINGS_TRANSFER_BYTES,
+    })
+    assert len(raw) > MAX_SETTINGS_TRANSFER_BYTES
+
+    with pytest.raises(ValueError, match="exceeds.*2 MB"):
+        parse_settings_preset(raw)
 
 
 def test_settings_preset_rejects_invalid_parameter_values():
