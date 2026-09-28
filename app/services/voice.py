@@ -85,6 +85,7 @@ VOXCPM_REFERENCE_AUDIO_MAX_WAV_BYTES = 5 * 1024 * 1024
 VOXCPM_REFERENCE_AUDIO_CONVERSION_TIMEOUT_SECONDS = 15
 VOXCPM_REFERENCE_AUDIO_MAX_DURATION_SECONDS = 120
 VOXCPM_REFERENCE_AUDIO_FILE_TYPES = ("wav", "mp3", "m4a", "aac", "ogg", "flac")
+_DEFAULT_TTS_FFMPEG_TIMEOUT_SECONDS = 600
 _VOXCPM_NON_RETRYABLE_STATUS_CODES = {400, 401, 403, 404, 422}
 _VOXCPM_RETRY_DELAY_SECONDS = (1.0, 2.0)
 NO_VOICE_NAME = "no-voice"
@@ -557,6 +558,9 @@ def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
     ffmpeg_binary = utils.get_ffmpeg_binary()
     command = [
         ffmpeg_binary,
+        "-nostdin",
+        "-v",
+        "error",
         "-y",
         "-f",
         "lavfi",
@@ -568,33 +572,12 @@ def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
         "libmp3lame",
         "-q:a",
         "4",
-        output_file,
     ]
 
     logger.info(
         f"generating silent audio for no-voice mode, duration: {duration_seconds:.2f}s"
     )
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if result.returncode != 0:
-        logger.error(
-            "failed to generate silent audio: "
-            f"{(result.stderr or result.stdout or '').strip()}"
-        )
-        return False
-    if not os.path.exists(output_file) or os.path.getsize(output_file) <= 0:
-        logger.error(
-            "silent audio output file is missing or empty, "
-            f"file: {output_file}, duration: {duration_seconds:.2f}s"
-        )
-        return False
-    return True
+    return _publish_tts_ffmpeg_output(command, output_file, "silent narration encode")
 
 
 def _single_tts(
@@ -731,6 +714,69 @@ def _single_tts(
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
+def _run_tts_ffmpeg(command: list[str], stage: str):
+    """Bound TTS FFmpeg work and reap the child on timeout."""
+    raw_timeout = config.app.get(
+        "ffmpeg_tts_timeout_seconds",
+        _DEFAULT_TTS_FFMPEG_TIMEOUT_SECONDS,
+    )
+    try:
+        timeout = float(raw_timeout)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("ffmpeg_tts_timeout_seconds must be positive") from exc
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("ffmpeg_tts_timeout_seconds must be positive")
+
+    try:
+        # subprocess.run kills and waits for the child on timeout. Do not allow
+        # FFmpeg to wait for terminal input in an unattended generation task.
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        logger.error(f"FFmpeg {stage} timed out after {timeout:g} seconds")
+    except OSError as exc:
+        logger.error(f"failed to start FFmpeg {stage}: {exc}")
+    return None
+
+
+def _publish_tts_ffmpeg_output(
+    command: list[str], output_file: str, stage: str
+) -> bool:
+    """Encode beside the destination and replace only after a complete output."""
+    output_dir = os.path.dirname(output_file) or "."
+    with tempfile.TemporaryDirectory(
+        prefix=".mpt-tts-audio-", dir=output_dir
+    ) as publish_temp:
+        staged_output = os.path.join(
+            publish_temp, f"narration{os.path.splitext(output_file)[1] or '.mp3'}"
+        )
+        result = _run_tts_ffmpeg([*command, staged_output], stage)
+        if result is None:
+            return False
+        if result.returncode != 0:
+            logger.error(
+                f"FFmpeg {stage} failed: "
+                f"{(result.stderr or result.stdout or '').strip()}"
+            )
+            return False
+        if not os.path.exists(staged_output) or os.path.getsize(staged_output) == 0:
+            logger.error(f"FFmpeg {stage} produced no narration audio")
+            return False
+        try:
+            os.replace(staged_output, output_file)
+        except OSError as exc:
+            logger.error(f"failed to publish {stage} audio: {exc}")
+            return False
+        return True
+
+
 def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
     """
     使用 PCM 解码与统一重编码合并多个音频分段。
@@ -791,6 +837,9 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
                     pcm_wav = os.path.join(concat_temp, f"chunk_{idx}.wav")
                     cmd = [
                         ffmpeg_binary,
+                        "-nostdin",
+                        "-v",
+                        "error",
                         "-y",
                         "-i",
                         f,
@@ -803,7 +852,9 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
                         "pcm_s16le",
                         pcm_wav,
                     ]
-                    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+                    res = _run_tts_ffmpeg(cmd, "pause audio decode")
+                    if res is None:
+                        return False
                     if res.returncode == 0 and os.path.exists(pcm_wav):
                         try:
                             with wave.open(pcm_wav, "rb") as wf:
@@ -824,6 +875,9 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
 
         command = [
             ffmpeg_binary,
+            "-nostdin",
+            "-v",
+            "error",
             "-y",
             "-i",
             temp_combined_wav,
@@ -831,16 +885,10 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
             "libmp3lame",
             "-q:a",
             "4",
-            output_file,
         ]
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
-        if result.returncode != 0:
-            logger.error(
-                "failed to encode concatenated audio to mp3: "
-                f"{(result.stderr or result.stdout or '').strip()}"
-            )
-            return False
-        return os.path.exists(output_file) and os.path.getsize(output_file) > 0
+        return _publish_tts_ffmpeg_output(
+            command, output_file, "pause audio encode"
+        )
 
 
 def _tts_with_pauses(
@@ -933,6 +981,9 @@ def _tts_with_pauses(
                 ffmpeg_binary = utils.get_ffmpeg_binary()
                 cmd = [
                     ffmpeg_binary,
+                    "-nostdin",
+                    "-v",
+                    "error",
                     "-y",
                     "-i",
                     chunk_audio_file,
@@ -945,7 +996,9 @@ def _tts_with_pauses(
                     "pcm_s16le",
                     chunk_wav,
                 ]
-                res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+                res = _run_tts_ffmpeg(cmd, "speech chunk decode")
+                if res is None:
+                    return None
                 if res.returncode != 0 or not os.path.exists(chunk_wav) or os.path.getsize(chunk_wav) == 0:
                     logger.error(
                         f"failed to decode speech chunk audio to PCM WAV: {speech_text[:50]}, "
