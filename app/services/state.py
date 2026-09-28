@@ -139,7 +139,7 @@ class RedisState(BaseState):
         return tasks, len(task_ids)
 
     def list_task_ids(self, scan_count: int = 100) -> list[str]:
-        """一次完整扫描中按任务键去重，避免 SCAN 重复返回同一条记录。"""
+        """Return only this application's task hashes from a possibly shared DB."""
         task_keys = set()
         cursor = 0
         while True:
@@ -151,7 +151,20 @@ class RedisState(BaseState):
                 count=scan_count,
                 _type="HASH",
             )
-            task_keys.update(keys)
+            # Redis db 0 may also contain hashes belonging to other services.
+            # Check the task marker in one pipelined round trip per SCAN batch;
+            # exposing all HASH keys here can leak their fields through /tasks.
+            candidates = [key for key in dict.fromkeys(keys) if key not in task_keys]
+            if candidates:
+                with self._redis.pipeline(transaction=False) as pipeline:
+                    for key in candidates:
+                        pipeline.hget(key, "task_id")
+                    embedded_ids = pipeline.execute()
+                task_keys.update(
+                    key
+                    for key, embedded_id in zip(candidates, embedded_ids)
+                    if embedded_id == key
+                )
             if cursor == 0:
                 break
         # 按任务键排序不依赖 Hash 扫描顺序；不额外维护索引，也不改变旧任务。
@@ -185,7 +198,9 @@ class RedisState(BaseState):
 
     def get_task(self, task_id: str):
         task_data = self._redis.hgetall(task_id)
-        if not task_data:
+        # An API caller may ask for any Redis key by name. Require the same
+        # marker as list_task_ids before returning a hash's contents.
+        if not task_data or task_data.get(b"task_id") != task_id.encode("utf-8"):
             return None
 
         task = {
