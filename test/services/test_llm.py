@@ -155,6 +155,25 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertIs(captured["app_config"], app_config)
         self.assertEqual(captured["app_config"]["openai_api_key"], "snapshot-key")
 
+    def test_generate_script_retries_provider_error_instead_of_using_it_as_narration(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            side_effect=["Error: temporary provider failure", "Real narration."],
+        ) as generate_response:
+            result = llm.generate_script(video_subject="Coffee")
+
+        self.assertEqual(result, "Real narration.")
+        self.assertEqual(generate_response.call_count, 2)
+
+    def test_generate_script_returns_empty_when_provider_always_fails(self):
+        with patch.object(
+            llm, "_generate_response", return_value="Error: invalid API key"
+        ):
+            result = llm.generate_script(video_subject="Coffee")
+
+        self.assertEqual(result, "")
+
     def test_generate_script_strips_each_bracket_group_independently(self):
         """
         format_response must remove each [bracket] and (paren) group in
