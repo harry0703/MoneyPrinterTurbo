@@ -196,7 +196,11 @@ def get_elevenlabs_voices(api_key: str) -> list[str]:
         url = "https://api.elevenlabs.io/v2/voices"
         params = {"is_favorite": "true", "page_size": 100}
         headers = {"xi-api-key": api_key}
-        response = requests.get(url, params=params, headers=headers, timeout=10)
+        # Requests preserves custom xi-api-key headers across redirects. Keep
+        # the key on the provider endpoint even if it responds with a redirect.
+        response = requests.get(
+            url, params=params, headers=headers, timeout=10, allow_redirects=False
+        )
         if response.status_code != 200:
             logger.warning(
                 f"ElevenLabs voices fetch failed with status {response.status_code}: {response.text}"
@@ -2224,8 +2228,18 @@ def elevenlabs_tts(
             ensure_file_path_exists(voice_file)
 
             response = requests.post(
-                url, json=payload, headers=headers, timeout=60, stream=True
+                url,
+                json=payload,
+                headers=headers,
+                timeout=60,
+                stream=True,
+                allow_redirects=False,
             )
+            if 300 <= response.status_code < 400:
+                # A paid request may already have reached the provider. Do not
+                # follow the redirect with our key or resubmit the generation.
+                logger.error("ElevenLabs TTS returned a redirect; stop paid retries")
+                return None
             if response.status_code != 200:
                 error_status = ""
                 error_bytes = bytearray()
