@@ -43,6 +43,7 @@ def test_audience_payload_and_snapshot_override(
     video = tmp_path / "video.mp4"
     video.write_bytes(b"test-media")
     with patch("app.services.upload_post.requests.post") as post:
+        post.return_value.status_code = 200
         post.return_value.json.return_value = {
             "success": True,
             "results": {"youtube": {"success": True}},
@@ -77,6 +78,7 @@ def test_other_platforms_ignore_youtube_audience(tmp_path, upload_config):
     video = tmp_path / "video.mp4"
     video.touch()
     with patch("app.services.upload_post.requests.post") as post:
+        post.return_value.status_code = 200
         post.return_value.json.return_value = {
             "success": True,
             "results": {
