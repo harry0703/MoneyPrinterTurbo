@@ -108,6 +108,10 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
         assert global_base_url.value == "https://api.moonshot.ai/v1"
         assert global_base_url.disabled is True
         assert app_config["moonshot_base_url"] == "https://api.moonshot.ai/v1"
+        global_tips = "\n".join(str(item.value) for item in app.info)
+        assert "https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" in global_tips
+        assert "https://platform.kimi.ai/docs/models?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" in global_tips
+        assert "offer ends December 31, 2026" in global_tips
 
         endpoint_select.set_value("china").run()
         china_base_url = _widget_by_key(
@@ -118,6 +122,9 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
         assert china_base_url.disabled is True
         # 中国站是 Registry 的兼容默认值，不应重复写入用户配置。
         assert app_config["moonshot_base_url"] == ""
+        china_tips = "\n".join(str(item.value) for item in app.info)
+        assert "https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo" in china_tips
+        assert "https://platform.kimi.com/docs/models?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo" in china_tips
 
         endpoint_select = _widget_by_key(
             app.selectbox,

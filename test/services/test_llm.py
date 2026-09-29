@@ -594,6 +594,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         ]["llm_provider_tips.moonshot"]
         self.assertIn("推荐理由：", zh_kimi_tips)
         self.assertIn("视频创作链路匹配", zh_kimi_tips)
+        self.assertIn("活动截至 2026 年 12 月 31 日", zh_kimi_tips)
+        en_kimi_tips = json.loads((i18n_dir / "en.json").read_text(encoding="utf-8"))[
+            "Translation"
+        ]["llm_provider_tips.moonshot"]
+        self.assertIn("offer ends December 31, 2026", en_kimi_tips)
 
     def test_required_api_key_providers_have_clickable_entry_points(self):
         """需要密钥的 Provider 必须提供统一申请入口，避免 WebUI 只给出文字。"""
