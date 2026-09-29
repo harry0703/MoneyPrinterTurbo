@@ -1,4 +1,5 @@
 import itertools
+from concurrent.futures import ThreadPoolExecutor
 import io
 import math
 import os
@@ -83,6 +84,17 @@ _MIN_MATERIAL_DIMENSION = 480
 # 丢弃，最终以 "no valid materials found" 整体失败。这里留一个很小的容差，
 # 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
 _MIN_DIMENSION_TOLERANCE = 10
+# 默认串行处理片段，避免旧用户升级后 CPU 和内存占用突然增加。
+# 需要加速时可自行提高并发数，但每路都会启动独立的编码任务。
+_CLIP_PROCESSING_CONCURRENCY = 1
+
+
+def _get_clip_processing_concurrency() -> int:
+    try:
+        concurrency = int(config.app.get("video_clip_concurrency", _CLIP_PROCESSING_CONCURRENCY))
+    except (TypeError, ValueError):
+        concurrency = _CLIP_PROCESSING_CONCURRENCY
+    return max(1, min(8, concurrency))
 _DEFAULT_VIDEO_CODEC = "libx264"
 # ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
 # 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
@@ -404,13 +416,43 @@ def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason:
     return _DEFAULT_VIDEO_CODEC
 
 
-def _write_videofile_with_codec_fallback(clip, output_file: str, codec: str, **kwargs):
+def _write_videofile_with_codec_fallback(
+    clip, output_file: str, codec: str, atomic_output: bool = False, **kwargs
+):
     """
     使用指定编码器写出视频，失败时自动用 libx264 重试一次。
 
     硬件编码器是否可用不仅取决于 FFmpeg，还取决于显卡、驱动和当前运行环境。
     生成任务不能因为高级编码器不可用而整体失败，所以这里把回退集中处理。
     """
+    if atomic_output:
+        # Final videos can be downloaded by path while they are being rendered.
+        # Keep both failed encodes and in-progress writes away from that path.
+        output_dir = os.path.dirname(os.path.abspath(output_file))
+        descriptor, temp_output = tempfile.mkstemp(
+            prefix=f".{os.path.basename(output_file)}.",
+            suffix=os.path.splitext(output_file)[1] or ".mp4",
+            dir=output_dir,
+        )
+        os.close(descriptor)
+        os.unlink(temp_output)
+        try:
+            used_codec = _write_videofile_with_codec_fallback(
+                clip, temp_output, codec, **kwargs
+            )
+            os.replace(temp_output, output_file)
+            return used_codec
+        finally:
+            try:
+                os.unlink(temp_output)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(
+                    f"failed to remove temporary final video: {temp_output}, "
+                    f"error: {exc}"
+                )
+
     effective_codec = _get_effective_video_codec(codec)
     try:
         clip.write_videofile(output_file, codec=effective_codec, **kwargs)
@@ -828,10 +870,27 @@ def combine_videos(
     subclipped_items = []
     video_duration = 0
     for video_path in video_paths:
-        clip = _open_video_clip_quietly(video_path)
-        clip_duration = clip.duration
-        clip_w, clip_h = clip.size
-        close_clip(clip)
+        clip = None
+        try:
+            clip = _open_video_clip_quietly(video_path)
+            clip_duration = float(clip.duration)
+            clip_w, clip_h = clip.size
+            if (
+                not math.isfinite(clip_duration)
+                or clip_duration <= 0
+                or not all(
+                    math.isfinite(float(dimension)) and float(dimension) > 0
+                    for dimension in (clip_w, clip_h)
+                )
+            ):
+                raise ValueError("invalid video duration or dimensions")
+        except Exception as exc:
+            logger.warning(
+                f"skipping unreadable video source: path={video_path}, error={exc}"
+            )
+            continue
+        finally:
+            close_clip(clip)
         
         start_time = 0
 
@@ -867,21 +926,17 @@ def combine_videos(
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
-    for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration >= required_video_duration:
-            break
-        
-        logger.debug(
-            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
-            f"source: {os.path.basename(subclipped_item.source_file_path)}, "
-            f"current duration: {video_duration:.2f}s, "
-            f"remaining: {required_video_duration - video_duration:.2f}s"
-        )
-        
+    def process_one_clip(indexed_item):
+        """把一个源片段裁剪、变速、转场后写出，失败时返回 None。"""
+        index, subclipped_item = indexed_item
         source_clip = None
         clip = None
         clip_file = None
         try:
+            logger.debug(
+                f"processing clip {index + 1}: {subclipped_item.width}x{subclipped_item.height}, "
+                f"source: {os.path.basename(subclipped_item.source_file_path)}"
+            )
             source_clip = _open_video_clip_quietly(subclipped_item.file_path)
             clip = source_clip.subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
@@ -912,9 +967,7 @@ def combine_videos(
                 )
 
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
-            if transition_value in (None, VideoTransitionMode.none.value):
-                clip = clip
-            elif transition_value == VideoTransitionMode.fade_in.value:
+            if transition_value == VideoTransitionMode.fade_in.value:
                 clip = video_effects.fadein_transition(clip, 1)
             elif transition_value == VideoTransitionMode.fade_out.value:
                 clip = video_effects.fadeout_transition(clip, 1)
@@ -940,9 +993,10 @@ def combine_videos(
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
-                
-            # wirte clip to temp file
-            clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
+
+            # Write each candidate clip to a unique temporary file. Threads must not
+            # share the same output path.
+            clip_file = f"{output_dir}/temp-clip-{index + 1}.mp4"
             _write_videofile_with_codec_fallback(
                 clip,
                 clip_file,
@@ -951,32 +1005,63 @@ def combine_videos(
                 fps=fps,
             )
 
-            # Store clip duration before closing
             clip_duration_saved = clip.duration
-
-            processed_clips.append(
-                SubClippedVideoClip(
-                    file_path=clip_file,
-                    duration=clip_duration_saved,
-                    width=clip_w,
-                    height=clip_h,
-                    source_file_path=subclipped_item.source_file_path,
-                )
+            processed_clip = SubClippedVideoClip(
+                file_path=clip_file,
+                duration=clip_duration_saved,
+                width=clip_w,
+                height=clip_h,
+                source_file_path=subclipped_item.source_file_path,
             )
-            video_duration += clip_duration_saved
             clip_file = None
-            
-        except Exception as e:
-            logger.error(f"failed to process clip: {str(e)}")
+            return processed_clip
+        except Exception as exc:
+            logger.error(f"failed to process clip: {str(exc)}")
+            return None
         finally:
             # The derived clip shares its FFmpeg reader with the source. If
             # subclipping itself failed, close the original source instead.
             close_clip(clip if clip is not None else source_clip)
             # MoviePy may leave a truncated MP4 even when encoding raises. It
-            # was never added to processed_clips, so concat cleanup cannot see it.
+            # was never returned, so concat cleanup cannot see it.
             # Close the reader first so Windows can remove the partial file.
             if clip_file:
                 delete_files(clip_file)
+
+    clip_processing_workers = 1
+    if len(subclipped_items) >= 2:
+        clip_processing_workers = min(_get_clip_processing_concurrency(), len(subclipped_items))
+    with ThreadPoolExecutor(
+        max_workers=clip_processing_workers,
+        thread_name_prefix="clip-process",
+    ) as executor:
+        next_candidate_index = 0
+        while (
+            next_candidate_index < len(subclipped_items)
+            and video_duration < required_video_duration
+        ):
+            remaining_duration = required_video_duration - video_duration
+            batch = []
+            batch_duration = 0.0
+            candidate_index = next_candidate_index
+            while candidate_index < len(subclipped_items) and batch_duration < remaining_duration:
+                subclipped_item = subclipped_items[candidate_index]
+                source_duration = subclipped_item.end_time - subclipped_item.start_time
+                output_duration = min(
+                    max_clip_duration,
+                    source_duration / normalized_clip_speed,
+                )
+                batch.append((candidate_index, subclipped_item))
+                batch_duration += output_duration
+                candidate_index += 1
+            if not batch:
+                break
+            for processed_clip in executor.map(process_one_clip, batch):
+                if processed_clip is None:
+                    continue
+                processed_clips.append(processed_clip)
+                video_duration += processed_clip.duration
+            next_candidate_index = candidate_index
     
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
     if video_duration < required_video_duration:
@@ -999,6 +1084,8 @@ def combine_videos(
     # merge video clips progressively, avoid loading all videos at once to avoid memory overflow
     logger.info("starting clip merging process")
     if not processed_clips:
+        if video_paths:
+            raise RuntimeError("no readable video clips available for merging")
         logger.warning("no clips available for merging")
         return combined_video_path
     
@@ -1568,6 +1655,7 @@ def generate_video(
             final_video_clip,
             output_file=output_file,
             codec=_get_configured_video_codec(),
+            atomic_output=True,
             audio_codec=audio_codec,
             audio_fps=output_audio_fps,
             audio_bitrate=audio_bitrate,
@@ -1589,6 +1677,7 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
     素材源的失败约定处理。
     """
     clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
+    temp_path = ""
     try:
         # Apply a zoom effect using the resize method.
         # A lambda function is used to make the zoom effect dynamic over time.
@@ -1603,14 +1692,26 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
         # This is useful if you want to add other elements to the video.
         final_clip = CompositeVideoClip([zoom_clip])
         try:
-            # Output the video to a file.
-            video_file = f"{image_path}.mp4"
-            final_clip.write_videofile(video_file, fps=30, logger=None)
-            return video_file
+            # The duration changes the rendered content, so it must be part of
+            # the output identity. Different tasks may render the same image
+            # concurrently; only publish a complete MP4 after MoviePy closes it.
+            video_file = f"{image_path}.zoom-{clip_duration}.mp4"
+            descriptor, temp_path = tempfile.mkstemp(
+                prefix=".image-zoom-",
+                suffix=".mp4",
+                dir=os.path.dirname(os.path.abspath(video_file)),
+            )
+            os.close(descriptor)
+            final_clip.write_videofile(temp_path, fps=30, logger=None)
         finally:
             close_clip(final_clip)
+        os.replace(temp_path, video_file)
+        temp_path = ""
+        return video_file
     finally:
         close_clip(clip)
+        if temp_path:
+            delete_files(temp_path)
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):

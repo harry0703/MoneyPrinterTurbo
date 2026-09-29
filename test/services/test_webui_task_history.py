@@ -1,8 +1,15 @@
 import ast
+import json
 import os
 import re
 from collections.abc import Mapping
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+
+from app.models import const
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -221,3 +228,36 @@ def test_restore_requirements_allow_replacing_upload_with_other_voice_modes():
             has_custom_audio=False,
             voice_mode=voice_mode,
         )
+
+
+@pytest.mark.parametrize("payload", [[], {"params": []}, {"script": []}])
+def test_history_scan_skips_non_object_script_payload(tmp_path, payload):
+    """One malformed historical artifact must not break the task panel."""
+    tasks_root = tmp_path / "tasks"
+    task_dir = tasks_root / "broken-task"
+    task_dir.mkdir(parents=True)
+    (task_dir / "script.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    selected = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name in {"_safe_load_task_script", "_scan_history_tasks"}
+    ]
+    namespace = {
+        "os": os,
+        "json": json,
+        "logger": MagicMock(),
+        "utils": SimpleNamespace(task_dir=lambda: str(tasks_root)),
+        "const": const,
+        "_find_final_task_video": lambda _task_path: "",
+    }
+    module = ast.fix_missing_locations(ast.Module(body=selected, type_ignores=[]))
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+
+    history = namespace["_scan_history_tasks"]()
+
+    assert len(history) == 1
+    assert history[0]["task_id"] == "broken-task"
+    assert history[0]["subject"] == "broken-task"

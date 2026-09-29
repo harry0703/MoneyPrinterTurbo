@@ -4,15 +4,112 @@ Upload-Post API integration for cross-posting videos to TikTok, Instagram and Yo
 Docs: https://docs.upload-post.com
 """
 import os
-from typing import Optional
+import time
+from typing import Callable, Optional
 
 import requests
 from loguru import logger
 from app.config import config
 
 
+_UPLOAD_STATUS_POLL_INTERVAL_SECONDS = 10
+_UPLOAD_STATUS_TIMEOUT_SECONDS = 3600
+_MAX_CONSECUTIVE_STATUS_ERRORS = 3
+
+
 class UploadPostService:
     API_BASE = "https://api.upload-post.com"
+
+    @staticmethod
+    def _with_platform_outcome(result: dict) -> dict:
+        """A successful API request can still contain failed platform publishes."""
+        platform_results = result.get("results")
+        if isinstance(platform_results, dict):
+            entries = platform_results.items()
+        elif isinstance(platform_results, list):
+            entries = (
+                (
+                    entry.get("platform", "unknown")
+                    if isinstance(entry, dict)
+                    else "unknown",
+                    entry,
+                )
+                for entry in platform_results
+            )
+        else:
+            if "results" in result:
+                return {
+                    **result,
+                    "success": False,
+                    "error": "Upload-Post returned invalid platform results",
+                }
+            return result
+
+        failures = [
+            str(platform)
+            for platform, entry in entries
+            if not isinstance(entry, dict)
+            or entry.get("success") is not True
+            or entry.get("skipped") is True
+        ]
+        if not platform_results:
+            failures.append("no platform results")
+        if failures:
+            return {
+                **result,
+                "success": False,
+                "error": "Upload-Post failed or skipped platforms: "
+                + ", ".join(failures),
+            }
+        return result
+
+    def _wait_for_upload_completion(self, request_id: str) -> dict:
+        """Resolve Upload-Post's automatic sync-to-background fallback."""
+        consecutive_errors = 0
+        deadline = time.monotonic() + _UPLOAD_STATUS_TIMEOUT_SECONDS
+        while True:
+            status_result = self.check_status(request_id)
+            status = status_result.get("status")
+            if status == "completed":
+                if not isinstance(status_result.get("results"), (dict, list)):
+                    return {
+                        **status_result,
+                        "request_id": request_id,
+                        "success": False,
+                        "error": "Upload-Post completed without platform results",
+                    }
+                return self._with_platform_outcome(
+                    {**status_result, "request_id": request_id, "success": True}
+                )
+            if status == "failed":
+                return {
+                    **status_result,
+                    "request_id": request_id,
+                    "success": False,
+                    "error": status_result.get("message")
+                    or "Upload-Post background upload failed",
+                }
+            if status in {"pending", "queued", "processing", "in_progress"}:
+                consecutive_errors = 0
+            else:
+                consecutive_errors += 1
+                if consecutive_errors >= _MAX_CONSECUTIVE_STATUS_ERRORS:
+                    return {
+                        "success": False,
+                        "request_id": request_id,
+                        "error": "Upload-Post status could not be confirmed; "
+                        f"check request_id {request_id}",
+                    }
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(_UPLOAD_STATUS_POLL_INTERVAL_SECONDS, remaining))
+        return {
+            "success": False,
+            "request_id": request_id,
+            "error": "Upload-Post status did not complete within 1 hour; "
+            f"check request_id {request_id}",
+        }
 
     @property
     def api_key(self) -> str:
@@ -55,6 +152,7 @@ class UploadPostService:
         platforms: Optional[list] = None,
         privacy_level: str = "PUBLIC_TO_EVERYONE",
         youtube_extra: Optional[dict] = None,
+        on_background_start: Callable[[str], None] | None = None,
     ) -> dict:
         if not self.is_configured():
             logger.warning("Upload-Post is not configured. Skipping cross-post.")
@@ -117,25 +215,78 @@ class UploadPostService:
                     data=data,
                     files=files,
                     timeout=300,
+                    allow_redirects=False,
                 )
 
-                response.raise_for_status()
-                result = response.json()
-                if not isinstance(result, dict) or not isinstance(
-                    result.get("success"), bool
-                ):
-                    logger.error("Upload-Post returned an invalid response to upload")
+                if 300 <= response.status_code < 400:
+                    logger.error(
+                        "Upload-Post upload returned an unexpected redirect: "
+                        f"status={response.status_code}"
+                    )
                     return {
                         "success": False,
-                        "error": "Upload-Post returned an invalid response",
+                        "error": "Upload-Post upload returned an unexpected redirect",
                     }
 
-                if result.get('success'):
-                    logger.info(f"✅ Video cross-posted successfully! Request ID: {result.get('request_id')}")
-                else:
-                    logger.warning(f"Cross-post failed: {result.get('message', 'Unknown error')}")
+                response.raise_for_status()
+                try:
+                    result = response.json()
+                except ValueError:
+                    logger.error("Upload-Post returned invalid JSON to upload")
+                    return {
+                        "success": False,
+                        "error": "Upload-Post returned invalid JSON",
+                    }
 
-                return result
+            # Release the source file before waiting for a remote background
+            # upload, which can take much longer than the initial POST.
+            if not isinstance(result, dict) or not isinstance(
+                result.get("success"), bool
+            ):
+                logger.error("Upload-Post returned an invalid response to upload")
+                return {
+                    "success": False,
+                    "error": "Upload-Post returned an invalid response",
+                }
+
+            if result["success"]:
+                is_background = "results" not in result
+                if is_background:
+                    request_id = result.get("request_id")
+                    if not isinstance(request_id, str) or not request_id.strip():
+                        return {
+                            "success": False,
+                            "error": "Upload-Post started a background upload "
+                            "without a request_id",
+                        }
+                    logger.info(
+                        "Upload-Post background upload accepted: "
+                        f"request_id={request_id.strip()}"
+                    )
+                    if on_background_start is not None:
+                        try:
+                            on_background_start(request_id.strip())
+                        except Exception as exc:
+                            # The remote upload has already started. A local
+                            # status-write failure must not resubmit the video.
+                            logger.warning(
+                                "failed to record background upload request ID: "
+                                f"{exc}"
+                            )
+                    result = self._wait_for_upload_completion(request_id.strip())
+                else:
+                    result = self._with_platform_outcome(result)
+
+            if result.get("success"):
+                logger.info(
+                    f"Video cross-posted successfully! Request ID: {result.get('request_id')}"
+                )
+            else:
+                logger.warning(
+                    f"Cross-post failed: {result.get('error') or result.get('message') or 'Unknown error'}"
+                )
+
+            return result
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to cross-post video: {str(e)}")
@@ -164,7 +315,14 @@ class UploadPostService:
             )
 
             response.raise_for_status()
-            result = response.json()
+            try:
+                result = response.json()
+            except ValueError:
+                logger.error("Upload-Post returned invalid JSON to status query")
+                return {
+                    "success": False,
+                    "error": "Upload-Post returned invalid status JSON",
+                }
             if not isinstance(result, dict):
                 logger.error("Upload-Post returned an invalid response to status query")
                 return {
@@ -187,5 +345,12 @@ def cross_post_video(
     title: str,
     platforms: Optional[list] = None,
     youtube_extra: Optional[dict] = None,
+    on_background_start: Callable[[str], None] | None = None,
 ) -> dict:
-    return upload_post_service.upload_video(video_path, title, platforms, youtube_extra=youtube_extra)
+    return upload_post_service.upload_video(
+        video_path,
+        title,
+        platforms,
+        youtube_extra=youtube_extra,
+        on_background_start=on_background_start,
+    )

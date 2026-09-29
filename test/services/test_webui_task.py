@@ -177,6 +177,102 @@ def test_webui_delete_keeps_task_state_when_file_removal_fails(tmp_path):
     state.delete_task.assert_not_called()
 
 
+def test_active_task_uses_terminal_state_when_outside_runtime_page(tmp_path):
+    """An active session marker must not hide a finished task past page one."""
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_collect_task_summaries"
+    )
+    namespace = {
+        "_scan_history_tasks": lambda limit: [],
+        "_active_generation_tasks": lambda: {
+            "new-task": {"subject": "Latest video", "mtime": 1000}
+        },
+        "_task_state_filter_key": lambda task: (
+            "failed" if task["state"] == const.TASK_STATE_FAILED else "processing"
+        ),
+        "sm": SimpleNamespace(
+            state=SimpleNamespace(
+                get_all_tasks=lambda page, page_size: (
+                    [
+                        {
+                            "task_id": f"old-{index}",
+                            "state": const.TASK_STATE_COMPLETE,
+                        }
+                        for index in range(50)
+                    ],
+                    51,
+                ),
+                get_task=MagicMock(
+                    return_value={
+                        "task_id": "new-task",
+                        "state": const.TASK_STATE_FAILED,
+                        "progress": 70,
+                    }
+                ),
+            )
+        ),
+        "utils": SimpleNamespace(task_dir=lambda: str(tmp_path)),
+        "os": os,
+        "const": const,
+        "logger": MagicMock(),
+    }
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+
+    tasks = namespace["_collect_task_summaries"](limit=20)
+
+    latest = next(task for task in tasks if task["task_id"] == "new-task")
+    assert latest["state"] == const.TASK_STATE_FAILED
+    assert latest["progress"] == 70
+    assert latest["mtime"] == 1000
+    namespace["sm"].state.get_task.assert_called_once_with("new-task")
+
+
+def test_task_summary_tolerates_directory_removed_during_scan():
+    """A concurrent deletion between isdir and stat must not crash the panel."""
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_collect_task_summaries"
+    )
+    getmtime = MagicMock(side_effect=FileNotFoundError("task directory removed"))
+    namespace = {
+        "_scan_history_tasks": lambda limit: [],
+        "_active_generation_tasks": lambda: {},
+        "sm": SimpleNamespace(
+            state=SimpleNamespace(
+                get_all_tasks=lambda page, page_size: (
+                    [{"task_id": "removed-task", "state": const.TASK_STATE_COMPLETE}],
+                    1,
+                )
+            )
+        ),
+        "utils": SimpleNamespace(task_dir=lambda: "/tasks"),
+        "os": SimpleNamespace(
+            path=SimpleNamespace(
+                join=os.path.join,
+                isdir=lambda _path: True,
+                getmtime=getmtime,
+            )
+        ),
+        "logger": MagicMock(),
+    }
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+
+    tasks = namespace["_collect_task_summaries"]()
+
+    assert tasks[0]["task_id"] == "removed-task"
+    assert tasks[0]["mtime"] == 0
+    getmtime.assert_called_once_with(os.path.join("/tasks", "removed-task"))
+
+
 @pytest.mark.parametrize(
     ("ui_config", "expected_open_count"),
     [

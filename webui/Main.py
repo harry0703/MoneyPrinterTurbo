@@ -254,6 +254,9 @@ SETTINGS_PRESET_FILE_NAME = "moneyprinterturbo-settings.json"
 KEY_BACKUP_SCHEMA = "moneyprinterturbo.key-backup"
 KEY_BACKUP_VERSION = 1
 KEY_BACKUP_FILE_NAME = "moneyprinterturbo-keys.json"
+# Export files contain only settings or credentials, not media. Reject oversized
+# uploads before decoding and parsing them in the Streamlit process.
+MAX_SETTINGS_TRANSFER_BYTES = 2 * 1024 * 1024
 # 预设只描述生成参数。素材、配音和配乐都是本机文件路径，预设通常要在另一台
 # 机器或另一个容器里导入，带上这些路径只会指向不存在的文件。
 PRESET_EXCLUDED_PARAM_KEYS = frozenset(
@@ -339,10 +342,11 @@ def _save_runtime_config():
     return saved
 
 
-def _saved_ui_choice(key, options, default):
+def _saved_ui_choice(key, options, default, section=None):
     """读取一个持久化选择，并把旧配置或手工编辑的非法值降级为默认值。"""
     options = list(options)
-    saved = config.ui.get(key, default)
+    section = config.ui if section is None else section
+    saved = section.get(key, default)
     numeric_default = isinstance(default, (int, float)) and not isinstance(
         default, bool
     )
@@ -809,7 +813,11 @@ def _safe_load_task_script(task_path):
 
     try:
         with open(script_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+            payload = json.load(f)
+        if not isinstance(payload, dict):
+            logger.warning(f"task script data is not an object: {script_file}")
+            return {}
+        return payload
     except Exception as e:
         logger.warning(f"failed to read task script data: {script_file}, {e}")
         return {}
@@ -1002,11 +1010,16 @@ def _scan_history_tasks(limit=30):
     tasks = []
     for mtime, name, task_path in task_entries[:limit]:
         script_data = _safe_load_task_script(task_path)
-        params_data = script_data.get("params", {}) if script_data else {}
+        params_data = script_data.get("params", {})
+        if not isinstance(params_data, dict):
+            params_data = {}
+        script_text = script_data.get("script", "")
+        if not isinstance(script_text, str):
+            script_text = ""
         video_file = _find_final_task_video(task_path)
         subject = (
             params_data.get("video_subject")
-            or script_data.get("script", "")[:40]
+            or script_text[:40]
             or name
         )
         tasks.append(
@@ -1027,12 +1040,28 @@ def _scan_history_tasks(limit=30):
 
 def _collect_task_summaries(limit=20):
     history_tasks = {task["task_id"]: task for task in _scan_history_tasks(limit=50)}
+    active_tasks = _active_generation_tasks()
 
     try:
         runtime_tasks, _ = sm.state.get_all_tasks(1, 50)
     except Exception as e:
         logger.warning(f"failed to load runtime tasks: {e}")
         runtime_tasks = []
+
+    # The paginated state view can omit this session's newer tasks after 50
+    # older records. Read those active IDs directly so a completed or failed
+    # task cannot remain labelled as processing forever.
+    runtime_ids = {task.get("task_id") for task in runtime_tasks}
+    for task_id in active_tasks:
+        if task_id in runtime_ids:
+            continue
+        try:
+            task = sm.state.get_task(task_id)
+        except Exception as e:
+            logger.warning(f"failed to load active task {task_id}: {e}")
+            continue
+        if task:
+            runtime_tasks.append(task)
 
     for task in runtime_tasks:
         task_id = task.get("task_id", "")
@@ -1051,6 +1080,16 @@ def _collect_task_summaries(limit=20):
             or (task.get("script", "")[:40] if task.get("script") else "")
             or task_id
         )
+        task_mtime = active_tasks.get(task_id, {}).get("mtime") or history_task.get(
+            "mtime", 0
+        )
+        if os.path.isdir(task_path):
+            try:
+                task_mtime = os.path.getmtime(task_path)
+            except OSError:
+                # Another session can delete this directory between isdir and
+                # getmtime. Keep rendering the persisted task state.
+                pass
 
         history_tasks[task_id] = {
             "task_id": task_id,
@@ -1058,15 +1097,13 @@ def _collect_task_summaries(limit=20):
             "state": task.get("state"),
             "cross_post_state": task.get("cross_post_state"),
             "progress": int(task.get("progress", 0) or 0),
-            "mtime": os.path.getmtime(task_path)
-            if os.path.isdir(task_path)
-            else history_task.get("mtime", 0),
+            "mtime": task_mtime,
             "task_path": task_path,
             "video_file": video_file,
             "source": "runtime",
         }
 
-    for task_id, active_task in _active_generation_tasks().items():
+    for task_id, active_task in active_tasks.items():
         history_task = history_tasks.get(task_id, {})
         if history_task and _task_state_filter_key(history_task) in {
             "complete",
@@ -2033,37 +2070,46 @@ def _render_generation_task_snapshot(task_id, task):
         else:
             st.warning(str(warning))
 
-    try:
-        player_cols = st.columns(len(video_files) * 2 + 1)
-        for i, url in enumerate(video_files):
-            with player_cols[i * 2 + 1]:
-                st.video(url)
-                if not os.path.isfile(url):
-                    logger.warning(
-                        f"generated video is unavailable for download: "
-                        f"task_id={task_id}, video_file={url}"
-                    )
-                    continue
+    available_videos = [
+        (index, url)
+        for index, url in enumerate(video_files)
+        if os.path.isfile(url)
+    ]
+    for index, url in enumerate(video_files):
+        if os.path.isfile(url):
+            continue
+        logger.warning(
+            f"generated video is unavailable: "
+            f"task_id={task_id}, video_file={url}"
+        )
 
-                download_label = tr("Download Video")
-                if len(video_files) > 1:
-                    download_label = f"{download_label} {i + 1}"
-                download_name = _build_video_download_name(
-                    task.get("video_subject"),
-                    i + 1,
-                    len(video_files),
-                )
-                with open(url, "rb") as video_file:
-                    st.download_button(
-                        download_label,
-                        data=video_file,
-                        file_name=download_name,
-                        mime=mimetypes.guess_type(url)[0] or "video/mp4",
-                        key=f"download_generated_video_{task_id}_{i}",
-                        icon=":material/download:",
-                        on_click="ignore",
-                        use_container_width=True,
+    try:
+        if not available_videos:
+            st.warning(tr("Generated Video Files Unavailable"))
+        else:
+            player_cols = st.columns(len(available_videos) * 2 + 1)
+            for player_index, (video_index, url) in enumerate(available_videos):
+                with player_cols[player_index * 2 + 1]:
+                    st.video(url)
+                    download_label = tr("Download Video")
+                    if len(video_files) > 1:
+                        download_label = f"{download_label} {video_index + 1}"
+                    download_name = _build_video_download_name(
+                        task.get("video_subject"),
+                        video_index + 1,
+                        len(video_files),
                     )
+                    with open(url, "rb") as video_file:
+                        st.download_button(
+                            download_label,
+                            data=video_file,
+                            file_name=download_name,
+                            mime=mimetypes.guess_type(url)[0] or "video/mp4",
+                            key=f"download_generated_video_{task_id}_{video_index}",
+                            icon=":material/download:",
+                            on_click="ignore",
+                            use_container_width=True,
+                        )
     except Exception as exc:
         logger.exception(
             f"failed to render generated video preview: task_id={task_id}, "
@@ -2889,6 +2935,8 @@ def _load_transfer_payload(raw_bytes, schema, version):
     提示停留在导入入口，而不是把无法识别的内容写进配置或控件状态。
     Windows 编辑器可能保存带 BOM 的 JSON，因此按 utf-8-sig 解码。
     """
+    if len(raw_bytes) > MAX_SETTINGS_TRANSFER_BYTES:
+        raise ValueError("settings import exceeds the 2 MB limit")
     payload = json.loads(raw_bytes.decode("utf-8-sig"))
     if not isinstance(payload, dict):
         raise ValueError("exported file must contain a JSON object")
@@ -5416,6 +5464,34 @@ def _render_video_settings(panel, params):
                 _delete_runtime_config("app", "video_codec")
             else:
                 _set_runtime_config("app", "video_codec", selected_video_codec)
+
+            concurrency_options = [1, 2, 4, 6, 8]
+            if params.video_source in {"pexels", "pixabay", "coverr"}:
+                selected_material_concurrency = stable_selectbox(
+                    tr("Material Concurrency"),
+                    options=concurrency_options,
+                    default_value=_saved_ui_choice(
+                        "material_concurrency", concurrency_options, 1, config.app
+                    ),
+                    key="material_concurrency_select",
+                    help=tr("Material Concurrency Help"),
+                )
+                _set_runtime_config(
+                    "app", "material_concurrency", selected_material_concurrency
+                )
+
+            selected_clip_concurrency = stable_selectbox(
+                tr("Clip Rendering Concurrency"),
+                options=concurrency_options,
+                default_value=_saved_ui_choice(
+                    "video_clip_concurrency", concurrency_options, 1, config.app
+                ),
+                key="clip_rendering_concurrency_select",
+                help=tr("Clip Rendering Concurrency Help"),
+            )
+            _set_runtime_config(
+                "app", "video_clip_concurrency", selected_clip_concurrency
+            )
 
             if params.video_source == "loomloom":
                 _render_loomloom_video_settings(params)

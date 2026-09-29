@@ -65,6 +65,15 @@ class TestVideoService(unittest.TestCase):
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
 
+    def test_clip_processing_concurrency_defaults_to_serial(self):
+        """未配置或配置无效时保持串行，显式设置仍可在安全范围内生效。"""
+        with patch.dict(config.app, {}, clear=True):
+            self.assertEqual(vd._get_clip_processing_concurrency(), 1)
+        for value, expected in (("bad", 1), (0, 1), (4, 4), (99, 8)):
+            with self.subTest(value=value):
+                with patch.dict(config.app, {"video_clip_concurrency": value}):
+                    self.assertEqual(vd._get_clip_processing_concurrency(), expected)
+
     def test_generate_video_rejects_font_outside_directory_before_opening_media(self):
         """WebUI、CLI 或内部调用绕过 API 时，渲染层也必须阻断越界字体。"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -286,6 +295,7 @@ class TestVideoService(unittest.TestCase):
 
         self.assertTrue(result)
         writer.assert_called_once()
+        self.assertTrue(writer.call_args.kwargs["atomic_output"])
         self.assertEqual(writer.call_args.kwargs["audio_fps"], 48000)
         self.assertEqual(source_video.close_calls, 1)
         self.assertEqual(voice_source.close_calls, 1)
@@ -488,6 +498,89 @@ class TestVideoService(unittest.TestCase):
             if os.path.exists(safe_img_path):
                 os.remove(safe_img_path)
 
+    def test_image_zoom_renders_keep_distinct_clip_durations(self):
+        """Two tasks must not overwrite one image render with another duration."""
+        class FakeImageClip:
+            def __init__(self, _path):
+                self.duration = 0
+
+            def with_duration(self, duration):
+                self.duration = duration
+                return self
+
+            def with_position(self, _position):
+                return self
+
+            def resized(self, _scale):
+                return self
+
+        class FakeCompositeClip:
+            def __init__(self, clips):
+                self.duration = clips[0].duration
+
+            def write_videofile(self, output, **_kwargs):
+                Path(output).write_bytes(f"duration={self.duration}".encode())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = os.path.join(temp_dir, "image.png")
+            with (
+                patch.object(vd, "ImageClip", FakeImageClip),
+                patch.object(vd, "CompositeVideoClip", FakeCompositeClip),
+            ):
+                first = vd.render_image_zoom_video(image_path, clip_duration=4)
+                second = vd.render_image_zoom_video(image_path, clip_duration=7)
+
+            self.assertNotEqual(first, second)
+            self.assertEqual(Path(first).read_bytes(), b"duration=4")
+            self.assertEqual(Path(second).read_bytes(), b"duration=7")
+
+    def test_failed_image_zoom_render_preserves_previous_complete_clip(self):
+        """A failed rerender must leave the last verified MP4 available."""
+        class FakeImageClip:
+            duration = 0
+
+            def __init__(self, _path):
+                pass
+
+            def with_duration(self, duration):
+                self.duration = duration
+                return self
+
+            def with_position(self, _position):
+                return self
+
+            def resized(self, _scale):
+                return self
+
+        writes = 0
+
+        class FakeCompositeClip:
+            def __init__(self, _clips):
+                pass
+
+            def write_videofile(self, output, **_kwargs):
+                nonlocal writes
+                writes += 1
+                Path(output).write_bytes(b"complete" if writes == 1 else b"partial")
+                if writes == 2:
+                    raise RuntimeError("render interrupted")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = os.path.join(temp_dir, "image.png")
+            with (
+                patch.object(vd, "ImageClip", FakeImageClip),
+                patch.object(vd, "CompositeVideoClip", FakeCompositeClip),
+            ):
+                output = vd.render_image_zoom_video(image_path, clip_duration=5)
+                with self.assertRaisesRegex(RuntimeError, "render interrupted"):
+                    vd.render_image_zoom_video(image_path, clip_duration=5)
+
+            self.assertEqual(Path(output).read_bytes(), b"complete")
+            self.assertEqual(
+                sorted(path.name for path in Path(temp_dir).iterdir()),
+                ["image.png.zoom-5.mp4"],
+            )
+
     def test_preprocess_video_rejects_material_outside_local_videos(self):
         """
         local 素材路径来自 API 参数，不能允许任意绝对路径进入 MoviePy。
@@ -651,6 +744,52 @@ class TestVideoService(unittest.TestCase):
                 )
 
         self.assertNotIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
+    def test_failed_final_encode_keeps_previous_video_and_removes_partial_file(self):
+        """A failed encode must not replace a downloadable final video with partial bytes."""
+
+        class FailingClip:
+            def write_videofile(self, output_file, codec, **_kwargs):
+                Path(output_file).write_bytes(b"partial mp4")
+                raise RuntimeError("encoder stopped")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            final_path = Path(temp_dir, "final-1.mp4")
+            final_path.write_bytes(b"previous complete mp4")
+
+            with self.assertRaisesRegex(RuntimeError, "encoder stopped"):
+                vd._write_videofile_with_codec_fallback(
+                    FailingClip(),
+                    str(final_path),
+                    codec="libx264",
+                    atomic_output=True,
+                )
+
+            self.assertEqual(final_path.read_bytes(), b"previous complete mp4")
+            self.assertEqual(list(Path(temp_dir).iterdir()), [final_path])
+
+    def test_final_encode_publishes_only_after_writer_returns(self):
+        """Readers keep the old final video until the new encode completes."""
+        test = self
+
+        class SuccessfulClip:
+            def write_videofile(self, output_file, codec, **_kwargs):
+                test.assertNotEqual(Path(output_file), final_path)
+                test.assertEqual(final_path.read_bytes(), b"previous complete mp4")
+                Path(output_file).write_bytes(b"new complete mp4")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            final_path = Path(temp_dir, "final-1.mp4")
+            final_path.write_bytes(b"previous complete mp4")
+            vd._write_videofile_with_codec_fallback(
+                SuccessfulClip(),
+                str(final_path),
+                codec="libx264",
+                atomic_output=True,
+            )
+
+            self.assertEqual(final_path.read_bytes(), b"new complete mp4")
+            self.assertEqual(list(Path(temp_dir).iterdir()), [final_path])
 
     def test_format_ffmpeg_concat_path_normalizes_windows_path(self):
         """
@@ -1104,6 +1243,69 @@ class TestVideoService(unittest.TestCase):
             self.assertEqual(derived_clips[0].close_calls, 1)
             self.assertFalse(Path(temp_dir, "temp-clip-1.mp4").exists())
             self.assertFalse(Path(temp_dir, "temp-clip-2.mp4").exists())
+
+    def test_combine_videos_skips_unreadable_source_when_good_clip_remains(self):
+        """A stale corrupt cache clip must not discard healthy downloaded footage."""
+        class FakeAudioClip:
+            duration = 0.5
+
+        class FakeVideoClip:
+            duration = 1.0
+            size = (1080, 1920)
+            w = 1080
+            h = 1920
+
+            def subclipped(self, _start, _end):
+                return self
+
+        def open_clip(source):
+            if source == "corrupt.mp4":
+                raise OSError("FFmpeg could not read video metadata")
+            return FakeVideoClip()
+
+        used_sources = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()),
+                patch.object(vd, "_open_video_clip_quietly", side_effect=open_clip),
+                patch.object(vd, "_write_videofile_with_codec_fallback"),
+                patch.object(vd, "concat_video_clips_with_ffmpeg") as concat,
+                patch.object(vd, "delete_files"),
+            ):
+                vd.combine_videos(
+                    combined_video_path=os.path.join(temp_dir, "combined.mp4"),
+                    video_paths=["corrupt.mp4", "healthy.mp4"],
+                    audio_file="audio.mp3",
+                    video_concat_mode=vd.VideoConcatMode.sequential,
+                    used_video_paths=used_sources,
+                )
+
+        concat.assert_called_once()
+        self.assertEqual(used_sources, ["healthy.mp4"])
+
+    def test_combine_videos_reports_failure_if_every_source_is_unreadable(self):
+        """Never return an output path for an input set that yielded no clips."""
+        class FakeAudioClip:
+            duration = 1.0
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()),
+                patch.object(
+                    vd,
+                    "_open_video_clip_quietly",
+                    side_effect=OSError("invalid cached video"),
+                ),
+                patch.object(vd, "concat_video_clips_with_ffmpeg") as concat,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "no readable video clips"):
+                    vd.combine_videos(
+                        combined_video_path=os.path.join(temp_dir, "combined.mp4"),
+                        video_paths=["corrupt.mp4"],
+                        audio_file="audio.mp3",
+                    )
+
+        concat.assert_not_called()
 
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""

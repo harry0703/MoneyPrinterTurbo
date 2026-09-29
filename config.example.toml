@@ -240,7 +240,7 @@ sonilo_timeout = 600
 llm_provider = "moonshot"
 
 # Kimi / Moonshot AI
-# API key: https://platform.kimi.com?track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&aff=moneyprinterturbo
+# API key: https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo
 moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""
@@ -271,6 +271,14 @@ fluxionai_model_name = ""
 cheaperinference_api_key = ""
 cheaperinference_base_url = ""
 cheaperinference_model_name = ""
+
+# Requesty, an OpenAI-compatible multi-model gateway.
+# API key: https://app.requesty.ai/api-keys
+# Model list: https://www.requesty.ai/models
+# EU endpoint: https://router.eu.requesty.ai/v1
+requesty_api_key = ""
+requesty_base_url = ""
+requesty_model_name = ""
 
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
@@ -444,6 +452,12 @@ subtitle_provider = "edge"
 # Increase this for unusually long videos or slow machines. On timeout, FFmpeg
 # is stopped and the task reports a failure instead of staying at 50% forever.
 # ffmpeg_concat_timeout_seconds = 3600
+
+# No-voice MP3 and pause-tag narration use FFmpeg. Bound each invocation so a
+# stuck conversion fails the task rather than waiting indefinitely (default:
+# 600 seconds per invocation). Increase this on unusually slow machines or for
+# very long narration chunks.
+# ffmpeg_tts_timeout_seconds = 600
 
 # Leave unset to follow the app default (libx264). Hardware encoders are optional;
 # unsupported encoders automatically fall back to libx264.

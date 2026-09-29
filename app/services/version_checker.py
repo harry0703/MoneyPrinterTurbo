@@ -165,13 +165,20 @@ class AsyncUpdateChecker:
             self._checking = True
             self._request_id += 1
 
-            worker = threading.Thread(
-                target=self._run_check,
-                args=(normalized_current_version, self._request_id),
-                name="mpt-version-check",
-                daemon=True,
-            )
-            worker.start()
+            try:
+                worker = threading.Thread(
+                    target=self._run_check,
+                    args=(normalized_current_version, self._request_id),
+                    name="mpt-version-check",
+                    daemon=True,
+                )
+                worker.start()
+            except RuntimeError as exc:
+                # Thread exhaustion must not leave every subsequent poll pending.
+                logger.warning(f"could not start update check thread: {exc}")
+                self._checking = False
+                self._completed_at = now
+                return UpdateCheckSnapshot(complete=True)
 
         return UpdateCheckSnapshot(complete=False)
 

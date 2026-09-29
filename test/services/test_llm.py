@@ -5,8 +5,10 @@ import tempfile
 import tomllib
 import types
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+from threading import Barrier
 from unittest.mock import patch
 
 from pydantic import ValidationError
@@ -173,6 +175,18 @@ class TestScriptPromptOptions(unittest.TestCase):
             result = llm.generate_script(video_subject="Coffee")
 
         self.assertEqual(result, "")
+
+    def test_generate_script_does_not_return_stale_quota_error_after_retries(self):
+        responses = ["当日额度已消耗完"] + [
+            RuntimeError("provider unavailable")
+        ] * (llm._max_retries - 1)
+        with patch.object(
+            llm, "_generate_response", side_effect=responses
+        ) as generate_response:
+            result = llm.generate_script(video_subject="Coffee")
+
+        self.assertEqual(result, "")
+        self.assertEqual(generate_response.call_count, llm._max_retries)
 
     def test_generate_script_strips_each_bracket_group_independently(self):
         """
@@ -373,6 +387,13 @@ class TestLiteLLMProvider(unittest.TestCase):
             cheaperinference.model_docs_url,
             "https://cheaperinference.com/#models",
         )
+        requesty = get_llm_provider("requesty")
+        self.assertEqual(requesty.default_model, "openai/gpt-5.4-mini")
+        self.assertEqual(requesty.default_base_url, "https://router.requesty.ai/v1")
+        self.assertEqual(requesty.adapter, "openai_compatible")
+        self.assertTrue(requesty.requires_api_key)
+        self.assertEqual(requesty.api_key_url, "https://app.requesty.ai/api-keys")
+        self.assertEqual(requesty.model_docs_url, "https://www.requesty.ai/models")
         pollinations = get_llm_provider("pollinations")
         self.assertEqual(pollinations.default_model, "openai-fast")
         self.assertEqual(
@@ -432,6 +453,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "api_route",
                 "fluxionai",
                 "cheaperinference",
+                "requesty",
                 "ollama",
                 "claude_code",
                 "oneapi",
@@ -580,6 +602,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         ]["llm_provider_tips.moonshot"]
         self.assertIn("推荐理由：", zh_kimi_tips)
         self.assertIn("视频创作链路匹配", zh_kimi_tips)
+        self.assertIn("活动截至 2026 年 12 月 31 日", zh_kimi_tips)
+        en_kimi_tips = json.loads((i18n_dir / "en.json").read_text(encoding="utf-8"))[
+            "Translation"
+        ]["llm_provider_tips.moonshot"]
+        self.assertIn("offer ends December 31, 2026", en_kimi_tips)
 
     def test_required_api_key_providers_have_clickable_entry_points(self):
         """需要密钥的 Provider 必须提供统一申请入口，避免 WebUI 只给出文字。"""
@@ -1196,6 +1223,47 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("returned empty choices", result)
         self.assertNotIn("NoneType", result)
 
+    def test_qwen_concurrent_snapshots_keep_their_own_api_keys(self):
+        class FakeGenerationResponse(dict):
+            status_code = 200
+
+        barrier = Barrier(2, timeout=5)
+        calls = {}
+        fake_dashscope = types.SimpleNamespace(api_key="unrelated-global-key")
+
+        def call(**kwargs):
+            barrier.wait()
+            prompt = kwargs["messages"][0]["content"]
+            calls[prompt] = kwargs.get("api_key")
+            return FakeGenerationResponse({"output": {"text": prompt}})
+
+        fake_dashscope.Generation = types.SimpleNamespace(call=call)
+        modules = {
+            "dashscope": fake_dashscope,
+            "dashscope.api_entities": types.SimpleNamespace(),
+            "dashscope.api_entities.dashscope_response": types.SimpleNamespace(
+                GenerationResponse=FakeGenerationResponse
+            ),
+        }
+        with patch.dict(sys.modules, modules), ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(
+                llm._generate_response,
+                "first prompt",
+                {"llm_provider": "qwen", "qwen_api_key": "first-key"},
+            )
+            second = pool.submit(
+                llm._generate_response,
+                "second prompt",
+                {"llm_provider": "qwen", "qwen_api_key": "second-key"},
+            )
+            self.assertEqual(first.result(), "first prompt")
+            self.assertEqual(second.result(), "second prompt")
+
+        self.assertEqual(
+            calls, {"first prompt": "first-key", "second prompt": "second-key"}
+        )
+        self.assertEqual(fake_dashscope.api_key, "unrelated-global-key")
+
     def test_apimart_provider_uses_unwrapped_openai_compatible_endpoint(self):
         """
         APIMart 文档同时展示 `/api/v1` 和 `/v1` 两组入口。前者的示例响应
@@ -1793,6 +1861,25 @@ class TestClaudeCodeProvider(unittest.TestCase):
             command[command.index("--system-prompt") + 1],
             llm.CLAUDE_CODE_SYSTEM_PROMPT,
         )
+
+    def test_prompt_is_sent_through_stdin_not_argv(self):
+        """Windows 上 npm 安装的 claude 是 claude.cmd，cmd.exe 会在第一个换行处截断
+        参数，多行 prompt 及其后的隔离参数都会丢失，因此 prompt 必须走 stdin。"""
+        prompt = "# Role: Generator\n\n## Goals:\nwrite something"
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/bin/claude"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._cli_payload("ok")),
+            ) as run,
+        ):
+            llm._generate_response(prompt)
+
+        command = run.call_args.args[0]
+        self.assertFalse(any("\n" in arg for arg in command))
+        self.assertNotIn(prompt, command)
+        self.assertEqual(run.call_args.kwargs["input"], prompt)
 
     def test_model_name_is_only_passed_when_configured(self):
         """模型名留空时应沿用 CLI 默认模型，而不是硬编码一个可能失效的 ID。"""

@@ -253,7 +253,11 @@ class VideoSocialMetadataParams:
 
 
 class TaskVideoRequest(VideoParams, BaseModel):
-    pass
+    # Bound API resource requests while leaving the CLI's explicit batch and
+    # FFmpeg thread controls in VideoParams unchanged.
+    video_count: int = Field(default=1, ge=1, le=5)
+    video_clip_duration: int = Field(default=5, ge=1, le=15)
+    n_threads: Optional[int] = Field(default=2, ge=1, le=16)
 
 
 class TaskQueryRequest(BaseModel):
@@ -265,7 +269,9 @@ class VideoScriptRequest(VideoScriptParams, BaseModel):
 
 
 class VideoTermsRequest(VideoTermsParams, BaseModel):
-    pass
+    # Ordered term generation allocates an example list proportional to amount
+    # before contacting the model. Reject malformed or excessive API requests.
+    amount: int = Field(default=5, ge=1, le=50)
 
 
 class VideoSocialMetadataRequest(VideoSocialMetadataParams, BaseModel):

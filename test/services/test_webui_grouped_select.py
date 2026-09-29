@@ -133,3 +133,51 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
         assert "label.htmlFor = data.controlId" in harness.declaration["js"]
         assert "select.id = data.controlId" in harness.declaration["js"]
         assert "flex-wrap: wrap" in harness.declaration["css"]
+
+
+def test_stock_concurrency_only_appears_for_stock_sources():
+    """库存并发仅对三家库存素材显示，切换来源时保留显式设置。"""
+    harness = _GroupedSelectHarness()
+    with _running_app(harness) as app:
+        stock = next(
+            item for item in app.selectbox
+            if item.key.startswith("material_concurrency_select_")
+        )
+        clip = next(
+            item for item in app.selectbox
+            if item.key.startswith("clip_rendering_concurrency_select_")
+        )
+        assert stock.value == 1
+        assert clip.value == 1
+
+        stock.set_value(4).run()
+        clip = next(
+            item for item in app.selectbox
+            if item.key.startswith("clip_rendering_concurrency_select_")
+        )
+        clip.set_value(2).run()
+        assert config.app["material_concurrency"] == 4
+        assert config.app["video_clip_concurrency"] == 2
+
+        for source, show_stock in (
+            ("pixabay", True),
+            ("coverr", True),
+            ("wavespeed", False),
+            ("local", False),
+            ("pexels", True),
+        ):
+            harness.selected = source
+            app.run()
+            assert [str(item.value) for item in app.exception] == []
+            stock_widgets = [
+                item for item in app.selectbox
+                if item.key.startswith("material_concurrency_select_")
+            ]
+            assert bool(stock_widgets) is show_stock
+            if show_stock:
+                assert stock_widgets[0].value == 4
+            assert next(
+                item for item in app.selectbox
+                if item.key.startswith("clip_rendering_concurrency_select_")
+            ).value == 2
+            assert config.app["material_concurrency"] == 4

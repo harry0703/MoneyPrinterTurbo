@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
 from app.controllers.v1 import llm as llm_controller
 from app.models.schema import (
     VideoScriptRequest,
@@ -10,6 +12,19 @@ from app.models.schema import (
 
 
 class TestLlmController(unittest.TestCase):
+    def test_terms_request_bounds_generated_term_count(self):
+        """Ordered term prompts must not allocate arbitrary-length examples."""
+        self.assertEqual(
+            VideoTermsRequest(amount=50, match_materials_to_script=True).amount,
+            50,
+        )
+        for value in (0, -1, 51, None):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    VideoTermsRequest(
+                        amount=value, match_materials_to_script=True
+                    )
+
     def test_generate_video_script_forwards_all_prompt_fields(self):
         """文案接口不能丢失高级提示词或段落数量。"""
         body = VideoScriptRequest(

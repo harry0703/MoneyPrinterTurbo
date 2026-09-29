@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import time
 from dataclasses import dataclass
 from typing import Iterator
@@ -52,6 +53,9 @@ class _VideoCacheEntry:
     name: str
     size: int
     mtime: float
+    device: int
+    inode: int
+    mtime_ns: int
 
 
 def video_cache_dir() -> str:
@@ -103,6 +107,9 @@ def _iter_video_cache_entries(include_temp: bool = False) -> Iterator[_VideoCach
                 name=entry.name,
                 size=stat_result.st_size,
                 mtime=stat_result.st_mtime,
+                device=stat_result.st_dev,
+                inode=stat_result.st_ino,
+                mtime_ns=stat_result.st_mtime_ns,
             )
 
 
@@ -210,6 +217,20 @@ def clean_video_cache(max_age_days: int | None = None) -> VideoCacheCleanupResul
                 or os.path.islink(entry.path)
             ):
                 raise ValueError("cache file is outside the managed directory")
+            try:
+                current = os.stat(entry.path, follow_symlinks=False)
+            except FileNotFoundError:
+                # Another cleanup already removed the scanned candidate.
+                continue
+            if not stat.S_ISREG(current.st_mode) or (
+                current.st_dev,
+                current.st_ino,
+                current.st_mtime_ns,
+                current.st_size,
+            ) != (entry.device, entry.inode, entry.mtime_ns, entry.size):
+                # A downloader may atomically publish a new file at this name
+                # after the scan. Do not delete the fresh replacement.
+                continue
             os.unlink(entry.path)
             deleted_count += 1
             deleted_size += entry.size

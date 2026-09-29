@@ -76,6 +76,8 @@ GEMINI_TTS_VOICES = (
     ("Sulafat", "Warm"),
 )
 _MINIMAX_TTS_MAX_AUDIO_HEX_CHARS = 100 * 1024 * 1024
+_ELEVENLABS_TTS_MAX_AUDIO_BYTES = 50 * 1024 * 1024
+_ELEVENLABS_TTS_MAX_ERROR_BYTES = 4096
 VOXCPM_DEFAULT_BASE_URL = "https://api.modelbest.cn/v1"
 VOXCPM_DEFAULT_VOICE = "default"
 VOXCPM_REFERENCE_AUDIO_MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -83,6 +85,7 @@ VOXCPM_REFERENCE_AUDIO_MAX_WAV_BYTES = 5 * 1024 * 1024
 VOXCPM_REFERENCE_AUDIO_CONVERSION_TIMEOUT_SECONDS = 15
 VOXCPM_REFERENCE_AUDIO_MAX_DURATION_SECONDS = 120
 VOXCPM_REFERENCE_AUDIO_FILE_TYPES = ("wav", "mp3", "m4a", "aac", "ogg", "flac")
+_DEFAULT_TTS_FFMPEG_TIMEOUT_SECONDS = 600
 _VOXCPM_NON_RETRYABLE_STATUS_CODES = {400, 401, 403, 404, 422}
 _VOXCPM_RETRY_DELAY_SECONDS = (1.0, 2.0)
 NO_VOICE_NAME = "no-voice"
@@ -555,6 +558,9 @@ def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
     ffmpeg_binary = utils.get_ffmpeg_binary()
     command = [
         ffmpeg_binary,
+        "-nostdin",
+        "-v",
+        "error",
         "-y",
         "-f",
         "lavfi",
@@ -566,33 +572,12 @@ def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
         "libmp3lame",
         "-q:a",
         "4",
-        output_file,
     ]
 
     logger.info(
         f"generating silent audio for no-voice mode, duration: {duration_seconds:.2f}s"
     )
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if result.returncode != 0:
-        logger.error(
-            "failed to generate silent audio: "
-            f"{(result.stderr or result.stdout or '').strip()}"
-        )
-        return False
-    if not os.path.exists(output_file) or os.path.getsize(output_file) <= 0:
-        logger.error(
-            "silent audio output file is missing or empty, "
-            f"file: {output_file}, duration: {duration_seconds:.2f}s"
-        )
-        return False
-    return True
+    return _publish_tts_ffmpeg_output(command, output_file, "silent narration encode")
 
 
 def _single_tts(
@@ -729,6 +714,69 @@ def _single_tts(
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
 
+def _run_tts_ffmpeg(command: list[str], stage: str):
+    """Bound TTS FFmpeg work and reap the child on timeout."""
+    raw_timeout = config.app.get(
+        "ffmpeg_tts_timeout_seconds",
+        _DEFAULT_TTS_FFMPEG_TIMEOUT_SECONDS,
+    )
+    try:
+        timeout = float(raw_timeout)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("ffmpeg_tts_timeout_seconds must be positive") from exc
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("ffmpeg_tts_timeout_seconds must be positive")
+
+    try:
+        # subprocess.run kills and waits for the child on timeout. Do not allow
+        # FFmpeg to wait for terminal input in an unattended generation task.
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        logger.error(f"FFmpeg {stage} timed out after {timeout:g} seconds")
+    except OSError as exc:
+        logger.error(f"failed to start FFmpeg {stage}: {exc}")
+    return None
+
+
+def _publish_tts_ffmpeg_output(
+    command: list[str], output_file: str, stage: str
+) -> bool:
+    """Encode beside the destination and replace only after a complete output."""
+    output_dir = os.path.dirname(output_file) or "."
+    with tempfile.TemporaryDirectory(
+        prefix=".mpt-tts-audio-", dir=output_dir
+    ) as publish_temp:
+        staged_output = os.path.join(
+            publish_temp, f"narration{os.path.splitext(output_file)[1] or '.mp3'}"
+        )
+        result = _run_tts_ffmpeg([*command, staged_output], stage)
+        if result is None:
+            return False
+        if result.returncode != 0:
+            logger.error(
+                f"FFmpeg {stage} failed: "
+                f"{(result.stderr or result.stdout or '').strip()}"
+            )
+            return False
+        if not os.path.exists(staged_output) or os.path.getsize(staged_output) == 0:
+            logger.error(f"FFmpeg {stage} produced no narration audio")
+            return False
+        try:
+            os.replace(staged_output, output_file)
+        except OSError as exc:
+            logger.error(f"failed to publish {stage} audio: {exc}")
+            return False
+        return True
+
+
 def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
     """
     使用 PCM 解码与统一重编码合并多个音频分段。
@@ -789,6 +837,9 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
                     pcm_wav = os.path.join(concat_temp, f"chunk_{idx}.wav")
                     cmd = [
                         ffmpeg_binary,
+                        "-nostdin",
+                        "-v",
+                        "error",
                         "-y",
                         "-i",
                         f,
@@ -801,7 +852,9 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
                         "pcm_s16le",
                         pcm_wav,
                     ]
-                    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+                    res = _run_tts_ffmpeg(cmd, "pause audio decode")
+                    if res is None:
+                        return False
                     if res.returncode == 0 and os.path.exists(pcm_wav):
                         try:
                             with wave.open(pcm_wav, "rb") as wf:
@@ -822,6 +875,9 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
 
         command = [
             ffmpeg_binary,
+            "-nostdin",
+            "-v",
+            "error",
             "-y",
             "-i",
             temp_combined_wav,
@@ -829,16 +885,10 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
             "libmp3lame",
             "-q:a",
             "4",
-            output_file,
         ]
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
-        if result.returncode != 0:
-            logger.error(
-                "failed to encode concatenated audio to mp3: "
-                f"{(result.stderr or result.stdout or '').strip()}"
-            )
-            return False
-        return os.path.exists(output_file) and os.path.getsize(output_file) > 0
+        return _publish_tts_ffmpeg_output(
+            command, output_file, "pause audio encode"
+        )
 
 
 def _tts_with_pauses(
@@ -931,6 +981,9 @@ def _tts_with_pauses(
                 ffmpeg_binary = utils.get_ffmpeg_binary()
                 cmd = [
                     ffmpeg_binary,
+                    "-nostdin",
+                    "-v",
+                    "error",
                     "-y",
                     "-i",
                     chunk_audio_file,
@@ -943,7 +996,9 @@ def _tts_with_pauses(
                     "pcm_s16le",
                     chunk_wav,
                 ]
-                res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+                res = _run_tts_ffmpeg(cmd, "speech chunk decode")
+                if res is None:
+                    return None
                 if res.returncode != 0 or not os.path.exists(chunk_wav) or os.path.getsize(chunk_wav) == 0:
                     logger.error(
                         f"failed to decode speech chunk audio to PCM WAV: {speech_text[:50]}, "
@@ -1440,6 +1495,7 @@ def siliconflow_tts(
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     for i in range(3):  # 尝试3次
+        temporary_audio = None
         try:
             logger.info(
                 f"start siliconflow tts, model: {model}, voice: {voice}, try: {i + 1}"
@@ -1456,14 +1512,22 @@ def siliconflow_tts(
                 if not response.content:
                     logger.error("siliconflow tts returned empty audio")
                     return None
-                # 保存音频文件
-                with open(voice_file, "wb") as f:
+                # Decode a temporary file before publishing it. A 200 response
+                # may contain invalid audio, and must not destroy a previous
+                # successful narration at the same path.
+                ensure_file_path_exists(voice_file)
+                with tempfile.NamedTemporaryFile(
+                    dir=os.path.dirname(os.path.abspath(voice_file)),
+                    suffix=".mp3",
+                    delete=False,
+                ) as f:
+                    temporary_audio = f.name
                     f.write(response.content)
 
                 sub_maker = ensure_legacy_submaker_fields(SubMaker())
 
                 try:
-                    audio_clip = AudioFileClip(voice_file)
+                    audio_clip = AudioFileClip(temporary_audio)
                     try:
                         audio_duration = audio_clip.duration
                     finally:
@@ -1479,14 +1543,9 @@ def siliconflow_tts(
                     # narration. Returning a fabricated duration lets an invalid
                     # file advance into the costly video pipeline.
                     logger.error(f"siliconflow tts returned invalid audio: {e}")
-                    try:
-                        os.remove(voice_file)
-                    except OSError as cleanup_error:
-                        logger.warning(
-                            f"failed to remove invalid siliconflow audio: {cleanup_error}"
-                        )
                     return None
 
+                os.replace(temporary_audio, voice_file)
                 logger.success(f"siliconflow tts succeeded: {voice_file}")
                 return populate_legacy_submaker_with_full_text(
                     sub_maker=sub_maker,
@@ -1497,8 +1556,26 @@ def siliconflow_tts(
                 logger.error(
                     f"siliconflow tts failed with status code {response.status_code}: {response.text}"
                 )
+        except requests.exceptions.ConnectTimeout as e:
+            logger.warning(f"siliconflow tts could not connect, retrying: {e}")
+        except requests.exceptions.RequestException as e:
+            # The server may have synthesized and charged for the POST even
+            # though its response was lost. A fresh POST could bill again.
+            logger.error(
+                "siliconflow tts result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(e).__name__}"
+            )
+            return None
         except Exception as e:
             logger.error(f"siliconflow tts failed: {str(e)}")
+        finally:
+            if temporary_audio and os.path.exists(temporary_audio):
+                try:
+                    os.unlink(temporary_audio)
+                except OSError as cleanup_error:
+                    logger.warning(
+                        f"failed to remove temporary siliconflow audio: {cleanup_error}"
+                    )
 
     return None
 
@@ -2085,7 +2162,15 @@ def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, vo
             return populate_legacy_submaker_with_full_text(
                 ensure_legacy_submaker_fields(SubMaker()), text, audio_duration
             )
-        except (OSError, ValueError, requests.RequestException) as exc:
+        except requests.exceptions.ConnectTimeout as exc:
+            logger.warning(f"MiniMax TTS could not connect, retrying: {exc}")
+        except requests.exceptions.RequestException as exc:
+            logger.error(
+                "MiniMax TTS result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(exc).__name__}"
+            )
+            return None
+        except (OSError, ValueError) as exc:
             logger.error(f"MiniMax TTS failed: {str(exc)}")
     return None
 
@@ -2132,41 +2217,75 @@ def elevenlabs_tts(
     _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized"}
 
     for i in range(3):
+        response = None
+        temp_path = None
         try:
             logger.info(f"start elevenlabs tts, voice_id: {voice_id}, try: {i + 1}")
             ensure_file_path_exists(voice_file)
 
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            response = requests.post(
+                url, json=payload, headers=headers, timeout=60, stream=True
+            )
             if response.status_code != 200:
                 error_status = ""
+                error_bytes = bytearray()
                 try:
-                    detail = response.json().get("detail", {})
+                    for chunk in response.iter_content(chunk_size=4096):
+                        error_bytes.extend(
+                            chunk[:_ELEVENLABS_TTS_MAX_ERROR_BYTES - len(error_bytes)]
+                        )
+                        if len(error_bytes) >= _ELEVENLABS_TTS_MAX_ERROR_BYTES:
+                            break
+                    detail = json.loads(error_bytes).get("detail", {})
                     if isinstance(detail, dict):
                         error_status = detail.get("status", "")
-                except Exception:
+                except (ValueError, TypeError, AttributeError, requests.RequestException):
                     pass
+                error_text = error_bytes.decode("utf-8", errors="replace")[:200]
 
                 if response.status_code in _NON_RETRYABLE_CODES or error_status in _NON_RETRYABLE_STATUSES:
                     logger.error(
                         f"ElevenLabs TTS failed (non-retryable) — voice_id: {voice_id}, "
-                        f"status: {response.status_code}, error: {error_status or response.text[:200]}. "
+                        f"status: {response.status_code}, error: {error_status or error_text}. "
                         "Please select a different ElevenLabs voice."
                     )
                     return None
 
                 logger.error(
-                    f"elevenlabs tts failed with status {response.status_code}: {response.text[:200]}"
+                    f"elevenlabs tts failed with status {response.status_code}: {error_text}"
                 )
                 continue
 
-            with open(voice_file, "wb") as f:
-                f.write(response.content)
+            descriptor, temp_path = tempfile.mkstemp(
+                prefix=".elevenlabs-tts-",
+                suffix=os.path.splitext(voice_file)[1] or ".mp3",
+                dir=os.path.dirname(os.path.abspath(voice_file)),
+            )
+            audio_bytes = 0
+            with os.fdopen(descriptor, "wb") as output:
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    if not chunk:
+                        continue
+                    audio_bytes += len(chunk)
+                    if audio_bytes > _ELEVENLABS_TTS_MAX_AUDIO_BYTES:
+                        logger.error("ElevenLabs TTS audio exceeds the 50 MB limit")
+                        return None
+                    output.write(chunk)
+            if audio_bytes == 0:
+                logger.error("ElevenLabs TTS returned no audio data")
+                return None
 
-            audio_clip = AudioFileClip(voice_file)
+            audio_clip = AudioFileClip(temp_path)
             try:
-                audio_duration = audio_clip.duration
+                audio_duration = float(audio_clip.duration)
             finally:
                 audio_clip.close()
+            if not math.isfinite(audio_duration) or audio_duration <= 0:
+                logger.error("ElevenLabs TTS returned audio with invalid duration")
+                return None
+
+            os.replace(temp_path, voice_file)
+            temp_path = None
 
             sub_maker = ensure_legacy_submaker_fields(SubMaker())
             logger.success(f"elevenlabs tts succeeded: {voice_file}")
@@ -2175,8 +2294,28 @@ def elevenlabs_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
+        except requests.exceptions.ConnectTimeout as e:
+            logger.warning(f"elevenlabs tts could not connect, retrying: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                "elevenlabs tts result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(e).__name__}"
+            )
+            return None
         except Exception as e:
             logger.error(f"elevenlabs tts failed: {str(e)}")
+            if response is not None and response.status_code == 200:
+                # The provider may already have charged for a successful
+                # request. Retrying cannot repair a corrupt returned file.
+                return None
+        finally:
+            if temp_path is not None:
+                try:
+                    os.remove(temp_path)
+                except OSError as exc:
+                    logger.warning(f"failed to remove ElevenLabs TTS temp file: {exc}")
+            if response is not None:
+                response.close()
 
     return None
 
@@ -2441,6 +2580,8 @@ def fish_audio_tts(
         payload["reference_id"] = reference_id
 
     for i in range(3):
+        temporary_audio = None
+        received_success = False
         try:
             logger.info(
                 f"start fish audio tts, model: {model_name}, "
@@ -2473,32 +2614,60 @@ def fish_audio_tts(
                     f"{response.status_code}: {response.text[:200]}"
                 )
                 continue
+            received_success = True
 
             # Validate response contains audio data
             if not response.content or len(response.content) < 100:
                 logger.error(
                     "Fish Audio TTS returned empty or invalid audio data"
                 )
-                continue
+                return None
 
-            with open(voice_file, "wb") as f:
+            with tempfile.NamedTemporaryFile(
+                dir=os.path.dirname(os.path.abspath(voice_file)),
+                suffix=".mp3",
+                delete=False,
+            ) as f:
+                temporary_audio = f.name
                 f.write(response.content)
 
-            audio_clip = AudioFileClip(voice_file)
+            audio_clip = AudioFileClip(temporary_audio)
             try:
                 audio_duration = audio_clip.duration
             finally:
                 audio_clip.close()
+            if not math.isfinite(audio_duration) or audio_duration <= 0:
+                raise ValueError("Fish Audio returned an invalid audio duration")
 
             sub_maker = ensure_legacy_submaker_fields(SubMaker())
+            os.replace(temporary_audio, voice_file)
             logger.success(f"fish audio tts succeeded: {voice_file}")
             return populate_legacy_submaker_with_full_text(
                 sub_maker=sub_maker,
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
+        except requests.exceptions.ConnectTimeout as e:
+            logger.warning(f"fish audio tts could not connect, retrying: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                "fish audio tts result is unconfirmed after a transport error; "
+                f"stop paid retries: {type(e).__name__}"
+            )
+            return None
         except Exception as e:
             logger.error(f"fish audio tts failed: {str(e)}")
+            if received_success:
+                # A successful provider response may already have been billed.
+                return None
+        finally:
+            if temporary_audio and os.path.exists(temporary_audio):
+                try:
+                    os.unlink(temporary_audio)
+                except OSError as cleanup_error:
+                    logger.warning(
+                        f"failed to remove temporary Fish Audio file: {cleanup_error}"
+                    )
 
     return None
 
@@ -2780,10 +2949,19 @@ def voxcpm_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
-        except requests.RequestException as exc:
-            logger.error(f"VoxCPM TTS request failed: {exc}")
+        except requests.exceptions.ConnectTimeout as exc:
+            logger.error(f"VoxCPM TTS connection timed out: {exc}")
+            # A timeout before POST returns is safe to retry only when no
+            # response has been received. Never resubmit after SSE started.
+            if response is not None:
+                return None
             if attempt < 2:
                 time.sleep(_VOXCPM_RETRY_DELAY_SECONDS[attempt])
+        except requests.RequestException as exc:
+            # The server may have generated speech before a read timeout or
+            # stream disconnect. Resubmitting can create duplicate work.
+            logger.error(f"VoxCPM TTS request outcome is unconfirmed: {exc}")
+            return None
         except Exception as exc:
             # Invalid SSE/WAV data and local conversion failures are deterministic;
             # retrying the same response cannot repair them.

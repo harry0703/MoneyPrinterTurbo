@@ -205,12 +205,12 @@ LLM_PROVIDER_REGISTRY = (
                 base_url="https://api.moonshot.cn/v1",
                 api_key_url=(
                     "https://platform.kimi.com?"
-                    "track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&"
+                    "track_id=track-6eec1e56a4494e52adcaebbcbbefce59&"
                     "aff=moneyprinterturbo"
                 ),
                 model_docs_url=(
                     "https://platform.kimi.com/docs/models?"
-                    "track_id=track-2f5441d6ffd84c509dd079d78e9db5dc&"
+                    "track_id=track-6eec1e56a4494e52adcaebbcbbefce59&"
                     "aff=moneyprinterturbo"
                 ),
             ),
@@ -220,12 +220,12 @@ LLM_PROVIDER_REGISTRY = (
                 base_url="https://api.moonshot.ai/v1",
                 api_key_url=(
                     "https://platform.kimi.ai?"
-                    "track_id=track-f6b0a640d35c41deb03b247242a1058c&"
+                    "track_id=track-9e3b711aa2594e378f6fe5b8de718a76&"
                     "aff=moneyprinterturbo"
                 ),
                 model_docs_url=(
                     "https://platform.kimi.ai/docs/models?"
-                    "track_id=track-f6b0a640d35c41deb03b247242a1058c&"
+                    "track_id=track-9e3b711aa2594e378f6fe5b8de718a76&"
                     "aff=moneyprinterturbo"
                 ),
             ),
@@ -419,6 +419,14 @@ LLM_PROVIDER_REGISTRY = (
         default_model="gpt-5.4-mini",
         default_base_url="https://api.cheaperinference.com/v1",
         model_docs_url="https://cheaperinference.com/#models",
+    ),
+    LLMProviderSpec(
+        "requesty",
+        "Requesty",
+        api_key_url="https://app.requesty.ai/api-keys",
+        default_model="openai/gpt-5.4-mini",
+        default_base_url="https://router.requesty.ai/v1",
+        model_docs_url="https://www.requesty.ai/models",
     ),
     # 本地部署与通用网关
     LLMProviderSpec(

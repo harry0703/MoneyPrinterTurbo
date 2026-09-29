@@ -270,6 +270,7 @@ def generate_videos(
             proxies=config.proxy,
             verify=_tls_verify(),
             timeout=(30, 60),
+            allow_redirects=False,
         )
     except Exception as exc:
         raise VolcEngineSeedanceUnconfirmedTaskError(
@@ -279,6 +280,11 @@ def generate_videos(
         ) from exc
 
     status_code = _status_code(response)
+    if 300 <= status_code < 400:
+        raise VolcEngineSeedanceUnconfirmedTaskError(
+            "Seedance submission returned a redirect; the paid task state is "
+            "unknown and the request was not replayed"
+        )
     if status_code >= 500:
         raise VolcEngineSeedanceUnconfirmedTaskError(
             f"Seedance submission failed with HTTP {status_code}; a paid task may "
@@ -379,6 +385,7 @@ def _wait_for_task(
                 proxies=config.proxy,
                 verify=_tls_verify(),
                 timeout=(phase_timeout, phase_timeout),
+                allow_redirects=False,
             )
             status_code = _status_code(response)
             if status_code in RETRYABLE_STATUS_CODES:

@@ -334,9 +334,10 @@ def _generate_response(prompt: str, app_config=None) -> str:
             import dashscope
             from dashscope.api_entities.dashscope_response import GenerationResponse
 
-            dashscope.api_key = api_key
             response = dashscope.Generation.call(
-                model=model_name, messages=[{"role": "user", "content": prompt}]
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=api_key,
             )
             if response:
                 if isinstance(response, GenerationResponse):
@@ -493,10 +494,12 @@ def _generate_response(prompt: str, app_config=None) -> str:
             except ValueError as timeout_error:
                 raise ValueError(f"{llm_provider}: {timeout_error}") from None
 
+            # prompt 通过 stdin 传入，不放在命令行里：Windows 上 npm 安装的
+            # claude 是 claude.cmd，cmd.exe 会在第一个换行处截断参数，多行
+            # prompt 和其后的隔离参数都会丢失。
             command = [
                 cli_path,
                 "-p",
-                prompt,
                 "--output-format",
                 "json",
                 "--system-prompt",
@@ -528,6 +531,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 try:
                     completed = subprocess.run(
                         command,
+                        input=prompt,
                         capture_output=True,
                         text=True,
                         # The CLI always emits UTF-8. Without an explicit encoding,
@@ -795,15 +799,17 @@ def generate_script(
                 # that text through would make the task treat it as narration.
                 raise ValueError(response)
             if response:
-                final_script = format_response(response)
+                candidate = format_response(response)
             else:
                 logging.error("gpt returned an empty response")
+                candidate = ""
 
             # Some upstream providers may return quota errors as plain text.
-            if final_script and "当日额度已消耗完" in final_script:
-                raise ValueError(final_script)
+            if candidate and "当日额度已消耗完" in candidate:
+                raise ValueError(candidate)
 
-            if final_script:
+            if candidate:
+                final_script = candidate
                 break
         except Exception as e:
             logger.error(f"failed to generate script: {e}")

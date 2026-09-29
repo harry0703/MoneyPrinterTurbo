@@ -345,7 +345,11 @@ def test_loomloom_video_source_quotes_then_passes_secret_in_confirmed_request():
     with (
         patch.object(config, "app", test_config),
         # 显式从两段切到一段，不能依赖开发者 config.toml 中的历史值。
-        patch.object(config, "ui", dict(config.ui, loomloom_video_scene_count=2)),
+        patch.object(
+            config,
+            "ui",
+            dict(config.ui, loomloom_video_scene_count=2, voice_mode="none"),
+        ),
         patch.object(config, "try_save_config", return_value=True),
         patch.object(
             loomloom.LoomLoomVideoBackend,
