@@ -1087,7 +1087,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
                 match_script_order=True,
             )
 
-        self.assertEqual(
+        self.assertCountEqual(
             downloaded_urls,
             [
                 "https://v.example/a1.mp4",
@@ -1105,6 +1105,325 @@ class TestMaterialTlsVerification(unittest.TestCase):
             [source["local_file"] for source in recorded_sources],
             ["a1.mp4", "b1.mp4", "a2.mp4"],
         )
+
+    def test_script_order_uses_next_candidate_after_failed_download(self):
+        """
+        回归：脚本顺序模式下首个候选下载失败时，必须尝试同一关键词的
+        下一个候选，而不是返回空结果。下载异常不能中断整个流程。
+        """
+        search_results = {
+            "city": [
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/bad.mp4",
+                    duration=5,
+                    source_info={"provider": "pexels", "asset_id": "bad"},
+                ),
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/good.mp4",
+                    duration=5,
+                    source_info={"provider": "pexels", "asset_id": "good"},
+                ),
+            ],
+        }
+        attempted_urls = []
+
+        def fake_search(search_term, minimum_duration, video_aspect):
+            return search_results[search_term]
+
+        def fake_save_video(video_url, save_dir=""):
+            attempted_urls.append(video_url)
+            if "bad" in video_url:
+                raise RuntimeError("network down")
+            return "/tmp/good.mp4"
+
+        with (
+            patch.dict(
+                config.app,
+                {"material_directory": "", "material_concurrency": 4},
+            ),
+            patch.object(material, "search_videos_pexels", side_effect=fake_search),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            result = material.download_videos(
+                task_id="failed-first-candidate",
+                search_terms=["city"],
+                source="pexels",
+                audio_duration=8,
+                max_clip_duration=5,
+                match_script_order=True,
+            )
+
+        self.assertEqual(
+            attempted_urls,
+            ["https://v.example/bad.mp4", "https://v.example/good.mp4"],
+        )
+        self.assertEqual(result, ["/tmp/good.mp4"])
+
+    def test_script_order_does_not_skip_unattempted_candidates(self):
+        """
+        回归：脚本顺序模式下，本轮未被选中的候选不能推进下标。
+        三个关键词各 1 个候选、首轮只选中前两个且都下载失败时，
+        第三个候选必须在下一轮被尝试，而不是被整轮统一的下标跳过
+        导致直接返回空结果。
+        """
+        search_results = {
+            "t1": [
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/x.mp4",
+                    duration=5,
+                    source_info={"provider": "pexels", "asset_id": "x"},
+                ),
+            ],
+            "t2": [
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/y.mp4",
+                    duration=5,
+                    source_info={"provider": "pexels", "asset_id": "y"},
+                ),
+            ],
+            "t3": [
+                material.MaterialInfo(
+                    provider="pexels",
+                    url="https://v.example/z.mp4",
+                    duration=5,
+                    source_info={"provider": "pexels", "asset_id": "z"},
+                ),
+            ],
+        }
+        attempted_urls = []
+
+        def fake_search(search_term, minimum_duration, video_aspect):
+            return search_results[search_term]
+
+        def fake_save_video(video_url, save_dir=""):
+            attempted_urls.append(video_url)
+            if "z.mp4" not in video_url:
+                raise RuntimeError("network down")
+            return "/tmp/z.mp4"
+
+        with (
+            patch.dict(
+                config.app,
+                {"material_directory": "", "material_concurrency": 4},
+            ),
+            patch.object(material, "search_videos_pexels", side_effect=fake_search),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            result = material.download_videos(
+                task_id="unattempted-candidate",
+                search_terms=["t1", "t2", "t3"],
+                source="pexels",
+                audio_duration=6,
+                max_clip_duration=5,
+                match_script_order=True,
+            )
+
+        # 首轮选中 x、y（累计 10s 超过 6s 配音），z 未被尝试；x、y 都下载失败后，
+        # 修复前 z 会被整轮统一的下标直接跳过、函数返回空结果；
+        # 修复后 z 必须在次轮被尝试并下载成功。
+        self.assertCountEqual(
+            attempted_urls,
+            [
+                "https://v.example/x.mp4",
+                "https://v.example/y.mp4",
+                "https://v.example/z.mp4",
+            ],
+        )
+        self.assertEqual(result, ["/tmp/z.mp4"])
+
+    def test_default_path_single_material_failure_does_not_abort(self):
+        """
+        回归：默认路径下，即使并发配置为 4，单候选批次走串行下载时
+        下载异常也必须被捕获，不能中断整个生成流程。
+        """
+        item = material.MaterialInfo(
+            provider="pexels",
+            url="https://v.example/only.mp4",
+            duration=5,
+            source_info={"provider": "pexels", "asset_id": "only"},
+        )
+
+        with (
+            patch.dict(
+                config.app,
+                {"material_directory": "", "material_concurrency": 4},
+            ),
+            patch.object(material, "search_videos_pexels", return_value=[item]),
+            patch.object(
+                material, "save_video", side_effect=RuntimeError("boom")
+            ),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            result = material.download_videos(
+                task_id="single-failure",
+                search_terms=["city"],
+                source="pexels",
+                video_concat_mode=material.VideoConcatMode.sequential,
+                audio_duration=10,
+                max_clip_duration=5,
+            )
+
+        self.assertEqual(result, [])
+
+    def test_default_path_serial_fallback_keeps_selection_order(self):
+        """
+        并发配置为 1 时，默认路径保持严格串行：按候选顺序下载，
+        时长覆盖即停，下载失败跳过并继续下一个候选。
+        """
+        items = [
+            material.MaterialInfo(
+                provider="pexels",
+                url=f"https://v.example/{name}.mp4",
+                duration=6,
+                source_info={"provider": "pexels", "asset_id": name},
+            )
+            for name in ("a", "b", "c")
+        ]
+        attempted_urls = []
+
+        def fake_save_video(video_url, save_dir=""):
+            attempted_urls.append(video_url)
+            if "/b.mp4" in video_url:
+                raise RuntimeError("network down")
+            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+
+        with (
+            patch.dict(
+                config.app,
+                {"material_directory": "", "material_concurrency": 1},
+            ),
+            patch.object(material, "search_videos_pexels", return_value=items),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            result = material.download_videos(
+                task_id="serial-fallback",
+                search_terms=["city"],
+                source="pexels",
+                video_concat_mode=material.VideoConcatMode.sequential,
+                audio_duration=10,
+                max_clip_duration=6,
+            )
+
+        # 串行语义：a 成功（6s）、b 失败跳过、c 成功（累计 12s 覆盖 10s 即停）。
+        self.assertEqual(
+            attempted_urls,
+            [
+                "https://v.example/a.mp4",
+                "https://v.example/b.mp4",
+                "https://v.example/c.mp4",
+            ],
+        )
+        self.assertEqual(result, ["/tmp/a.mp4", "/tmp/c.mp4"])
+
+    def test_default_path_parallel_download_matches_serial_selection(self):
+        """
+        默认路径并行下载保持与串行一致的选择语义：顺序累加、覆盖即停；
+        失败的候选用后续候选补足，最终下载集合与串行一致。
+        """
+        items = [
+            material.MaterialInfo(
+                provider="pexels",
+                url=f"https://v.example/{name}.mp4",
+                duration=6,
+                source_info={"provider": "pexels", "asset_id": name},
+            )
+            for name in ("a", "b", "c", "d")
+        ]
+
+        def fake_save_video(video_url, save_dir=""):
+            if "/b.mp4" in video_url:
+                raise RuntimeError("network down")
+            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+
+        with (
+            patch.dict(
+                config.app,
+                {"material_directory": "", "material_concurrency": 4},
+            ),
+            patch.object(material, "search_videos_pexels", return_value=items),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            result = material.download_videos(
+                task_id="parallel-selection",
+                search_terms=["city"],
+                source="pexels",
+                video_concat_mode=material.VideoConcatMode.sequential,
+                audio_duration=10,
+                max_clip_duration=6,
+            )
+
+        # 首轮 [a, b]：a 成功（6s）、b 失败；次轮 [c] 成功（累计 12s 覆盖即停）。
+        # 与串行逻辑的下载集合一致：{a, c}，d 不会被多下载。
+        self.assertEqual(result, ["/tmp/a.mp4", "/tmp/c.mp4"])
+
+    def test_material_concurrency_is_clamped(self):
+        """素材并发配置钳制在 1~8，非法值回退到默认值 4。"""
+        with patch.dict(config.app, {"material_concurrency": 0}):
+            self.assertEqual(material._get_material_concurrency(), 1)
+        with patch.dict(config.app, {"material_concurrency": 99}):
+            self.assertEqual(material._get_material_concurrency(), 8)
+        with patch.dict(config.app, {"material_concurrency": "bad"}):
+            self.assertEqual(material._get_material_concurrency(), 4)
+        with patch.dict(config.app, {"material_concurrency": 2}):
+            self.assertEqual(material._get_material_concurrency(), 2)
 
     def test_material_source_persistence_failure_does_not_break_download(self):
         """辅助任务记录失败时，已经下载成功的素材仍应正常返回给成片主流程。"""
