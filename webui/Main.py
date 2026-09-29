@@ -5464,24 +5464,25 @@ def _render_video_settings(panel, params):
                 _set_runtime_config("app", "video_codec", selected_video_codec)
 
             concurrency_options = [1, 2, 4, 6, 8]
-            selected_material_concurrency = stable_selectbox(
-                tr("Material Concurrency"),
-                options=concurrency_options,
-                default_value=_saved_ui_choice(
-                    "material_concurrency", concurrency_options, 4, config.app
-                ),
-                key="material_concurrency_select",
-                help=tr("Material Concurrency Help"),
-            )
-            _set_runtime_config(
-                "app", "material_concurrency", selected_material_concurrency
-            )
+            if params.video_source in {"pexels", "pixabay", "coverr"}:
+                selected_material_concurrency = stable_selectbox(
+                    tr("Material Concurrency"),
+                    options=concurrency_options,
+                    default_value=_saved_ui_choice(
+                        "material_concurrency", concurrency_options, 1, config.app
+                    ),
+                    key="material_concurrency_select",
+                    help=tr("Material Concurrency Help"),
+                )
+                _set_runtime_config(
+                    "app", "material_concurrency", selected_material_concurrency
+                )
 
             selected_clip_concurrency = stable_selectbox(
                 tr("Clip Rendering Concurrency"),
                 options=concurrency_options,
                 default_value=_saved_ui_choice(
-                    "video_clip_concurrency", concurrency_options, 4, config.app
+                    "video_clip_concurrency", concurrency_options, 1, config.app
                 ),
                 key="clip_rendering_concurrency_select",
                 help=tr("Clip Rendering Concurrency Help"),

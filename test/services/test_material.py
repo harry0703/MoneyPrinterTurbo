@@ -1415,13 +1415,15 @@ class TestMaterialTlsVerification(unittest.TestCase):
         self.assertEqual(result, ["/tmp/a.mp4", "/tmp/c.mp4"])
 
     def test_material_concurrency_is_clamped(self):
-        """素材并发配置钳制在 1~8，非法值回退到默认值 4。"""
+        """素材并发配置钳制在 1~8，非法值回退到串行默认值。"""
+        with patch.dict(config.app, {}, clear=True):
+            self.assertEqual(material._get_material_concurrency(), 1)
         with patch.dict(config.app, {"material_concurrency": 0}):
             self.assertEqual(material._get_material_concurrency(), 1)
         with patch.dict(config.app, {"material_concurrency": 99}):
             self.assertEqual(material._get_material_concurrency(), 8)
         with patch.dict(config.app, {"material_concurrency": "bad"}):
-            self.assertEqual(material._get_material_concurrency(), 4)
+            self.assertEqual(material._get_material_concurrency(), 1)
         with patch.dict(config.app, {"material_concurrency": 2}):
             self.assertEqual(material._get_material_concurrency(), 2)
 

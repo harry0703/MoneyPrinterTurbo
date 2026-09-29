@@ -39,17 +39,15 @@ _api_key_lock = threading.Lock()
 # Short stock and generated clips should stay well below this conservative cap.
 MAX_VIDEO_DOWNLOAD_BYTES = 512 * 1024 * 1024
 
-# 库存素材的搜索与下载都是网络等待型任务。这里用小并发避免拖垮上游 API，
-# 同时把串行等待压缩成一批请求的总等待时间。
-_MATERIAL_SEARCH_CONCURRENCY = 4
-_MATERIAL_DOWNLOAD_CONCURRENCY = 4
+# 默认保持串行，与旧版行为一致；有需要时可在配置中提高库存素材并发数。
+_DEFAULT_MATERIAL_CONCURRENCY = 1
 
 
 def _get_material_concurrency() -> int:
     try:
-        concurrency = int(config.app.get("material_concurrency", _MATERIAL_DOWNLOAD_CONCURRENCY))
+        concurrency = int(config.app.get("material_concurrency", _DEFAULT_MATERIAL_CONCURRENCY))
     except (TypeError, ValueError):
-        concurrency = _MATERIAL_DOWNLOAD_CONCURRENCY
+        concurrency = _DEFAULT_MATERIAL_CONCURRENCY
     return max(1, min(8, concurrency))
 
 

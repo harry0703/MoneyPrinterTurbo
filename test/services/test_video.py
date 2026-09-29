@@ -65,6 +65,15 @@ class TestVideoService(unittest.TestCase):
         vd._runtime_disabled_video_codecs.clear()
         vd._ffmpeg_encoder_exists.cache_clear()
 
+    def test_clip_processing_concurrency_defaults_to_serial(self):
+        """未配置或配置无效时保持串行，显式设置仍可在安全范围内生效。"""
+        with patch.dict(config.app, {}, clear=True):
+            self.assertEqual(vd._get_clip_processing_concurrency(), 1)
+        for value, expected in (("bad", 1), (0, 1), (4, 4), (99, 8)):
+            with self.subTest(value=value):
+                with patch.dict(config.app, {"video_clip_concurrency": value}):
+                    self.assertEqual(vd._get_clip_processing_concurrency(), expected)
+
     def test_generate_video_rejects_font_outside_directory_before_opening_media(self):
         """WebUI、CLI 或内部调用绕过 API 时，渲染层也必须阻断越界字体。"""
         with tempfile.TemporaryDirectory() as temp_dir:

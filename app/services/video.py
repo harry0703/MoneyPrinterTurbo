@@ -84,9 +84,9 @@ _MIN_MATERIAL_DIMENSION = 480
 # 丢弃，最终以 "no valid materials found" 整体失败。这里留一个很小的容差，
 # 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
 _MIN_DIMENSION_TOLERANCE = 10
-# 片段预处理是独立的重编码任务。4 路并发在 8 核/16GB 的桌面机上收益明显，
-# 又不会把 MoviePy 的内存峰值推到失控。
-_CLIP_PROCESSING_CONCURRENCY = 4
+# 默认串行处理片段，避免旧用户升级后 CPU 和内存占用突然增加。
+# 需要加速时可自行提高并发数，但每路都会启动独立的编码任务。
+_CLIP_PROCESSING_CONCURRENCY = 1
 
 
 def _get_clip_processing_concurrency() -> int:
