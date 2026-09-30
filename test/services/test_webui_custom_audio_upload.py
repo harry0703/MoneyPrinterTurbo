@@ -65,7 +65,7 @@ def _run_webui_audio_block(uploaded_audio_file, task_dir, stage_dir):
     helpers = [
         node for node in tree.body
         if isinstance(node, ast.FunctionDef)
-        and node.name == "_build_uploaded_file_path"
+        and node.name in {"_build_uploaded_file_path", "_stage_task_audio"}
     ]
     body = ast.fix_missing_locations(
         ast.Module(body=[*helpers, *upload_branch.body], type_ignores=[])
@@ -74,6 +74,7 @@ def _run_webui_audio_block(uploaded_audio_file, task_dir, stage_dir):
     params = VideoParams(video_subject="Custom audio test")
     namespace = {
         "os": os,
+        "tempfile": tempfile,
         "uuid4": uuid4,
         "logger": logger,
         "utils": utils,
