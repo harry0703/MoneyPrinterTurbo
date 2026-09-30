@@ -1761,9 +1761,10 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             continue
 
         ext = utils.parse_extension(material_source_path)
+        is_image = ext in const.FILE_TYPE_IMAGES
         try:
             # 图片素材直接按图片方式读取，避免先走 VideoFileClip 误判后触发不稳定的回退分支。
-            if ext in const.FILE_TYPE_IMAGES:
+            if is_image:
                 clip, material_source_path = _open_image_clip_with_fallback(
                     material_source_path
                 )
@@ -1775,6 +1776,9 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 clip, material_source_path = _open_image_clip_with_fallback(
                     material_source_path
                 )
+                # The successful decoder determines the material kind, even
+                # when the uploaded filename has a video or unknown suffix.
+                is_image = True
             except Exception as exc:
                 logger.warning(
                     f"skip unreadable local material: {material.url}, error: {str(exc)}"
@@ -1793,7 +1797,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 close_clip(clip)
                 continue
 
-            if ext in const.FILE_TYPE_IMAGES:
+            if is_image:
                 logger.info(f"processing image: {material_source_path}")
                 # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再渲染
                 # 用于导出的图片片段。
