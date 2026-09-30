@@ -1599,10 +1599,11 @@ def _build_azure_v2_ssml(text: str, voice_name: str, voice_rate: float) -> str:
         else "en-US"
     )
     escaped_text = escape(text)
+    escaped_voice_locale = escape(voice_locale, {'"': "&quot;"})
     escaped_voice_name = escape(voice_name, {'"': "&quot;"})
     return (
         '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" '
-        f'xml:lang="{voice_locale}">'
+        f'xml:lang="{escaped_voice_locale}">'
         f'<voice name="{escaped_voice_name}">'
         f'<prosody rate="{normalized_rate:g}">{escaped_text}</prosody>'
         "</voice></speak>"
