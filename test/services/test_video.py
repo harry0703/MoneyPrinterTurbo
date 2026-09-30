@@ -1511,6 +1511,201 @@ class TestVideoService(unittest.TestCase):
             "逐片段处理日志必须归属发起合成的任务线程",
         )
 
+    def test_combine_videos_reports_covered_duration_as_progress(self):
+        """
+        片段处理是合成阶段最耗时的部分（4K 素材每段约 20 秒），此前整个阶段
+        进度固定在 50%。每处理完一段都要报告已覆盖的成片时长比例，并写一条
+        带覆盖时长的日志；全部覆盖后比例封顶为 1.0。
+        """
+
+        class _FakeAudioClip:
+            duration = 4.0
+
+            def close(self):
+                pass
+
+        class _FakeVideoClip:
+            def __init__(self, duration):
+                self.duration = duration
+                self.size = (1080, 1920)
+                self.w = 1080
+                self.h = 1920
+
+            def subclipped(self, start_time, end_time):
+                return _FakeVideoClip(end_time - start_time)
+
+            def close(self):
+                pass
+
+        fractions = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()),
+                patch.object(
+                    vd,
+                    "_open_video_clip_quietly",
+                    side_effect=lambda _path: _FakeVideoClip(10.0),
+                ),
+                patch.object(vd, "_write_videofile_with_codec_fallback"),
+                patch.object(vd, "concat_video_clips_with_ffmpeg"),
+                patch.object(vd, "delete_files"),
+                patch.object(vd.logger, "info") as info,
+            ):
+                vd.combine_videos(
+                    combined_video_path=os.path.join(temp_dir, "combined.mp4"),
+                    # 顺序模式下每个源文件只取一段，三个源文件对应三段。
+                    video_paths=["a.mp4", "b.mp4", "c.mp4"],
+                    audio_file="audio.mp3",
+                    video_concat_mode=vd.VideoConcatMode.sequential,
+                    max_clip_duration=2,
+                    progress_callback=fractions.append,
+                )
+
+        # 配音 4.0 秒加 0.1 秒安全余量，每段 2 秒：需要 3 段才覆盖 4.1 秒。
+        self.assertEqual(len(fractions), 3)
+        self.assertEqual(fractions, sorted(fractions))
+        self.assertAlmostEqual(fractions[0], 2.0 / 4.1, places=3)
+        self.assertEqual(fractions[-1], 1.0)
+        processed = [
+            str(call.args[0])
+            for call in info.call_args_list
+            if str(call.args[0]).startswith("processed clip")
+        ]
+        self.assertEqual(
+            processed,
+            [
+                "processed clip 1: 2.0 of 4.1s covered",
+                "processed clip 2: 4.0 of 4.1s covered",
+                "processed clip 3: 6.0 of 4.1s covered",
+            ],
+        )
+
+    def test_failing_clip_progress_callback_does_not_break_combine(self):
+        """进度只是展示信息，回调出错不能让已经处理好的片段作废。"""
+
+        class _FakeAudioClip:
+            duration = 1.0
+
+            def close(self):
+                pass
+
+        class _FakeVideoClip:
+            def __init__(self, duration):
+                self.duration = duration
+                self.size = (1080, 1920)
+                self.w = 1080
+                self.h = 1920
+
+            def subclipped(self, start_time, end_time):
+                return _FakeVideoClip(end_time - start_time)
+
+            def close(self):
+                pass
+
+        def broken_callback(_fraction):
+            raise RuntimeError("state backend unavailable")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            combined_video_path = os.path.join(temp_dir, "combined.mp4")
+            with (
+                patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()),
+                patch.object(
+                    vd,
+                    "_open_video_clip_quietly",
+                    side_effect=lambda _path: _FakeVideoClip(10.0),
+                ),
+                patch.object(vd, "_write_videofile_with_codec_fallback"),
+                patch.object(vd, "concat_video_clips_with_ffmpeg") as concat,
+                patch.object(vd, "delete_files"),
+                patch.object(vd.logger, "warning") as warning,
+            ):
+                result = vd.combine_videos(
+                    combined_video_path=combined_video_path,
+                    video_paths=["clip.mp4"],
+                    audio_file="audio.mp3",
+                    video_concat_mode=vd.VideoConcatMode.sequential,
+                    max_clip_duration=2,
+                    progress_callback=broken_callback,
+                )
+
+        self.assertEqual(result, combined_video_path)
+        concat.assert_called_once()
+        self.assertTrue(
+            [
+                call
+                for call in warning.call_args_list
+                if "progress" in str(call.args[0])
+            ]
+        )
+
+    def test_stage_heartbeat_logs_while_running_and_stops_afterwards(self):
+        """
+        最终成片编码期间 MoviePy 不输出任何日志。心跳要在阶段运行时按间隔
+        写出、归属任务线程，并在阶段结束后停止，不能留下继续刷日志的线程。
+        """
+        with (
+            patch.object(vd, "_STAGE_HEARTBEAT_SECONDS", 0.02),
+            _capture_task_scoped_logs() as messages,
+        ):
+            with vd._stage_heartbeat("final video render"):
+                time.sleep(0.2)
+            heartbeats_at_exit = len(
+                [m for m in messages if "still running" in m]
+            )
+            time.sleep(0.1)
+            heartbeats_later = len([m for m in messages if "still running" in m])
+
+        self.assertGreater(heartbeats_at_exit, 0)
+        self.assertEqual(heartbeats_later, heartbeats_at_exit)
+        self.assertRegex(
+            next(m for m in messages if "still running" in m),
+            r"^final video render still running: elapsed=\d+s$",
+        )
+
+    def test_stage_heartbeat_stops_when_the_stage_fails(self):
+        """阶段抛出异常时心跳线程同样要停止，异常原样向外传播。"""
+        with patch.object(vd, "_STAGE_HEARTBEAT_SECONDS", 0.02):
+            with _capture_task_scoped_logs() as messages:
+                with self.assertRaisesRegex(RuntimeError, "encode failed"):
+                    with vd._stage_heartbeat("final video render"):
+                        raise RuntimeError("encode failed")
+                time.sleep(0.1)
+
+        self.assertEqual([m for m in messages if "still running" in m], [])
+
+    def test_generate_video_reports_heartbeat_during_final_render(self):
+        """最终编码耗时数分钟，期间必须有存活日志。"""
+        params = vd.VideoParams(
+            video_subject="test", subtitle_enabled=False, bgm_type=""
+        )
+
+        def slow_write(*_args, **_kwargs):
+            time.sleep(0.2)
+
+        with (
+            patch.object(vd, "_STAGE_HEARTBEAT_SECONDS", 0.02),
+            patch.object(
+                vd, "_open_video_clip_quietly", return_value=_FakeMoviePyClip()
+            ),
+            patch.object(vd, "AudioFileClip", return_value=_FakeMoviePyClip()),
+            patch.object(
+                vd, "_write_videofile_with_codec_fallback", side_effect=slow_write
+            ),
+            patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+            _capture_task_scoped_logs() as messages,
+        ):
+            vd.generate_video(
+                video_path="combined.mp4",
+                audio_path="voice.mp3",
+                subtitle_path="",
+                output_file="final.mp4",
+                params=params,
+            )
+
+        self.assertTrue(
+            [m for m in messages if m.startswith("final video render still running")]
+        )
+
     def test_concat_timeout_fails_without_retrying_another_codec(self):
         """A stalled FFmpeg must fail the task and release the concat list file."""
         config.app["ffmpeg_concat_timeout_seconds"] = 12
