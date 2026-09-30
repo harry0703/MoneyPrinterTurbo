@@ -27,7 +27,7 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, features
 
 from app.config import config
 from app.models import const
@@ -1374,6 +1374,58 @@ def subtitle_font_supports_text(font_path: str, text: str) -> bool:
     return _subtitle_font_supports_sample(font_path, sample)
 
 
+# 这些 Unicode 区段的文字必须经过整形（字形重排、合字、连写或从右到左
+# 排版）才能正确显示。Pillow 只有带 Raqm 布局引擎时才会整形，否则退回
+# basic 布局逐码位从左到右绘制：天城文的元音符号会错位、合字被拆开，
+# 阿拉伯文不连写且顺序颠倒。这里只列入 basic 布局确定无法正确渲染的
+# 文字；泰文、越南文等不需要重排的文字不在其中，避免对正常字幕误报。
+_COMPLEX_SHAPING_RANGES = (
+    (0x0590, 0x08FF),  # 希伯来文、阿拉伯文、叙利亚文、它拿文等从右到左文字
+    (0x0900, 0x0DFF),  # 天城文、孟加拉文、泰米尔文、僧伽罗文等印度系文字
+)
+
+
+def _complex_text_layout_available() -> bool:
+    """
+    Pillow 当前是否带有 Raqm 布局引擎。
+
+    Pillow 的 wheel 自带 Raqm，但 FriBiDi 需要在运行时另行加载；系统里找
+    不到 FriBiDi 时 Raqm 整体不可用。Windows 默认没有这个库，是印地语等
+    字幕显示错乱的常见原因。
+    """
+    return bool(features.check("raqm"))
+
+
+def subtitle_text_needs_unavailable_shaping(text: str) -> bool:
+    """文本包含需要整形的文字、而当前环境无法整形时返回 True。"""
+    if not any(
+        start <= ord(char) <= end
+        for char in str(text or "")
+        for start, end in _COMPLEX_SHAPING_RANGES
+    ):
+        return False
+    return not _complex_text_layout_available()
+
+
+def _warn_if_subtitle_shaping_unavailable(subtitles) -> None:
+    """
+    字幕需要整形而环境不支持时写一条日志，说明原因和处理办法。
+
+    WebUI 会在字幕设置区域就近提示，CLI 和 API 调用只能依靠日志。每条
+    字幕都会遇到同样的问题，因此对整段字幕只检查并提示一次，避免刷屏。
+    渲染仍然继续：文字错位但可辨认，是否重新生成由用户决定。
+    """
+    subtitle_text = "".join(str(item[1]) for item in subtitles)
+    if not subtitle_text_needs_unavailable_shaping(subtitle_text):
+        return
+    logger.warning(
+        "subtitles contain a complex script (for example Hindi or Arabic), but "
+        "Pillow cannot load FriBiDi, so its Raqm text layout is unavailable and "
+        "letters may render misplaced or disconnected. Install FriBiDi and "
+        "restart; see the subtitle FAQ in the README."
+    )
+
+
 def generate_video(
     video_path: str,
     audio_path: str,
@@ -1624,6 +1676,7 @@ def generate_video(
                     make_textclip=make_textclip,
                 )
             )
+            _warn_if_subtitle_shaping_unavailable(sub.subtitles)
             text_clips = []
             for item in sub.subtitles:
                 clip = create_text_clip(subtitle_item=item)

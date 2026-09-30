@@ -211,6 +211,7 @@
     "Rounded Subtitle Background Help": "默认关闭。开启后字幕背景会显示为更贴合文字宽度的圆角半透明样式。",
     "Subtitle Colors Are Indistinguishable": "字幕颜色和背景颜色相同，生成后字幕可能不可见。",
     "Subtitle Font Does Not Support Text": "当前字幕字体不支持文案中的部分字符，生成后字幕可能缺失。",
+    "Subtitle Text Shaping Unavailable": "文案包含印地语、阿拉伯语等需要文字整形的语言，但当前环境未找到 FriBiDi 库，字幕中的字符可能错位或断开。处理方法见 README 常见问题。",
     "Restore Default Subtitle Settings": "恢复默认字幕设置",
     "Default Subtitle Settings Restored": "已恢复默认字幕设置",
     "Generate Video": "生成视频",

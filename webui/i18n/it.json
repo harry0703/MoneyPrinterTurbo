@@ -204,6 +204,7 @@
     "Rounded Subtitle Background Help": "Disabilitato per impostazione predefinita. Se abilitato, lo sfondo dei sottotitoli utilizza uno stile arrotondato e traslucido che si adatta meglio alla larghezza del testo.",
     "Subtitle Colors Are Indistinguishable": "Il testo e lo sfondo dei sottotitoli usano lo stesso colore, quindi i sottotitoli potrebbero non essere visibili.",
     "Subtitle Font Does Not Support Text": "Il carattere selezionato per i sottotitoli non supporta alcuni caratteri del testo, quindi alcuni sottotitoli potrebbero mancare.",
+    "Subtitle Text Shaping Unavailable": "Il testo usa un sistema di scrittura (come hindi o arabo) che richiede la libreria FriBiDi, che non è stata trovata. Le lettere dei sottotitoli potrebbero apparire fuori posto o scollegate. Consulta le FAQ nel README.",
     "Restore Default Subtitle Settings": "Ripristina valori predefiniti dei sottotitoli",
     "Default Subtitle Settings Restored": "Impostazioni predefinite dei sottotitoli ripristinate",
     "Generate Video": "Genera video",

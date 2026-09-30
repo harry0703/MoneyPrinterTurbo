@@ -511,6 +511,9 @@ Background music for videos is located in the project's `resource/songs` directo
 Fonts for rendering video subtitles are located in the project's `resource/fonts` directory, and you can also add your
 own fonts.
 
+Choose a font that covers the language of your script. For Hindi and other languages written in Devanagari, use the
+bundled `NotoSansDevanagari-Bold.ttf` or `NotoSansDevanagari-Regular.ttf`.
+
 ## Common Questions 🤔
 
 <details>
@@ -573,6 +576,36 @@ Trying to load the model directly from the local cache, if it exists.
 ```
 
 Solution: [See how to download the model manually from Hugging Face](#subtitle-generation)
+
+</details>
+
+<details>
+<summary>Hindi, Arabic, or other complex-script subtitles show misplaced or disconnected letters</summary>
+
+Scripts such as Devanagari (Hindi), Bengali, Tamil, Arabic, and Hebrew need text shaping to display correctly: vowel
+signs have to be reordered and letters joined. Pillow only shapes text when it can load the FriBiDi library at runtime.
+Without it, subtitles are still generated, but the letters come out misplaced or disconnected, and the WebUI and the
+logs show a warning.
+
+First, select a subtitle font that covers the script, for example `NotoSansDevanagari-Bold.ttf` for Hindi.
+
+Then check whether text shaping is available. Run this from the project root directory:
+
+```shell
+uv run python -c "from PIL import features; print(features.check('raqm'))"
+```
+
+If it prints `False`, install FriBiDi and restart MoneyPrinterTurbo:
+
+- **Windows**: FriBiDi is not included with Windows or with Pillow. Get a 64-bit `fribidi.dll` (the file names
+  `fribidi-0.dll` and `libfribidi-0.dll` also work), for example `libfribidi-0.dll` from the
+  [MSYS2 `mingw-w64-x86_64-fribidi` package](https://packages.msys2.org/packages/mingw-w64-x86_64-fribidi), and place
+  it in the project root directory (the folder that contains `webui.bat`) or in any directory on `PATH`.
+- **Debian / Ubuntu**: `sudo apt install libfribidi0`
+- **macOS**: `brew install fribidi`
+
+Run the check again afterwards; it should print `True`. The Docker images already include FriBiDi, because it is
+installed together with `ffmpeg`.
 
 </details>
 

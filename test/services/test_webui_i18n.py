@@ -199,6 +199,25 @@ def _markdown_urls(value):
     return set(MARKDOWN_URL_PATTERN.findall(value))
 
 
+def _webui_support_locales():
+    """
+    从 WebUI 源码静态读取文案语言下拉的候选项，未找到时返回 None。
+
+    直接导入 webui/Main.py 会执行整个 Streamlit 页面，因此用 AST 取模块级
+    `support_locales` 字面量，既不启动界面也能锁定下拉内容。
+    """
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "support_locales"
+            for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    return None
+
+
 class TestWebuiI18n(unittest.TestCase):
     def test_catalan_locale_is_discovered_and_matches_browser_variants(self):
         """语言文件自动注册；区域变体回退到 ca，但不覆盖用户已保存的选择。"""
@@ -350,22 +369,21 @@ class TestWebuiI18n(unittest.TestCase):
                     )
 
     def test_script_language_options_include_russian_and_catalan(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-        support_locales = None
-
-        for node in tree.body:
-            if not isinstance(node, ast.Assign):
-                continue
-            if any(
-                isinstance(target, ast.Name) and target.id == "support_locales"
-                for target in node.targets
-            ):
-                support_locales = ast.literal_eval(node.value)
-                break
+        support_locales = _webui_support_locales()
 
         self.assertIsNotNone(support_locales)
         self.assertIn("ru-RU", support_locales)
         self.assertIn("ca-ES", support_locales)
+
+    def test_script_language_options_include_hindi(self):
+        """
+        印地语此前只能依赖“自动检测”按主题语言生成，下拉里没有对应选项。
+        这里锁定 hi-IN，保证用英文主题也能显式要求模型输出印地语文案。
+        """
+        support_locales = _webui_support_locales()
+
+        self.assertIsNotNone(support_locales)
+        self.assertIn("hi-IN", support_locales)
 
     def test_locale_files_do_not_redefine_a_translation_key(self):
         """

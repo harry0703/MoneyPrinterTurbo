@@ -198,6 +198,7 @@
     "Rounded Subtitle Background Help": "Standart olaraq deaktivdir. Aktivləşdirildikdə altyazı fonları mətnin eninə daha yaxşı uyğunlaşan yuvarlaq künclü, yarımşəffaf üslubdan istifadə edir.",
     "Subtitle Colors Are Indistinguishable": "Altyazı mətni və fonu eyni rəngdədir, buna görə də altyazılar görünməyə bilər.",
     "Subtitle Font Does Not Support Text": "Seçilmiş altyazı şrifti ssenaridəki bəzi simvolları dəstəkləmir, buna görə də altyazılar görünməyə bilər.",
+    "Subtitle Text Shaping Unavailable": "Ssenaridə FriBiDi mətn formalaşdırma kitabxanasını tələb edən yazı sistemi (məsələn, hind və ya ərəb dili) istifadə olunur, lakin bu kitabxana tapılmadı. Altyazıdakı hərflər yerini dəyişə və ya bir-birindən ayrıla bilər. README faylındakı tez-tez verilən suallar bölməsinə baxın.",
     "Restore Default Subtitle Settings": "Standart altyazı parametrlərini bərpa et",
     "Default Subtitle Settings Restored": "Standart altyazı parametrləri bərpa edildi",
     "Generate Video": "Video yarat",

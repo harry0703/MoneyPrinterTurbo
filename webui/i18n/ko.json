@@ -204,6 +204,7 @@
     "Rounded Subtitle Background Help": "기본적으로 비활성화되어 있습니다. 활성화하면 텍스트 너비에 맞는 둥근 반투명 스타일의 자막 배경을 사용합니다.",
     "Subtitle Colors Are Indistinguishable": "자막 글자와 배경이 같은 색이라 자막이 보이지 않을 수 있습니다.",
     "Subtitle Font Does Not Support Text": "선택한 자막 글꼴이 스크립트의 일부 문자를 지원하지 않아 자막이 누락될 수 있습니다.",
+    "Subtitle Text Shaping Unavailable": "스크립트에 FriBiDi 라이브러리가 필요한 문자(예: 힌디어, 아랍어)가 포함되어 있지만 해당 라이브러리를 찾을 수 없습니다. 자막 글자가 잘못 배치되거나 끊어져 보일 수 있습니다. README의 자주 묻는 질문을 참고하세요.",
     "Restore Default Subtitle Settings": "자막 기본값 복원",
     "Default Subtitle Settings Restored": "자막 기본 설정이 복원되었습니다",
     "Generate Video": "영상 생성",

@@ -204,6 +204,7 @@
     "Rounded Subtitle Background Help": "Desativado por padrão. Quando ativado, o fundo das legendas usa um estilo arredondado e translúcido que se ajusta melhor à largura do texto.",
     "Subtitle Colors Are Indistinguishable": "Texto e fundo usam a mesma cor, por isso as legendas podem não ficar visíveis.",
     "Subtitle Font Does Not Support Text": "A fonte escolhida não suporta alguns caracteres do roteiro, por isso podem faltar legendas.",
+    "Subtitle Text Shaping Unavailable": "O roteiro usa um sistema de escrita (como hindi ou árabe) que precisa da biblioteca FriBiDi, que não foi encontrada. As letras das legendas podem aparecer fora do lugar ou desconectadas. Consulte as perguntas frequentes no README.",
     "Restore Default Subtitle Settings": "Restaurar legendas",
     "Default Subtitle Settings Restored": "Definições de legendas restauradas",
     "Generate Video": "Gerar Vídeo",

@@ -495,6 +495,9 @@ MoneyPrinterTurbo
 
 用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
 
+请选择能覆盖文案语言的字体。印地语等使用天城文的语言，可以选择内置的 `NotoSansDevanagari-Bold.ttf` 或
+`NotoSansDevanagari-Regular.ttf`。
+
 ## 常见问题 🤔
 
 <details>
@@ -556,6 +559,34 @@ Trying to load the model directly from the local cache, if it exists.
 ```
 
 解决方法：[查看如何从 Hugging Face 手动下载模型](#字幕生成)
+
+</details>
+
+<details>
+<summary>印地语、阿拉伯语等字幕的字符错位或断开</summary>
+
+天城文（印地语）、孟加拉文、泰米尔文、阿拉伯文、希伯来文等文字需要经过文字整形才能正确显示：元音符号要重新排序，
+字母要连写。Pillow 只有在运行时能加载 FriBiDi 库的情况下才会整形；缺少该库时字幕仍会生成，但字符会错位或断开，
+WebUI 和日志中会给出提示。
+
+首先选择能覆盖该文字的字幕字体，例如印地语使用 `NotoSansDevanagari-Bold.ttf`。
+
+然后在项目根目录下检查当前环境是否支持文字整形：
+
+```shell
+uv run python -c "from PIL import features; print(features.check('raqm'))"
+```
+
+如果输出 `False`，请安装 FriBiDi 后重启 MoneyPrinterTurbo：
+
+- **Windows**：系统和 Pillow 都不自带 FriBiDi。请准备 64 位的 `fribidi.dll`（文件名为 `fribidi-0.dll` 或
+  `libfribidi-0.dll` 也可以），例如
+  [MSYS2 `mingw-w64-x86_64-fribidi` 包](https://packages.msys2.org/packages/mingw-w64-x86_64-fribidi) 中的
+  `libfribidi-0.dll`，放到项目根目录（`webui.bat` 所在目录）或任意 `PATH` 目录下。
+- **Debian / Ubuntu**：`sudo apt install libfribidi0`
+- **macOS**：`brew install fribidi`
+
+安装后再次执行检查命令，应输出 `True`。Docker 镜像已经包含 FriBiDi，它会随 `ffmpeg` 一起安装。
 
 </details>
 

@@ -204,6 +204,7 @@
     "Rounded Subtitle Background Help": "Nonaktif secara default. Saat diaktifkan, latar belakang subtitle menggunakan gaya transparan melengkung yang lebih sesuai dengan lebar teks.",
     "Subtitle Colors Are Indistinguishable": "Teks dan latar memakai warna yang sama, sehingga subtitel mungkin tidak terlihat.",
     "Subtitle Font Does Not Support Text": "Font subtitel tidak mendukung beberapa karakter naskah, sehingga subtitel mungkin hilang.",
+    "Subtitle Text Shaping Unavailable": "Naskah menggunakan sistem tulisan (seperti Hindi atau Arab) yang memerlukan pustaka FriBiDi, tetapi pustaka itu tidak ditemukan. Huruf subtitel mungkin tampil salah posisi atau terputus. Lihat FAQ di README.",
     "Restore Default Subtitle Settings": "Pulihkan Setelan Subtitel",
     "Default Subtitle Settings Restored": "Setelan subtitel bawaan dipulihkan",
     "Generate Video": "Hasilkan Video",

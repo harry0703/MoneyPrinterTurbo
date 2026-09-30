@@ -1667,8 +1667,8 @@ class TestVideoService(unittest.TestCase):
 
         仅检查 wrap_text() 返回值会漏掉 Pillow/MoviePy 在 baseline、描边和
         行间距上的组合差异，因此这里直接读取 TextClip 的透明 mask。覆盖文本
-        均由对应内置字体完整支持，包括英文、越南语、泰语、简繁中文、俄语
-        和希腊语；只要可见像素触及最后一行，就说明仍存在静默裁切风险。
+        均由对应内置字体完整支持，包括英文、越南语、泰语、简繁中文、俄语、
+        希腊语和印地语；只要可见像素触及最后一行，就说明仍存在静默裁切风险。
         """
         font_size = 60
         max_width = 360
@@ -1710,6 +1710,11 @@ class TestVideoService(unittest.TestCase):
                 "greek",
                 "STHeitiLight.ttc",
                 "Αυτό είναι κείμενο για τον έλεγχο της τελευταίας γραμμής",
+            ),
+            (
+                "hindi",
+                "NotoSansDevanagari-Bold.ttf",
+                "यह वाक्य उपशीर्षक की अंतिम पंक्ति की जाँच के लिए है",
             ),
         )
 
