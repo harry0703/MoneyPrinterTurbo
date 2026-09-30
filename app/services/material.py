@@ -1111,6 +1111,28 @@ def _get_downloaded_video_duration(video_path: str) -> float:
     return duration
 
 
+# requests 流式下载期间不产生任何日志。慢速网络下单个 4K 素材要下载数分钟，
+# 任务看起来像卡死。超过这个间隔仍未下完时记录已下载大小和速度；间隔内
+# 完成的小文件不产生额外日志，避免刷屏。
+_DOWNLOAD_HEARTBEAT_SECONDS = 15.0
+_BYTES_PER_MEGABYTE = 1024 * 1024
+
+
+def _describe_download_progress(
+    downloaded_bytes: int, declared_size: int, elapsed_seconds: float
+) -> str:
+    """把下载进度整理成一段日志文字；服务器未声明大小时不给百分比。"""
+    downloaded_mb = downloaded_bytes / _BYTES_PER_MEGABYTE
+    speed = downloaded_mb / elapsed_seconds if elapsed_seconds > 0 else 0.0
+    if declared_size > 0:
+        percent = min(100, round(downloaded_bytes * 100 / declared_size))
+        return (
+            f"{downloaded_mb:.1f} of {declared_size / _BYTES_PER_MEGABYTE:.1f} MB "
+            f"({percent}%), {speed:.2f} MB/s"
+        )
+    return f"{downloaded_mb:.1f} MB, {speed:.2f} MB/s"
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -1166,12 +1188,26 @@ def save_video(video_url: str, save_dir: str = "") -> str:
                     raise ValueError("video download exceeds 512 MB limit")
 
                 downloaded_bytes = 0
+                started_at = time.monotonic()
+                last_report_at = started_at
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
                         downloaded_bytes += len(chunk)
                         if downloaded_bytes > MAX_VIDEO_DOWNLOAD_BYTES:
                             raise ValueError("video download exceeds 512 MB limit")
                         temp_file.write(chunk)
+                        now = time.monotonic()
+                        if now - last_report_at >= _DOWNLOAD_HEARTBEAT_SECONDS:
+                            last_report_at = now
+                            # 只记录缓存文件名：下载地址可能带签名或密钥。
+                            logger.info(
+                                f"downloading video {video_id}.mp4: "
+                                + _describe_download_progress(
+                                    downloaded_bytes,
+                                    declared_size,
+                                    now - started_at,
+                                )
+                            )
 
         if os.path.getsize(temp_path) == 0:
             return ""
@@ -1917,18 +1953,84 @@ def _search_terms_in_parallel(
         return results
 
 
+def _report_material_downloaded(
+    position: int,
+    total: int,
+    item: MaterialInfo,
+    saved_video_path: str,
+    on_downloaded: Callable[[MaterialInfo], None] | None,
+) -> None:
+    """
+    记录一个素材已下载完成，并通知调用方更新进度。
+
+    始终在发起下载的线程里调用，逐文件日志和进度更新不依赖下载并发数。
+    """
+    description = os.path.basename(saved_video_path)
+    try:
+        size_mb = os.path.getsize(saved_video_path) / _BYTES_PER_MEGABYTE
+        description += f" ({size_mb:.1f} MB)"
+    except OSError:
+        # 文件大小只是辅助信息，读不到时不影响下载结果。
+        pass
+    logger.info(f"downloaded material {position}/{total}: {description}")
+    if on_downloaded is None:
+        return
+    try:
+        on_downloaded(item)
+    except Exception as exc:
+        # 进度只是展示信息。回调失败（例如状态后端暂时不可用）不能让已经
+        # 成功下载的素材作废，更不能中断整个任务。
+        logger.warning(
+            "failed to report material download progress: "
+            f"error={type(exc).__name__}, detail={exc}"
+        )
+
+
+def _covered_duration_reporter(
+    progress_callback: Callable[[float], None] | None,
+    required_duration: float,
+    max_clip_duration: int,
+) -> Callable[[MaterialInfo], None] | None:
+    """
+    生成逐素材回调：把“已覆盖的配音时长”换算成 0~1 的下载进度。
+
+    口径与下载循环的停止条件一致——每个素材最多贡献一个片段时长，覆盖到
+    所需时长即完成，因此超出部分封顶为 1.0。没有进度回调时返回 None。
+    """
+    if progress_callback is None:
+        return None
+    covered_duration = 0.0
+
+    def report(item: MaterialInfo) -> None:
+        nonlocal covered_duration
+        covered_duration += min(max_clip_duration, item.duration)
+        fraction = 1.0
+        if required_duration > 0:
+            fraction = min(1.0, covered_duration / required_duration)
+        progress_callback(fraction)
+
+    return report
+
+
 def _download_materials_in_parallel(
     materials: List[tuple[str, MaterialInfo]],
     material_directory: str,
+    on_downloaded: Callable[[MaterialInfo], None] | None = None,
 ) -> list[tuple[str, MaterialInfo, str]]:
-    """并行下载一轮素材，保留调用方传入的候选顺序。"""
+    """
+    并行下载一轮素材，保留调用方传入的候选顺序。
+
+    每个素材下载成功后记录一条日志并调用 ``on_downloaded``，调用方据此更新
+    任务进度。回调和日志都发生在调用本函数的线程里。
+    """
     if not materials:
         return []
 
-    workers = min(_get_material_concurrency(), len(materials))
+    total = len(materials)
+    workers = min(_get_material_concurrency(), total)
     if workers == 1:
         downloaded = []
-        for search_term, item in materials:
+        for position, (search_term, item) in enumerate(materials, start=1):
             try:
                 saved_video_path = save_video(
                     video_url=item.url,
@@ -1944,6 +2046,9 @@ def _download_materials_in_parallel(
                 continue
             if saved_video_path:
                 downloaded.append((search_term, item, saved_video_path))
+                _report_material_downloaded(
+                    position, total, item, saved_video_path, on_downloaded
+                )
         return downloaded
 
     futures = {}
@@ -1959,7 +2064,7 @@ def _download_materials_in_parallel(
             )] = (search_term, item)
 
         downloaded = []
-        for future in futures:
+        for position, future in enumerate(futures, start=1):
             search_term, item = futures[future]
             try:
                 saved_video_path = future.result()
@@ -1973,6 +2078,9 @@ def _download_materials_in_parallel(
                 continue
             if saved_video_path:
                 downloaded.append((search_term, item, saved_video_path))
+                _report_material_downloaded(
+                    position, total, item, saved_video_path, on_downloaded
+                )
         return downloaded
 
 
@@ -2008,7 +2116,15 @@ def download_videos(
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
     match_script_order: bool = False,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> List[str]:
+    """
+    搜索并下载覆盖配音时长所需的素材，返回本地文件路径。
+
+    ``progress_callback`` 可选：库存素材（Pexels、Pixabay、Coverr）每下完一个
+    文件就以 0~1 的完成比例调用一次，供任务层推进进度条。按需生成的付费
+    素材源不报告下载进度。
+    """
     provider = "pexels"
     remote_search_videos = search_videos_pexels
     if source == "pixabay":
@@ -2118,6 +2234,7 @@ def download_videos(
             audio_duration=audio_duration,
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
+            progress_callback=progress_callback,
         )
 
     valid_video_items = []
@@ -2146,6 +2263,9 @@ def download_videos(
         random.shuffle(valid_video_items)
 
     total_duration = 0.0
+    on_downloaded = _covered_duration_reporter(
+        progress_callback, audio_duration, max_clip_duration
+    )
     pending_items = list(valid_video_items)
     # 默认/随机路径同样受素材并发配置控制：按串行逻辑的停止条件预选每轮
     # 候选（顺序累加、首次超过配音时长即停）。全部下载成功时，每轮下载集合
@@ -2167,6 +2287,7 @@ def download_videos(
         downloaded_materials = _download_materials_in_parallel(
             materials=[("", item) for item in batch],
             material_directory=material_directory,
+            on_downloaded=on_downloaded,
         )
         pending_items = pending_items[len(batch):]
         for _, item, saved_video_path in downloaded_materials:
@@ -2769,6 +2890,7 @@ def _download_videos_by_script_order(
     audio_duration: float,
     max_clip_duration: int,
     material_directory: str,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> List[str]:
     """
     按脚本文案顺序下载素材。
@@ -2809,6 +2931,9 @@ def _download_videos_by_script_order(
     video_paths = []
     material_sources: list[dict[str, Any]] = []
     total_duration = 0.0
+    on_downloaded = _covered_duration_reporter(
+        progress_callback, audio_duration, max_clip_duration
+    )
     # 每个关键词独立推进候选下标：只有本轮真正被选中下载的候选才推进，
     # 未被选中的候选保留到下一轮，避免被整轮统一的下标跳过。
     next_candidate_indices = [0] * len(candidate_groups)
@@ -2844,6 +2969,7 @@ def _download_videos_by_script_order(
         downloaded_materials = _download_materials_in_parallel(
             materials=selected_materials,
             material_directory=material_directory,
+            on_downloaded=on_downloaded,
         )
         for search_term, item, saved_video_path in downloaded_materials:
             try:
