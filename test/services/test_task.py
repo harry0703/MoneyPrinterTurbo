@@ -192,6 +192,52 @@ class TestTaskService(unittest.TestCase):
         self.assertEqual(result, ["a.mp4"])
         self.assertEqual(observed, [42, 45, 50])
 
+    def test_clip_processing_moves_progress_through_the_combine_half(self):
+        """
+        片段处理期间进度此前固定在 50%。合成占每条视频进度份额的前一半：
+        单条视频时为 50%~75%，两条视频时第二条从 75% 开始。
+        """
+        for video_count, expected in (
+            (1, [[62, 75]]),
+            (2, [[56, 62], [81, 87]]),
+        ):
+            with self.subTest(video_count=video_count):
+                params = VideoParams(video_subject="test", video_count=video_count)
+                state = MemoryState()
+                state.update_task("combine-progress", progress=50)
+                observed = []
+
+                def fake_combine_videos(**kwargs):
+                    seen = []
+                    for fraction in (0.5, 1.0):
+                        kwargs["progress_callback"](fraction)
+                        seen.append(
+                            state.get_task("combine-progress")["progress"]
+                        )
+                    observed.append(seen)
+
+                with (
+                    patch.object(tm.sm, "state", state),
+                    patch.object(
+                        tm.video, "combine_videos", side_effect=fake_combine_videos
+                    ),
+                    patch.object(tm.video, "generate_video"),
+                    patch.object(tm.task_artifacts, "patch_script_data"),
+                ):
+                    tm.generate_final_videos(
+                        task_id="combine-progress",
+                        params=params,
+                        downloaded_videos=["material.mp4"],
+                        audio_file="audio.mp3",
+                        subtitle_path="",
+                        audio_duration=5,
+                    )
+
+                self.assertEqual(observed, expected)
+                self.assertEqual(
+                    state.get_task("combine-progress")["progress"], 100
+                )
+
     def test_generate_final_videos_uses_generated_sonilo_music(self):
         """Sonilo 必须针对每条拼接后的视频生成配乐，并传给最终混音。"""
         params = VideoParams(

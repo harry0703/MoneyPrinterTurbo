@@ -983,6 +983,9 @@ def generate_final_videos(
             }
             if allocate_batch_materials else {}
         )
+        # 每条视频占 50% 进度中的一份，合成与最终编码各占一半。片段处理是
+        # 合成里最耗时的部分，逐段推进这一半的进度。
+        combine_share = 50 / params.video_count / 2
         video.combine_videos(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
@@ -994,6 +997,9 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             clip_speed=params.video_clip_speed,
+            progress_callback=_stage_progress_reporter(
+                task_id, _progress, _progress + combine_share
+            ),
             **batch_options,
         )
         if allocate_batch_materials:

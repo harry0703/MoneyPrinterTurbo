@@ -11,9 +11,9 @@ import tempfile
 import threading
 import time
 import unicodedata
-from contextlib import ExitStack, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from functools import lru_cache
-from typing import List
+from typing import Callable, List
 from loguru import logger
 import numpy as np
 from moviepy import (
@@ -99,6 +99,9 @@ _DEFAULT_VIDEO_CODEC = "libx264"
 # ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
 # 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
 _FFMPEG_CONCAT_HEARTBEAT_SECONDS = 30.0
+# MoviePy 写出最终成片时同样没有任何日志，一分钟的竖屏视频在 CPU 上要编码数
+# 分钟。沿用拼接阶段的做法，按间隔记录存活信息。
+_STAGE_HEARTBEAT_SECONDS = 30.0
 _DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS = 3600
 _SUBTITLE_SPRING_DURATION_SECONDS = 0.18
 _MIN_SUBTITLE_SPRING_SCALE = 0.05
@@ -496,6 +499,58 @@ def _describe_concat_output_progress(output_file: str) -> str:
     return f"output size: {size / (1024 * 1024):.2f} MB"
 
 
+@contextmanager
+def _stage_heartbeat(description: str):
+    """
+    在一个没有自身日志的耗时阶段期间，按间隔记录存活日志。
+
+    心跳线程绑定到进入该阶段的线程，日志才会出现在所属任务的 WebUI 面板。
+    阶段结束或抛出异常时停止并等待心跳线程退出，避免阶段已经结束后仍然
+    写出“still running”。
+    """
+    started_at = time.monotonic()
+    stop_event = threading.Event()
+
+    def log_heartbeat() -> None:
+        while not stop_event.wait(_STAGE_HEARTBEAT_SECONDS):
+            logger.info(
+                f"{description} still running: "
+                f"elapsed={time.monotonic() - started_at:.0f}s"
+            )
+
+    reporter = threading.Thread(
+        target=logging_utils.bind_log_scope(log_heartbeat), daemon=True
+    )
+    reporter.start()
+    try:
+        yield
+    finally:
+        stop_event.set()
+        reporter.join(timeout=1)
+
+
+def _report_clip_progress(
+    progress_callback: Callable[[float], None] | None,
+    covered_duration: float,
+    required_duration: float,
+) -> None:
+    """把已覆盖的成片时长换算成 0~1 的比例并通知调用方。"""
+    if progress_callback is None:
+        return
+    fraction = 1.0
+    if required_duration > 0:
+        fraction = min(1.0, covered_duration / required_duration)
+    try:
+        progress_callback(fraction)
+    except Exception as exc:
+        # 进度只是展示信息。回调失败（例如状态后端暂时不可用）不能让已经
+        # 处理好的片段作废。
+        logger.warning(
+            "failed to report clip processing progress: "
+            f"error={type(exc).__name__}, detail={exc}"
+        )
+
+
 def _run_concat_with_heartbeat(command: list[str], output_file: str):
     """
     阻塞等待 ffmpeg 完成，期间按间隔记录存活日志。
@@ -865,6 +920,7 @@ def combine_videos(
     source_usage: dict[str, int] | None = None,
     source_groups: dict[str, str] | None = None,
     used_video_paths: List[str] | None = None,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -1098,6 +1154,15 @@ def combine_videos(
                     continue
                 processed_clips.append(processed_clip)
                 video_duration += processed_clip.duration
+                # 每段 4K 素材要处理十几秒，逐段报告覆盖时长，日志和进度条
+                # 才能反映这一阶段仍在推进。
+                logger.info(
+                    f"processed clip {len(processed_clips)}: "
+                    f"{video_duration:.1f} of {required_video_duration:.1f}s covered"
+                )
+                _report_clip_progress(
+                    progress_callback, video_duration, required_video_duration
+                )
             next_candidate_index = candidate_index
     
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
@@ -1688,19 +1753,20 @@ def generate_video(
         # 显式沿用输入音频的采样率；如果取不到，再回退 MoviePy 默认的 44100Hz。
         # 这样可以减少不同环境，尤其 Docker 中再次重采样带来的音质波动。
         output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
-        _write_videofile_with_codec_fallback(
-            final_video_clip,
-            output_file=output_file,
-            codec=_get_configured_video_codec(),
-            atomic_output=True,
-            audio_codec=audio_codec,
-            audio_fps=output_audio_fps,
-            audio_bitrate=audio_bitrate,
-            temp_audiofile_path=_get_temp_audio_dir(output_dir),
-            threads=params.n_threads or 2,
-            logger=None,
-            fps=fps,
-        )
+        with _stage_heartbeat("final video render"):
+            _write_videofile_with_codec_fallback(
+                final_video_clip,
+                output_file=output_file,
+                codec=_get_configured_video_codec(),
+                atomic_output=True,
+                audio_codec=audio_codec,
+                audio_fps=output_audio_fps,
+                audio_bitrate=audio_bitrate,
+                temp_audiofile_path=_get_temp_audio_dir(output_dir),
+                threads=params.n_threads or 2,
+                logger=None,
+                fps=fps,
+            )
         return bgm_mix_succeeded
 
 
