@@ -21,6 +21,23 @@ _MAX_CONSECUTIVE_STATUS_ERRORS = 3
 class UploadPostService:
     API_BASE = "https://api.upload-post.com"
 
+    def __init__(self, account: dict | None = None):
+        # A background publish must keep its account across queueing and polling.
+        # Only the in-memory job carries this snapshot; it is never task metadata.
+        self._account = dict(account) if account is not None else None
+
+    def snapshot_account(self) -> dict:
+        settings = dict(config.app if self._account is None else self._account)
+        return {
+            "upload_post_api_key": settings.get("upload_post_api_key", ""),
+            "upload_post_username": settings.get("upload_post_username", ""),
+            "upload_post_enabled": settings.get("upload_post_enabled", False),
+        }
+
+    def _account_setting(self, key: str, default):
+        settings = config.app if self._account is None else self._account
+        return settings.get(key, default)
+
     @staticmethod
     def _with_platform_outcome(result: dict, expected_platforms: list | None = None) -> dict:
         """A successful API request can still contain failed platform publishes."""
@@ -121,15 +138,15 @@ class UploadPostService:
 
     @property
     def api_key(self) -> str:
-        return config.app.get("upload_post_api_key", "")
+        return self._account_setting("upload_post_api_key", "")
 
     @property
     def username(self) -> str:
-        return config.app.get("upload_post_username", "")
+        return self._account_setting("upload_post_username", "")
 
     @property
     def enabled(self) -> bool:
-        return config.app.get("upload_post_enabled", False)
+        return self._account_setting("upload_post_enabled", False)
 
     @property
     def platforms(self) -> list:
@@ -373,8 +390,10 @@ def cross_post_video(
     platforms: Optional[list] = None,
     youtube_extra: Optional[dict] = None,
     on_background_start: Callable[[str], None] | None = None,
+    account: dict | None = None,
 ) -> dict:
-    return upload_post_service.upload_video(
+    service = UploadPostService(account) if account is not None else upload_post_service
+    return service.upload_video(
         video_path,
         title,
         platforms,
