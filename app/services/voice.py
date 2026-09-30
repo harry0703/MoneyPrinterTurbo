@@ -1965,6 +1965,7 @@ def mimo_tts(
 
     _configure_pydub_ffmpeg(AudioSegment)
 
+    temporary_audio = None
     try:
         logger.info(
             f"start mimo tts, model: {model_name}, voice: {voice_name}"
@@ -2006,26 +2007,44 @@ def mimo_tts(
         audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
 
         output_format = utils.parse_extension(voice_file) or "mp3"
+        descriptor, temporary_audio = tempfile.mkstemp(
+            prefix=".mimo-tts-", suffix=f".{output_format}",
+            dir=os.path.dirname(os.path.abspath(voice_file)),
+        )
+        os.close(descriptor)
         if output_format == "wav":
-            with open(voice_file, "wb") as f:
+            with open(temporary_audio, "wb") as f:
                 f.write(audio_bytes)
         else:
-            audio_segment.export(voice_file, format=output_format)
+            exported_audio = audio_segment.export(temporary_audio, format=output_format)
+            if exported_audio is not None:
+                exported_audio.close()
 
         audio_duration = len(audio_segment) / 1000.0
+        if audio_duration <= 0:
+            raise ValueError("MiMo TTS returned empty audio")
         sub_maker = ensure_legacy_submaker_fields(SubMaker())
+        populated_sub_maker = populate_legacy_submaker_with_full_text(
+            sub_maker=sub_maker,
+            text=text,
+            audio_duration_seconds=audio_duration,
+        )
+        os.replace(temporary_audio, voice_file)
+        temporary_audio = None
         logger.success(f"mimo tts succeeded: {voice_file}")
         logger.debug(
             "mimo subtitle timeline generated, "
             f"duration: {audio_duration:.3f}s, output_format: {output_format}"
         )
-        return populate_legacy_submaker_with_full_text(
-            sub_maker=sub_maker,
-            text=text,
-            audio_duration_seconds=audio_duration,
-        )
+        return populated_sub_maker
     except Exception as e:
         logger.error(f"mimo tts failed: {str(e)}")
+    finally:
+        if temporary_audio and os.path.exists(temporary_audio):
+            try:
+                os.remove(temporary_audio)
+            except OSError as cleanup_error:
+                logger.warning(f"failed to remove temporary MiMo audio: {cleanup_error}")
 
     return None
 
