@@ -197,7 +197,10 @@ class RedisState(BaseState):
         # to readers, and leave a partially updated record on network failure.
         self._redis.hset(
             task_id,
-            mapping={field: str(value) for field, value in fields.items()},
+            mapping={
+                field: self._serialize_field(field, value)
+                for field, value in fields.items()
+            },
         )
 
     def get_task(self, task_id: str):
@@ -219,7 +222,7 @@ class RedisState(BaseState):
 
         arguments = []
         for field, value in kwargs.items():
-            arguments.extend((field, str(value)))
+            arguments.extend((field, self._serialize_field(field, value)))
 
         # EXISTS 和 HSET 如果分成两条命令，后台发布线程与删除请求并发时，
         # HSET 可能在删除后重新创建一条残缺任务。Lua 脚本由 Redis 原子执行，
@@ -234,6 +237,15 @@ class RedisState(BaseState):
 
     def delete_task(self, task_id: str):
         self._redis.delete(task_id)
+
+    @staticmethod
+    def _serialize_field(field, value):
+        # Quote strings so literal_eval cannot turn a subject like "2026" or
+        # an error like "None" into an integer/None. Keep the ownership marker
+        # raw: task discovery compares its bytes directly against the Redis key.
+        if isinstance(value, str) and field != "task_id":
+            return repr(value)
+        return str(value)
 
     @staticmethod
     def _convert_to_original_type(value):
