@@ -1298,45 +1298,114 @@ def _stream_edge_tts_sync_with_timeout(
     到达超时时间后直接抛出 TimeoutError，让外层重试和错误日志继续工作。
 
     注意：
-    daemon 线程只作为兜底保护使用，最多随 Azure TTS V1 的 3 次重试产生
-    少量残留线程；进程退出时会自动回收。相比 WebUI 任务永久卡住，这是
-    更可控的失败模式。
+    直接消费 SDK 的异步流，绕过 stream_sync 内部的无界队列。队列只保留
+    一块数据；超时或回调失败会取消异步生产者并关闭网络流。仅支持同步流的
+    适配器在阻塞读取返回后协作退出，不会继续累积已被放弃的数据。
     """
-    stream_queue = queue.Queue()
-    done_marker = object()
+    stream_queue = queue.Queue(maxsize=1)
+    stopped = threading.Event()
+    producer_loop = None
+    producer_task = None
+
+    def _put(item):
+        while not stopped.is_set():
+            try:
+                stream_queue.put(item, timeout=0.05)
+                return True
+            except queue.Full:
+                continue
+        return False
+
+    async def _put_async(item):
+        while not stopped.is_set():
+            try:
+                stream_queue.put_nowait(item)
+                return True
+            except queue.Full:
+                # Keep the loop cancellable while waiting for the consumer.
+                await asyncio.sleep(0.01)
+        return False
+
+    async def _produce_async():
+        if stopped.is_set():
+            return
+        stream = communicate.stream()
+        try:
+            async for chunk in stream:
+                if not await _put_async(("chunk", chunk)):
+                    return
+            await _put_async(("done", None))
+        except Exception as error:
+            await _put_async(("error", error))
+        finally:
+            close_stream = getattr(stream, "aclose", None)
+            if callable(close_stream):
+                await close_stream()
 
     def _produce_chunks():
+        nonlocal producer_loop, producer_task
+        # The SDK's stream_sync() has its own unbounded queue/executor. Using
+        # its async source directly lets cancellation reach the network read.
+        if callable(getattr(communicate, "stream", None)):
+            producer_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(producer_loop)
+            producer_task = producer_loop.create_task(_produce_async())
+            if stopped.is_set():
+                producer_task.cancel()
+            try:
+                producer_loop.run_until_complete(producer_task)
+            except asyncio.CancelledError:
+                pass
+            finally:
+                producer_loop.run_until_complete(producer_loop.shutdown_asyncgens())
+                producer_loop.close()
+            return
+        # Compatibility for stream_sync-only adapters: cooperative termination
+        # after a blocked read returns, with the same bounded mailbox.
+        stream = None
         try:
-            for chunk in communicate.stream_sync():
-                stream_queue.put(("chunk", chunk))
-            stream_queue.put(("done", done_marker))
-        except Exception as e:
-            stream_queue.put(("error", e))
+            stream = communicate.stream_sync()
+            for chunk in stream:
+                if not _put(("chunk", chunk)):
+                    return
+            _put(("done", None))
+        except Exception as error:
+            _put(("error", error))
+        finally:
+            close_stream = getattr(stream, "close", None)
+            if callable(close_stream):
+                close_stream()
 
     thread = threading.Thread(target=_produce_chunks, daemon=True)
     thread.start()
 
     deadline = time.monotonic() + timeout_seconds
-    while True:
-        remaining_seconds = deadline - time.monotonic()
-        if remaining_seconds <= 0:
-            raise TimeoutError(
-                f"edge_tts stream timed out after {timeout_seconds:g}s"
-            )
-
-        try:
-            item_type, payload = stream_queue.get(
-                timeout=min(0.5, remaining_seconds)
-            )
-        except queue.Empty:
-            continue
-
-        if item_type == "chunk":
-            on_chunk(payload)
-        elif item_type == "error":
-            raise payload
-        elif item_type == "done":
-            return
+    try:
+        while True:
+            remaining_seconds = deadline - time.monotonic()
+            if remaining_seconds <= 0:
+                raise TimeoutError(
+                    f"edge_tts stream timed out after {timeout_seconds:g}s"
+                )
+            try:
+                item_type, payload = stream_queue.get(
+                    timeout=min(0.5, remaining_seconds)
+                )
+            except queue.Empty:
+                continue
+            if item_type == "chunk":
+                on_chunk(payload)
+            elif item_type == "error":
+                raise payload
+            elif item_type == "done":
+                return
+    finally:
+        stopped.set()
+        if producer_loop is not None and producer_task is not None:
+            try:
+                producer_loop.call_soon_threadsafe(producer_task.cancel)
+            except RuntimeError:
+                pass  # The producer already finished and closed its loop.
 
 
 def stream_edge_tts_chunks(
