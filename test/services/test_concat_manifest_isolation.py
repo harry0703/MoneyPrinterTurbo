@@ -13,17 +13,20 @@ class TestConcatManifestIsolation(unittest.TestCase):
     def test_concurrent_concat_reads_only_its_own_inputs(self):
         barrier = threading.Barrier(2)
         observed = {}
+        render = threading.local()
         manifests = []
         with tempfile.TemporaryDirectory() as directory:
             def run(command, output_file):
                 manifest = Path(command[command.index("-i") + 1])
                 manifests.append(manifest)
                 barrier.wait(timeout=5)
-                observed[output_file] = manifest.read_text(encoding="utf-8")
+                observed[render.name] = manifest.read_text(encoding="utf-8")
+                Path(command[-1]).write_bytes(b"encoded-video")
                 barrier.wait(timeout=5)
                 return SimpleNamespace(returncode=0)
 
             def concat(name):
+                render.name = name
                 video.concat_video_clips_with_ffmpeg(
                     [str(Path(directory) / f"{name}-source.mp4")],
                     str(Path(directory) / f"{name}.mp4"), 1, directory,
@@ -35,7 +38,7 @@ class TestConcatManifestIsolation(unittest.TestCase):
                 with ThreadPoolExecutor(max_workers=2) as executor:
                     list(executor.map(concat, ["first", "second"]))
             for name in ("first", "second"):
-                self.assertIn(f"{name}-source.mp4", observed[str(Path(directory) / f"{name}.mp4")])
+                self.assertIn(f"{name}-source.mp4", observed[name])
             self.assertEqual(len(set(manifests)), 2)
             self.assertTrue(all(not manifest.exists() for manifest in manifests))
 
