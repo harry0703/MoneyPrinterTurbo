@@ -1112,13 +1112,16 @@ class TestTaskService(unittest.TestCase):
             shutil.rmtree(task_dir, ignore_errors=True)
 
         self.assertTrue(subtitle_path.endswith("subtitle.srt"))
+        created_path = create.call_args.kwargs["subtitle_file"]
+        self.assertNotEqual(created_path, subtitle_path)
+        self.assertEqual(Path(created_path).parent, Path(subtitle_path).parent)
         create.assert_called_once_with(
             audio_file=audio_file,
-            subtitle_file=subtitle_path,
+            subtitle_file=created_path,
             word_level=False,
         )
         correct.assert_called_once_with(
-            subtitle_file=subtitle_path, video_script="Hello world."
+            subtitle_file=created_path, video_script="Hello world."
         )
 
     def test_generate_subtitle_uses_whisper_word_timing_without_correction(self):
@@ -1169,9 +1172,12 @@ class TestTaskService(unittest.TestCase):
             shutil.rmtree(task_dir, ignore_errors=True)
 
         self.assertTrue(subtitle_path.endswith("subtitle.srt"))
+        created_path = create.call_args.kwargs["subtitle_file"]
+        self.assertNotEqual(created_path, subtitle_path)
+        self.assertEqual(Path(created_path).parent, Path(subtitle_path).parent)
         create.assert_called_once_with(
             audio_file=audio_file,
-            subtitle_file=subtitle_path,
+            subtitle_file=created_path,
             word_level=True,
         )
         correct.assert_not_called()

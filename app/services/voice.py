@@ -30,6 +30,7 @@ from openai import OpenAI
 
 from app.config import config
 from app.utils import utils
+from app.utils.subtitle_writer import staged_subtitle_file
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
 _SILICONFLOW_TTS_TIMEOUT_SECONDS = (10, 300)  # connect, read
@@ -3219,28 +3220,23 @@ def _match_script_line(script_lines: list[str], current_text: str, sub_index: in
 
 
 def _write_subtitle_items(sub_items: list[str], subtitle_file: str) -> bool:
-    """
-    将已经聚合好的字幕段写入到 SRT 文件，并做一次基本可读性验证。
-
-    返回值：
-    - `True`：字幕文件成功落盘且可被 moviepy 解析；
-    - `False`：字幕文件写入或解析失败。
-    """
+    """Publish a complete, parseable SRT without destroying earlier captions."""
     try:
         ensure_file_path_exists(subtitle_file)
-        with open(subtitle_file, "w", encoding="utf-8") as file:
-            file.write("\n".join(sub_items) + "\n")
-
-        sbs = subtitles.file_to_subtitles(subtitle_file, encoding="utf-8")
-        duration = max([tb for ((ta, tb), txt) in sbs]) if sbs else 0
+        with staged_subtitle_file(subtitle_file) as staged:
+            with open(staged, "w", encoding="utf-8") as file:
+                file.write("\n".join(sub_items) + "\n")
+            sbs = subtitles.file_to_subtitles(staged, encoding="utf-8")
+            if not sbs:
+                raise ValueError("subtitle output contains no cues")
+            duration = max(tb for ((ta, tb), txt) in sbs)
+            os.replace(staged, subtitle_file)
         logger.info(
             f"completed, subtitle file created: {subtitle_file}, duration: {duration}"
         )
         return True
     except Exception as e:
         logger.error(f"failed, error: {str(e)}")
-        if os.path.exists(subtitle_file):
-            os.remove(subtitle_file)
         return False
 
 
