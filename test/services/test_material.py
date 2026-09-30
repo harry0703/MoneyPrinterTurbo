@@ -807,6 +807,81 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertLessEqual(response.chunk_size, 1024 * 1024)
             self.assertTrue(get.call_args.kwargs["stream"])
 
+    def _save_video_with_chunks(self, chunks, headers=None):
+        """用假响应跑一次 save_video，返回期间写出的 info 日志。"""
+
+        class ChunkedResponse(_FakeVideoDownloadResponse):
+            def __init__(self):
+                super().__init__(b"")
+                self.headers = headers or {}
+
+            def iter_content(self, chunk_size):
+                yield from chunks
+
+        class FakeVideoFileClip:
+            duration = 1
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch(
+                    "app.services.material.requests.get",
+                    return_value=ChunkedResponse(),
+                ),
+                patch("app.services.material.VideoFileClip", FakeVideoFileClip),
+                patch.object(material.logger, "info") as info,
+            ):
+                video_path = material.save_video(
+                    "https://example.com/large.mp4?key=secret", save_dir=temp_dir
+                )
+            self.assertTrue(video_path)
+        return [str(call.args[0]) for call in info.call_args_list]
+
+    def test_save_video_reports_progress_during_a_slow_download(self):
+        """
+        慢速网络下单个 4K 素材要下载数分钟，期间没有任何日志，任务看起来像
+        卡死。超过心跳间隔后必须记录已下载大小、总大小和速度；日志里只能出现
+        缓存文件名，下载地址可能带密钥，不能写进日志。
+        """
+        megabyte = b"x" * (1024 * 1024)
+        with patch.object(material, "_DOWNLOAD_HEARTBEAT_SECONDS", 0):
+            messages = self._save_video_with_chunks(
+                [megabyte, megabyte, megabyte],
+                headers={"Content-Length": str(3 * 1024 * 1024)},
+            )
+
+        heartbeats = [m for m in messages if m.startswith("downloading video")]
+        self.assertEqual(len(heartbeats), 3)
+        self.assertRegex(
+            heartbeats[0],
+            r"^downloading video vid-[0-9a-f]{32}\.mp4: "
+            r"1\.0 of 3\.0 MB \(33%\), \d+\.\d{2} MB/s$",
+        )
+        self.assertIn("3.0 of 3.0 MB (100%)", heartbeats[2])
+        self.assertFalse([m for m in messages if "secret" in m or "example.com" in m])
+
+    def test_save_video_reports_progress_without_a_declared_size(self):
+        """没有 Content-Length 时仍要报告已下载大小，只是给不出百分比。"""
+        megabyte = b"x" * (1024 * 1024)
+        with patch.object(material, "_DOWNLOAD_HEARTBEAT_SECONDS", 0):
+            messages = self._save_video_with_chunks([megabyte, megabyte])
+
+        heartbeats = [m for m in messages if m.startswith("downloading video")]
+        self.assertEqual(len(heartbeats), 2)
+        self.assertRegex(heartbeats[1], r": 2\.0 MB, \d+\.\d{2} MB/s$")
+
+    def test_save_video_stays_quiet_for_fast_downloads(self):
+        """在心跳间隔内完成的下载不应产生额外日志，避免小文件刷屏。"""
+        messages = self._save_video_with_chunks([b"small", b"video"])
+
+        self.assertEqual([m for m in messages if m.startswith("downloading video")], [])
+
     def test_save_video_distinguishes_assets_in_download_query(self):
         """Different paid assets can share a /download path and differ only by query."""
         first_url = "https://cdn.example.com/download?file_id=first"
@@ -1435,6 +1510,151 @@ class TestMaterialTlsVerification(unittest.TestCase):
         # 首轮 [a, b]：a 成功（6s）、b 失败；次轮 [c] 成功（累计 12s 覆盖即停）。
         # 与串行逻辑的下载集合一致：{a, c}，d 不会被多下载。
         self.assertEqual(result, ["/tmp/a.mp4", "/tmp/c.mp4"])
+
+    def _download_with_progress(self, *, concurrency, progress_callback, **kwargs):
+        """
+        四个 6 秒候选、配音 10 秒：首轮 [a, b] 中 b 失败，次轮用 c 补足。
+        返回下载结果，供串行、并行和按文案顺序三条路径共用。
+        """
+        items = [
+            material.MaterialInfo(
+                provider="pexels",
+                url=f"https://v.example/{name}.mp4",
+                duration=6,
+                source_info={"provider": "pexels", "asset_id": name},
+            )
+            for name in ("a", "b", "c", "d")
+        ]
+
+        def fake_save_video(video_url, save_dir=""):
+            if "/b.mp4" in video_url:
+                raise RuntimeError("network down")
+            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+
+        with (
+            patch.dict(
+                config.app,
+                {"material_directory": "", "material_concurrency": concurrency},
+            ),
+            patch.object(material, "search_videos_pexels", return_value=items),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            return material.download_videos(
+                task_id="download-progress",
+                search_terms=["city"],
+                source="pexels",
+                video_concat_mode=material.VideoConcatMode.sequential,
+                audio_duration=10,
+                max_clip_duration=6,
+                progress_callback=progress_callback,
+                **kwargs,
+            )
+
+    def test_download_videos_reports_covered_duration_as_progress(self):
+        """
+        下载阶段此前只在开始前把进度设为 40%，全部素材下完才跳到 50%，慢速
+        网络下进度条会长时间停在 40%。每下完一个素材都要报告一次已覆盖配音
+        时长的比例；失败的候选不计入，覆盖超出需要时封顶为 1.0。
+        """
+        for concurrency in (1, 4):
+            with self.subTest(concurrency=concurrency):
+                fractions = []
+                result = self._download_with_progress(
+                    concurrency=concurrency,
+                    progress_callback=fractions.append,
+                )
+
+                self.assertEqual(result, ["/tmp/a.mp4", "/tmp/c.mp4"])
+                self.assertEqual(fractions, [0.6, 1.0])
+
+    def test_script_order_download_reports_progress(self):
+        """按文案顺序匹配素材的路径同样要报告下载进度。"""
+        fractions = []
+        result = self._download_with_progress(
+            concurrency=1,
+            progress_callback=fractions.append,
+            match_script_order=True,
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(fractions[-1], 1.0)
+        self.assertEqual(fractions, sorted(fractions))
+
+    def test_failing_progress_callback_does_not_break_download(self):
+        """进度只是展示信息，回调出错（例如状态后端不可用）不能让下载失败。"""
+
+        def broken_callback(_fraction):
+            raise RuntimeError("state backend unavailable")
+
+        with patch.object(material.logger, "warning") as warning:
+            result = self._download_with_progress(
+                concurrency=1,
+                progress_callback=broken_callback,
+            )
+
+        self.assertEqual(result, ["/tmp/a.mp4", "/tmp/c.mp4"])
+        self.assertTrue(
+            [
+                call
+                for call in warning.call_args_list
+                if "progress" in str(call.args[0])
+            ]
+        )
+
+    def test_each_finished_material_is_logged_with_its_position(self):
+        """
+        一轮下载结束前此前没有任何逐文件日志。每个素材下完都要记录它是本轮
+        第几个，用户才能从日志判断下载在推进，以及还剩多少。
+        """
+        items = [
+            material.MaterialInfo(
+                provider="pexels",
+                url=f"https://v.example/{name}.mp4",
+                duration=6,
+            )
+            for name in ("a", "b", "c")
+        ]
+        downloaded = []
+
+        def fake_save_video(video_url, save_dir=""):
+            if "/b.mp4" in video_url:
+                return ""
+            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+
+        with (
+            patch.dict(config.app, {"material_concurrency": 1}),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(material.logger, "info") as info,
+        ):
+            material._download_materials_in_parallel(
+                materials=[("city", item) for item in items],
+                material_directory="",
+                on_downloaded=lambda item: downloaded.append(item.url),
+            )
+
+        messages = [str(call.args[0]) for call in info.call_args_list]
+        self.assertEqual(
+            [m for m in messages if m.startswith("downloaded material")],
+            [
+                "downloaded material 1/3: a.mp4",
+                "downloaded material 3/3: c.mp4",
+            ],
+        )
+        self.assertEqual(
+            downloaded,
+            ["https://v.example/a.mp4", "https://v.example/c.mp4"],
+        )
 
     def test_parallel_download_logs_belong_to_the_task_log_scope(self):
         """

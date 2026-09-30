@@ -290,6 +290,36 @@ def _mark_task_failed(
     return failure
 
 
+def _stage_progress_reporter(task_id: str, stage_start: float, stage_end: float):
+    """
+    返回一个回调，把阶段内 0~1 的完成比例换算成任务进度并写入状态。
+
+    流水线原先只在阶段边界更新进度，下载素材和处理片段这类耗时阶段期间
+    进度条完全不动，用户无法区分仍在运行与已经卡死。进度只是展示信息：
+    比例无法解析时忽略，状态后端写入失败时只记录日志，不能因此中断下载或
+    合成。
+    """
+
+    def report(fraction) -> None:
+        try:
+            fraction = max(0.0, min(1.0, float(fraction)))
+        except (TypeError, ValueError):
+            return
+        try:
+            sm.state.update_task(
+                task_id,
+                state=const.TASK_STATE_PROCESSING,
+                progress=stage_start + (stage_end - stage_start) * fraction,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"failed to update task progress: task_id={task_id}, "
+                f"error={type(exc).__name__}, detail={exc}"
+            )
+
+    return report
+
+
 def generate_script(task_id, params):
     logger.info("\n\n## generating video script")
     video_script = params.video_script.strip()
@@ -751,6 +781,9 @@ def get_video_materials(
                 audio_duration=audio_duration * params.video_count,
                 max_clip_duration=params.video_clip_duration,
                 match_script_order=params.match_materials_to_script,
+                # 素材阶段占用 40%~50%：每下完一个文件推进一次，慢速网络下
+                # 进度条不再长时间停在 40%。
+                progress_callback=_stage_progress_reporter(task_id, 40, 50),
             )
         except volcengine_seedance.VolcEngineSeedanceError as exc:
             # 未确认状态和已生成但下载失败都对应一个可在方舟控制台恢复的远端
