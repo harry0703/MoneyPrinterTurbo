@@ -385,7 +385,7 @@ class TestMaterialUploadService(unittest.TestCase):
 
         command = run.call_args.args[0]
         self.assertEqual(command[0], "/portable/imageio/ffmpeg")
-        self.assertIn("0:v:0", command)
+        self.assertIn("0:V:0", command)
         self.assertIn("-xerror", command)
         self.assertNotIn("ffprobe", " ".join(command).lower())
 
