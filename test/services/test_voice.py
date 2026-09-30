@@ -637,9 +637,16 @@ class TestVoiceService(unittest.TestCase):
                 Path(output_file).write_bytes(b"fake-mp3")
 
         fake_completions = _FakeCompletions()
-        fake_client = SimpleNamespace(
-            chat=SimpleNamespace(completions=fake_completions)
-        )
+        class _FakeClient:
+            chat = SimpleNamespace(completions=fake_completions)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.closed = True
+
+        fake_client = _FakeClient()
 
         with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
             vs,
@@ -672,7 +679,10 @@ class TestVoiceService(unittest.TestCase):
         openai_client.assert_called_once_with(
             api_key="mimo-key",
             base_url="https://api.xiaomimimo.com/v1",
+            max_retries=0,
+            timeout=120.0,
         )
+        self.assertTrue(fake_client.closed)
         self.assertEqual(fake_completions.kwargs["model"], "mimo-v2.5-tts")
         self.assertEqual(
             fake_completions.kwargs["messages"],
