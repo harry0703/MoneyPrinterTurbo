@@ -489,6 +489,91 @@ def test_worker_logs_are_available_without_streamlit_session_state():
     )
 
 
+def test_bound_helper_thread_logs_reach_the_task_log():
+    """
+    并行下载、片段编码和 ffmpeg 心跳都在任务启动的辅助线程里写日志。只按工作
+    线程 ID 过滤时这些记录会被丢弃，WebUI 在耗时最长的阶段反而没有任何输出。
+    经 bind_log_scope 绑定的辅助线程必须计入所属任务，未绑定的线程仍然排除，
+    否则同时运行的 API 任务日志会混进来。
+    """
+    task_id = "helper-thread-log-test"
+    with webui_task._task_logs_lock:
+        webui_task._task_logs.pop(task_id, None)
+
+    def logged_start(**_kwargs):
+        bound = threading.Thread(
+            target=logging_utils.bind_log_scope(
+                lambda: logger.info("bound helper thread log")
+            )
+        )
+        unrelated = threading.Thread(
+            target=lambda: logger.info("unrelated thread log")
+        )
+        for thread in (bound, unrelated):
+            thread.start()
+        for thread in (bound, unrelated):
+            thread.join()
+        return {"videos": []}
+
+    with (
+        patch.object(webui_task.tm, "start", side_effect=logged_start),
+        patch.object(
+            webui_task.config,
+            "runtime_config_lock",
+            return_value=nullcontext(),
+        ),
+    ):
+        webui_task._run_generation(
+            task_id,
+            VideoParams(video_subject="辅助线程日志"),
+            capture_logs=True,
+        )
+
+    messages = "\n".join(webui_task.get_task_logs(task_id))
+    assert "bound helper thread log" in messages
+    assert "unrelated thread log" not in messages
+
+
+def test_bind_log_scope_follows_nested_helpers_and_is_released():
+    """
+    辅助线程再启动的线程（例如并行片段里的心跳）也要归属最初的任务线程。
+    线程结束后必须解除绑定：线程 ID 会被系统复用，残留的映射会把之后无关
+    线程的日志错误地算进旧任务。
+    """
+    root_thread_id = threading.get_ident()
+    seen = {}
+
+    def inner():
+        seen["inner_scope"] = logging_utils.log_scope_thread_id()
+
+    def outer():
+        seen["outer_thread_id"] = threading.get_ident()
+        seen["outer_scope"] = logging_utils.log_scope_thread_id()
+        nested = threading.Thread(target=logging_utils.bind_log_scope(inner))
+        nested.start()
+        nested.join()
+
+    helper = threading.Thread(target=logging_utils.bind_log_scope(outer))
+    helper.start()
+    helper.join()
+
+    assert seen["outer_scope"] == root_thread_id
+    assert seen["inner_scope"] == root_thread_id
+    assert (
+        logging_utils.log_scope_thread_id(seen["outer_thread_id"])
+        == seen["outer_thread_id"]
+    )
+    assert logging_utils.log_scope_thread_id() == root_thread_id
+
+
+def test_bind_log_scope_runs_inline_calls_without_rebinding():
+    """同一线程内直接调用包装后的函数时保持原样返回值，不改动作用域。"""
+    bound = logging_utils.bind_log_scope(lambda value: value * 2)
+
+    assert bound(21) == 42
+    assert logging_utils.log_scope_thread_id() == threading.get_ident()
+
+
 def test_webui_worker_forwards_reference_audio_to_pipeline():
     reference_audio = b"task-local-reference-wav"
     prompt_audio = b"task-local-prompt-wav"

@@ -10,7 +10,7 @@ from app.models.schema import VideoParams
 from app.services import state as sm
 from app.services import task as tm
 from app.services.loomloom import LoomLoomConfirmedVideoRequest
-from app.utils.logging_utils import format_log_record
+from app.utils.logging_utils import format_log_record, log_scope_thread_id
 
 
 # WebUI 的配置保存在进程级全局字典中。原来的同步实现会在完整生成期间持有
@@ -64,7 +64,9 @@ def _run_generation(
     在后台线程中执行现有视频流水线。
 
     Loguru 的 sink 是进程级资源，因此必须按当前工作线程过滤。否则同时运行的
-    API 任务或其它页面日志会混入当前任务。页面只读取普通列表快照，不会从后台
+    API 任务或其它页面日志会混入当前任务。任务为下载、片段编码和心跳启动的
+    辅助线程通过 bind_log_scope 归属到工作线程，它们的日志同样要收集，否则
+    这些耗时阶段在 WebUI 里没有任何输出。页面只读取普通列表快照，不会从后台
     线程访问 Streamlit session_state，从根源上避免刷新时的 delta 路径错乱。
     """
     log_handler_id = None
@@ -76,7 +78,9 @@ def _run_generation(
                 level="DEBUG",
                 format=format_log_record,
                 colorize=False,
-                filter=lambda record: record["thread"].id == worker_thread_id,
+                filter=lambda record: (
+                    log_scope_thread_id(record["thread"].id) == worker_thread_id
+                ),
             )
 
         # 完整任务仍使用原来的配置锁，防止另一个 WebUI 会话在生成中途修改

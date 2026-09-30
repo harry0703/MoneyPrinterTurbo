@@ -29,7 +29,7 @@ from app.services import (
     video,
     volcengine_seedance,
 )
-from app.utils import utils
+from app.utils import logging_utils, utils
 
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
@@ -1894,7 +1894,7 @@ def _search_terms_in_parallel(
     ) as executor:
         for search_term in search_terms:
             futures[executor.submit(
-                search_videos,
+                logging_utils.bind_log_scope(search_videos),
                 search_term,
                 minimum_duration,
                 video_aspect,
@@ -1953,7 +1953,7 @@ def _download_materials_in_parallel(
     ) as executor:
         for search_term, item in materials:
             futures[executor.submit(
-                save_video,
+                logging_utils.bind_log_scope(save_video),
                 item.url,
                 material_directory,
             )] = (search_term, item)
