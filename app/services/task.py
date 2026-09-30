@@ -1621,6 +1621,12 @@ def _run_pipeline(
     )
 
     if stop_at == "subtitle":
+        if not subtitle_path:
+            return _mark_task_failed(
+                task_id,
+                "subtitle",
+                "failed to generate subtitles; verify the subtitle provider and timeline",
+            )
         sm.state.update_task(
             task_id,
             state=const.TASK_STATE_COMPLETE,
