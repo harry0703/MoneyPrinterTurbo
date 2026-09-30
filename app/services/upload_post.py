@@ -6,6 +6,7 @@ Docs: https://docs.upload-post.com
 import os
 import time
 from typing import Callable, Optional
+from uuid import uuid4
 
 import requests
 from loguru import logger
@@ -178,12 +179,16 @@ class UploadPostService:
 
         logger.info(f"Cross-posting video to {', '.join(platforms)} via Upload-Post...")
 
+        # Generate the remote handle before POST: a lost response does not
+        # prove that Upload-Post stopped publishing the received video.
+        client_request_id = str(uuid4())
         try:
             with open(video_path, 'rb') as video_file:
                 files = {'video': video_file}
 
                 data = [
                     ('user', self.username),
+                    ('request_id', client_request_id),
                     ('title', title[:2200]),
                     ('privacy_level', privacy_level),
                 ]
@@ -290,7 +295,22 @@ class UploadPostService:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to cross-post video: {str(e)}")
-            return {"success": False, "error": str(e)}
+            uncertain_outcome = isinstance(
+                e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+            ) or (
+                e.response is not None and e.response.status_code >= 500
+            )
+            error = str(e)
+            if uncertain_outcome:
+                error += (
+                    "; upload outcome is unconfirmed; "
+                    f"check request_id {client_request_id} before submitting again"
+                )
+            return {
+                "success": False,
+                "request_id": client_request_id,
+                "error": error,
+            }
 
     def check_status(self, request_id: str) -> dict:
         """
