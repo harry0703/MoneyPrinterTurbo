@@ -179,6 +179,56 @@ class TestSubtitleService(unittest.TestCase):
 
         self.assertEqual([item[2] for item in items], ["Hello world", "Again"])
 
+    def test_create_preserves_numeric_punctuation_and_sentence_timing(self):
+        words = [
+            SimpleNamespace(start=0.0, end=0.2, word="Value"),
+            SimpleNamespace(start=0.2, end=0.5, word=" 3.14"),
+            SimpleNamespace(start=0.5, end=0.8, word=" costs"),
+            SimpleNamespace(start=0.8, end=1.1, word=" 1,000"),
+            SimpleNamespace(start=1.1, end=1.4, word=" dollars."),
+            SimpleNamespace(start=1.5, end=1.8, word="Next!"),
+        ]
+        fake_model = SimpleNamespace(
+            transcribe=lambda *_args, **_kwargs: (
+                [SimpleNamespace(start=0.0, end=1.8, words=words)],
+                SimpleNamespace(language="en", language_probability=0.99),
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "numeric.srt"
+            with patch.object(subtitle, "model", fake_model), patch.object(
+                subtitle, "WhisperModel", object()
+            ):
+                subtitle.create("audio.mp3", str(output))
+            items = subtitle.file_to_subtitles(str(output))
+        self.assertEqual(
+            items,
+            [
+                (1, "00:00:00,000 --> 00:00:01,400", "Value 3.14 costs 1,000 dollars"),
+                (2, "00:00:01,500 --> 00:00:01,800", "Next"),
+            ],
+        )
+
+    def test_create_removes_only_trailing_sentence_punctuation(self):
+        words = [
+            SimpleNamespace(start=0.0, end=0.3, word="3.14?!"),
+            SimpleNamespace(start=0.4, end=0.7, word="1,000"),
+        ]
+        fake_model = SimpleNamespace(
+            transcribe=lambda *_args, **_kwargs: (
+                [SimpleNamespace(start=0.0, end=0.7, words=words)],
+                SimpleNamespace(language="en", language_probability=0.99),
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "suffix.srt"
+            with patch.object(subtitle, "model", fake_model), patch.object(
+                subtitle, "WhisperModel", object()
+            ):
+                subtitle.create("audio.mp3", str(output))
+            items = subtitle.file_to_subtitles(str(output))
+        self.assertEqual([item[2] for item in items], ["3.14", "1,000"])
+
     def test_create_word_level_writes_each_whisper_word_with_its_timing(self):
         """逐词模式应保留 Whisper 的每个词及其独立起止时间。"""
         transcribe_kwargs = {}
