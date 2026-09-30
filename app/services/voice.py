@@ -14,7 +14,7 @@ import threading
 import time
 import unicodedata
 import wave
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Union
 from urllib.parse import urlparse
 from xml.sax.saxutils import escape, unescape
@@ -1623,19 +1623,13 @@ def azure_tts_v2(
     ssml = _build_azure_v2_ssml(text, voice_name, voice_rate)
 
     def _format_duration_to_offset(duration) -> int:
-        if isinstance(duration, str):
-            time_obj = datetime.strptime(duration, "%H:%M:%S.%f")
-            milliseconds = (
-                (time_obj.hour * 3600000)
-                + (time_obj.minute * 60000)
-                + (time_obj.second * 1000)
-                + (time_obj.microsecond // 1000)
-            )
-            return milliseconds * 10000
-
+        if isinstance(duration, timedelta):
+            # Speech SDK durations are timedeltas; integer arithmetic retains
+            # all microseconds and also handles zero/exact-second durations.
+            return ((duration.days * 86400 + duration.seconds) * 1000000
+                    + duration.microseconds) * 10
         if isinstance(duration, int):
             return duration
-
         return 0
 
     for i in range(3):
@@ -1657,7 +1651,7 @@ def azure_tts_v2(
                 # print('\tTextOffset: {}'.format(evt.text_offset))
                 # print('\tWordLength: {}'.format(evt.word_length))
 
-                duration = _format_duration_to_offset(str(evt.duration))
+                duration = _format_duration_to_offset(evt.duration)
                 offset = _format_duration_to_offset(evt.audio_offset)
                 sub_maker.subs.append(evt.text)
                 sub_maker.offset.append((offset, offset + duration))
