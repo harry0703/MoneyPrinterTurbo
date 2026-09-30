@@ -1165,6 +1165,7 @@ def _run_cross_post(
     platforms: tuple[str, ...],
     youtube_privacy_status: str,
     youtube_made_for_kids: bool = False,
+    upload_account: dict | None = None,
 ) -> None:
     """后台执行跨平台发布，并只补充发布相关的任务字段。"""
     results = []
@@ -1244,12 +1245,16 @@ def _run_cross_post(
                         f"task_id={task_id}, request_id={request_id}"
                     )
 
+            upload_kwargs = {}
+            if upload_account is not None:
+                upload_kwargs["account"] = upload_account
             result = upload_post.cross_post_video(
                 video_path=video_path,
                 title=post_title,
                 platforms=list(platforms),
                 youtube_extra=youtube_extra,
                 on_background_start=record_background_request,
+                **upload_kwargs,
             )
             if not isinstance(result, dict):
                 result = {
@@ -1390,6 +1395,7 @@ def _schedule_cross_post(
             tuple(platforms),
             youtube_privacy_status,
             youtube_made_for_kids,
+            upload_post.upload_post_service.snapshot_account(),
         )
         _register_cross_post_future(task_id, future)
         future.add_done_callback(partial(_finalize_cross_post_future, task_id))
