@@ -1584,7 +1584,7 @@ def generate_video(
                 font_size=params.font_size,
             )
 
-        if subtitle_path and os.path.exists(subtitle_path):
+        if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
             sub = clip_stack.enter_context(
                 SubtitlesClip(
                     subtitles=subtitle_path,
