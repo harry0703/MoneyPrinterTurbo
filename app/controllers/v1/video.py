@@ -339,7 +339,14 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
         tasks_dir = utils.task_dir()
         current_task_dir = os.path.join(tasks_dir, task_id)
         if os.path.exists(current_task_dir):
-            shutil.rmtree(current_task_dir)
+            try:
+                shutil.rmtree(current_task_dir)
+            except FileNotFoundError:
+                # Another completed-task deletion may remove this directory
+                # after our existence check. Only accept an absent root;
+                # partial deletion and other filesystem errors must keep state.
+                if os.path.lexists(current_task_dir):
+                    raise
 
         sm.state.delete_task(task_id)
         logger.success(f"video deleted: {utils.to_json(task)}")
