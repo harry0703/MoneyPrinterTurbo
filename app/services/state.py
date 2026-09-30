@@ -2,6 +2,8 @@ import ast
 import copy
 import threading
 from abc import ABC, abstractmethod
+
+from redis.exceptions import ResponseError
 from itertools import islice
 
 from app.config import config
@@ -163,12 +165,16 @@ class RedisState(BaseState):
                 with self._redis.pipeline(transaction=False) as pipeline:
                     for key in candidates:
                         pipeline.hget(key, "task_id")
-                    embedded_ids = pipeline.execute()
-                task_keys.update(
-                    key
-                    for key, embedded_id in zip(candidates, embedded_ids)
-                    if embedded_id == key
-                )
+                    # A key can change type after SCAN. Isolate that row instead
+                    # of letting one WRONGTYPE abort the whole task listing.
+                    embedded_ids = pipeline.execute(raise_on_error=False)
+                for key, embedded_id in zip(candidates, embedded_ids):
+                    if isinstance(embedded_id, ResponseError):
+                        if str(embedded_id).startswith("WRONGTYPE"):
+                            continue
+                        raise embedded_id
+                    if embedded_id == key:
+                        task_keys.add(key)
             if cursor == 0:
                 break
         # 按任务键排序不依赖 Hash 扫描顺序；不额外维护索引，也不改变旧任务。
@@ -201,7 +207,14 @@ class RedisState(BaseState):
         )
 
     def get_task(self, task_id: str):
-        task_data = self._redis.hgetall(task_id)
+        try:
+            task_data = self._redis.hgetall(task_id)
+        except ResponseError as exc:
+            # Arbitrary task IDs can name the application's List queue or
+            # another service's non-hash key. Those are not task records.
+            if str(exc).startswith("WRONGTYPE"):
+                return None
+            raise
         # An API caller may ask for any Redis key by name. Require the same
         # marker as list_task_ids before returning a hash's contents.
         if not task_data or task_data.get(b"task_id") != task_id.encode("utf-8"):
