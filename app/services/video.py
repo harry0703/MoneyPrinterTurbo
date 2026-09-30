@@ -558,10 +558,22 @@ def concat_video_clips_with_ffmpeg(
     output_dir: str,
     max_duration: float | None = None,
 ):
-    concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
-    with open(concat_list_file, "w", encoding="utf-8") as fp:
-        for clip_file in clip_files:
-            fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
+    # Separate renders may share a directory. Each FFmpeg process must keep its
+    # own manifest until all codec attempts finish, without overwriting or
+    # deleting another render's list.
+    concat_list_file = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", prefix="ffmpeg-concat-", suffix=".txt",
+            dir=output_dir, delete=False,
+        ) as fp:
+            concat_list_file = fp.name
+            for clip_file in clip_files:
+                fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
+    except Exception:
+        if concat_list_file:
+            delete_files(concat_list_file)
+        raise
 
     def build_command(codec: str) -> list[str]:
         command = [
