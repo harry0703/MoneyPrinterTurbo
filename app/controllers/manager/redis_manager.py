@@ -1,3 +1,4 @@
+import inspect
 import json
 from typing import Dict
 
@@ -89,6 +90,12 @@ class RedisTaskManager(TaskManager):
                 # 会把条目重新入队并让异常逃出工作线程，必须在这里先拦下。
                 if not isinstance(task_info.get("args", []), list):
                     raise ValueError("queued task positional arguments are not a list")
+                # A persisted request can outlive a callable's signature. Fail
+                # it before dispatch: Python argument-binding errors happen
+                # before start() enters its pipeline failure handler.
+                inspect.signature(task_info["func"]).bind(
+                    *task_info.get("args", []), **task_kwargs
+                )
             except (TypeError, ValueError, KeyError) as e:
                 logger.error(f"dropping unusable queued task: {e}")
                 # 与下面的 params 校验失败路径一致：只要能读出可用的 task_id，就把
