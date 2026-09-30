@@ -259,6 +259,38 @@ class TestVideoService(unittest.TestCase):
         self.assertIn("protected-temp-clip.mp4", message)
         self.assertIn("permission denied", message)
 
+    def test_generate_video_ignores_existing_subtitle_when_disabled(self):
+        params = vd.VideoParams(
+            video_subject="test", subtitle_enabled=False, bgm_type=""
+        )
+        source_video = _FakeMoviePyClip()
+        voice_source = _FakeMoviePyClip()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            stale_subtitle = Path(tmp_dir) / "stale.srt"
+            stale_subtitle.write_text(
+                "1\n00:00:00,000 --> 00:00:01,000\nOld caption\n\n", encoding="utf-8"
+            )
+            with (
+                patch.object(vd, "_open_video_clip_quietly", return_value=source_video),
+                patch.object(vd, "AudioFileClip", return_value=voice_source),
+                patch.object(vd, "SubtitlesClip", side_effect=AssertionError(
+                    "disabled subtitles must not be parsed"
+                )) as subtitle_loader,
+                patch.object(vd, "TextClip") as text_renderer,
+                patch.object(vd, "_write_videofile_with_codec_fallback") as writer,
+                patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+            ):
+                result = vd.generate_video(
+                    video_path="combined.mp4", audio_path="voice.mp3",
+                    subtitle_path=str(stale_subtitle), output_file="final.mp4", params=params,
+                )
+        self.assertTrue(result)
+        subtitle_loader.assert_not_called()
+        text_renderer.assert_not_called()
+        writer.assert_called_once()
+        self.assertEqual(source_video.close_calls, 2)
+        self.assertEqual(voice_source.close_calls, 1)
+
     def test_generate_video_reports_successful_bgm_mix_and_closes_sources(self):
         """BGM 混合成功后应返回 True，并释放所有原始文件 reader。"""
         params = vd.VideoParams(
