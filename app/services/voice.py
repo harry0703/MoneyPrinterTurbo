@@ -1878,14 +1878,17 @@ def mimo_tts(
 
     _configure_pydub_ffmpeg(AudioSegment)
 
-    for i in range(3):
-        try:
-            logger.info(
-                f"start mimo tts, model: {model_name}, voice: {voice_name}, try: {i + 1}"
-            )
-            ensure_file_path_exists(voice_file)
+    try:
+        logger.info(
+            f"start mimo tts, model: {model_name}, voice: {voice_name}"
+        )
+        ensure_file_path_exists(voice_file)
 
-            client = OpenAI(api_key=api_key, base_url=base_url)
+        # A lost response may still have generated and billed the narration.
+        # Disable SDK retries as well as the outer retry loop.
+        with OpenAI(
+            api_key=api_key, base_url=base_url, max_retries=0, timeout=120.0
+        ) as client:
             completion = client.chat.completions.create(
                 model=model_name,
                 messages=[
@@ -1898,44 +1901,44 @@ def mimo_tts(
                 },
             )
 
-            if not completion or not getattr(completion, "choices", None):
-                raise ValueError("MiMo TTS returned empty response")
+        if not completion or not getattr(completion, "choices", None):
+            raise ValueError("MiMo TTS returned empty response")
 
-            message = completion.choices[0].message
-            audio = getattr(message, "audio", None)
-            audio_data = None
-            if isinstance(audio, dict):
-                audio_data = audio.get("data")
-            elif audio is not None:
-                audio_data = getattr(audio, "data", None)
+        message = completion.choices[0].message
+        audio = getattr(message, "audio", None)
+        audio_data = None
+        if isinstance(audio, dict):
+            audio_data = audio.get("data")
+        elif audio is not None:
+            audio_data = getattr(audio, "data", None)
 
-            if not audio_data:
-                raise ValueError("MiMo TTS returned empty audio data")
+        if not audio_data:
+            raise ValueError("MiMo TTS returned empty audio data")
 
-            audio_bytes = base64.b64decode(audio_data)
-            audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
+        audio_bytes = base64.b64decode(audio_data)
+        audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format="wav")
 
-            output_format = utils.parse_extension(voice_file) or "mp3"
-            if output_format == "wav":
-                with open(voice_file, "wb") as f:
-                    f.write(audio_bytes)
-            else:
-                audio_segment.export(voice_file, format=output_format)
+        output_format = utils.parse_extension(voice_file) or "mp3"
+        if output_format == "wav":
+            with open(voice_file, "wb") as f:
+                f.write(audio_bytes)
+        else:
+            audio_segment.export(voice_file, format=output_format)
 
-            audio_duration = len(audio_segment) / 1000.0
-            sub_maker = ensure_legacy_submaker_fields(SubMaker())
-            logger.success(f"mimo tts succeeded: {voice_file}")
-            logger.debug(
-                "mimo subtitle timeline generated, "
-                f"duration: {audio_duration:.3f}s, output_format: {output_format}"
-            )
-            return populate_legacy_submaker_with_full_text(
-                sub_maker=sub_maker,
-                text=text,
-                audio_duration_seconds=audio_duration,
-            )
-        except Exception as e:
-            logger.error(f"mimo tts failed: {str(e)}")
+        audio_duration = len(audio_segment) / 1000.0
+        sub_maker = ensure_legacy_submaker_fields(SubMaker())
+        logger.success(f"mimo tts succeeded: {voice_file}")
+        logger.debug(
+            "mimo subtitle timeline generated, "
+            f"duration: {audio_duration:.3f}s, output_format: {output_format}"
+        )
+        return populate_legacy_submaker_with_full_text(
+            sub_maker=sub_maker,
+            text=text,
+            audio_duration_seconds=audio_duration,
+        )
+    except Exception as e:
+        logger.error(f"mimo tts failed: {str(e)}")
 
     return None
 
