@@ -240,11 +240,19 @@ def _schedule_deferred_config_flush():
             return
         _pending_config_flush_scheduled = True
 
-    threading.Thread(
-        target=_run_deferred_config_flush,
-        name="mpt-config-flush",
-        daemon=True,
-    ).start()
+    try:
+        threading.Thread(
+            target=_run_deferred_config_flush,
+            name="mpt-config-flush",
+            daemon=True,
+        ).start()
+    except Exception:
+        # No worker owns this reservation when construction/start fails.
+        # Leave queued updates and the save request intact so a later call
+        # can schedule another flush rather than silently waiting forever.
+        with _pending_config_lock:
+            _pending_config_flush_scheduled = False
+        raise
 
 
 def try_save_config():
