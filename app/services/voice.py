@@ -1817,6 +1817,7 @@ def gemini_tts(
     from google.genai import types
     _configure_pydub_ffmpeg(AudioSegment)
     
+    temporary_audio = None
     try:
         api_key = config.app.get("gemini_api_key", "")
         if not api_key:
@@ -1892,21 +1893,29 @@ def gemini_tts(
 
         # pydub 会返回打开的输出文件对象。批量生成时若不主动关闭，文件描述符
         # 会持续累积，并在 Windows 上增加后续覆盖或删除音频文件失败的概率。
-        exported_audio = audio_segment.export(voice_file, format="mp3")
+        if len(audio_segment) <= 0:
+            raise ValueError("Gemini returned empty PCM audio")
+        temp_fd, temporary_audio = tempfile.mkstemp(
+            prefix=".gemini-tts-", suffix=".mp3",
+            dir=os.path.dirname(os.path.abspath(voice_file)),
+        )
+        os.close(temp_fd)
+        exported_audio = audio_segment.export(temporary_audio, format="mp3")
         exported_audio.close()
-        
-        logger.info(f"completed, output file: {voice_file}")
         
         # Gemini 拿不到 edge_tts 那种逐词边界事件，因此这里退回到
         # 项目原有的 `subs/offset` 兼容结构，至少保证后续字幕与时长
         # 计算链路可继续工作。
         sub_maker = ensure_legacy_submaker_fields(SubMaker())
         audio_duration = len(audio_segment) / 1000.0  # 转换为秒
-        return populate_legacy_submaker_with_full_text(
+        sub_maker = populate_legacy_submaker_with_full_text(
             sub_maker=sub_maker,
             text=text,
             audio_duration_seconds=audio_duration,
         )
+        os.replace(temporary_audio, voice_file)
+        logger.info(f"completed, output file: {voice_file}")
+        return sub_maker
         
     except ImportError as e:
         logger.error(f"Missing required package for Gemini TTS: {str(e)}. Please install: pip install pydub")
@@ -1914,6 +1923,13 @@ def gemini_tts(
     except Exception as e:
         logger.error(f"Gemini TTS failed, error: {str(e)}")
         return None
+
+    finally:
+        if temporary_audio and os.path.exists(temporary_audio):
+            try:
+                os.unlink(temporary_audio)
+            except OSError as cleanup_error:
+                logger.warning(f"could not remove Gemini staging audio: {cleanup_error}")
 
 
 def mimo_tts(
