@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+import stat
 import tempfile
 import threading
 import time
@@ -173,9 +174,24 @@ def get_material_search_cache_lock(
     return _CACHE_LOCKS[int(digest[:8], 16) % len(_CACHE_LOCKS)]
 
 
-def _remove_invalid_cache(cache_path: Path) -> None:
+def _is_same_cache_file(cache_path: Path, expected: os.stat_result) -> bool:
+    """Avoid removing a file replaced since the scan/read snapshot."""
+    try:
+        current = cache_path.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    return stat.S_ISREG(current.st_mode) and (
+        current.st_dev, current.st_ino, current.st_mtime_ns, current.st_size
+    ) == (expected.st_dev, expected.st_ino, expected.st_mtime_ns, expected.st_size)
+
+
+def _remove_invalid_cache(
+    cache_path: Path, expected: os.stat_result | None = None
+) -> None:
     """删除已经过期或无法解析的单个缓存文件，失败时不影响素材搜索主流程。"""
     try:
+        if expected is not None and not _is_same_cache_file(cache_path, expected):
+            return
         cache_path.unlink(missing_ok=True)
     except OSError as exc:
         logger.warning(
@@ -248,7 +264,7 @@ def load_material_search_cache(
     # 系统时间回拨或文件从其它机器复制后，mtime 可能落在未来。此时不能把
     # 缓存长期视为新鲜数据，直接失效并重新请求远端更可靠。
     if cache_age < 0 or cache_age >= MATERIAL_SEARCH_CACHE_TTL_SECONDS:
-        _remove_invalid_cache(cache_path)
+        _remove_invalid_cache(cache_path, expected=stat_result)
         return None
 
     try:
@@ -298,7 +314,7 @@ def load_material_search_cache(
         logger.warning(
             f"failed to load material search cache: file={cache_path.name}, error={exc}"
         )
-        _remove_invalid_cache(cache_path)
+        _remove_invalid_cache(cache_path, expected=stat_result)
         return None
 
     logger.info(
@@ -436,8 +452,16 @@ def cleanup_expired_material_search_cache(
             try:
                 if not entry.is_file(follow_symlinks=False):
                     continue
-                cache_age = current_time - entry.stat(follow_symlinks=False).st_mtime
-                if 0 <= cache_age < MATERIAL_SEARCH_CACHE_TTL_SECONDS:
+                expected = entry.stat(follow_symlinks=False)
+                cache_age = current_time - expected.st_mtime
+                if _CACHE_TEMP_FILE_PATTERN.fullmatch(entry.name):
+                    # An active write may look future-dated after a clock
+                    # rollback. Only remove temp files demonstrably old enough.
+                    if cache_age < MATERIAL_SEARCH_CACHE_TTL_SECONDS:
+                        continue
+                elif 0 <= cache_age < MATERIAL_SEARCH_CACHE_TTL_SECONDS:
+                    continue
+                if not _is_same_cache_file(Path(entry.path), expected):
                     continue
                 os.unlink(entry.path)
                 deleted_count += 1
