@@ -653,6 +653,9 @@ def _open_image_clip_with_fallback(image_path: str):
         return ImageClip(sanitized_path), sanitized_path
 
 
+_moviepy_reader_open_lock = threading.Lock()
+
+
 def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileClip:
     """
     安静地打开视频文件，避免 MoviePy 2.1.x 把 ffmpeg 探测信息直接打印到 stdout。
@@ -670,8 +673,12 @@ def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileC
     3. 如果依赖库确实输出了内容，降级为 debug 日志，便于必要时排查。
     """
     captured_stdout = io.StringIO()
-    with redirect_stdout(captured_stdout):
-        clip = VideoFileClip(video_path, audio=audio)
+    # redirect_stdout changes process-wide state. Overlapping reader opens can
+    # restore each other's capture buffers instead of the original stdout.
+    # Serialize this short construction window; clip processing stays parallel.
+    with _moviepy_reader_open_lock:
+        with redirect_stdout(captured_stdout):
+            clip = VideoFileClip(video_path, audio=audio)
 
     moviepy_stdout = captured_stdout.getvalue().strip()
     if moviepy_stdout:
