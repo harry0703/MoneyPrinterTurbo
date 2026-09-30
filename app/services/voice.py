@@ -2142,25 +2142,34 @@ def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, vo
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     for attempt in range(3):
+        received_success = False
         try:
             logger.info(f"start MiniMax TTS, model: {model}, voice: {voice_id}, try: {attempt + 1}")
             response = requests.post(url, json=payload, headers=headers, timeout=120)
             if response.status_code != 200:
                 logger.error(f"MiniMax TTS failed with status {response.status_code}: {response.text[:200]}")
                 continue
+            received_success = True
             body = response.json()
             data = body.get("data") or {}
             base_resp = body.get("base_resp") or {}
-            if base_resp.get("status_code") != 0 or data.get("status") != 2:
+            status_code = base_resp.get("status_code")
+            if not isinstance(status_code, int) or isinstance(status_code, bool):
+                logger.error("MiniMax returned an unknown acceptance status; stop paid retries")
+                return None
+            if status_code != 0:
                 logger.error(f"MiniMax TTS returned an unsuccessful response: status_code={base_resp.get('status_code')}, audio_status={data.get('status')}")
                 continue
+            if data.get("status") != 2:
+                logger.error("MiniMax accepted the request but returned incomplete audio")
+                return None
             audio_hex = data.get("audio")
             if not isinstance(audio_hex, str) or not audio_hex:
                 logger.error("MiniMax TTS returned empty audio data")
-                continue
+                return None
             if len(audio_hex) > _MINIMAX_TTS_MAX_AUDIO_HEX_CHARS:
                 logger.error("MiniMax TTS returned audio data exceeding the supported size")
-                continue
+                return None
             audio_duration = _write_validated_minimax_audio(bytes.fromhex(audio_hex), voice_file)
             logger.success(f"MiniMax TTS succeeded: {voice_file}")
             return populate_legacy_submaker_with_full_text(
@@ -2174,8 +2183,12 @@ def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, vo
                 f"stop paid retries: {type(exc).__name__}"
             )
             return None
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, TypeError, AttributeError) as exc:
             logger.error(f"MiniMax TTS failed: {str(exc)}")
+            if received_success:
+                # The request may already be billed, even if JSON/audio parsing
+                # or local file publication failed. Never regenerate it here.
+                return None
     return None
 
 
