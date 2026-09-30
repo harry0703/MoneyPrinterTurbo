@@ -1,3 +1,4 @@
+import mimetypes
 import os
 import pathlib
 import shutil
@@ -549,9 +550,9 @@ async def download_video(request: Request, file_path: str):
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     file_path = pathlib.Path(video_path)
     filename = file_path.name
-    extension = file_path.suffix
+    media_type, _ = mimetypes.guess_type(filename)
     return FileResponse(
         path=video_path,
         filename=filename,
-        media_type=f"video/{extension[1:]}",
+        media_type=media_type or "application/octet-stream",
     )
