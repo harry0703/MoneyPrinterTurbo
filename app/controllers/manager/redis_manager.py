@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from app.controllers.manager.base_manager import TaskManager, TaskQueueFullError
 from app.models import const
-from app.models.schema import VideoParams
+from app.models.schema import AudioRequest, SubtitleRequest, VideoParams
 from app.services import state as sm
 from app.services import task as tm
 
@@ -74,7 +74,9 @@ class RedisTaskManager(TaskManager):
         task_kwargs = task.get("kwargs", {})
         task_with_serializable_params["kwargs"] = task_kwargs.copy()
 
-        if "params" in task_kwargs and isinstance(task_kwargs["params"], VideoParams):
+        if "params" in task_kwargs and isinstance(
+            task_kwargs["params"], (VideoParams, AudioRequest, SubtitleRequest)
+        ):
             task_with_serializable_params["kwargs"]["params"] = task_kwargs[
                 "params"
             ].model_dump(warnings=False)
@@ -147,11 +149,20 @@ class RedisTaskManager(TaskManager):
 
             if "params" in task_kwargs and isinstance(task_kwargs["params"], dict):
                 try:
-                    task_kwargs["params"] = VideoParams(**task_kwargs["params"])
+                    params_model = VideoParams
+                    # /audio and /subtitle use short-form request models without
+                    # video_subject. Preserve those schemas at the queue boundary;
+                    # full VideoParams can also stop at either of these stages.
+                    if "video_subject" not in task_kwargs["params"]:
+                        if task_kwargs.get("stop_at") == "audio":
+                            params_model = AudioRequest
+                        elif task_kwargs.get("stop_at") == "subtitle":
+                            params_model = SubtitleRequest
+                    task_kwargs["params"] = params_model(**task_kwargs["params"])
                 except ValidationError as e:
                     logger.error(
                         "dropping queued task with params that fail current "
-                        f"VideoParams validation (queued under an older, more "
+                        f"request model validation (queued under an older, more "
                         f"permissive schema, or corrupted): {e}"
                     )
                     # 任务状态记录在入队前就已创建，且默认是 processing；如果只是
