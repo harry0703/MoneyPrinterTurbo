@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import webbrowser
 from collections.abc import Mapping
@@ -7901,6 +7902,30 @@ def _render_subtitle_settings(panel, params):
                 st.toast(tr("Default Subtitle Settings Restored"))
 
 
+def _stage_task_audio(audio_path, audio_bytes):
+    """Publish task-local audio only after the complete write succeeds."""
+    descriptor = None
+    staged_path = None
+    try:
+        descriptor, staged_path = tempfile.mkstemp(
+            dir=os.path.dirname(audio_path), prefix=".task-audio-", suffix=".tmp"
+        )
+        with os.fdopen(descriptor, "wb") as file:
+            descriptor = None  # The file context now owns the descriptor.
+            file.write(audio_bytes)
+        os.replace(staged_path, audio_path)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if staged_path is not None:
+            try:
+                os.unlink(staged_path)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(f"failed to remove staged task audio: {exc}")
+
+
 def _render_generation_controls(
     params, uploaded_files, uploaded_audio_file, uploaded_bgm_file, voice_mode
 ):
@@ -8207,8 +8232,8 @@ def _render_generation_controls(
             params.bgm_file = ""
 
         if uploaded_audio_file:
-            task_dir = utils.task_dir(task_id)
             try:
+                task_dir = utils.task_dir(task_id)
                 custom_audio_path = _build_uploaded_file_path(
                     uploaded_audio_file,
                     task_dir,
@@ -8221,6 +8246,12 @@ def _render_generation_controls(
                 bgm_service.validate_bgm_upload(
                     uploaded_audio_file.name, uploaded_audio_file
                 )
+                _stage_task_audio(custom_audio_path, uploaded_audio_file.getbuffer())
+            except OSError as exc:
+                _remove_active_generation_task(task_id)
+                logger.error(f"failed to persist uploaded task audio: {exc}")
+                st.error(tr("Video Generation Failed"))
+                st.stop()
             except bgm_service.BgmUploadError as exc:
                 _remove_active_generation_task(task_id)
                 logger.warning(f"WebUI custom audio upload rejected: {exc}")
@@ -8235,8 +8266,6 @@ def _render_generation_controls(
                 _remove_active_generation_task(task_id)
                 st.error(tr("Unsupported Upload File Type"))
                 st.stop()
-            with open(custom_audio_path, "wb") as f:
-                f.write(uploaded_audio_file.getbuffer())
             params.custom_audio_file = custom_audio_path
 
         if uploaded_files:
@@ -8278,12 +8307,18 @@ def _render_generation_controls(
             # 试听缓存只存在当前 Streamlit 会话。提交前把音频写入目标任务目录，
             # 后台线程随后只读取任务自己的文件；即使页面 rerun、浏览器关闭或
             # 用户试听其它音色，也不会影响已经入队的生成任务。
-            preview_audio_file = os.path.join(
-                utils.task_dir(task_id),
-                "audio.mp3",
-            )
-            with open(preview_audio_file, "wb") as file:
-                file.write(reusable_voice_preview.pop("audio_bytes"))
+            try:
+                preview_audio_file = os.path.join(
+                    utils.task_dir(task_id),
+                    "audio.mp3",
+                )
+                _stage_task_audio(preview_audio_file, reusable_voice_preview["audio_bytes"])
+            except OSError as exc:
+                _remove_active_generation_task(task_id)
+                logger.error(f"failed to persist preview task audio: {exc}")
+                st.error(tr("Video Generation Failed"))
+                st.stop()
+            reusable_voice_preview.pop("audio_bytes")
             reusable_voice_preview["audio_file"] = preview_audio_file
             logger.info(
                 f"reuse full voice preview for task: "
