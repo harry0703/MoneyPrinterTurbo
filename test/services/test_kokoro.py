@@ -118,9 +118,10 @@ def test_failed_audio_never_overwrites_output(monkeypatch, tmp_path, provider, f
     ) is None
     assert output.read_bytes() == b"previous audio"
     assert list(tmp_path.iterdir()) == [output]
-    assert post.call_count == 3
+    expected_attempts = 3 if failure in {"http", "timeout"} else 1
+    assert post.call_count == expected_attempts
     if failure in {"zero", "nan", "replace"}:
-        assert clip.close.call_count == 3
+        clip.close.assert_called_once()
 
 
 def test_transient_error_retries_successfully(monkeypatch, tmp_path):
