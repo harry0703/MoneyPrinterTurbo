@@ -41,7 +41,7 @@ from app.models.schema import (
 )
 from app.services import bgm as bgm_service
 from app.services.utils import video_effects
-from app.utils import file_security, utils
+from app.utils import file_security, logging_utils, utils
 
 class SubClippedVideoClip:
     def __init__(
@@ -514,7 +514,9 @@ def _run_concat_with_heartbeat(command: list[str], output_file: str):
                 f"{_describe_concat_output_progress(output_file)}"
             )
 
-    reporter = threading.Thread(target=log_heartbeat, daemon=True)
+    reporter = threading.Thread(
+        target=logging_utils.bind_log_scope(log_heartbeat), daemon=True
+    )
     reporter.start()
     try:
         configured_timeout = config.app.get(
@@ -1060,6 +1062,9 @@ def combine_videos(
             if clip_file:
                 delete_files(clip_file)
 
+    # 片段始终在线程池里处理。逐片段日志是这一阶段唯一的进度信息，绑定到
+    # 发起合成的线程后，WebUI 的任务日志才能收集到它们。
+    process_clip_in_task_scope = logging_utils.bind_log_scope(process_one_clip)
     clip_processing_workers = 1
     if len(subclipped_items) >= 2:
         clip_processing_workers = min(_get_clip_processing_concurrency(), len(subclipped_items))
@@ -1088,7 +1093,7 @@ def combine_videos(
                 candidate_index += 1
             if not batch:
                 break
-            for processed_clip in executor.map(process_one_clip, batch):
+            for processed_clip in executor.map(process_clip_in_task_scope, batch):
                 if processed_clip is None:
                     continue
                 processed_clips.append(processed_clip)

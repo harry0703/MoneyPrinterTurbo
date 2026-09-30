@@ -1,17 +1,39 @@
 import os
 import sys
 import tempfile
+import threading
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import requests
+from loguru import logger
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
 from app.services import material
+from app.utils import logging_utils
+
+
+@contextmanager
+def _capture_task_scoped_logs():
+    """按 WebUI 任务日志的同一条规则收集日志：只保留归属当前线程的记录。"""
+    messages = []
+    root_thread_id = threading.get_ident()
+    handler_id = logger.add(
+        lambda message: messages.append(message.record["message"]),
+        level="DEBUG",
+        filter=lambda record: (
+            logging_utils.log_scope_thread_id(record["thread"].id) == root_thread_id
+        ),
+    )
+    try:
+        yield messages
+    finally:
+        logger.remove(handler_id)
 
 
 class _FakeVideoDownloadResponse:
@@ -1413,6 +1435,41 @@ class TestMaterialTlsVerification(unittest.TestCase):
         # 首轮 [a, b]：a 成功（6s）、b 失败；次轮 [c] 成功（累计 12s 覆盖即停）。
         # 与串行逻辑的下载集合一致：{a, c}，d 不会被多下载。
         self.assertEqual(result, ["/tmp/a.mp4", "/tmp/c.mp4"])
+
+    def test_parallel_download_logs_belong_to_the_task_log_scope(self):
+        """
+        并发数大于 1 时素材在 material-download 线程池里下载。这些线程写出的
+        日志必须归属发起下载的任务线程，否则调高并发后 WebUI 反而看不到下载
+        过程中的任何输出。
+        """
+        items = [
+            material.MaterialInfo(
+                provider="pexels",
+                url=f"https://v.example/{name}.mp4",
+                duration=6,
+            )
+            for name in ("a", "b")
+        ]
+
+        def fake_save_video(video_url, save_dir=""):
+            name = video_url.rsplit("/", 1)[-1]
+            logger.info(f"worker downloading {name}")
+            return f"/tmp/{name}"
+
+        with (
+            patch.dict(config.app, {"material_concurrency": 4}),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            _capture_task_scoped_logs() as messages,
+        ):
+            material._download_materials_in_parallel(
+                materials=[("city", item) for item in items],
+                material_directory="",
+            )
+
+        self.assertEqual(
+            sorted(m for m in messages if m.startswith("worker downloading")),
+            ["worker downloading a.mp4", "worker downloading b.mp4"],
+        )
 
     def test_material_concurrency_is_clamped(self):
         """素材并发配置钳制在 1~8，非法值回退到串行默认值。"""

@@ -3,14 +3,16 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import types
 import unittest
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+from loguru import logger
 from moviepy import (
     ImageClip,
     VideoFileClip,
@@ -22,9 +24,32 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from app.config import config
 from app.models.schema import MaterialInfo
 from app.services import video as vd
-from app.utils import utils
+from app.utils import logging_utils, utils
 
 resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources")
+
+
+@contextmanager
+def _capture_task_scoped_logs():
+    """
+    按 WebUI 任务日志的同一条规则收集日志：只保留归属当前线程的记录。
+
+    直接 patch ``logger.info`` 无法区分日志来自哪个线程，而 WebUI 丢日志的
+    原因正是线程归属，所以这里用真实的 loguru sink 加作用域过滤来验证。
+    """
+    messages = []
+    root_thread_id = threading.get_ident()
+    handler_id = logger.add(
+        lambda message: messages.append(message.record["message"]),
+        level="DEBUG",
+        filter=lambda record: (
+            logging_utils.log_scope_thread_id(record["thread"].id) == root_thread_id
+        ),
+    )
+    try:
+        yield messages
+    finally:
+        logger.remove(handler_id)
 
 
 class _FakeMoviePyClip:
@@ -1401,6 +1426,90 @@ class TestVideoService(unittest.TestCase):
         ]
         self.assertTrue(heartbeats, "耗时拼接期间必须记录存活日志")
         self.assertRegex(heartbeats[0], r"elapsed=\d+s, output size: 0\.00 MB")
+
+    def test_concat_heartbeat_belongs_to_the_task_log_scope(self):
+        """
+        心跳由独立线程写出。WebUI 只收集任务线程作用域内的日志，心跳线程不
+        绑定作用域时，终端能看到存活信息，WebUI 面板却依旧一片空白。
+        """
+
+        def slow_run(command, capture_output, text, check, **kwargs):
+            time.sleep(0.2)
+            Path(command[-1]).write_bytes(b"encoded-video")
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with (
+                patch.object(vd, "_FFMPEG_CONCAT_HEARTBEAT_SECONDS", 0.02),
+                patch.object(vd.subprocess, "run", side_effect=slow_run),
+                _capture_task_scoped_logs() as messages,
+            ):
+                vd.concat_video_clips_with_ffmpeg(
+                    clip_files=[clip_file],
+                    output_file=output_file,
+                    threads=1,
+                    output_dir=temp_dir,
+                )
+
+        self.assertTrue(
+            [message for message in messages if "still running" in message],
+            "心跳日志必须归属发起拼接的任务线程",
+        )
+
+    def test_clip_processing_logs_belong_to_the_task_log_scope(self):
+        """
+        片段始终在 clip-process 线程池里处理，即使并发数为 1。逐片段日志是这一
+        阶段唯一的进度信息，必须归属任务线程，WebUI 才能显示“正在处理第几段”。
+        """
+
+        class _FakeAudioClip:
+            duration = 4.0
+
+            def close(self):
+                pass
+
+        class _FakeVideoClip:
+            def __init__(self, duration):
+                self.duration = duration
+                self.size = (1080, 1920)
+                self.w = 1080
+                self.h = 1920
+
+            def subclipped(self, start_time, end_time):
+                return _FakeVideoClip(end_time - start_time)
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(vd, "AudioFileClip", return_value=_FakeAudioClip()),
+                patch.object(
+                    vd,
+                    "_open_video_clip_quietly",
+                    side_effect=lambda _path: _FakeVideoClip(10.0),
+                ),
+                patch.object(vd, "_write_videofile_with_codec_fallback"),
+                patch.object(vd, "concat_video_clips_with_ffmpeg"),
+                patch.object(vd, "delete_files"),
+                _capture_task_scoped_logs() as messages,
+            ):
+                vd.combine_videos(
+                    combined_video_path=os.path.join(temp_dir, "combined.mp4"),
+                    video_paths=["clip.mp4"],
+                    audio_file="audio.mp3",
+                    video_concat_mode=vd.VideoConcatMode.sequential,
+                    max_clip_duration=2,
+                )
+
+        self.assertTrue(
+            [message for message in messages if message.startswith("processing clip")],
+            "逐片段处理日志必须归属发起合成的任务线程",
+        )
 
     def test_concat_timeout_fails_without_retrying_another_codec(self):
         """A stalled FFmpeg must fail the task and release the concat list file."""
