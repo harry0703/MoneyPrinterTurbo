@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import tempfile
@@ -277,7 +278,8 @@ def load_material_search_cache(
                 or not item_url
                 or isinstance(item_duration, bool)
                 or not isinstance(item_duration, (int, float))
-                or item_duration <= 0
+                or (isinstance(item_duration, float) and not math.isfinite(item_duration))
+                or item_duration < 1
                 or not isinstance(source_info, dict)
                 or not source_info
             ):
