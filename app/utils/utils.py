@@ -94,8 +94,8 @@ def storage_dir(sub_dir: str = "", create: bool = False):
     d = os.path.join(root_dir(), "storage")
     if sub_dir:
         d = os.path.join(d, sub_dir)
-    if create and not os.path.exists(d):
-        os.makedirs(d)
+    if create:
+        os.makedirs(d, exist_ok=True)
 
     return d
 
@@ -111,8 +111,7 @@ def task_dir(sub_dir: str = ""):
     d = os.path.join(storage_dir(), "tasks")
     if sub_dir:
         d = os.path.join(d, sub_dir)
-    if not os.path.exists(d):
-        os.makedirs(d)
+    os.makedirs(d, exist_ok=True)
     return d
 
 
@@ -120,8 +119,7 @@ def font_dir(sub_dir: str = ""):
     d = resource_dir("fonts")
     if sub_dir:
         d = os.path.join(d, sub_dir)
-    if not os.path.exists(d):
-        os.makedirs(d)
+    os.makedirs(d, exist_ok=True)
     return d
 
 
@@ -129,8 +127,7 @@ def song_dir(sub_dir: str = ""):
     d = resource_dir("songs")
     if sub_dir:
         d = os.path.join(d, sub_dir)
-    if not os.path.exists(d):
-        os.makedirs(d)
+    os.makedirs(d, exist_ok=True)
     return d
 
 
@@ -138,8 +135,7 @@ def public_dir(sub_dir: str = ""):
     d = resource_dir("public")
     if sub_dir:
         d = os.path.join(d, sub_dir)
-    if not os.path.exists(d):
-        os.makedirs(d)
+    os.makedirs(d, exist_ok=True)
     return d
 
 
