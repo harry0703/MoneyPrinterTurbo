@@ -13,7 +13,7 @@ from app.controllers.v1 import video as controller
 @pytest.mark.parametrize('filename,expected', [
     ('audio.mp3', 'audio/mpeg'),
     ('audio.wav', ('audio/x-wav', 'audio/wav', 'audio/vnd.wave')),
-    ('subtitle.srt', 'application/x-subrip'),
+    ('subtitle.srt', ('application/x-subrip', 'text/plain')),
     ('script.json', 'application/json'),
     ('final-1.mp4', 'video/mp4'),
     ('artifact.unknown-mpt-extension', 'application/octet-stream'),
