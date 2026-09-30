@@ -26,7 +26,10 @@ def _mock_response(success=True):
     r.json.return_value = {
         "success": success,
         "request_id": "abc123",
-        "results": {"tiktok": {"success": success}},
+        "results": {
+            platform: {"success": success}
+            for platform in _CONFIG_BASE["upload_post_platforms"]
+        },
     }
     r.raise_for_status = MagicMock()
     return r
