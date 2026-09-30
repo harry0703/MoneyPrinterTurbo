@@ -37,7 +37,7 @@ class _StreamingResponse:
     def iter_content(self, chunk_size):
         if self.iter_error:
             raise self.iter_error
-        return iter(())
+        return iter(event + b"\n" for event in self.events)
 
     def iter_lines(self):
         if self.iter_error:
