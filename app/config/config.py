@@ -457,12 +457,52 @@ def _load_toml_config(config_path: str):
         raise
 
 
+
+def _initialize_config_from_example(example_file):
+    """Publish a complete first-boot config without replacing another writer."""
+    fd, temp_path = tempfile.mkstemp(
+        prefix=".config-init-", suffix=".toml.tmp",
+        dir=os.path.dirname(os.path.abspath(config_file)),
+    )
+    try:
+        with os.fdopen(fd, "wb") as destination:
+            with open(example_file, "rb") as source:
+                shutil.copyfileobj(source, destination)
+            destination.flush()
+            os.fsync(destination.fileno())
+        try:
+            if os.name == "nt":
+                # Windows rename refuses an existing destination. POSIX rename
+                # overwrites it, so use an exclusive hard-link publication there.
+                os.rename(temp_path, config_file)
+            else:
+                os.link(temp_path, config_file)
+        except FileExistsError:
+            return False
+        except OSError as exc:
+            raise OSError(
+                exc.errno,
+                "cannot safely initialize config.toml; copy config.example.toml "
+                "to config.toml before starting the application",
+            ) from exc
+        return True
+    finally:
+        try:
+            os.unlink(temp_path)
+        except FileNotFoundError:
+            # A successful Windows rename consumed the temporary path.
+            pass
+
+
 def load_config():
     # Docker may create an empty directory when a missing config.toml is bind-mounted.
     # Only remove that empty placeholder; a nonempty directory may contain user data.
     if os.path.isdir(config_file):
         try:
             os.rmdir(config_file)
+        except FileNotFoundError:
+            # Another initializer already removed this empty bind-mount stub.
+            pass
         except OSError as exc:
             raise IsADirectoryError(
                 f"{config_file} is a directory and cannot be used as the config file; "
@@ -472,8 +512,8 @@ def load_config():
     if not os.path.isfile(config_file):
         example_file = f"{root_dir}/config.example.toml"
         if os.path.isfile(example_file):
-            shutil.copyfile(example_file, config_file)
-            logger.info("copy config.example.toml to config.toml")
+            if _initialize_config_from_example(example_file):
+                logger.info("copy config.example.toml to config.toml")
 
     logger.info(f"load config from file: {config_file}")
 
