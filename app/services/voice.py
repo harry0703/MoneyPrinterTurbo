@@ -1393,6 +1393,7 @@ def azure_tts_v1(
     text = text.strip()
     rate_str = convert_rate_to_percent(voice_rate)
     for i in range(3):
+        temp_path = None
         try:
             logger.info(f"start, voice name: {voice_name}, try: {i + 1}")
 
@@ -1404,7 +1405,12 @@ def azure_tts_v1(
             sub_maker = edge_tts.SubMaker()
             timeout_seconds = get_edge_tts_timeout_seconds()
 
-            with open(voice_file, "wb") as file:
+            descriptor, temp_path = tempfile.mkstemp(
+                prefix=".edge-tts-",
+                suffix=os.path.splitext(voice_file)[1] or ".mp3",
+                dir=os.path.dirname(os.path.abspath(voice_file)),
+            )
+            with os.fdopen(descriptor, "wb") as file:
                 def _handle_chunk(chunk):
                     chunk_type = chunk["type"]
                     if chunk_type == "audio":
@@ -1421,29 +1427,30 @@ def azure_tts_v1(
 
             # Edge can finish a stream with timing events but no audio payload.
             # Those events produce a nonempty SRT, yet the MP3 is unplayable.
-            if os.path.getsize(voice_file) == 0:
+            if os.path.getsize(temp_path) == 0:
                 logger.warning("failed, edge tts stream contained no audio")
-                os.remove(voice_file)
                 continue
 
             if not sub_maker.get_srt():
                 logger.warning("failed, sub_maker.get_srt() is empty")
                 continue
 
+            # Audio and its timing belong to this same completed attempt.
+            # Failed retries must not replace previously successful narration.
+            os.replace(temp_path, voice_file)
+            temp_path = None
             logger.info(f"completed, output file: {voice_file}")
             return sub_maker
         except Exception as e:
             logger.error(f"failed, error: {str(e)}")
-            # TTS 流式写入如果在首包前超时或网络异常，会留下 0 字节音频文件。
-            # 这种文件既不可播放，也可能误导后续排查，因此失败后只清理空文件；
-            # 如果已经写入了部分数据，则保留现场文件，便于分析服务端返回内容。
-            if os.path.exists(voice_file) and os.path.getsize(voice_file) == 0:
+        finally:
+            if temp_path is not None:
                 try:
-                    os.remove(voice_file)
-                except Exception as remove_error:
+                    os.remove(temp_path)
+                except OSError as remove_error:
                     logger.warning(
-                        "failed to remove empty tts file: "
-                        f"{voice_file}, error: {str(remove_error)}"
+                        "failed to remove temporary Edge TTS audio: "
+                        f"{temp_path}, error: {remove_error}"
                     )
     return None
 
