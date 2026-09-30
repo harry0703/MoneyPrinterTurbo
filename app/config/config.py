@@ -504,10 +504,16 @@ def load_config():
             # Another initializer already removed this empty bind-mount stub.
             pass
         except OSError as exc:
-            raise IsADirectoryError(
-                f"{config_file} is a directory and cannot be used as the config file; "
-                "move or rename it, then restart"
-            ) from exc
+            # Another initializer may already have replaced the empty Docker
+            # stub with its complete regular file. Accept only that race, not
+            # permission failures or a still-present/nonempty directory.
+            if not (
+                isinstance(exc, NotADirectoryError) and os.path.isfile(config_file)
+            ):
+                raise IsADirectoryError(
+                    f"{config_file} is a directory and cannot be used as the config file; "
+                    "move or rename it, then restart"
+                ) from exc
 
     if not os.path.isfile(config_file):
         example_file = f"{root_dir}/config.example.toml"

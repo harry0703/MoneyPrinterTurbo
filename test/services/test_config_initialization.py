@@ -111,3 +111,45 @@ def test_windows_destination_collision_preserves_existing_config():
             assert not config._initialize_config_from_example(str(example))
         assert '"keep"' in target.read_text()
         assert not list(Path(directory).glob('.config-init-*'))
+
+
+def test_initializer_accepts_winner_published_after_docker_stub_check():
+    with TemporaryDirectory() as directory:
+        target = Path(directory, 'config.toml')
+        target.mkdir()
+        example = Path(directory, 'config.example.toml')
+        example.write_text('[app]\napi_key = ""\n', encoding='utf-8')
+        winner = '[app]\napi_key = "winning-config"\n'
+        remove_directory = os.rmdir
+
+        def publish_winner_before_stub_removal(path, *args, **kwargs):
+            # Both initializers saw the empty Docker bind-mount stub. The first
+            # removes it and publishes its complete regular config before the
+            # second reaches rmdir, which now raises real NotADirectoryError.
+            if str(path) == str(target):
+                remove_directory(path)
+                target.write_text(winner, encoding='utf-8')
+            return remove_directory(path, *args, **kwargs)
+
+        with (
+            patch.object(config, 'root_dir', directory),
+            patch.object(config, 'config_file', str(target)),
+            patch.object(config.os, 'rmdir', side_effect=publish_winner_before_stub_removal),
+        ):
+            result = config.load_config()
+        assert result['app']['api_key'] == 'winning-config'
+        assert target.read_text() == winner
+        assert not list(Path(directory).glob('.config-init-*'))
+
+
+def test_not_a_directory_error_does_not_hide_an_unusable_config_path():
+    with TemporaryDirectory() as directory:
+        target = Path(directory, 'config.toml')
+        target.mkdir()
+        with (
+            patch.object(config, 'config_file', str(target)),
+            patch.object(config.os, 'rmdir', side_effect=NotADirectoryError('not a regular winner')),
+        ):
+            with pytest.raises(IsADirectoryError):
+                config.load_config()
+        assert target.is_dir()
