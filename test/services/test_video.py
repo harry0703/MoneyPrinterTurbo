@@ -856,6 +856,7 @@ class TestVideoService(unittest.TestCase):
                     stdout="",
                     stderr="nvenc device not available",
                 )
+            Path(command[-1]).write_bytes(b"encoded-video")
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1343,6 +1344,7 @@ class TestVideoService(unittest.TestCase):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 
         def fake_run(command, capture_output, text, check, **kwargs):
+            Path(command[-1]).write_bytes(b"encoded-video")
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1361,7 +1363,8 @@ class TestVideoService(unittest.TestCase):
 
         command = run.call_args.args[0]
         self.assertEqual(command[command.index("-t") + 1], "10.000")
-        self.assertLess(command.index("-t"), command.index(output_file))
+        self.assertLess(command.index("-t"), len(command) - 1)
+        self.assertNotEqual(command[-1], output_file)
 
     def test_concat_video_clips_logs_heartbeat_while_ffmpeg_runs(self):
         """
@@ -1372,6 +1375,7 @@ class TestVideoService(unittest.TestCase):
         def slow_run(command, capture_output, text, check, **kwargs):
             # 模拟一次耗时拼接：这段窗口内心跳线程应至少记录一次存活日志。
             time.sleep(0.2)
+            Path(command[-1]).write_bytes(b"encoded-video")
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
         with tempfile.TemporaryDirectory() as temp_dir:
