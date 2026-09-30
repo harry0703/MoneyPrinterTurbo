@@ -2910,8 +2910,14 @@ def _encode_voxcpm_audio_data_uri(
         raise ValueError(f"{field_name} audio exceeds ModelBest's 5 MiB limit")
     try:
         with wave.open(io.BytesIO(audio_bytes), "rb") as wav_file:
-            if wav_file.getnframes() <= 0:
+            frame_count = wav_file.getnframes()
+            if frame_count <= 0:
                 raise ValueError(f"{field_name} audio is empty")
+            expected_bytes = frame_count * wav_file.getnchannels() * wav_file.getsampwidth()
+            # WAV headers can advertise frames that are not in the upload.
+            # Bound the read by the existing upload cap even for forged counts.
+            if expected_bytes > len(audio_bytes) or len(wav_file.readframes(frame_count)) != expected_bytes:
+                raise ValueError(f"{field_name} audio contains truncated PCM frames")
     except wave.Error as exc:
         raise ValueError(f"{field_name} audio must be a valid WAV") from exc
     return "data:audio/wav;base64," + base64.b64encode(audio_bytes).decode("ascii")
