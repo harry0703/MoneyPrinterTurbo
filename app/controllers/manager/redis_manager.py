@@ -6,7 +6,7 @@ import redis
 from loguru import logger
 from pydantic import ValidationError
 
-from app.controllers.manager.base_manager import TaskManager
+from app.controllers.manager.base_manager import TaskManager, TaskQueueFullError
 from app.models import const
 from app.models.schema import VideoParams
 from app.services import state as sm
@@ -16,6 +16,14 @@ FUNC_MAP = {
     "start": tm.start,
     # 'start_test': tm.start_test
 }
+
+_ADMIT_QUEUED_TASK_SCRIPT = """
+if redis.call("LLEN", KEYS[1]) >= tonumber(ARGV[1]) then
+    return 0
+end
+redis.call("RPUSH", KEYS[1], ARGV[2])
+return 1
+"""
 
 
 class RedisTaskManager(TaskManager):
@@ -42,6 +50,23 @@ class RedisTaskManager(TaskManager):
             self.check_queue()
 
     def enqueue(self, task: Dict):
+        self.redis_client.rpush(self.queue, self._serialize_task(task))
+
+    def enqueue_new_task(self, task: Dict):
+        # Manager locks are process-local. Keep capacity validation and admission
+        # in one Redis operation so other API workers cannot claim the same slot.
+        admitted = self.redis_client.eval(
+            _ADMIT_QUEUED_TASK_SCRIPT,
+            1,
+            self.queue,
+            self.max_queued_tasks,
+            self._serialize_task(task),
+        )
+        if not admitted:
+            raise TaskQueueFullError("task queue is full, please try again later")
+
+    @staticmethod
+    def _serialize_task(task: Dict) -> str:
         task_with_serializable_params = task.copy()
         # task.copy() 只复制最外层字典；如果直接改写嵌套 kwargs，会把调用方
         # 持有的 VideoParams 同步替换成 dict。后续日志或重试仍可能读取原任务，
@@ -56,7 +81,7 @@ class RedisTaskManager(TaskManager):
 
         # 将函数对象转换为其名称
         task_with_serializable_params["func"] = task["func"].__name__
-        self.redis_client.rpush(self.queue, json.dumps(task_with_serializable_params))
+        return json.dumps(task_with_serializable_params)
 
     def dequeue(self):
         # 循环而非单次弹出：某个任务在入队时可能满足当时的校验规则，但校验规则与

@@ -81,7 +81,7 @@ class TaskManager:
                     f"enqueue task: {func.__name__}, current_tasks: {self.current_tasks}, "
                     f"queue_size: {queue_size}"
                 )
-                self.enqueue({"func": func, "args": args, "kwargs": kwargs})
+                self.enqueue_new_task({"func": func, "args": args, "kwargs": kwargs})
 
     def execute_task(self, func: Callable, *args: Any, **kwargs: Any):
         thread = threading.Thread(
@@ -131,6 +131,10 @@ class TaskManager:
 
     def enqueue(self, task: Dict):
         raise NotImplementedError()
+
+    def enqueue_new_task(self, task: Dict):
+        """Admit new work; shared queues may need their own atomic limit check."""
+        self.enqueue(task)
 
     def dequeue(self):
         raise NotImplementedError()
