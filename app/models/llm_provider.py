@@ -428,6 +428,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://router.requesty.ai/v1",
         model_docs_url="https://www.requesty.ai/models",
     ),
+    LLMProviderSpec(
+        "futureinfra",
+        "FutureInfra",
+        api_key_url="https://futureinfra.ai/console/?screen=ai-router",
+        default_model="openai/gpt-4o-mini",
+        default_base_url="https://futureinfra.ai/v1/ai",
+        model_docs_url="https://futureinfra.ai/ai/",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
