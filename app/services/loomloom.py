@@ -563,6 +563,7 @@ class LoomLoomScriptBackend:
     def _list_all_result_rows(self, run_id: str) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         page_token = ""
+        seen_tokens: set[str] = set()
         while True:
             params: dict[str, Any] = {"pageSize": 200}
             if page_token:
@@ -578,9 +579,12 @@ class LoomLoomScriptBackend:
             ):
                 raise LoomLoomAPIError("LoomLoom resultRows items must be objects")
             rows.extend(items)
-            page_token = str(response.get("nextPageToken", "")).strip()
+            page_token = str(response.get("nextPageToken") or "").strip()
             if not page_token:
                 return rows
+            if page_token in seen_tokens:
+                raise LoomLoomAPIError("LoomLoom returned a repeated resultRows page token")
+            seen_tokens.add(page_token)
 
     def _parse_candidate(
         self, row_index: int, row: Mapping[str, Any]
