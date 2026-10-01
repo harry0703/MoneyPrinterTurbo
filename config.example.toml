@@ -280,6 +280,13 @@ requesty_api_key = ""
 requesty_base_url = ""
 requesty_model_name = ""
 
+# FutureInfra, an OpenAI-compatible multi-model gateway.
+# API key: https://futureinfra.ai/console/?screen=ai-router
+# Model list: https://futureinfra.ai/ai/
+futureinfra_api_key = ""
+futureinfra_base_url = ""
+futureinfra_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
