@@ -6,6 +6,7 @@ Docs: https://docs.upload-post.com
 import os
 import time
 from typing import Callable, Optional
+from uuid import uuid4
 
 import requests
 from loguru import logger
@@ -20,14 +21,31 @@ _MAX_CONSECUTIVE_STATUS_ERRORS = 3
 class UploadPostService:
     API_BASE = "https://api.upload-post.com"
 
+    def __init__(self, account: dict | None = None):
+        # A background publish must keep its account across queueing and polling.
+        # Only the in-memory job carries this snapshot; it is never task metadata.
+        self._account = dict(account) if account is not None else None
+
+    def snapshot_account(self) -> dict:
+        settings = dict(config.app if self._account is None else self._account)
+        return {
+            "upload_post_api_key": settings.get("upload_post_api_key", ""),
+            "upload_post_username": settings.get("upload_post_username", ""),
+            "upload_post_enabled": settings.get("upload_post_enabled", False),
+        }
+
+    def _account_setting(self, key: str, default):
+        settings = config.app if self._account is None else self._account
+        return settings.get(key, default)
+
     @staticmethod
-    def _with_platform_outcome(result: dict) -> dict:
+    def _with_platform_outcome(result: dict, expected_platforms: list | None = None) -> dict:
         """A successful API request can still contain failed platform publishes."""
         platform_results = result.get("results")
         if isinstance(platform_results, dict):
-            entries = platform_results.items()
+            entries = list(platform_results.items())
         elif isinstance(platform_results, list):
-            entries = (
+            entries = [
                 (
                     entry.get("platform", "unknown")
                     if isinstance(entry, dict)
@@ -35,7 +53,7 @@ class UploadPostService:
                     entry,
                 )
                 for entry in platform_results
-            )
+            ]
         else:
             if "results" in result:
                 return {
@@ -52,6 +70,12 @@ class UploadPostService:
             or entry.get("success") is not True
             or entry.get("skipped") is True
         ]
+        reported_platforms = {platform for platform, _ in entries if isinstance(platform, str)}
+        failures.extend(
+            f"{platform} (missing result)"
+            for platform in dict.fromkeys(expected_platforms or [])
+            if platform not in reported_platforms
+        )
         if not platform_results:
             failures.append("no platform results")
         if failures:
@@ -63,7 +87,7 @@ class UploadPostService:
             }
         return result
 
-    def _wait_for_upload_completion(self, request_id: str) -> dict:
+    def _wait_for_upload_completion(self, request_id: str, expected_platforms: list | None = None) -> dict:
         """Resolve Upload-Post's automatic sync-to-background fallback."""
         consecutive_errors = 0
         deadline = time.monotonic() + _UPLOAD_STATUS_TIMEOUT_SECONDS
@@ -79,7 +103,8 @@ class UploadPostService:
                         "error": "Upload-Post completed without platform results",
                     }
                 return self._with_platform_outcome(
-                    {**status_result, "request_id": request_id, "success": True}
+                    {**status_result, "request_id": request_id, "success": True},
+                    expected_platforms,
                 )
             if status == "failed":
                 return {
@@ -113,15 +138,15 @@ class UploadPostService:
 
     @property
     def api_key(self) -> str:
-        return config.app.get("upload_post_api_key", "")
+        return self._account_setting("upload_post_api_key", "")
 
     @property
     def username(self) -> str:
-        return config.app.get("upload_post_username", "")
+        return self._account_setting("upload_post_username", "")
 
     @property
     def enabled(self) -> bool:
-        return config.app.get("upload_post_enabled", False)
+        return self._account_setting("upload_post_enabled", False)
 
     @property
     def platforms(self) -> list:
@@ -178,12 +203,16 @@ class UploadPostService:
 
         logger.info(f"Cross-posting video to {', '.join(platforms)} via Upload-Post...")
 
+        # Generate the remote handle before POST: a lost response does not
+        # prove that Upload-Post stopped publishing the received video.
+        client_request_id = str(uuid4())
         try:
             with open(video_path, 'rb') as video_file:
                 files = {'video': video_file}
 
                 data = [
                     ('user', self.username),
+                    ('request_id', client_request_id),
                     ('title', title[:2200]),
                     ('privacy_level', privacy_level),
                 ]
@@ -215,7 +244,18 @@ class UploadPostService:
                     data=data,
                     files=files,
                     timeout=300,
+                    allow_redirects=False,
                 )
+
+                if 300 <= response.status_code < 400:
+                    logger.error(
+                        "Upload-Post upload returned an unexpected redirect: "
+                        f"status={response.status_code}"
+                    )
+                    return {
+                        "success": False,
+                        "error": "Upload-Post upload returned an unexpected redirect",
+                    }
 
                 response.raise_for_status()
                 try:
@@ -262,9 +302,9 @@ class UploadPostService:
                                 "failed to record background upload request ID: "
                                 f"{exc}"
                             )
-                    result = self._wait_for_upload_completion(request_id.strip())
+                    result = self._wait_for_upload_completion(request_id.strip(), platforms)
                 else:
-                    result = self._with_platform_outcome(result)
+                    result = self._with_platform_outcome(result, platforms)
 
             if result.get("success"):
                 logger.info(
@@ -279,7 +319,22 @@ class UploadPostService:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to cross-post video: {str(e)}")
-            return {"success": False, "error": str(e)}
+            uncertain_outcome = isinstance(
+                e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+            ) or (
+                e.response is not None and e.response.status_code >= 500
+            )
+            error = str(e)
+            if uncertain_outcome:
+                error += (
+                    "; upload outcome is unconfirmed; "
+                    f"check request_id {client_request_id} before submitting again"
+                )
+            return {
+                "success": False,
+                "request_id": client_request_id,
+                "error": error,
+            }
 
     def check_status(self, request_id: str) -> dict:
         """
@@ -335,8 +390,10 @@ def cross_post_video(
     platforms: Optional[list] = None,
     youtube_extra: Optional[dict] = None,
     on_background_start: Callable[[str], None] | None = None,
+    account: dict | None = None,
 ) -> dict:
-    return upload_post_service.upload_video(
+    service = UploadPostService(account) if account is not None else upload_post_service
+    return service.upload_video(
         video_path,
         title,
         platforms,

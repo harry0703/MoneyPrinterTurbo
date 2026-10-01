@@ -637,9 +637,16 @@ class TestVoiceService(unittest.TestCase):
                 Path(output_file).write_bytes(b"fake-mp3")
 
         fake_completions = _FakeCompletions()
-        fake_client = SimpleNamespace(
-            chat=SimpleNamespace(completions=fake_completions)
-        )
+        class _FakeClient:
+            chat = SimpleNamespace(completions=fake_completions)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.closed = True
+
+        fake_client = _FakeClient()
 
         with tempfile.TemporaryDirectory() as tmp_dir, patch.object(
             vs,
@@ -672,7 +679,10 @@ class TestVoiceService(unittest.TestCase):
         openai_client.assert_called_once_with(
             api_key="mimo-key",
             base_url="https://api.xiaomimimo.com/v1",
+            max_retries=0,
+            timeout=120.0,
         )
+        self.assertTrue(fake_client.closed)
         self.assertEqual(fake_completions.kwargs["model"], "mimo-v2.5-tts")
         self.assertEqual(
             fake_completions.kwargs["messages"],
@@ -1475,6 +1485,14 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertEqual(result, [])
 
     @patch("app.services.voice.requests.get")
+    def test_get_elevenlabs_voices_does_not_forward_key_on_redirect(self, mock_get):
+        mock_get.return_value.status_code = 302
+        mock_get.return_value.text = "moved"
+
+        self.assertEqual(vs.get_elevenlabs_voices("secret-key"), [])
+        self.assertEqual(mock_get.call_args.kwargs["allow_redirects"], False)
+
+    @patch("app.services.voice.requests.get")
     def test_get_elevenlabs_voices_network_error(self, mock_get):
         import requests as req_lib
         mock_get.side_effect = req_lib.exceptions.ConnectionError("timeout")
@@ -1551,6 +1569,25 @@ class TestElevenLabsVoice(unittest.TestCase):
             self.assertEqual(output.read_bytes(), b"previous-valid-audio")
             self.assertEqual(post.call_count, 1)
             self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["voice.mp3"])
+
+    def test_elevenlabs_tts_does_not_follow_or_retry_redirect(self):
+        response = SimpleNamespace(
+            status_code=307,
+            close=unittest.mock.Mock(),
+            iter_content=unittest.mock.Mock(return_value=iter((b"moved",))),
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "voice.mp3"
+            with (
+                patch.object(vs, "get_elevenlabs_api_key", return_value="secret-key"),
+                patch.object(vs.requests, "post", return_value=response) as post,
+            ):
+                self.assertIsNone(vs.elevenlabs_tts("Hello", "voice-id", str(output)))
+
+            self.assertEqual(post.call_count, 1)
+            self.assertEqual(post.call_args.kwargs["allow_redirects"], False)
+            self.assertFalse(output.exists())
+            response.close.assert_called_once()
 
     @patch("app.services.voice.config")
     def test_elevenlabs_tts_no_api_key(self, mock_config):

@@ -198,7 +198,9 @@ def _validate_video(
                 "-i",
                 file_path,
                 "-map",
-                "0:v:0",
+                # Uppercase V excludes attached pictures/album covers. A cover
+                # in an audio container is not a renderable video material.
+                "0:V:0",
                 "-f",
                 "null",
                 "-",

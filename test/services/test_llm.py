@@ -387,6 +387,13 @@ class TestLiteLLMProvider(unittest.TestCase):
             cheaperinference.model_docs_url,
             "https://cheaperinference.com/#models",
         )
+        requesty = get_llm_provider("requesty")
+        self.assertEqual(requesty.default_model, "openai/gpt-5.4-mini")
+        self.assertEqual(requesty.default_base_url, "https://router.requesty.ai/v1")
+        self.assertEqual(requesty.adapter, "openai_compatible")
+        self.assertTrue(requesty.requires_api_key)
+        self.assertEqual(requesty.api_key_url, "https://app.requesty.ai/api-keys")
+        self.assertEqual(requesty.model_docs_url, "https://www.requesty.ai/models")
         pollinations = get_llm_provider("pollinations")
         self.assertEqual(pollinations.default_model, "openai-fast")
         self.assertEqual(
@@ -446,6 +453,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "api_route",
                 "fluxionai",
                 "cheaperinference",
+                "requesty",
                 "ollama",
                 "claude_code",
                 "opencode",
@@ -595,6 +603,11 @@ class TestLiteLLMProvider(unittest.TestCase):
         ]["llm_provider_tips.moonshot"]
         self.assertIn("推荐理由：", zh_kimi_tips)
         self.assertIn("视频创作链路匹配", zh_kimi_tips)
+        self.assertIn("活动截至 2026 年 12 月 31 日", zh_kimi_tips)
+        en_kimi_tips = json.loads((i18n_dir / "en.json").read_text(encoding="utf-8"))[
+            "Translation"
+        ]["llm_provider_tips.moonshot"]
+        self.assertIn("offer ends December 31, 2026", en_kimi_tips)
 
     def test_required_api_key_providers_have_clickable_entry_points(self):
         """需要密钥的 Provider 必须提供统一申请入口，避免 WebUI 只给出文字。"""

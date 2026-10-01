@@ -1,4 +1,5 @@
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import io
 import math
 import os
@@ -28,7 +29,7 @@ from app.services import (
     video,
     volcengine_seedance,
 )
-from app.utils import utils
+from app.utils import logging_utils, utils
 
 # Thread-safe counter for API key rotation
 _api_key_counter = 0
@@ -38,9 +39,28 @@ _api_key_lock = threading.Lock()
 # Short stock and generated clips should stay well below this conservative cap.
 MAX_VIDEO_DOWNLOAD_BYTES = 512 * 1024 * 1024
 
+# 默认保持串行，与旧版行为一致；有需要时可在配置中提高库存素材并发数。
+_DEFAULT_MATERIAL_CONCURRENCY = 1
+
+
+def _get_material_concurrency() -> int:
+    try:
+        concurrency = int(config.app.get("material_concurrency", _DEFAULT_MATERIAL_CONCURRENCY))
+    except (TypeError, ValueError):
+        concurrency = _DEFAULT_MATERIAL_CONCURRENCY
+    return max(1, min(8, concurrency))
+
 
 class _OpenAIImageDecodeError(ValueError):
     """表示兼容接口返回的字节无法解码为图片，不包含本地文件写入故障。"""
+
+
+class OpenAIImagePaidResultError(RuntimeError):
+    """A paid image request cannot provide a usable local video material."""
+
+
+class OpenAIImageUnconfirmedError(OpenAIImagePaidResultError):
+    """A paid image request may have succeeded without returning a response."""
 
 
 def _safe_public_url(value: Any) -> str | None:
@@ -1091,6 +1111,28 @@ def _get_downloaded_video_duration(video_path: str) -> float:
     return duration
 
 
+# requests 流式下载期间不产生任何日志。慢速网络下单个 4K 素材要下载数分钟，
+# 任务看起来像卡死。超过这个间隔仍未下完时记录已下载大小和速度；间隔内
+# 完成的小文件不产生额外日志，避免刷屏。
+_DOWNLOAD_HEARTBEAT_SECONDS = 15.0
+_BYTES_PER_MEGABYTE = 1024 * 1024
+
+
+def _describe_download_progress(
+    downloaded_bytes: int, declared_size: int, elapsed_seconds: float
+) -> str:
+    """把下载进度整理成一段日志文字；服务器未声明大小时不给百分比。"""
+    downloaded_mb = downloaded_bytes / _BYTES_PER_MEGABYTE
+    speed = downloaded_mb / elapsed_seconds if elapsed_seconds > 0 else 0.0
+    if declared_size > 0:
+        percent = min(100, round(downloaded_bytes * 100 / declared_size))
+        return (
+            f"{downloaded_mb:.1f} of {declared_size / _BYTES_PER_MEGABYTE:.1f} MB "
+            f"({percent}%), {speed:.2f} MB/s"
+        )
+    return f"{downloaded_mb:.1f} MB, {speed:.2f} MB/s"
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -1146,12 +1188,26 @@ def save_video(video_url: str, save_dir: str = "") -> str:
                     raise ValueError("video download exceeds 512 MB limit")
 
                 downloaded_bytes = 0
+                started_at = time.monotonic()
+                last_report_at = started_at
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
                         downloaded_bytes += len(chunk)
                         if downloaded_bytes > MAX_VIDEO_DOWNLOAD_BYTES:
                             raise ValueError("video download exceeds 512 MB limit")
                         temp_file.write(chunk)
+                        now = time.monotonic()
+                        if now - last_report_at >= _DOWNLOAD_HEARTBEAT_SECONDS:
+                            last_report_at = now
+                            # 只记录缓存文件名：下载地址可能带签名或密钥。
+                            logger.info(
+                                f"downloading video {video_id}.mp4: "
+                                + _describe_download_progress(
+                                    downloaded_bytes,
+                                    declared_size,
+                                    now - started_at,
+                                )
+                            )
 
         if os.path.getsize(temp_path) == 0:
             return ""
@@ -1337,7 +1393,7 @@ def _openai_image_download_bytes(
     下载已生成图片的临时 URL。
 
     图片已经按张计费，下载失败时优先重试原地址，而不是回退到重新生成，
-    避免为同一张图重复付费。
+    避免为同一张图重复付费。全部重试失败时抛错，阻止外层购买下一张图。
     """
     failure_detail = "no download attempt was made"
     for attempt in range(1, OPENAI_IMAGE_MAX_DOWNLOAD_ATTEMPTS + 1):
@@ -1376,7 +1432,8 @@ def _openai_image_download_bytes(
                 failure_detail = f"HTTP {response.status_code} while downloading image"
         except Exception as e:
             failure_detail = (
-                f"error={type(e).__name__}, detail={_redact_request_error(e, api_key)}"
+                f"error={type(e).__name__}, "
+                f"detail={_redact_request_error(e, api_key, image_url)}"
             )
         finally:
             if response is not None:
@@ -1394,7 +1451,9 @@ def _openai_image_download_bytes(
                 f"{failure_detail}"
             )
             time.sleep(OPENAI_IMAGE_DOWNLOAD_BACKOFF_SECONDS)
-    return None, failure_detail
+    raise OpenAIImagePaidResultError(
+        "generated image could not be downloaded after retries"
+    )
 
 
 def _parse_openai_image_response(
@@ -1448,8 +1507,8 @@ def _request_openai_image(endpoint: str, payload: dict) -> tuple[bytes | None, s
 
     计费安全：POST 的读超时与连接中断视为"未确认"状态——服务端可能已经
     生成并扣费，只是响应没有返回，自动重新提交可能造成重复生成和重复
-    计费，因此不做重试。只有连接阶段超时（ConnectTimeout，请求确定没有
-    送达服务端）才确认没有创建生成任务，可以安全重试。
+    计费，因此抛出专用异常终止本地任务。只有连接阶段超时（ConnectTimeout，
+    请求确定没有送达服务端）才确认没有创建生成任务，可以安全重试。
 
     API Key 允许为空：完全本地的 ComfyUI/SD 网关通常不需要鉴权，为空时
     不发送 Authorization 头。
@@ -1487,11 +1546,11 @@ def _request_openai_image(endpoint: str, payload: dict) -> tuple[bytes | None, s
             retryable = True
         except Exception as e:
             # 读超时/连接中断等属于"未确认"状态：服务端可能已经受理并扣费，
-            # 自动重新提交可能重复生成、重复计费，交由上层跳过该关键词。
-            failure_detail = (
-                f"unconfirmed request error (no retry to avoid double billing): "
+            # 自动重新提交或处理后续关键词都可能重复计费，必须终止本地任务。
+            raise OpenAIImageUnconfirmedError(
+                "unconfirmed image request (no retry to avoid double billing): "
                 f"{type(e).__name__}, detail={_redact_request_error(e, api_key)}"
-            )
+            ) from e
         else:
             status = int(getattr(response, "status_code", 200) or 200)
             if status in OPENAI_IMAGE_KEY_ERROR_STATUS_CODES:
@@ -1648,7 +1707,7 @@ def _render_openai_image_video(image_path: str, clip_duration: int) -> str:
     """
     把生成的图片渲染成 mp4 片段，复用 local 素材的"图片 → 动态片段"管线。
 
-    渲染失败按素材源约定返回空字符串，由调用方跳过该图片继续。
+    渲染失败返回空字符串，由调用方停止后续付费请求。
     """
     try:
         return video.render_image_zoom_video(image_path, clip_duration)
@@ -1675,7 +1734,8 @@ def _download_videos_openai_image_on_demand(
     与 WaveSpeed 按需生成同一付费安全语义：文生图按张计费，先全量生成再
     挑选会为用不到的画面付费。每张图片生成后立即渲染成 mp4 片段并累计
     有效时长（与库存流程一致，按片段时长封顶），累计达到所需配音时长后
-    不再发起新的付费请求。单张失败按素材源约定跳过并继续下一个关键词。
+    不再发起新的付费请求。明确拒绝的单张图片可跳过；请求结果不明、付费
+    结果下载失败或本地渲染失败时必须终止任务，避免后续关键词再次计费。
     """
     if not material_directory:
         # 生成图片按任务计费且不可复用，默认落在任务目录便于追溯。
@@ -1700,16 +1760,23 @@ def _download_videos_openai_image_on_demand(
         return video_paths
 
     for search_term in search_terms:
-        items = generate_images_openai(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-            save_dir=material_directory,
-        )
+        try:
+            items = generate_images_openai(
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+                save_dir=material_directory,
+            )
+        except OpenAIImagePaidResultError:
+            _persist_material_sources(task_id, material_sources)
+            raise
         for item in items:
             video_file = _render_openai_image_video(item.url, max_clip_duration)
             if not video_file:
-                continue
+                _persist_material_sources(task_id, material_sources)
+                raise OpenAIImagePaidResultError(
+                    "generated image could not be rendered locally"
+                )
             logger.info(f"image material rendered: {video_file}")
             video_paths.append(video_file)
             try:
@@ -1833,6 +1900,213 @@ def _search_videos_with_cache(
         return items
 
 
+def _search_terms_in_parallel(
+    search_terms: List[str],
+    search_videos: Callable[[str, int, VideoAspect], List[MaterialInfo]],
+    minimum_duration: int,
+    video_aspect: VideoAspect,
+) -> list[tuple[str, List[MaterialInfo]]]:
+    """并行搜索关键词，失败的关键词返回空结果，不阻断其它素材。"""
+    if not search_terms:
+        return []
+
+    workers = min(_get_material_concurrency(), len(search_terms))
+    if workers == 1:
+        results = []
+        for search_term in search_terms:
+            items = search_videos(
+                search_term=search_term,
+                minimum_duration=minimum_duration,
+                video_aspect=video_aspect,
+            )
+            logger.info(f"found {len(items)} videos for '{search_term}'")
+            results.append((search_term, items))
+        return results
+
+    futures = {}
+    with ThreadPoolExecutor(
+        max_workers=workers,
+        thread_name_prefix="material-search",
+    ) as executor:
+        for search_term in search_terms:
+            futures[executor.submit(
+                logging_utils.bind_log_scope(search_videos),
+                search_term,
+                minimum_duration,
+                video_aspect,
+            )] = search_term
+
+        results = []
+        for future in futures:
+            search_term = futures[future]
+            try:
+                items = future.result()
+            except Exception as exc:
+                logger.error(
+                    "failed to search material videos: "
+                    f"search_term={search_term!r}, "
+                    f"error={type(exc).__name__}, detail={exc}"
+                )
+                items = []
+            logger.info(f"found {len(items)} videos for '{search_term}'")
+            results.append((search_term, items))
+        return results
+
+
+def _report_material_downloaded(
+    position: int,
+    total: int,
+    item: MaterialInfo,
+    saved_video_path: str,
+    on_downloaded: Callable[[MaterialInfo], None] | None,
+) -> None:
+    """
+    记录一个素材已下载完成，并通知调用方更新进度。
+
+    始终在发起下载的线程里调用，逐文件日志和进度更新不依赖下载并发数。
+    """
+    description = os.path.basename(saved_video_path)
+    try:
+        size_mb = os.path.getsize(saved_video_path) / _BYTES_PER_MEGABYTE
+        description += f" ({size_mb:.1f} MB)"
+    except OSError:
+        # 文件大小只是辅助信息，读不到时不影响下载结果。
+        pass
+    logger.info(f"downloaded material {position}/{total}: {description}")
+    if on_downloaded is None:
+        return
+    try:
+        on_downloaded(item)
+    except Exception as exc:
+        # 进度只是展示信息。回调失败（例如状态后端暂时不可用）不能让已经
+        # 成功下载的素材作废，更不能中断整个任务。
+        logger.warning(
+            "failed to report material download progress: "
+            f"error={type(exc).__name__}, detail={exc}"
+        )
+
+
+def _covered_duration_reporter(
+    progress_callback: Callable[[float], None] | None,
+    required_duration: float,
+    max_clip_duration: int,
+) -> Callable[[MaterialInfo], None] | None:
+    """
+    生成逐素材回调：把“已覆盖的配音时长”换算成 0~1 的下载进度。
+
+    口径与下载循环的停止条件一致——每个素材最多贡献一个片段时长，覆盖到
+    所需时长即完成，因此超出部分封顶为 1.0。没有进度回调时返回 None。
+    """
+    if progress_callback is None:
+        return None
+    covered_duration = 0.0
+
+    def report(item: MaterialInfo) -> None:
+        nonlocal covered_duration
+        covered_duration += min(max_clip_duration, item.duration)
+        fraction = 1.0
+        if required_duration > 0:
+            fraction = min(1.0, covered_duration / required_duration)
+        progress_callback(fraction)
+
+    return report
+
+
+def _download_materials_in_parallel(
+    materials: List[tuple[str, MaterialInfo]],
+    material_directory: str,
+    on_downloaded: Callable[[MaterialInfo], None] | None = None,
+) -> list[tuple[str, MaterialInfo, str]]:
+    """
+    并行下载一轮素材，保留调用方传入的候选顺序。
+
+    每个素材下载成功后记录一条日志并调用 ``on_downloaded``，调用方据此更新
+    任务进度。回调和日志都发生在调用本函数的线程里。
+    """
+    if not materials:
+        return []
+
+    total = len(materials)
+    workers = min(_get_material_concurrency(), total)
+    if workers == 1:
+        downloaded = []
+        for position, (search_term, item) in enumerate(materials, start=1):
+            try:
+                saved_video_path = save_video(
+                    video_url=item.url,
+                    save_dir=material_directory,
+                )
+            except Exception as exc:
+                logger.error(
+                    "failed to download material video: "
+                    f"provider={item.provider}, "
+                    f"error={type(exc).__name__}, "
+                    f"detail={_redact_request_error(exc, item.url)}"
+                )
+                continue
+            if saved_video_path:
+                downloaded.append((search_term, item, saved_video_path))
+                _report_material_downloaded(
+                    position, total, item, saved_video_path, on_downloaded
+                )
+        return downloaded
+
+    futures = {}
+    with ThreadPoolExecutor(
+        max_workers=workers,
+        thread_name_prefix="material-download",
+    ) as executor:
+        for search_term, item in materials:
+            futures[executor.submit(
+                logging_utils.bind_log_scope(save_video),
+                item.url,
+                material_directory,
+            )] = (search_term, item)
+
+        downloaded = []
+        for position, future in enumerate(futures, start=1):
+            search_term, item = futures[future]
+            try:
+                saved_video_path = future.result()
+            except Exception as exc:
+                logger.error(
+                    "failed to download material video: "
+                    f"provider={item.provider}, "
+                    f"error={type(exc).__name__}, "
+                    f"detail={_redact_request_error(exc, item.url)}"
+                )
+                continue
+            if saved_video_path:
+                downloaded.append((search_term, item, saved_video_path))
+                _report_material_downloaded(
+                    position, total, item, saved_video_path, on_downloaded
+                )
+        return downloaded
+
+
+def _select_materials_until_duration(
+    materials: List[tuple[str, MaterialInfo]],
+    max_clip_duration: int,
+    audio_duration: float,
+    current_duration: float = 0.0,
+) -> List[tuple[str, MaterialInfo]]:
+    """
+    按候选顺序选取一轮素材，避免并发时下载已经超过配音时长的候选。
+
+    返回 ``materials`` 的前缀子集：从第一个候选开始累加，累加时长首次
+    超过配音时长时停止（含超出的那一个）。调用方据此前缀属性判断哪些
+    候选在本轮被实际尝试。
+    """
+    selected = []
+    total_duration = current_duration
+    for material in materials:
+        selected.append(material)
+        total_duration += min(max_clip_duration, material[1].duration)
+        if total_duration > audio_duration:
+            break
+    return selected
+
+
 def download_videos(
     task_id: str,
     search_terms: List[str],
@@ -1842,7 +2116,15 @@ def download_videos(
     audio_duration: float = 0.0,
     max_clip_duration: int = 5,
     match_script_order: bool = False,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> List[str]:
+    """
+    搜索并下载覆盖配音时长所需的素材，返回本地文件路径。
+
+    ``progress_callback`` 可选：库存素材（Pexels、Pixabay、Coverr）每下完一个
+    文件就以 0~1 的完成比例调用一次，供任务层推进进度条。按需生成的付费
+    素材源不报告下载进度。
+    """
     provider = "pexels"
     remote_search_videos = search_videos_pexels
     if source == "pixabay":
@@ -1952,19 +2234,18 @@ def download_videos(
             audio_duration=audio_duration,
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
+            progress_callback=progress_callback,
         )
 
     valid_video_items = []
     valid_video_urls = []
     found_duration = 0.0
-    for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-        )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
-
+    for search_term, video_items in _search_terms_in_parallel(
+        search_terms=search_terms,
+        search_videos=search_videos,
+        minimum_duration=max_clip_duration,
+        video_aspect=video_aspect,
+    ):
         for item in video_items:
             if item.url not in valid_video_urls:
                 valid_video_items.append(item)
@@ -1982,44 +2263,63 @@ def download_videos(
         random.shuffle(valid_video_items)
 
     total_duration = 0.0
-    for item in valid_video_items:
-        try:
+    on_downloaded = _covered_duration_reporter(
+        progress_callback, audio_duration, max_clip_duration
+    )
+    pending_items = list(valid_video_items)
+    # 默认/随机路径同样受素材并发配置控制：按串行逻辑的停止条件预选每轮
+    # 候选（顺序累加、首次超过配音时长即停）。全部下载成功时，每轮下载集合
+    # 与串行逻辑完全一致；下载失败的候选在下一轮用后续候选补足。
+    while pending_items and total_duration <= audio_duration:
+        batch = []
+        projected_duration = total_duration
+        for item in pending_items:
+            batch.append(item)
+            projected_duration += min(max_clip_duration, item.duration)
+            if projected_duration > audio_duration:
+                break
+        for item in batch:
             source_info = item.source_info if isinstance(item.source_info, dict) else {}
             logger.info(
                 f"downloading {item.provider} video: "
                 f"asset_id={source_info.get('asset_id') or 'unknown'}"
             )
-            saved_video_path = save_video(
-                video_url=item.url, save_dir=material_directory
-            )
-            if saved_video_path:
-                logger.info(f"video saved: {saved_video_path}")
-                video_paths.append(saved_video_path)
-                try:
-                    material_sources.append(
-                        _material_source_record(item, saved_video_path)
-                    )
-                except Exception as source_error:
-                    # 来源记录异常不能把已经成功下载的素材视为下载失败，更不能
-                    # 阻断视频生成；保留供应商和异常类型用于后续定位。
-                    logger.warning(
-                        "failed to prepare material source record: "
-                        f"provider={item.provider}, "
-                        f"error={type(source_error).__name__}, detail={source_error}"
-                    )
-                seconds = min(max_clip_duration, item.duration)
-                total_duration += seconds
-                if total_duration > audio_duration:
-                    logger.info(
-                        f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
-                    )
-                    break
-        except Exception as e:
-            logger.error(
-                "failed to download material video: "
-                f"provider={item.provider}, error={type(e).__name__}, "
-                f"detail={_redact_request_error(e, item.url)}"
-            )
+        downloaded_materials = _download_materials_in_parallel(
+            materials=[("", item) for item in batch],
+            material_directory=material_directory,
+            on_downloaded=on_downloaded,
+        )
+        pending_items = pending_items[len(batch):]
+        for _, item, saved_video_path in downloaded_materials:
+            try:
+                if saved_video_path:
+                    logger.info(f"video saved: {saved_video_path}")
+                    video_paths.append(saved_video_path)
+                    try:
+                        material_sources.append(
+                            _material_source_record(item, saved_video_path)
+                        )
+                    except Exception as source_error:
+                        # 来源记录异常不能把已经成功下载的素材视为下载失败，更不能
+                        # 阻断视频生成；保留供应商和异常类型用于后续定位。
+                        logger.warning(
+                            "failed to prepare material source record: "
+                            f"provider={item.provider}, "
+                            f"error={type(source_error).__name__}, detail={source_error}"
+                        )
+                    seconds = min(max_clip_duration, item.duration)
+                    total_duration += seconds
+                    if total_duration > audio_duration:
+                        logger.info(
+                            f"total duration of downloaded videos: {total_duration} seconds, skip downloading more"
+                        )
+                        break
+            except Exception as e:
+                logger.error(
+                    "failed to download material video: "
+                    f"provider={item.provider}, error={type(e).__name__}, "
+                    f"detail={_redact_request_error(e, item.url)}"
+                )
     logger.success(f"downloaded {len(video_paths)} videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
@@ -2590,6 +2890,7 @@ def _download_videos_by_script_order(
     audio_duration: float,
     max_clip_duration: int,
     material_directory: str,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> List[str]:
     """
     按脚本文案顺序下载素材。
@@ -2605,14 +2906,12 @@ def _download_videos_by_script_order(
     valid_video_urls = set()
     found_duration = 0.0
 
-    for search_term in search_terms:
-        video_items = search_videos(
-            search_term=search_term,
-            minimum_duration=max_clip_duration,
-            video_aspect=video_aspect,
-        )
-        logger.info(f"found {len(video_items)} videos for '{search_term}'")
-
+    for search_term, video_items in _search_terms_in_parallel(
+        search_terms=search_terms,
+        search_videos=search_videos,
+        minimum_duration=max_clip_duration,
+        video_aspect=video_aspect,
+    ):
         term_items = []
         for item in video_items:
             if item.url in valid_video_urls:
@@ -2632,15 +2931,47 @@ def _download_videos_by_script_order(
     video_paths = []
     material_sources: list[dict[str, Any]] = []
     total_duration = 0.0
-    candidate_index = 0
+    on_downloaded = _covered_duration_reporter(
+        progress_callback, audio_duration, max_clip_duration
+    )
+    # 每个关键词独立推进候选下标：只有本轮真正被选中下载的候选才推进，
+    # 未被选中的候选保留到下一轮，避免被整轮统一的下标跳过。
+    next_candidate_indices = [0] * len(candidate_groups)
     while candidate_groups and total_duration <= audio_duration:
-        has_candidate = False
-        for search_term, term_items in candidate_groups:
-            if candidate_index >= len(term_items):
-                continue
+        round_materials = [
+            (
+                group_position,
+                search_term,
+                term_items[next_candidate_indices[group_position]],
+            )
+            for group_position, (search_term, term_items) in enumerate(
+                candidate_groups
+            )
+            if next_candidate_indices[group_position] < len(term_items)
+        ]
+        if not round_materials:
+            break
 
-            has_candidate = True
-            item = term_items[candidate_index]
+        selected_materials = _select_materials_until_duration(
+            materials=[
+                (search_term, item) for _, search_term, item in round_materials
+            ],
+            max_clip_duration=max_clip_duration,
+            audio_duration=audio_duration,
+            current_duration=total_duration,
+        )
+        # _select_materials_until_duration 返回候选列表的前缀子集，
+        # 因此前 len(selected_materials) 个即本轮实际尝试下载的候选，
+        # 只推进这些候选所在分组的下标。
+        for group_position, _, _ in round_materials[: len(selected_materials)]:
+            next_candidate_indices[group_position] += 1
+
+        downloaded_materials = _download_materials_in_parallel(
+            materials=selected_materials,
+            material_directory=material_directory,
+            on_downloaded=on_downloaded,
+        )
+        for search_term, item, saved_video_path in downloaded_materials:
             try:
                 source_info = (
                     item.source_info if isinstance(item.source_info, dict) else {}
@@ -2648,9 +2979,6 @@ def _download_videos_by_script_order(
                 logger.info(
                     f"downloading ordered {item.provider} video for {search_term!r}: "
                     f"asset_id={source_info.get('asset_id') or 'unknown'}"
-                )
-                saved_video_path = save_video(
-                    video_url=item.url, save_dir=material_directory
                 )
                 if saved_video_path:
                     logger.info(f"video saved: {saved_video_path}")
@@ -2678,10 +3006,6 @@ def _download_videos_by_script_order(
                     f"provider={item.provider}, error={type(e).__name__}, "
                     f"detail={_redact_request_error(e, item.url)}"
                 )
-
-        if not has_candidate:
-            break
-        candidate_index += 1
 
     logger.success(f"downloaded {len(video_paths)} ordered videos")
     _persist_material_sources(task_id, material_sources)

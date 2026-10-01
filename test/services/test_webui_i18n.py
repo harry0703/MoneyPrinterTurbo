@@ -51,6 +51,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.fluxionai",
         "llm_provider_label.cheaperinference",
         "llm_provider_label.opencode",
+        "llm_provider_label.requesty",
         "llm_provider_label.shengsuanyun",
         "OpenCode CLI Path",
         "Timeout (seconds)",

@@ -105,7 +105,7 @@ class VideoParams(BaseModel):
 
     video_subject: str
     video_script: str = ""  # Script used to generate the video
-    video_terms: Optional[str | list] = None  # Keywords used to generate the video
+    video_terms: Optional[str | List[str]] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_fit_mode: VideoFitMode = VideoFitMode.cover
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
@@ -253,7 +253,11 @@ class VideoSocialMetadataParams:
 
 
 class TaskVideoRequest(VideoParams, BaseModel):
-    pass
+    # Bound API resource requests while leaving the CLI's explicit batch and
+    # FFmpeg thread controls in VideoParams unchanged.
+    video_count: int = Field(default=1, ge=1, le=5)
+    video_clip_duration: int = Field(default=5, ge=1, le=15)
+    n_threads: Optional[int] = Field(default=2, ge=1, le=16)
 
 
 class TaskQueryRequest(BaseModel):

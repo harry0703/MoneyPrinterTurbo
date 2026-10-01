@@ -8,7 +8,13 @@ from pydantic import ValidationError
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.models import schema
-from app.models.schema import SubtitleRequest, VideoAspect, VideoFitMode, VideoParams
+from app.models.schema import (
+    SubtitleRequest,
+    TaskVideoRequest,
+    VideoAspect,
+    VideoFitMode,
+    VideoParams,
+)
 
 
 class TestVideoAspect(unittest.TestCase):
@@ -51,6 +57,48 @@ class TestVideoParams(unittest.TestCase):
 
         self.assertEqual(params.video_clip_duration, 1)
         self.assertEqual(params.video_count, 1)
+
+    def test_api_video_count_is_bounded_without_limiting_cli_params(self):
+        """One HTTP task must not schedule an unbounded render batch."""
+        self.assertEqual(
+            TaskVideoRequest(video_subject="Coffee", video_count=5).video_count, 5
+        )
+        with self.assertRaises(ValidationError):
+            TaskVideoRequest(video_subject="Coffee", video_count=6)
+
+        # The shared model also powers the CLI, which documents any positive
+        # count, so its existing behavior must remain available there.
+        self.assertEqual(
+            VideoParams(video_subject="Coffee", video_count=6).video_count, 6
+        )
+
+    def test_api_render_threads_are_bounded_without_limiting_cli_params(self):
+        """An HTTP caller cannot pass arbitrary FFmpeg thread counts."""
+        self.assertEqual(
+            TaskVideoRequest(video_subject="Coffee", n_threads=16).n_threads, 16
+        )
+        for value in (0, -1, 17):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    TaskVideoRequest(video_subject="Coffee", n_threads=value)
+
+        self.assertEqual(
+            VideoParams(video_subject="Coffee", n_threads=17).n_threads, 17
+        )
+
+    def test_api_clip_duration_is_bounded_without_limiting_cli_params(self):
+        """The API keeps one clip within the WebUI provider duration range."""
+        self.assertEqual(
+            TaskVideoRequest(video_subject="Coffee", video_clip_duration=15).video_clip_duration,
+            15,
+        )
+        with self.assertRaises(ValidationError):
+            TaskVideoRequest(video_subject="Coffee", video_clip_duration=16)
+
+        self.assertEqual(
+            VideoParams(video_subject="Coffee", video_clip_duration=16).video_clip_duration,
+            16,
+        )
 
     def test_subtitle_modes_accept_only_supported_api_values(self):
         """新增字幕参数必须拒绝拼写错误，避免请求成功后静默降级。"""

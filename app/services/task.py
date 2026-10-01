@@ -35,6 +35,7 @@ from app.services import (
 from app.services import upload_post
 from app.services import state as sm
 from app.utils import file_security, utils
+from app.utils.subtitle_writer import staged_subtitle_file
 
 
 # 发布请求最长可等待数分钟，不能继续占用视频生成任务的并发名额。
@@ -287,6 +288,36 @@ def _mark_task_failed(
         **failure_details,
     )
     return failure
+
+
+def _stage_progress_reporter(task_id: str, stage_start: float, stage_end: float):
+    """
+    返回一个回调，把阶段内 0~1 的完成比例换算成任务进度并写入状态。
+
+    流水线原先只在阶段边界更新进度，下载素材和处理片段这类耗时阶段期间
+    进度条完全不动，用户无法区分仍在运行与已经卡死。进度只是展示信息：
+    比例无法解析时忽略，状态后端写入失败时只记录日志，不能因此中断下载或
+    合成。
+    """
+
+    def report(fraction) -> None:
+        try:
+            fraction = max(0.0, min(1.0, float(fraction)))
+        except (TypeError, ValueError):
+            return
+        try:
+            sm.state.update_task(
+                task_id,
+                state=const.TASK_STATE_PROCESSING,
+                progress=stage_start + (stage_end - stage_start) * fraction,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"failed to update task progress: task_id={task_id}, "
+                f"error={type(exc).__name__}, detail={exc}"
+            )
+
+    return report
 
 
 def generate_script(task_id, params):
@@ -589,7 +620,7 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     if not params.subtitle_enabled:
         return ""
 
-    subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
+    final_subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
     subtitle_provider = config.app.get("subtitle_provider", "edge").strip().lower()
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
 
@@ -609,40 +640,46 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
     is_word_level = getattr(params, "subtitle_display_mode", "sentence") == "word_by_word"
 
-    if subtitle_provider == "edge":
-        voice.create_subtitle(
-            text=video_script,
-            sub_maker=sub_maker,
-            subtitle_file=subtitle_path,
-            word_level=is_word_level,
-        )
-        if not os.path.exists(subtitle_path):
-            # Edge 字幕偶尔会因为时间轴与文案无法匹配而没有产出文件。这里不能
-            # 自动切换到 Whisper，否则首次失败会在用户不知情的情况下下载数 GB
-            # 的模型。只有显式配置 Whisper 时才允许加载模型，Edge 失败则保留
-            # 无字幕视频并记录原因，避免意外的网络和磁盘开销。
-            logger.warning(
-                "edge subtitle generation did not produce a subtitle file; "
-                "skip subtitles without falling back to whisper"
+    # A failed retry must never reuse captions from an earlier narration.
+    with staged_subtitle_file(final_subtitle_path) as subtitle_path:
+        if subtitle_provider == "edge":
+            voice.create_subtitle(
+                text=video_script,
+                sub_maker=sub_maker,
+                subtitle_file=subtitle_path,
+                word_level=is_word_level,
             )
+            if not os.path.exists(subtitle_path):
+                # Edge 字幕偶尔会因为时间轴与文案无法匹配而没有产出文件。这里不能
+                # 自动切换到 Whisper，否则首次失败会在用户不知情的情况下下载数 GB
+                # 的模型。只有显式配置 Whisper 时才允许加载模型，Edge 失败则保留
+                # 无字幕视频并记录原因，避免意外的网络和磁盘开销。
+                logger.warning(
+                    "edge subtitle generation did not produce a subtitle file; "
+                    "skip subtitles without falling back to whisper"
+                )
+                return ""
+
+        if subtitle_provider == "whisper":
+            subtitle.create(
+                audio_file=audio_file,
+                subtitle_file=subtitle_path,
+                word_level=is_word_level,
+            )
+            if not subtitle.file_to_subtitles(subtitle_path):
+                logger.warning("whisper produced no usable subtitle cues")
+                return ""
+            if not is_word_level:
+                logger.info("\n\n## correcting subtitle")
+                subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
+
+        subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
+        if not subtitle_lines:
+            logger.warning(f"subtitle file is invalid: {subtitle_path}")
             return ""
 
-    if subtitle_provider == "whisper":
-        subtitle.create(
-            audio_file=audio_file,
-            subtitle_file=subtitle_path,
-            word_level=is_word_level,
-        )
-        if not is_word_level:
-            logger.info("\n\n## correcting subtitle")
-            subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
-
-    subtitle_lines = subtitle.file_to_subtitles(subtitle_path)
-    if not subtitle_lines:
-        logger.warning(f"subtitle file is invalid: {subtitle_path}")
-        return ""
-
-    return subtitle_path
+        os.replace(subtitle_path, final_subtitle_path)
+        return final_subtitle_path
 
 
 def get_video_materials(
@@ -744,6 +781,9 @@ def get_video_materials(
                 audio_duration=audio_duration * params.video_count,
                 max_clip_duration=params.video_clip_duration,
                 match_script_order=params.match_materials_to_script,
+                # 素材阶段占用 40%~50%：每下完一个文件推进一次，慢速网络下
+                # 进度条不再长时间停在 40%。
+                progress_callback=_stage_progress_reporter(task_id, 40, 50),
             )
         except volcengine_seedance.VolcEngineSeedanceError as exc:
             # 未确认状态和已生成但下载失败都对应一个可在方舟控制台恢复的远端
@@ -772,6 +812,11 @@ def get_video_materials(
             prediction_id = str(getattr(exc, "prediction_id", "") or "").strip()
             details = {"wavespeed_prediction_id": prediction_id} if prediction_id else None
             _mark_task_failed(task_id, "materials", str(exc), details=details)
+            return None
+        except material.OpenAIImagePaidResultError as exc:
+            # A paid request with an uncertain response, failed result download,
+            # or failed local render must stop before another image order.
+            _mark_task_failed(task_id, "materials", str(exc))
             return None
         except ofox.OFoxError as exc:
             # 与方舟同一恢复语义：未确认状态和已生成但下载失败都对应一个可在
@@ -938,6 +983,9 @@ def generate_final_videos(
             }
             if allocate_batch_materials else {}
         )
+        # 每条视频占 50% 进度中的一份，合成与最终编码各占一半。片段处理是
+        # 合成里最耗时的部分，逐段推进这一半的进度。
+        combine_share = 50 / params.video_count / 2
         video.combine_videos(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
@@ -949,6 +997,9 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
             clip_speed=params.video_clip_speed,
+            progress_callback=_stage_progress_reporter(
+                task_id, _progress, _progress + combine_share
+            ),
             **batch_options,
         )
         if allocate_batch_materials:
@@ -1160,6 +1211,7 @@ def _run_cross_post(
     platforms: tuple[str, ...],
     youtube_privacy_status: str,
     youtube_made_for_kids: bool = False,
+    upload_account: dict | None = None,
 ) -> None:
     """后台执行跨平台发布，并只补充发布相关的任务字段。"""
     results = []
@@ -1239,12 +1291,16 @@ def _run_cross_post(
                         f"task_id={task_id}, request_id={request_id}"
                     )
 
+            upload_kwargs = {}
+            if upload_account is not None:
+                upload_kwargs["account"] = upload_account
             result = upload_post.cross_post_video(
                 video_path=video_path,
                 title=post_title,
                 platforms=list(platforms),
                 youtube_extra=youtube_extra,
                 on_background_start=record_background_request,
+                **upload_kwargs,
             )
             if not isinstance(result, dict):
                 result = {
@@ -1385,6 +1441,7 @@ def _schedule_cross_post(
             tuple(platforms),
             youtube_privacy_status,
             youtube_made_for_kids,
+            upload_post.upload_post_service.snapshot_account(),
         )
         _register_cross_post_future(task_id, future)
         future.add_done_callback(partial(_finalize_cross_post_future, task_id))
@@ -1616,6 +1673,12 @@ def _run_pipeline(
     )
 
     if stop_at == "subtitle":
+        if not subtitle_path:
+            return _mark_task_failed(
+                task_id,
+                "subtitle",
+                "failed to generate subtitles; verify the subtitle provider and timeline",
+            )
         sm.state.update_task(
             task_id,
             state=const.TASK_STATE_COMPLETE,

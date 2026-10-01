@@ -22,10 +22,14 @@ _CONFIG_BASE = {
 
 def _mock_response(success=True):
     r = MagicMock()
+    r.status_code = 200
     r.json.return_value = {
         "success": success,
         "request_id": "abc123",
-        "results": {"tiktok": {"success": success}},
+        "results": {
+            platform: {"success": success}
+            for platform in _CONFIG_BASE["upload_post_platforms"]
+        },
     }
     r.raise_for_status = MagicMock()
     return r
@@ -83,6 +87,24 @@ class TestUploadPostService(unittest.TestCase):
 
         self.assertFalse(result["success"])
         self.assertIn("upload timed out", result["error"])
+
+    @patch("app.services.upload_post.config.app", _CONFIG_BASE)
+    @patch("app.services.upload_post.os.path.exists", return_value=True)
+    @patch("builtins.open", mock_open(read_data=b"fake"))
+    @patch("app.services.upload_post.requests.post")
+    def test_upload_does_not_replay_video_on_redirect(self, mock_post, _exists):
+        """A 307 must not resend the video or API key to the redirect target."""
+        response = _mock_response()
+        response.status_code = 307
+        response.headers = {"Location": "https://other.example/upload"}
+        mock_post.return_value = response
+
+        result = UploadPostService().upload_video("/fake/v.mp4", "Title")
+
+        self.assertFalse(result["success"])
+        self.assertIn("redirect", result["error"])
+        self.assertIs(mock_post.call_args.kwargs.get("allow_redirects"), False)
+        response.json.assert_not_called()
 
     @patch("app.services.upload_post.config.app", _CONFIG_BASE)
     @patch("app.services.upload_post.requests.get")

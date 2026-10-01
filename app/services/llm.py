@@ -260,6 +260,8 @@ def _extract_qwen_generation_text(response) -> str:
 
 
 def _generate_response(prompt: str, app_config=None) -> str:
+    sdk_client = None
+    sdk_stream = None
     try:
         # WebUI 在视频生成期间允许用户准备下一条文案。调用方可以传入提交瞬间
         # 的配置快照，确保模型请求重试期间不会因为后台任务结束并应用新配置，
@@ -415,7 +417,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
             # Cloudflare 当前推荐的 AI Gateway REST API 兼容 OpenAI SDK。
             # Account ID 用于构造统一端点，Gateway ID 通过请求头选择；这里
             # 不再调用 Workers AI 的 /ai/run/{model} 专用接口。
-            client = OpenAI(
+            client = sdk_client = OpenAI(
                 api_key=api_key,
                 base_url=(
                     f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1"
@@ -455,7 +457,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
             # 这里在 Azure 分支内完成请求并立即返回，避免客户端被后续 fallback
             # 覆盖，导致用户配置的 Azure 凭证通过校验但实际请求没有被使用。
             logger.info(f"requesting azure chat completion, model: {model_name}")
-            client = AzureOpenAI(
+            client = sdk_client = AzureOpenAI(
                 api_key=api_key,
                 api_version=api_version,
                 azure_endpoint=base_url,
@@ -627,11 +629,11 @@ def _generate_response(prompt: str, app_config=None) -> str:
 
         if adapter == "modelscope":
             content = ""
-            client = OpenAI(
+            client = sdk_client = OpenAI(
                 api_key=api_key,
                 base_url=base_url,
             )
-            response = client.chat.completions.create(
+            response = sdk_stream = client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 extra_body={"enable_thinking": False},
@@ -652,7 +654,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
             else:
                 raise Exception(f"[{llm_provider}] returned an empty response")
 
-        client = OpenAI(
+        client = sdk_client = OpenAI(
             api_key=api_key,
             base_url=base_url,
         )
@@ -675,6 +677,17 @@ def _generate_response(prompt: str, app_config=None) -> str:
 
     except Exception as e:
         return f"Error: {_sanitize_error_message(e)}"
+
+    finally:
+        for resource in (sdk_stream, sdk_client):
+            close = getattr(resource, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception as cleanup_error:
+                    logger.warning(
+                        f"could not close LLM transport: {type(cleanup_error).__name__}"
+                    )
 
 
 def test_connection() -> tuple[bool, str, float]:

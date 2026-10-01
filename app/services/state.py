@@ -2,6 +2,8 @@ import ast
 import copy
 import threading
 from abc import ABC, abstractmethod
+
+from redis.exceptions import ResponseError
 from itertools import islice
 
 from app.config import config
@@ -163,12 +165,16 @@ class RedisState(BaseState):
                 with self._redis.pipeline(transaction=False) as pipeline:
                     for key in candidates:
                         pipeline.hget(key, "task_id")
-                    embedded_ids = pipeline.execute()
-                task_keys.update(
-                    key
-                    for key, embedded_id in zip(candidates, embedded_ids)
-                    if embedded_id == key
-                )
+                    # A key can change type after SCAN. Isolate that row instead
+                    # of letting one WRONGTYPE abort the whole task listing.
+                    embedded_ids = pipeline.execute(raise_on_error=False)
+                for key, embedded_id in zip(candidates, embedded_ids):
+                    if isinstance(embedded_id, ResponseError):
+                        if str(embedded_id).startswith("WRONGTYPE"):
+                            continue
+                        raise embedded_id
+                    if embedded_id == key:
+                        task_keys.add(key)
             if cursor == 0:
                 break
         # 按任务键排序不依赖 Hash 扫描顺序；不额外维护索引，也不改变旧任务。
@@ -197,11 +203,21 @@ class RedisState(BaseState):
         # to readers, and leave a partially updated record on network failure.
         self._redis.hset(
             task_id,
-            mapping={field: str(value) for field, value in fields.items()},
+            mapping={
+                field: self._serialize_field(field, value)
+                for field, value in fields.items()
+            },
         )
 
     def get_task(self, task_id: str):
-        task_data = self._redis.hgetall(task_id)
+        try:
+            task_data = self._redis.hgetall(task_id)
+        except ResponseError as exc:
+            # Arbitrary task IDs can name the application's List queue or
+            # another service's non-hash key. Those are not task records.
+            if str(exc).startswith("WRONGTYPE"):
+                return None
+            raise
         # An API caller may ask for any Redis key by name. Require the same
         # marker as list_task_ids before returning a hash's contents.
         if not task_data or task_data.get(b"task_id") != task_id.encode("utf-8"):
@@ -219,7 +235,7 @@ class RedisState(BaseState):
 
         arguments = []
         for field, value in kwargs.items():
-            arguments.extend((field, str(value)))
+            arguments.extend((field, self._serialize_field(field, value)))
 
         # EXISTS 和 HSET 如果分成两条命令，后台发布线程与删除请求并发时，
         # HSET 可能在删除后重新创建一条残缺任务。Lua 脚本由 Redis 原子执行，
@@ -234,6 +250,15 @@ class RedisState(BaseState):
 
     def delete_task(self, task_id: str):
         self._redis.delete(task_id)
+
+    @staticmethod
+    def _serialize_field(field, value):
+        # Quote strings so literal_eval cannot turn a subject like "2026" or
+        # an error like "None" into an integer/None. Keep the ownership marker
+        # raw: task discovery compares its bytes directly against the Redis key.
+        if isinstance(value, str) and field != "task_id":
+            return repr(value)
+        return str(value)
 
     @staticmethod
     def _convert_to_original_type(value):

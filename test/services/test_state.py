@@ -28,7 +28,7 @@ class _FakeRedisPipeline:
         self.keys.append((key, field))
         return self
 
-    def execute(self):
+    def execute(self, raise_on_error=True):
         return [self.redis.data.get(key, {}).get(field.encode("utf-8")) for key, field in self.keys]
 
 

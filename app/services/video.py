@@ -1,4 +1,5 @@
 import itertools
+from concurrent.futures import ThreadPoolExecutor
 import io
 import math
 import os
@@ -10,9 +11,9 @@ import tempfile
 import threading
 import time
 import unicodedata
-from contextlib import ExitStack, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from functools import lru_cache
-from typing import List
+from typing import Callable, List
 from loguru import logger
 import numpy as np
 from moviepy import (
@@ -40,7 +41,7 @@ from app.models.schema import (
 )
 from app.services import bgm as bgm_service
 from app.services.utils import video_effects
-from app.utils import file_security, utils
+from app.utils import file_security, logging_utils, utils
 
 class SubClippedVideoClip:
     def __init__(
@@ -83,10 +84,24 @@ _MIN_MATERIAL_DIMENSION = 480
 # 丢弃，最终以 "no valid materials found" 整体失败。这里留一个很小的容差，
 # 既能放行仅仅因为取整而略低于阈值的素材，也仍然能挡住真正的低清素材。
 _MIN_DIMENSION_TOLERANCE = 10
+# 默认串行处理片段，避免旧用户升级后 CPU 和内存占用突然增加。
+# 需要加速时可自行提高并发数，但每路都会启动独立的编码任务。
+_CLIP_PROCESSING_CONCURRENCY = 1
+
+
+def _get_clip_processing_concurrency() -> int:
+    try:
+        concurrency = int(config.app.get("video_clip_concurrency", _CLIP_PROCESSING_CONCURRENCY))
+    except (TypeError, ValueError):
+        concurrency = _CLIP_PROCESSING_CONCURRENCY
+    return max(1, min(8, concurrency))
 _DEFAULT_VIDEO_CODEC = "libx264"
 # ffmpeg 串联片段期间没有阶段日志，`subprocess.run` 又阻塞到进程退出，耗时拼接在
 # 日志上表现为“无输出”。这里按间隔记录存活信息，便于区分编码中与已经卡死。
 _FFMPEG_CONCAT_HEARTBEAT_SECONDS = 30.0
+# MoviePy 写出最终成片时同样没有任何日志，一分钟的竖屏视频在 CPU 上要编码数
+# 分钟。沿用拼接阶段的做法，按间隔记录存活信息。
+_STAGE_HEARTBEAT_SECONDS = 30.0
 _DEFAULT_FFMPEG_CONCAT_TIMEOUT_SECONDS = 3600
 _SUBTITLE_SPRING_DURATION_SECONDS = 0.18
 _MIN_SUBTITLE_SPRING_SCALE = 0.05
@@ -484,6 +499,58 @@ def _describe_concat_output_progress(output_file: str) -> str:
     return f"output size: {size / (1024 * 1024):.2f} MB"
 
 
+@contextmanager
+def _stage_heartbeat(description: str):
+    """
+    在一个没有自身日志的耗时阶段期间，按间隔记录存活日志。
+
+    心跳线程绑定到进入该阶段的线程，日志才会出现在所属任务的 WebUI 面板。
+    阶段结束或抛出异常时停止并等待心跳线程退出，避免阶段已经结束后仍然
+    写出“still running”。
+    """
+    started_at = time.monotonic()
+    stop_event = threading.Event()
+
+    def log_heartbeat() -> None:
+        while not stop_event.wait(_STAGE_HEARTBEAT_SECONDS):
+            logger.info(
+                f"{description} still running: "
+                f"elapsed={time.monotonic() - started_at:.0f}s"
+            )
+
+    reporter = threading.Thread(
+        target=logging_utils.bind_log_scope(log_heartbeat), daemon=True
+    )
+    reporter.start()
+    try:
+        yield
+    finally:
+        stop_event.set()
+        reporter.join(timeout=1)
+
+
+def _report_clip_progress(
+    progress_callback: Callable[[float], None] | None,
+    covered_duration: float,
+    required_duration: float,
+) -> None:
+    """把已覆盖的成片时长换算成 0~1 的比例并通知调用方。"""
+    if progress_callback is None:
+        return
+    fraction = 1.0
+    if required_duration > 0:
+        fraction = min(1.0, covered_duration / required_duration)
+    try:
+        progress_callback(fraction)
+    except Exception as exc:
+        # 进度只是展示信息。回调失败（例如状态后端暂时不可用）不能让已经
+        # 处理好的片段作废。
+        logger.warning(
+            "failed to report clip processing progress: "
+            f"error={type(exc).__name__}, detail={exc}"
+        )
+
+
 def _run_concat_with_heartbeat(command: list[str], output_file: str):
     """
     阻塞等待 ffmpeg 完成，期间按间隔记录存活日志。
@@ -502,7 +569,9 @@ def _run_concat_with_heartbeat(command: list[str], output_file: str):
                 f"{_describe_concat_output_progress(output_file)}"
             )
 
-    reporter = threading.Thread(target=log_heartbeat, daemon=True)
+    reporter = threading.Thread(
+        target=logging_utils.bind_log_scope(log_heartbeat), daemon=True
+    )
     reporter.start()
     try:
         configured_timeout = config.app.get(
@@ -546,10 +615,24 @@ def concat_video_clips_with_ffmpeg(
     output_dir: str,
     max_duration: float | None = None,
 ):
-    concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
-    with open(concat_list_file, "w", encoding="utf-8") as fp:
-        for clip_file in clip_files:
-            fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
+    # Separate renders may share a directory. Each FFmpeg process must keep its
+    # own manifest until all codec attempts finish, without overwriting or
+    # deleting another render's list.
+    concat_list_file = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", prefix="ffmpeg-concat-", suffix=".txt",
+            dir=output_dir, delete=False,
+        ) as fp:
+            concat_list_file = fp.name
+            for clip_file in clip_files:
+                fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
+    except Exception:
+        if concat_list_file:
+            delete_files(concat_list_file)
+        raise
+
+    staged_output = None
 
     def build_command(codec: str) -> list[str]:
         command = [
@@ -570,23 +653,29 @@ def concat_video_clips_with_ffmpeg(
         ]
         if max_duration is not None and max_duration > 0:
             command.extend(["-t", f"{max_duration:.3f}"])
-        command.append(output_file)
+        command.append(staged_output)
         return command
 
     def run_concat(codec: str):
         command = build_command(codec)
         # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
         # 从而降低画质劣化与颜色偏移风险。阻塞等待期间由心跳日志体现任务仍在运行。
-        result = _run_concat_with_heartbeat(command, output_file)
+        result = _run_concat_with_heartbeat(command, staged_output)
         if result.returncode != 0:
             error_message = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(error_message or "ffmpeg concat failed")
         return codec
 
     try:
+        descriptor, staged_output = tempfile.mkstemp(
+            prefix=".ffmpeg-concat-",
+            suffix=os.path.splitext(output_file)[1] or ".mp4",
+            dir=os.path.dirname(os.path.abspath(output_file)),
+        )
+        os.close(descriptor)
         effective_codec = _get_effective_video_codec()
         try:
-            return run_concat(effective_codec)
+            result_codec = run_concat(effective_codec)
         except TimeoutError:
             # A hung encoder is not evidence that another codec will work. Do
             # not spend a second timeout period retrying the same input.
@@ -596,9 +685,14 @@ def concat_video_clips_with_ffmpeg(
                 raise
             result_codec = run_concat(_DEFAULT_VIDEO_CODEC)
             _disable_runtime_video_codec(effective_codec, str(exc))
-            return result_codec
+        # Failed attempts and in-progress output stay private until FFmpeg has
+        # finished. Publication errors must not trigger another codec attempt.
+        if os.path.getsize(staged_output) == 0:
+            raise RuntimeError("ffmpeg concat produced no output")
+        os.replace(staged_output, output_file)
+        return result_codec
     finally:
-        delete_files(concat_list_file)
+        delete_files([concat_list_file, staged_output])
 
 
 def _sanitize_image_file(image_path: str) -> str:
@@ -629,6 +723,9 @@ def _open_image_clip_with_fallback(image_path: str):
         return ImageClip(sanitized_path), sanitized_path
 
 
+_moviepy_reader_open_lock = threading.Lock()
+
+
 def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileClip:
     """
     安静地打开视频文件，避免 MoviePy 2.1.x 把 ffmpeg 探测信息直接打印到 stdout。
@@ -646,8 +743,12 @@ def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileC
     3. 如果依赖库确实输出了内容，降级为 debug 日志，便于必要时排查。
     """
     captured_stdout = io.StringIO()
-    with redirect_stdout(captured_stdout):
-        clip = VideoFileClip(video_path, audio=audio)
+    # redirect_stdout changes process-wide state. Overlapping reader opens can
+    # restore each other's capture buffers instead of the original stdout.
+    # Serialize this short construction window; clip processing stays parallel.
+    with _moviepy_reader_open_lock:
+        with redirect_stdout(captured_stdout):
+            clip = VideoFileClip(video_path, audio=audio)
 
     moviepy_stdout = captured_stdout.getvalue().strip()
     if moviepy_stdout:
@@ -819,6 +920,7 @@ def combine_videos(
     source_usage: dict[str, int] | None = None,
     source_groups: dict[str, str] | None = None,
     used_video_paths: List[str] | None = None,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> str:
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -914,21 +1016,17 @@ def combine_videos(
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
     # Add downloaded clips over and over until the duration of the audio (max_duration) has been reached
-    for i, subclipped_item in enumerate(subclipped_items):
-        if video_duration >= required_video_duration:
-            break
-        
-        logger.debug(
-            f"processing clip {i+1}: {subclipped_item.width}x{subclipped_item.height}, "
-            f"source: {os.path.basename(subclipped_item.source_file_path)}, "
-            f"current duration: {video_duration:.2f}s, "
-            f"remaining: {required_video_duration - video_duration:.2f}s"
-        )
-        
+    def process_one_clip(indexed_item):
+        """把一个源片段裁剪、变速、转场后写出，失败时返回 None。"""
+        index, subclipped_item = indexed_item
         source_clip = None
         clip = None
         clip_file = None
         try:
+            logger.debug(
+                f"processing clip {index + 1}: {subclipped_item.width}x{subclipped_item.height}, "
+                f"source: {os.path.basename(subclipped_item.source_file_path)}"
+            )
             source_clip = _open_video_clip_quietly(subclipped_item.file_path)
             clip = source_clip.subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
@@ -959,9 +1057,7 @@ def combine_videos(
                 )
 
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
-            if transition_value in (None, VideoTransitionMode.none.value):
-                clip = clip
-            elif transition_value == VideoTransitionMode.fade_in.value:
+            if transition_value == VideoTransitionMode.fade_in.value:
                 clip = video_effects.fadein_transition(clip, 1)
             elif transition_value == VideoTransitionMode.fade_out.value:
                 clip = video_effects.fadeout_transition(clip, 1)
@@ -987,9 +1083,15 @@ def combine_videos(
 
             if clip.duration > max_clip_duration:
                 clip = clip.subclipped(0, max_clip_duration)
-                
-            # wirte clip to temp file
-            clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
+
+            # Write each candidate clip to a unique temporary file. Threads must not
+            # share the same output path.
+            # Distinct combinations can share a task/output directory. Reserve
+            # an owned path so their encoders and cleanup never share a clip.
+            with tempfile.NamedTemporaryFile(
+                dir=output_dir or ".", prefix="temp-clip-", suffix=".mp4", delete=False
+            ) as temporary_clip:
+                clip_file = temporary_clip.name
             _write_videofile_with_codec_fallback(
                 clip,
                 clip_file,
@@ -998,32 +1100,75 @@ def combine_videos(
                 fps=fps,
             )
 
-            # Store clip duration before closing
             clip_duration_saved = clip.duration
-
-            processed_clips.append(
-                SubClippedVideoClip(
-                    file_path=clip_file,
-                    duration=clip_duration_saved,
-                    width=clip_w,
-                    height=clip_h,
-                    source_file_path=subclipped_item.source_file_path,
-                )
+            processed_clip = SubClippedVideoClip(
+                file_path=clip_file,
+                duration=clip_duration_saved,
+                width=clip_w,
+                height=clip_h,
+                source_file_path=subclipped_item.source_file_path,
             )
-            video_duration += clip_duration_saved
             clip_file = None
-            
-        except Exception as e:
-            logger.error(f"failed to process clip: {str(e)}")
+            return processed_clip
+        except Exception as exc:
+            logger.error(f"failed to process clip: {str(exc)}")
+            return None
         finally:
             # The derived clip shares its FFmpeg reader with the source. If
             # subclipping itself failed, close the original source instead.
             close_clip(clip if clip is not None else source_clip)
             # MoviePy may leave a truncated MP4 even when encoding raises. It
-            # was never added to processed_clips, so concat cleanup cannot see it.
+            # was never returned, so concat cleanup cannot see it.
             # Close the reader first so Windows can remove the partial file.
             if clip_file:
                 delete_files(clip_file)
+
+    # 片段始终在线程池里处理。逐片段日志是这一阶段唯一的进度信息，绑定到
+    # 发起合成的线程后，WebUI 的任务日志才能收集到它们。
+    process_clip_in_task_scope = logging_utils.bind_log_scope(process_one_clip)
+    clip_processing_workers = 1
+    if len(subclipped_items) >= 2:
+        clip_processing_workers = min(_get_clip_processing_concurrency(), len(subclipped_items))
+    with ThreadPoolExecutor(
+        max_workers=clip_processing_workers,
+        thread_name_prefix="clip-process",
+    ) as executor:
+        next_candidate_index = 0
+        while (
+            next_candidate_index < len(subclipped_items)
+            and video_duration < required_video_duration
+        ):
+            remaining_duration = required_video_duration - video_duration
+            batch = []
+            batch_duration = 0.0
+            candidate_index = next_candidate_index
+            while candidate_index < len(subclipped_items) and batch_duration < remaining_duration:
+                subclipped_item = subclipped_items[candidate_index]
+                source_duration = subclipped_item.end_time - subclipped_item.start_time
+                output_duration = min(
+                    max_clip_duration,
+                    source_duration / normalized_clip_speed,
+                )
+                batch.append((candidate_index, subclipped_item))
+                batch_duration += output_duration
+                candidate_index += 1
+            if not batch:
+                break
+            for processed_clip in executor.map(process_clip_in_task_scope, batch):
+                if processed_clip is None:
+                    continue
+                processed_clips.append(processed_clip)
+                video_duration += processed_clip.duration
+                # 每段 4K 素材要处理十几秒，逐段报告覆盖时长，日志和进度条
+                # 才能反映这一阶段仍在推进。
+                logger.info(
+                    f"processed clip {len(processed_clips)}: "
+                    f"{video_duration:.1f} of {required_video_duration:.1f}s covered"
+                )
+                _report_clip_progress(
+                    progress_callback, video_duration, required_video_duration
+                )
+            next_candidate_index = candidate_index
     
     # loop processed clips until the video duration covers the audio duration and the small safety margin.
     if video_duration < required_video_duration:
@@ -1082,6 +1227,18 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
     # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
     # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
+    if "\n" in text:
+        # Hard breaks in SRT text are separate layout lines. Measuring a token
+        # across a newline makes Pillow count both lines as one wide string,
+        # then character wrapping can split an otherwise fitting word.
+        wrapped_lines = [
+            wrap_text(line, max_width, font=font, fontsize=fontsize)
+            for line in text.split("\n")
+        ]
+        return "\n".join(line for line, _ in wrapped_lines), sum(
+            height for _, height in wrapped_lines
+        )
+
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
@@ -1546,7 +1703,7 @@ def generate_video(
                 font_size=params.font_size,
             )
 
-        if subtitle_path and os.path.exists(subtitle_path):
+        if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
             sub = clip_stack.enter_context(
                 SubtitlesClip(
                     subtitles=subtitle_path,
@@ -1613,19 +1770,20 @@ def generate_video(
         # 显式沿用输入音频的采样率；如果取不到，再回退 MoviePy 默认的 44100Hz。
         # 这样可以减少不同环境，尤其 Docker 中再次重采样带来的音质波动。
         output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
-        _write_videofile_with_codec_fallback(
-            final_video_clip,
-            output_file=output_file,
-            codec=_get_configured_video_codec(),
-            atomic_output=True,
-            audio_codec=audio_codec,
-            audio_fps=output_audio_fps,
-            audio_bitrate=audio_bitrate,
-            temp_audiofile_path=_get_temp_audio_dir(output_dir),
-            threads=params.n_threads or 2,
-            logger=None,
-            fps=fps,
-        )
+        with _stage_heartbeat("final video render"):
+            _write_videofile_with_codec_fallback(
+                final_video_clip,
+                output_file=output_file,
+                codec=_get_configured_video_codec(),
+                atomic_output=True,
+                audio_codec=audio_codec,
+                audio_fps=output_audio_fps,
+                audio_bitrate=audio_bitrate,
+                temp_audiofile_path=_get_temp_audio_dir(output_dir),
+                threads=params.n_threads or 2,
+                logger=None,
+                fps=fps,
+            )
         return bgm_mix_succeeded
 
 
@@ -1704,9 +1862,10 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
             continue
 
         ext = utils.parse_extension(material_source_path)
+        is_image = ext in const.FILE_TYPE_IMAGES
         try:
             # 图片素材直接按图片方式读取，避免先走 VideoFileClip 误判后触发不稳定的回退分支。
-            if ext in const.FILE_TYPE_IMAGES:
+            if is_image:
                 clip, material_source_path = _open_image_clip_with_fallback(
                     material_source_path
                 )
@@ -1718,6 +1877,9 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 clip, material_source_path = _open_image_clip_with_fallback(
                     material_source_path
                 )
+                # The successful decoder determines the material kind, even
+                # when the uploaded filename has a video or unknown suffix.
+                is_image = True
             except Exception as exc:
                 logger.warning(
                     f"skip unreadable local material: {material.url}, error: {str(exc)}"
@@ -1736,7 +1898,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 close_clip(clip)
                 continue
 
-            if ext in const.FILE_TYPE_IMAGES:
+            if is_image:
                 logger.info(f"processing image: {material_source_path}")
                 # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再渲染
                 # 用于导出的图片片段。

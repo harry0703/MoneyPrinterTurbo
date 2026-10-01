@@ -12,7 +12,9 @@ except ImportError:
 from loguru import logger
 
 from app.config import config
+from app.models import const
 from app.utils import utils
+from app.utils.subtitle_writer import write_subtitle_file
 
 model_size = config.whisper.get("model_size", "large-v3")
 device = config.whisper.get("device", "cpu")
@@ -132,15 +134,13 @@ def create(
                     is_segmented = True
 
                 seg_end = word.end
-                # If it contains punctuation, then break the sentence.
+                # Accumulate words; only trailing punctuation ends a sentence.
                 seg_text += word.word
 
-                if utils.str_contains_punctuation(word.word):
-                    # remove last char
-                    seg_text = seg_text[:-1]
-                    if not seg_text:
-                        continue
-
+                if word.word.rstrip().endswith(tuple(const.PUNCTUATIONS)):
+                    # Punctuation inside a word (3.14, 1,000, 12:30) is not a
+                    # sentence boundary. Remove only actual trailing delimiters.
+                    seg_text = seg_text.rstrip().rstrip("".join(const.PUNCTUATIONS))
                     recognized(seg_text, seg_start, seg_end)
 
                     is_segmented = False
@@ -175,8 +175,10 @@ def create(
             idx += 1
 
     sub = "\n".join(lines) + "\n"
-    with open(subtitle_file, "w", encoding="utf-8") as f:
-        f.write(sub)
+    if not lines:
+        logger.warning("transcription produced no subtitle cues")
+        return
+    write_subtitle_file(subtitle_file, sub)
     if log_details:
         logger.info(f"subtitle file created: {subtitle_file}")
 
@@ -350,9 +352,11 @@ def correct(subtitle_file, video_script):
         corrected = True
 
     if corrected:
-        with open(subtitle_file, "w", encoding="utf-8") as fd:
-            for i, item in enumerate(new_subtitle_items):
-                fd.write(f"{i + 1}\n{item[1]}\n{item[2]}\n\n")
+        content = "".join(
+            f"{i + 1}\n{item[1]}\n{item[2]}\n\n"
+            for i, item in enumerate(new_subtitle_items)
+        )
+        write_subtitle_file(subtitle_file, content)
         logger.info("Subtitle corrected")
     else:
         logger.success("Subtitle is correct")

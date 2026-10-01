@@ -140,6 +140,102 @@ def test_webui_runtime_config_updates_do_not_use_blocking_writes():
     assert direct_writes == []
 
 
+def test_active_task_uses_terminal_state_when_outside_runtime_page(tmp_path):
+    """An active session marker must not hide a finished task past page one."""
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_collect_task_summaries"
+    )
+    namespace = {
+        "_scan_history_tasks": lambda limit: [],
+        "_active_generation_tasks": lambda: {
+            "new-task": {"subject": "Latest video", "mtime": 1000}
+        },
+        "_task_state_filter_key": lambda task: (
+            "failed" if task["state"] == const.TASK_STATE_FAILED else "processing"
+        ),
+        "sm": SimpleNamespace(
+            state=SimpleNamespace(
+                get_all_tasks=lambda page, page_size: (
+                    [
+                        {
+                            "task_id": f"old-{index}",
+                            "state": const.TASK_STATE_COMPLETE,
+                        }
+                        for index in range(50)
+                    ],
+                    51,
+                ),
+                get_task=MagicMock(
+                    return_value={
+                        "task_id": "new-task",
+                        "state": const.TASK_STATE_FAILED,
+                        "progress": 70,
+                    }
+                ),
+            )
+        ),
+        "utils": SimpleNamespace(task_dir=lambda: str(tmp_path)),
+        "os": os,
+        "const": const,
+        "logger": MagicMock(),
+    }
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+
+    tasks = namespace["_collect_task_summaries"](limit=20)
+
+    latest = next(task for task in tasks if task["task_id"] == "new-task")
+    assert latest["state"] == const.TASK_STATE_FAILED
+    assert latest["progress"] == 70
+    assert latest["mtime"] == 1000
+    namespace["sm"].state.get_task.assert_called_once_with("new-task")
+
+
+def test_task_summary_tolerates_directory_removed_during_scan():
+    """A concurrent deletion between isdir and stat must not crash the panel."""
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_collect_task_summaries"
+    )
+    getmtime = MagicMock(side_effect=FileNotFoundError("task directory removed"))
+    namespace = {
+        "_scan_history_tasks": lambda limit: [],
+        "_active_generation_tasks": lambda: {},
+        "sm": SimpleNamespace(
+            state=SimpleNamespace(
+                get_all_tasks=lambda page, page_size: (
+                    [{"task_id": "removed-task", "state": const.TASK_STATE_COMPLETE}],
+                    1,
+                )
+            )
+        ),
+        "utils": SimpleNamespace(task_dir=lambda: "/tasks"),
+        "os": SimpleNamespace(
+            path=SimpleNamespace(
+                join=os.path.join,
+                isdir=lambda _path: True,
+                getmtime=getmtime,
+            )
+        ),
+        "logger": MagicMock(),
+    }
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+
+    tasks = namespace["_collect_task_summaries"]()
+
+    assert tasks[0]["task_id"] == "removed-task"
+    assert tasks[0]["mtime"] == 0
+    getmtime.assert_called_once_with(os.path.join("/tasks", "removed-task"))
+
+
 @pytest.mark.parametrize(
     ("ui_config", "expected_open_count"),
     [
@@ -391,6 +487,91 @@ def test_worker_logs_are_available_without_streamlit_session_state():
         r"- unique background task log",
         records[0],
     )
+
+
+def test_bound_helper_thread_logs_reach_the_task_log():
+    """
+    并行下载、片段编码和 ffmpeg 心跳都在任务启动的辅助线程里写日志。只按工作
+    线程 ID 过滤时这些记录会被丢弃，WebUI 在耗时最长的阶段反而没有任何输出。
+    经 bind_log_scope 绑定的辅助线程必须计入所属任务，未绑定的线程仍然排除，
+    否则同时运行的 API 任务日志会混进来。
+    """
+    task_id = "helper-thread-log-test"
+    with webui_task._task_logs_lock:
+        webui_task._task_logs.pop(task_id, None)
+
+    def logged_start(**_kwargs):
+        bound = threading.Thread(
+            target=logging_utils.bind_log_scope(
+                lambda: logger.info("bound helper thread log")
+            )
+        )
+        unrelated = threading.Thread(
+            target=lambda: logger.info("unrelated thread log")
+        )
+        for thread in (bound, unrelated):
+            thread.start()
+        for thread in (bound, unrelated):
+            thread.join()
+        return {"videos": []}
+
+    with (
+        patch.object(webui_task.tm, "start", side_effect=logged_start),
+        patch.object(
+            webui_task.config,
+            "runtime_config_lock",
+            return_value=nullcontext(),
+        ),
+    ):
+        webui_task._run_generation(
+            task_id,
+            VideoParams(video_subject="辅助线程日志"),
+            capture_logs=True,
+        )
+
+    messages = "\n".join(webui_task.get_task_logs(task_id))
+    assert "bound helper thread log" in messages
+    assert "unrelated thread log" not in messages
+
+
+def test_bind_log_scope_follows_nested_helpers_and_is_released():
+    """
+    辅助线程再启动的线程（例如并行片段里的心跳）也要归属最初的任务线程。
+    线程结束后必须解除绑定：线程 ID 会被系统复用，残留的映射会把之后无关
+    线程的日志错误地算进旧任务。
+    """
+    root_thread_id = threading.get_ident()
+    seen = {}
+
+    def inner():
+        seen["inner_scope"] = logging_utils.log_scope_thread_id()
+
+    def outer():
+        seen["outer_thread_id"] = threading.get_ident()
+        seen["outer_scope"] = logging_utils.log_scope_thread_id()
+        nested = threading.Thread(target=logging_utils.bind_log_scope(inner))
+        nested.start()
+        nested.join()
+
+    helper = threading.Thread(target=logging_utils.bind_log_scope(outer))
+    helper.start()
+    helper.join()
+
+    assert seen["outer_scope"] == root_thread_id
+    assert seen["inner_scope"] == root_thread_id
+    assert (
+        logging_utils.log_scope_thread_id(seen["outer_thread_id"])
+        == seen["outer_thread_id"]
+    )
+    assert logging_utils.log_scope_thread_id() == root_thread_id
+
+
+def test_bind_log_scope_runs_inline_calls_without_rebinding():
+    """同一线程内直接调用包装后的函数时保持原样返回值，不改动作用域。"""
+    bound = logging_utils.bind_log_scope(lambda value: value * 2)
+
+    assert bound(21) == 42
+    assert logging_utils.log_scope_thread_id() == threading.get_ident()
 
 
 def test_webui_worker_forwards_reference_audio_to_pipeline():

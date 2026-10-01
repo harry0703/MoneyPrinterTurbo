@@ -1,3 +1,4 @@
+import inspect
 import json
 from typing import Dict
 
@@ -5,9 +6,9 @@ import redis
 from loguru import logger
 from pydantic import ValidationError
 
-from app.controllers.manager.base_manager import TaskManager
+from app.controllers.manager.base_manager import TaskManager, TaskQueueFullError
 from app.models import const
-from app.models.schema import VideoParams
+from app.models.schema import AudioRequest, SubtitleRequest, VideoParams
 from app.services import state as sm
 from app.services import task as tm
 
@@ -15,6 +16,14 @@ FUNC_MAP = {
     "start": tm.start,
     # 'start_test': tm.start_test
 }
+
+_ADMIT_QUEUED_TASK_SCRIPT = """
+if redis.call("LLEN", KEYS[1]) >= tonumber(ARGV[1]) then
+    return 0
+end
+redis.call("RPUSH", KEYS[1], ARGV[2])
+return 1
+"""
 
 
 class RedisTaskManager(TaskManager):
@@ -41,6 +50,23 @@ class RedisTaskManager(TaskManager):
             self.check_queue()
 
     def enqueue(self, task: Dict):
+        self.redis_client.rpush(self.queue, self._serialize_task(task))
+
+    def enqueue_new_task(self, task: Dict):
+        # Manager locks are process-local. Keep capacity validation and admission
+        # in one Redis operation so other API workers cannot claim the same slot.
+        admitted = self.redis_client.eval(
+            _ADMIT_QUEUED_TASK_SCRIPT,
+            1,
+            self.queue,
+            self.max_queued_tasks,
+            self._serialize_task(task),
+        )
+        if not admitted:
+            raise TaskQueueFullError("task queue is full, please try again later")
+
+    @staticmethod
+    def _serialize_task(task: Dict) -> str:
         task_with_serializable_params = task.copy()
         # task.copy() 只复制最外层字典；如果直接改写嵌套 kwargs，会把调用方
         # 持有的 VideoParams 同步替换成 dict。后续日志或重试仍可能读取原任务，
@@ -48,14 +74,16 @@ class RedisTaskManager(TaskManager):
         task_kwargs = task.get("kwargs", {})
         task_with_serializable_params["kwargs"] = task_kwargs.copy()
 
-        if "params" in task_kwargs and isinstance(task_kwargs["params"], VideoParams):
+        if "params" in task_kwargs and isinstance(
+            task_kwargs["params"], (VideoParams, AudioRequest, SubtitleRequest)
+        ):
             task_with_serializable_params["kwargs"]["params"] = task_kwargs[
                 "params"
             ].model_dump(warnings=False)
 
         # 将函数对象转换为其名称
         task_with_serializable_params["func"] = task["func"].__name__
-        self.redis_client.rpush(self.queue, json.dumps(task_with_serializable_params))
+        return json.dumps(task_with_serializable_params)
 
     def dequeue(self):
         # 循环而非单次弹出：某个任务在入队时可能满足当时的校验规则，但校验规则与
@@ -89,6 +117,12 @@ class RedisTaskManager(TaskManager):
                 # 会把条目重新入队并让异常逃出工作线程，必须在这里先拦下。
                 if not isinstance(task_info.get("args", []), list):
                     raise ValueError("queued task positional arguments are not a list")
+                # A persisted request can outlive a callable's signature. Fail
+                # it before dispatch: Python argument-binding errors happen
+                # before start() enters its pipeline failure handler.
+                inspect.signature(task_info["func"]).bind(
+                    *task_info.get("args", []), **task_kwargs
+                )
             except (TypeError, ValueError, KeyError) as e:
                 logger.error(f"dropping unusable queued task: {e}")
                 # 与下面的 params 校验失败路径一致：只要能读出可用的 task_id，就把
@@ -115,11 +149,20 @@ class RedisTaskManager(TaskManager):
 
             if "params" in task_kwargs and isinstance(task_kwargs["params"], dict):
                 try:
-                    task_kwargs["params"] = VideoParams(**task_kwargs["params"])
+                    params_model = VideoParams
+                    # /audio and /subtitle use short-form request models without
+                    # video_subject. Preserve those schemas at the queue boundary;
+                    # full VideoParams can also stop at either of these stages.
+                    if "video_subject" not in task_kwargs["params"]:
+                        if task_kwargs.get("stop_at") == "audio":
+                            params_model = AudioRequest
+                        elif task_kwargs.get("stop_at") == "subtitle":
+                            params_model = SubtitleRequest
+                    task_kwargs["params"] = params_model(**task_kwargs["params"])
                 except ValidationError as e:
                     logger.error(
                         "dropping queued task with params that fail current "
-                        f"VideoParams validation (queued under an older, more "
+                        f"request model validation (queued under an older, more "
                         f"permissive schema, or corrupted): {e}"
                     )
                     # 任务状态记录在入队前就已创建，且默认是 processing；如果只是
