@@ -1222,6 +1222,18 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
     # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
     # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
+    if "\n" in text:
+        # Hard breaks in SRT text are separate layout lines. Measuring a token
+        # across a newline makes Pillow count both lines as one wide string,
+        # then character wrapping can split an otherwise fitting word.
+        wrapped_lines = [
+            wrap_text(line, max_width, font=font, fontsize=fontsize)
+            for line in text.split("\n")
+        ]
+        return "\n".join(line for line, _ in wrapped_lines), sum(
+            height for _, height in wrapped_lines
+        )
+
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
