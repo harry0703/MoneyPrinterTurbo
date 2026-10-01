@@ -1086,7 +1086,12 @@ def combine_videos(
 
             # Write each candidate clip to a unique temporary file. Threads must not
             # share the same output path.
-            clip_file = f"{output_dir}/temp-clip-{index + 1}.mp4"
+            # Distinct combinations can share a task/output directory. Reserve
+            # an owned path so their encoders and cleanup never share a clip.
+            with tempfile.NamedTemporaryFile(
+                dir=output_dir or ".", prefix="temp-clip-", suffix=".mp4", delete=False
+            ) as temporary_clip:
+                clip_file = temporary_clip.name
             _write_videofile_with_codec_fallback(
                 clip,
                 clip_file,
