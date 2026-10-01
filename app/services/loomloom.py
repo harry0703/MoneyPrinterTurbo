@@ -661,6 +661,7 @@ class LoomLoomScriptBackend:
                 },
                 json=dict(json_body) if json_body is not None else None,
                 params=dict(params) if params is not None else None,
+                allow_redirects=False,
                 timeout=(5.0, self.settings.request_timeout_seconds),
             )
         except requests.RequestException as exc:
