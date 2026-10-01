@@ -811,13 +811,20 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
 
             def append_pcm(reader):
                 nonlocal combined_frames
+                chunk_frames = 0
                 while chunk := reader.readframes(8192):
+                    if len(chunk) % 2:
+                        raise ValueError("incomplete PCM sample in narration chunk")
                     combined_wave.writeframesraw(chunk)
-                    combined_frames += len(chunk) // 2
+                    chunk_frames += len(chunk) // 2
+                if not chunk_frames or chunk_frames != reader.getnframes():
+                    raise ValueError("empty or truncated narration chunk")
+                combined_frames += chunk_frames
 
             for idx, f in enumerate(audio_files):
                 if not os.path.exists(f) or os.path.getsize(f) == 0:
-                    continue
+                    logger.error(f"narration chunk is missing or empty: {f}")
+                    return False
 
                 # 检查是否已经是 24000Hz 16-bit mono WAV
                 is_valid_pcm_wav = False
@@ -869,6 +876,7 @@ def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
                             return False
                     else:
                         logger.error(f"failed to decode audio chunk with ffmpeg: {res.stderr}")
+                        return False
 
         if not combined_frames:
             logger.error("no valid audio samples to concatenate")
