@@ -91,6 +91,13 @@ _VIDEO_MUSIC_PROVIDERS = {
 }
 
 
+_SUPPORTED_VIDEO_SOURCES = frozenset({
+    "pexels", "pixabay", "coverr", "local", "wavespeed",
+    "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
+    "loomloom", "openai_image",
+})
+
+
 def _get_video_music_prompt(params: VideoParams) -> str:
     """
     读取当前视频配乐供应商实际使用的提示词。
@@ -1478,6 +1485,11 @@ def _run_pipeline(
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+
+    if stop_at in {"materials", "video"} and params.video_source not in _SUPPORTED_VIDEO_SOURCES:
+        return _mark_task_failed(
+            task_id, "preflight", f"unsupported video source: {params.video_source!r}"
+        )
 
     if (
         stop_at in {"materials", "video"}
