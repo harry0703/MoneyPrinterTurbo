@@ -436,6 +436,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://futureinfra.ai/v1/ai",
         model_docs_url="https://futureinfra.ai/ai/",
     ),
+    LLMProviderSpec(
+        "yapi",
+        "Y-API",
+        api_key_url="https://y-api.bestvirtualgoods.com/app/keys",
+        default_model="deepseek/deepseek-v4-flash",
+        default_base_url="https://api.y-api.bestvirtualgoods.com/v1",
+        model_docs_url="https://y-api.bestvirtualgoods.com/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

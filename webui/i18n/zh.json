@@ -241,6 +241,8 @@
     "llm_provider_tips.requesty": "##### Requesty 配置说明\n- **API Key**: 在 [Requesty]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`；如需使用欧盟节点，可填写 `https://router.eu.requesty.ai/v1`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它 `vendor/model` 格式的模型 ID\n\nRequesty 是兼容 OpenAI 接口的多模型网关。",
     "llm_provider_label.futureinfra": "FutureInfra",
     "llm_provider_tips.futureinfra": "##### FutureInfra 配置说明\n- **API Key**: 在 [FutureInfra 控制台]({api_key_url}) 注册并创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [文档]({model_docs_url}) 查看其它 `provider/model` 格式的模型 ID\n\nFutureInfra 是兼容 OpenAI 接口的多模型网关。",
+    "llm_provider_label.yapi": "Y-API",
+    "llm_provider_tips.yapi": "##### Y-API 配置说明\n- **API Key**: 在 [Y-API 控制台]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；其它 `vendor/model` 格式的模型 ID 见 [模型列表]({model_docs_url})\n\nY-API 是兼容 OpenAI 接口的多模型网关，一个 API Key 可调用多家厂商的模型，同时提供兼容 Anthropic 的 `/v1/messages` 接口。",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",

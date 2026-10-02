@@ -287,6 +287,13 @@ futureinfra_api_key = ""
 futureinfra_base_url = ""
 futureinfra_model_name = ""
 
+# Y-API, an OpenAI-compatible multi-model gateway (also serves /v1/messages).
+# API key: https://y-api.bestvirtualgoods.com/app/keys
+# Model list: https://y-api.bestvirtualgoods.com/models
+yapi_api_key = ""
+yapi_base_url = ""
+yapi_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""

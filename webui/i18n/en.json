@@ -241,6 +241,8 @@
     "llm_provider_tips.requesty": "##### Requesty Configuration\n- **API Key**: Create an API key at [Requesty]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`. Use `https://router.eu.requesty.ai/v1` for the EU endpoint\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs in `vendor/model` form\n\nRequesty is an OpenAI-compatible gateway to models from many labs.",
     "llm_provider_label.futureinfra": "FutureInfra",
     "llm_provider_tips.futureinfra": "##### FutureInfra Configuration\n- **API Key**: Sign up and create an API key in the [FutureInfra console]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [docs]({model_docs_url}) for other model IDs in `provider/model` form\n\nFutureInfra is an OpenAI-compatible gateway to models from many labs.",
+    "llm_provider_label.yapi": "Y-API",
+    "llm_provider_tips.yapi": "##### Y-API Configuration\n- **API Key**: Create an API key in the [Y-API console]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs in `vendor/model` form\n\nY-API is an OpenAI-compatible gateway: one API key serves models from several labs, and it also exposes an Anthropic-compatible `/v1/messages` endpoint.",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
