@@ -583,3 +583,7 @@ Solution: [See how to download the model manually from Hugging Face](#subtitle-g
 ## License 📝
 
 Click to view the [`LICENSE`](LICENSE) file
+
+### Editable local video projects
+
+Use [revision-aware local projects](docs/video-projects.md) to replace prepared scene media, compare revisions and rebuild only affected stages. The opt-in CLI preserves verified artifacts and the last successful export; it makes no provider calls or automatic posts.
