@@ -1879,6 +1879,7 @@ support_locales = [
     "zh-CN",
     "zh-HK",
     "zh-TW",
+    "ar-EG",
     "de-DE",
     "en-US",
     "es-ES",
@@ -7081,6 +7082,34 @@ def _render_audio_settings(panel, params):
                 )
 
             friendly_names = {v: _friendly(v) for v in filtered_voices}
+
+            requested_voice_language = str(params.video_language or "").strip()
+            if not requested_voice_language:
+                requested_voice_language = voice.detect_text_language(
+                    params.video_script or params.video_subject
+                )
+            if (
+                selected_tts_server in {"azure-tts-v1", "azure-tts-v2"}
+                and requested_voice_language
+            ):
+                voice_widget_key = localized_widget_key(
+                    f"speech_synthesis_select_{selected_tts_server}"
+                )
+                auto_match_key = localized_widget_key(
+                    f"auto_voice_language_{selected_tts_server}"
+                )
+                if st.session_state.get(auto_match_key) != requested_voice_language:
+                    current_voice = st.session_state.get(
+                        voice_widget_key, saved_voice_name
+                    )
+                    matching_voice = voice.find_azure_voice_for_language(
+                        filtered_voices,
+                        current_voice,
+                        requested_voice_language,
+                    )
+                    if matching_voice:
+                        st.session_state[voice_widget_key] = matching_voice
+                    st.session_state[auto_match_key] = requested_voice_language
 
             # Gemini 旧目录把推测的性别放在值里（例如 Charon-Male）。按基础
             # voice name 映射到新的官方风格值，升级后继续保留用户原来的音色。

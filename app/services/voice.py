@@ -377,6 +377,70 @@ def get_all_azure_voices(filter_locals=None) -> list[str]:
     return voices
 
 
+def detect_text_language(text: str) -> str:
+    """Detect Arabic script when the user leaves the script language on Auto."""
+    letters = [char for char in str(text or "") if char.isalpha()]
+    if not letters:
+        return ""
+
+    arabic_ranges = (
+        (0x0600, 0x06FF),
+        (0x0750, 0x077F),
+        (0x08A0, 0x08FF),
+        (0xFB50, 0xFDFF),
+        (0xFE70, 0xFEFF),
+    )
+    arabic_count = sum(
+        any(start <= ord(char) <= end for start, end in arabic_ranges)
+        for char in letters
+    )
+    if arabic_count >= 3 and arabic_count / len(letters) >= 0.3:
+        return "ar"
+    return ""
+
+
+def _azure_voice_locale(voice_name: str) -> str:
+    name = parse_voice_name(str(voice_name or ""))
+    parts = name.split("-")
+    if len(parts) < 3 or len(parts[0]) not in {2, 3} or len(parts[1]) != 2:
+        return ""
+    if not parts[0].isalpha() or not parts[1].isalpha():
+        return ""
+    return f"{parts[0]}-{parts[1]}".lower()
+
+
+def find_azure_voice_for_language(
+    voices: list[str], current_voice: str, language: str
+) -> str | None:
+    """Return a matching Azure voice only when the current locale conflicts."""
+    requested = str(language or "").strip().lower().split("-")
+    language_code = requested[0]
+    if not language_code:
+        return None
+
+    current_locale = _azure_voice_locale(current_voice)
+    current_language = current_locale.split("-", 1)[0] if current_locale else ""
+    if current_language == language_code and (
+        len(requested) == 1 or current_locale == "-".join(requested)
+    ):
+        return None
+
+    candidates = [
+        candidate
+        for candidate in voices
+        if _azure_voice_locale(candidate).split("-", 1)[0] == language_code
+    ]
+    if not candidates:
+        return None
+
+    if len(requested) > 1:
+        requested_locale = "-".join(requested)
+        for candidate in candidates:
+            if _azure_voice_locale(candidate) == requested_locale:
+                return candidate
+    return candidates[0]
+
+
 def parse_voice_name(name: str):
     # zh-CN-XiaoyiNeural-Female
     # zh-CN-YunxiNeural-Male
@@ -1851,7 +1915,7 @@ def gemini_tts(
         # 请求结束后释放 HTTP 连接，同时保留原有 PCM 转码和字幕时间轴逻辑。
         with genai.Client(api_key=api_key) as client:
             response = client.models.generate_content(
-                model="gemini-2.5-flash-preview-tts",
+                model="gemini-3.8-flash-tts",
                 contents=text,
                 config=generation_config,
             )

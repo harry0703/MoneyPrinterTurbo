@@ -397,6 +397,7 @@ class TestWebuiI18n(unittest.TestCase):
                 break
 
         self.assertIsNotNone(support_locales)
+        self.assertIn("ar-EG", support_locales)
         self.assertIn("ru-RU", support_locales)
         self.assertIn("ca-ES", support_locales)
 
