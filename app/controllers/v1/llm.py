@@ -2,6 +2,7 @@ from fastapi import Depends, Request
 
 from app.controllers import base
 from app.controllers.v1.base import new_router
+from app.models.exception import HttpException
 from app.models.schema import (
     VideoScriptRequest,
     VideoScriptResponse,
@@ -31,6 +32,11 @@ def generate_video_script(request: Request, body: VideoScriptRequest):
         video_script_prompt=body.video_script_prompt,
         custom_system_prompt=body.custom_system_prompt,
     )
+    if not video_script or video_script.startswith("Error: "):
+        raise HttpException(
+            task_id=base.get_task_id(request), status_code=503,
+            message="script generation is unavailable",
+        )
     response = {"video_script": video_script}
     return utils.get_response(200, response)
 
@@ -47,6 +53,11 @@ def generate_video_terms(request: Request, body: VideoTermsRequest):
         amount=body.amount,
         match_script_order=body.match_materials_to_script,
     )
+    if not video_terms:
+        raise HttpException(
+            task_id=base.get_task_id(request), status_code=503,
+            message="search term generation is unavailable",
+        )
     response = {"video_terms": video_terms}
     return utils.get_response(200, response)
 
