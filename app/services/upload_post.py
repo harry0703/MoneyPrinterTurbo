@@ -206,6 +206,16 @@ class UploadPostService:
         # Generate the remote handle before POST: a lost response does not
         # prove that Upload-Post stopped publishing the received video.
         client_request_id = str(uuid4())
+        def unconfirmed_response(message: str) -> dict:
+            return {
+                "success": False,
+                "request_id": client_request_id,
+                "error": (
+                    f"{message}; upload outcome is unconfirmed; "
+                    f"check request_id {client_request_id} before submitting again"
+                ),
+            }
+
         try:
             with open(video_path, 'rb') as video_file:
                 files = {'video': video_file}
@@ -262,10 +272,7 @@ class UploadPostService:
                     result = response.json()
                 except ValueError:
                     logger.error("Upload-Post returned invalid JSON to upload")
-                    return {
-                        "success": False,
-                        "error": "Upload-Post returned invalid JSON",
-                    }
+                    return unconfirmed_response("Upload-Post returned invalid JSON")
 
             # Release the source file before waiting for a remote background
             # upload, which can take much longer than the initial POST.
@@ -273,21 +280,16 @@ class UploadPostService:
                 result.get("success"), bool
             ):
                 logger.error("Upload-Post returned an invalid response to upload")
-                return {
-                    "success": False,
-                    "error": "Upload-Post returned an invalid response",
-                }
+                return unconfirmed_response("Upload-Post returned an invalid response")
 
             if result["success"]:
                 is_background = "results" not in result
                 if is_background:
                     request_id = result.get("request_id")
                     if not isinstance(request_id, str) or not request_id.strip():
-                        return {
-                            "success": False,
-                            "error": "Upload-Post started a background upload "
-                            "without a request_id",
-                        }
+                        return unconfirmed_response(
+                            "Upload-Post started a background upload without a request_id"
+                        )
                     logger.info(
                         "Upload-Post background upload accepted: "
                         f"request_id={request_id.strip()}"
