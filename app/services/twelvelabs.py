@@ -30,6 +30,7 @@ Configure a TwelveLabs API key from the TwelveLabs dashboard (https://twelvelabs
 """
 
 import math
+from contextlib import contextmanager
 from functools import lru_cache
 from typing import List, Optional
 
@@ -50,13 +51,23 @@ def is_enabled() -> bool:
     return bool(keys)
 
 
-def _client():
+def _client(httpx_client=None):
     # Lazy import + rotated key reuse mirrors the other providers in
     # material.py (get_api_key rotates across configured keys).
     from twelvelabs import TwelveLabs
 
     api_key = material.get_api_key("twelvelabs_api_keys")
-    return TwelveLabs(api_key=api_key)
+    return TwelveLabs(api_key=api_key, httpx_client=httpx_client)
+
+
+@contextmanager
+def _managed_client():
+    # The SDK does not close its HTTP client on context-manager exit. Own the
+    # transport explicitly, preserving its default timeout and redirect policy.
+    import httpx
+
+    with httpx.Client(timeout=600, follow_redirects=True) as transport:
+        yield _client(httpx_client=transport)
 
 
 def _cosine(a: List[float], b: List[float]) -> float:
@@ -88,10 +99,10 @@ def embed_text(text: str, model: Optional[str] = None) -> Optional[List[float]]:
 
 @lru_cache(maxsize=512)
 def _embed_text_cached(text: str, model: str) -> List[float]:
-    client = _client()
-    resp = client.embed.create(model_name=model, text=text)
-    # SDK aliases the raw JSON 'float' vector key to `float_`.
-    return list(resp.text_embedding.segments[0].float_)
+    with _managed_client() as client:
+        resp = client.embed.create(model_name=model, text=text)
+        # SDK aliases the raw JSON 'float' vector key to `float_`.
+        return list(resp.text_embedding.segments[0].float_)
 
 
 def rerank_terms_by_subject(
@@ -153,14 +164,14 @@ def analyze_clip(
     try:
         from twelvelabs.types import VideoContext_Url
 
-        client = _client()
-        resp = client.analyze(
-            model_name=model,
-            video=VideoContext_Url(url=video_url),
-            prompt=prompt,
-            max_tokens=max(max_tokens, _PEGASUS_MIN_MAX_TOKENS),
-        )
-        return resp.data
+        with _managed_client() as client:
+            resp = client.analyze(
+                model_name=model,
+                video=VideoContext_Url(url=video_url),
+                prompt=prompt,
+                max_tokens=max(max_tokens, _PEGASUS_MIN_MAX_TOKENS),
+            )
+            return resp.data
     except Exception as e:  # noqa: BLE001
         logger.warning(f"TwelveLabs analyze_clip failed: {e}")
         return None
