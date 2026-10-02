@@ -1474,7 +1474,10 @@ def _run_pipeline(
     voxcpm_prompt_text: str = "",
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
-    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+    sm.state.update_task(
+        task_id, state=const.TASK_STATE_PROCESSING, progress=5,
+        failed_stage=None, error=None,
+    )
 
     if (
         stop_at in {"materials", "video"}
