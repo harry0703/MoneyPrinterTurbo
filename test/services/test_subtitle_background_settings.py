@@ -28,6 +28,7 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
             "Subtitle Background Color",
             "Subtitle Colors Are Indistinguishable",
             "Subtitle Font Does Not Support Text",
+            "Subtitle Text Shaping Unavailable",
             "No Voice",
         }
 
@@ -162,3 +163,35 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
 
         self.assertNotIn("\n。", wrapped_text)
         self.assertIn("挡。", wrapped_text)
+
+    def test_bundled_arabic_font_covers_arabic_and_latin(self):
+        """
+        阿拉伯语字幕常混排拉丁字母和数字，因此新增字体必须同时覆盖两种字符，
+        否则同一条字幕里会出现缺字。
+        """
+        fonts_dir = Path(__file__).parent.parent.parent / "resource" / "fonts"
+        arabic_font = fonts_dir / "Tajawal-Regular.ttf"
+
+        self.assertTrue(arabic_font.exists())
+        self.assertTrue((fonts_dir / "Tajawal-Bold.ttf").exists())
+        self.assertTrue(
+            video.subtitle_font_supports_text(str(arabic_font), "الذكاء الاصطناعي")
+        )
+        self.assertTrue(
+            video.subtitle_font_supports_text(
+                str(arabic_font), "MoneyPrinterTurbo 2026"
+            )
+        )
+        self.assertFalse(
+            video.subtitle_font_supports_text(
+                str(fonts_dir / "MicrosoftYaHeiBold.ttc"), "الذكاء الاصطناعي"
+            )
+        )
+
+    def test_detects_text_that_requires_bidi_shaping(self):
+        """只有从右到左的文字需要 Raqm 整形，中英文不应触发额外提示。"""
+        self.assertTrue(video.subtitle_text_needs_shaping("الذكاء الاصطناعي"))
+        self.assertTrue(video.subtitle_text_needs_shaping("مرحبا MoneyPrinterTurbo"))
+        self.assertFalse(video.subtitle_text_needs_shaping("人工智能改变生活"))
+        self.assertFalse(video.subtitle_text_needs_shaping("Artificial intelligence"))
+        self.assertFalse(video.subtitle_text_needs_shaping(""))
