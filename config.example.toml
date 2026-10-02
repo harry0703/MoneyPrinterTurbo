@@ -354,6 +354,14 @@ mimo_api_key = ""
 mimo_base_url = ""
 mimo_model_name = ""
 
+# iFlytek Spark on Astron MaaS (OpenAI-compatible). Pay-as-you-go keys use the
+# default base URL; Token Plan keys need
+# https://maas-token-api.cn-huabei-1.xf-yun.com/v2 instead.
+# API key: https://maas.xfyun.cn/
+iflytek_api_key = ""
+iflytek_base_url = ""
+iflytek_model_name = ""
+
 # Cloudflare AI Gateway. The token requires AI Gateway Read/Edit and Workers AI
 # Read permissions. Leave gateway_id empty to use the Registry default.
 # Dashboard: https://dash.cloudflare.com/
