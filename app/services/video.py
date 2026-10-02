@@ -115,6 +115,15 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_videotoolbox",
 )
 _runtime_disabled_video_codecs = set()
+# MoviePy pipes sRGB frames, and ffmpeg's default RGB→YUV matrix is BT.601 with no color tags,
+# while players and YouTube decode untagged HD as BT.709 and shift the colors. Convert with the
+# BT.709 matrix and tag the stream; setparams writes the tags the -color_* flags alone do not.
+# The pixel format stays the encoder's choice: MoviePy leaves odd-sized frames to libx264.
+_BT709_VIDEO_FILTER = (
+    "scale=out_color_matrix=bt709:out_range=tv,"
+    "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv"
+)
+_BT709_FFMPEG_PARAMS = ["-vf", _BT709_VIDEO_FILTER]
 
 
 def _get_subtitle_spring_scale(time_seconds: float, duration_seconds: float) -> float:
@@ -428,6 +437,7 @@ def _write_videofile_with_codec_fallback(
     硬件编码器是否可用不仅取决于 FFmpeg，还取决于显卡、驱动和当前运行环境。
     生成任务不能因为高级编码器不可用而整体失败，所以这里把回退集中处理。
     """
+    kwargs.setdefault("ffmpeg_params", _BT709_FFMPEG_PARAMS)
     if atomic_output:
         # Final videos can be downloaded by path while they are being rendered.
         # Keep both failed encodes and in-progress writes away from that path.
@@ -648,6 +658,8 @@ def concat_video_clips_with_ffmpeg(
             codec,
             "-threads",
             str(threads or 2),
+            "-vf",
+            _BT709_VIDEO_FILTER,
             "-pix_fmt",
             "yuv420p",
         ]
@@ -1822,7 +1834,9 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
                 dir=os.path.dirname(os.path.abspath(video_file)),
             )
             os.close(descriptor)
-            final_clip.write_videofile(temp_path, fps=30, logger=None)
+            final_clip.write_videofile(
+                temp_path, fps=30, logger=None, ffmpeg_params=_BT709_FFMPEG_PARAMS
+            )
         finally:
             close_clip(final_clip)
         os.replace(temp_path, video_file)
