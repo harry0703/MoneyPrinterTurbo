@@ -27,7 +27,7 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.config import config
 from app.models import const
@@ -713,17 +713,47 @@ def _sanitize_image_file(image_path: str) -> str:
     image_root, _ = os.path.splitext(image_path)
     sanitized_path = f"{image_root}.sanitized.png"
 
-    with Image.open(image_path) as image:
-        image.load()
-        # 统一导出为 PNG，避免 JPEG/PNG 不同元数据路径继续把坏块带过去。
-        cleaned_image = Image.new(image.mode, image.size)
-        cleaned_image.putdata(list(image.getdata()))
-        cleaned_image.save(sanitized_path)
+    temp_path = ""
+    try:
+        with Image.open(image_path) as image:
+            with ImageOps.exif_transpose(image) as upright:
+                upright.load()
+                # Strip metadata after applying the camera's orientation.
+                # Palette transparency belongs to pixels, not removable metadata.
+                mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
+                cleaned_image = upright.convert(mode)
+                cleaned_image.info.clear()
+                descriptor, temp_path = tempfile.mkstemp(
+                    prefix=".image-sanitize-", suffix=".png",
+                    dir=os.path.dirname(os.path.abspath(sanitized_path)),
+                )
+                os.close(descriptor)
+                cleaned_image.save(temp_path)
+                cleaned_image.close()
+        os.replace(temp_path, sanitized_path)
+        temp_path = ""
+    finally:
+        if temp_path:
+            delete_files(temp_path)
 
     return sanitized_path
 
 
 def _open_image_clip_with_fallback(image_path: str):
+    # MoviePy does not apply camera EXIF orientation while decoding an image.
+    # CMYK JPEG channels also must become RGB rather than an apparent alpha mask.
+    # Ordinary RGB inputs retain the direct path.
+    try:
+        with Image.open(image_path) as image:
+            orientation = image.getexif().get(274, 1)
+            image_mode = image.mode
+    except Exception:
+        orientation = 1
+        image_mode = None
+    if orientation in range(2, 9) or image_mode == "CMYK":
+        sanitized_path = _sanitize_image_file(image_path)
+        return ImageClip(sanitized_path), sanitized_path
+
     # 优先直接打开原始图片；如果因为损坏元数据失败，再尝试生成无元数据副本。
     try:
         return ImageClip(image_path), image_path
@@ -1808,7 +1838,8 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
     动态放大，避免静态画面在成片中显得呆板。渲染异常由调用方按各自
     素材源的失败约定处理。
     """
-    clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
+    clip, _ = _open_image_clip_with_fallback(image_path)
+    clip = clip.with_duration(clip_duration).with_position("center")
     temp_path = ""
     try:
         # Apply a zoom effect using the resize method.
