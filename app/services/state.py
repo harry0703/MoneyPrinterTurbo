@@ -89,7 +89,7 @@ class MemoryState(BaseState):
                 "task_id": task_id,
                 "state": state,
                 "progress": progress,
-                **kwargs,
+                **copy.deepcopy(kwargs),
             }
 
     def get_task(self, task_id: str):

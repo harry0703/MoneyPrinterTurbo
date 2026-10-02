@@ -144,6 +144,9 @@ class TestMemoryState(unittest.TestCase):
         off_page = CopyTracked()
         state.update_task("task-1", videos=["first.mp4"])
         state.update_task("task-2", payload=off_page)
+        # Input values are snapshotted on update; track the stored payload
+        # so this test measures only copies made by pagination.
+        off_page = state._tasks["task-2"]["payload"]
 
         first_page, total = state.get_all_tasks(page=1, page_size=1)
 
