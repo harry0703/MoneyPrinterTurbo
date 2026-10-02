@@ -1137,8 +1137,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
 
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
 
     # Query parameters can identify the asset itself (for example,
     # /download?file_id=123). Dropping the query makes unrelated paid videos
