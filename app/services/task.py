@@ -3,6 +3,7 @@ import math
 import os
 import re
 import socket
+import tempfile
 import threading
 import time
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
@@ -1677,6 +1678,26 @@ def _run_pipeline(
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
 
     if stop_at == "audio":
+        # Full video jobs apply gain in the final mixer. Audio-only exports have
+        # no mixer, so apply it here to an owned output (never a custom input).
+        audio_volume = 1.0 if params.voice_volume is None else float(params.voice_volume)
+        if audio_volume != 1.0:
+            descriptor, output_file = tempfile.mkstemp(
+                prefix="audio-export-", suffix=".mp3", dir=utils.task_dir(task_id)
+            )
+            os.close(descriptor)
+            export_ready = False
+            try:
+                export_ready = voice.apply_audio_volume(audio_file, output_file, audio_volume)
+                if not export_ready:
+                    return _mark_task_failed(task_id, "audio", "failed to apply audio export volume")
+            finally:
+                if not export_ready:
+                    try:
+                        os.remove(output_file)
+                    except OSError as exc:
+                        logger.warning(f"failed to remove incomplete audio export: {exc}")
+            audio_file = output_file
         sm.state.update_task(
             task_id,
             state=const.TASK_STATE_COMPLETE,

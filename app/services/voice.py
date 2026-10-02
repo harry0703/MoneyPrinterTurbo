@@ -782,6 +782,19 @@ def _publish_tts_ffmpeg_output(
         return True
 
 
+
+def apply_audio_volume(audio_file: str, output_file: str, volume: float) -> bool:
+    """Encode narration export gain to a caller-owned destination."""
+    if not math.isfinite(volume) or volume < 0:
+        raise ValueError("audio export volume must be finite and nonnegative")
+    ensure_file_path_exists(output_file)
+    command = [
+        utils.get_ffmpeg_binary(), "-nostdin", "-v", "error", "-y",
+        "-i", audio_file, "-vn", "-af", f"volume={volume}",
+        "-codec:a", "libmp3lame", "-q:a", "4",
+    ]
+    return _publish_tts_ffmpeg_output(command, output_file, "audio export volume")
+
 def _concat_audio_files(audio_files: list[str], output_file: str) -> bool:
     """
     使用 PCM 解码与统一重编码合并多个音频分段。
