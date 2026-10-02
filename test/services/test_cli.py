@@ -859,7 +859,7 @@ class TestCli(unittest.TestCase):
                     "--bgm-type",
                     "custom",
                     "--stop-at",
-                    "script",
+                    "video",
                 ]
             )
 
@@ -893,13 +893,14 @@ class TestCli(unittest.TestCase):
                     ]
                 )
                 params = cli.build_video_params(args)
+                params.subtitle_enabled = False
                 with patch(
                     "app.services.bgm.resolve_bgm_file",
                     side_effect=AssertionError(
                         "zero-volume BGM must not resolve a file"
                     ),
                 ) as resolver:
-                    cli.prepare_cli_files(params, stop_at="script")
+                    cli.prepare_cli_files(params, stop_at="video")
 
                 resolver.assert_not_called()
                 self.assertEqual(params.bgm_file, "")
@@ -923,12 +924,13 @@ class TestCli(unittest.TestCase):
                     ]
                 )
                 params = cli.build_video_params(args)
+                params.subtitle_enabled = False
                 with patch.object(
                     bgm_service,
                     "resolve_bgm_file",
                     return_value=resolved_path,
                 ) as resolver:
-                    cli.prepare_cli_files(params, stop_at="script")
+                    cli.prepare_cli_files(params, stop_at="video")
 
                 resolver.assert_called_once_with(filename)
                 self.assertEqual(params.bgm_file, resolved_path)
@@ -948,6 +950,7 @@ class TestCli(unittest.TestCase):
             ]
         )
         params = cli.build_video_params(args)
+        params.subtitle_enabled = False
         with (
             patch.object(
                 bgm_service,
@@ -956,7 +959,7 @@ class TestCli(unittest.TestCase):
             ),
             self.assertRaisesRegex(ValueError, "storage/bgm or resource/songs"),
         ):
-            cli.prepare_cli_files(params, stop_at="script")
+            cli.prepare_cli_files(params, stop_at="video")
 
     def test_invalid_aspect_and_non_finite_numbers_are_argument_errors(self):
         invalid_argvs = [
