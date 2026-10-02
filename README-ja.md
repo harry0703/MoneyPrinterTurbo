@@ -467,6 +467,8 @@ MoneyPrinterTurbo
 
 動画の字幕描画に使うフォントは、プロジェクトの `resource/fonts` ディレクトリにあります。独自のフォントを追加することもできます。
 
+台本の言語に対応したフォントを選択してください。ヒンディー語などデーヴァナーガリー文字を使う言語には、同梱の `NotoSansDevanagari-Bold.ttf` または `NotoSansDevanagari-Regular.ttf` を使用できます。
+
 ## よくある質問 🤔
 
 <details>
@@ -528,6 +530,29 @@ Trying to load the model directly from the local cache, if it exists.
 ```
 
 解決方法: [Hugging Face からモデルを手動でダウンロードする方法を参照してください](#字幕生成)
+
+</details>
+
+<details>
+<summary>ヒンディー語やアラビア語などの字幕で、文字の位置がずれる、または文字が分離して表示される</summary>
+
+デーヴァナーガリー文字（ヒンディー語）、ベンガル文字、タミル文字、アラビア文字、ヘブライ文字などは、正しく表示するためにテキストシェーピング（母音記号の並べ替えや文字の連結）が必要です。Pillow は、実行時に FriBiDi ライブラリを読み込める場合にのみシェーピングを行います。FriBiDi がない場合も字幕は生成されますが、文字の位置がずれたり分離したりし、WebUI とログに警告が表示されます。
+
+まず、その文字に対応した字幕フォントを選択します。ヒンディー語の場合は `NotoSansDevanagari-Bold.ttf` などです。
+
+次に、プロジェクトのルートディレクトリで、テキストシェーピングが利用できるかを確認します:
+
+```shell
+uv run python -c "from PIL import features; print(features.check('raqm'))"
+```
+
+`False` と表示された場合は、FriBiDi をインストールして MoneyPrinterTurbo を再起動してください:
+
+- **Windows**: FriBiDi は Windows にも Pillow にも含まれていません。64 ビット版の `fribidi.dll`（ファイル名が `fribidi-0.dll` または `libfribidi-0.dll` でも動作します）を用意します。例えば [MSYS2 の `mingw-w64-x86_64-fribidi` パッケージ](https://packages.msys2.org/packages/mingw-w64-x86_64-fribidi) に含まれる `libfribidi-0.dll` を、プロジェクトのルートディレクトリ（`webui.bat` があるフォルダ）、または `PATH` に含まれる任意のディレクトリに配置してください。
+- **Debian / Ubuntu**: `sudo apt install libfribidi0`
+- **macOS**: `brew install fribidi`
+
+インストール後にもう一度確認コマンドを実行すると、`True` と表示されるはずです。Docker イメージには、`ffmpeg` と一緒にインストールされるため FriBiDi がすでに含まれています。
 
 </details>
 

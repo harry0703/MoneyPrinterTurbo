@@ -204,6 +204,7 @@
     "Rounded Subtitle Background Help": "Desactivat per defecte. Si l'actives, els subtítols tindran un fons translúcid amb cantonades arrodonides que s'ajusta a l'amplada del text.",
     "Subtitle Colors Are Indistinguishable": "El text i el fons tenen el mateix color i els subtítols podrien no veure's.",
     "Subtitle Font Does Not Support Text": "El tipus de lletra seleccionat no inclou alguns caràcters del guió. És possible que no es mostrin correctament als subtítols.",
+    "Subtitle Text Shaping Unavailable": "El guió utilitza un sistema d'escriptura (com l'hindi o l'àrab) que necessita la biblioteca FriBiDi, que no s'ha trobat. Les lletres dels subtítols poden aparèixer desplaçades o desconnectades. Consulteu les preguntes freqüents del README.",
     "Restore Default Subtitle Settings": "Restableix els subtítols",
     "Default Subtitle Settings Restored": "S'ha restablert la configuració dels subtítols",
     "Generate Video": "Genera el vídeo",

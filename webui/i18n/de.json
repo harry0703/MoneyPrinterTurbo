@@ -212,6 +212,7 @@
     "Rounded Subtitle Background Help": "Standardmäßig deaktiviert. Wenn aktiviert, verwenden Untertitelhintergründe einen abgerundeten, halbtransparenten Stil, der sich besser an die Textbreite anpasst.",
     "Subtitle Colors Are Indistinguishable": "Untertiteltext und Hintergrund haben dieselbe Farbe, daher sind Untertitel möglicherweise unsichtbar.",
     "Subtitle Font Does Not Support Text": "Die gewählte Schrift unterstützt einige Zeichen nicht, daher fehlen möglicherweise Untertitel.",
+    "Subtitle Text Shaping Unavailable": "Der Text verwendet ein Schriftsystem (z. B. Hindi oder Arabisch), das die Bibliothek FriBiDi benötigt; sie wurde nicht gefunden. Buchstaben in Untertiteln können verschoben oder getrennt erscheinen. Siehe die FAQ in der README.",
     "Restore Default Subtitle Settings": "Untertitel zurücksetzen",
     "Default Subtitle Settings Restored": "Untertitel-Standardeinstellungen wiederhergestellt",
     "Generate Video": "Video erstellen",

@@ -1860,6 +1860,7 @@ support_locales = [
     "vi-VN",
     "th-TH",
     "tr-TR",
+    "hi-IN",
 ]
 
 
@@ -7891,6 +7892,17 @@ def _render_subtitle_settings(panel, params):
                 )
             ):
                 st.warning(tr("Subtitle Font Does Not Support Text"))
+
+            if (
+                params.subtitle_enabled
+                and subtitle_preview_text
+                and video.subtitle_text_needs_unavailable_shaping(
+                    subtitle_preview_text
+                )
+            ):
+                # 字体选对了也可能显示错乱：印地语、阿拉伯语等文字还需要整形库。
+                # 与字体提示分开展示，两个问题的处理办法不同。
+                st.warning(tr("Subtitle Text Shaping Unavailable"))
 
             if st.button(
                 tr("Restore Default Subtitle Settings"),

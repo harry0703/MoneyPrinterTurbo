@@ -202,6 +202,7 @@
     "Rounded Subtitle Background Help": "Varsayılan olarak kapalıdır. Etkinleştirildiğinde altyazı arka planı, metin genişliğine daha iyi uyan yuvarlatılmış yarı saydam bir stil kullanır.",
     "Subtitle Colors Are Indistinguishable": "Altyazı metni ve arka planı aynı renkte olduğundan altyazılar görünmeyebilir.",
     "Subtitle Font Does Not Support Text": "Seçilen yazı tipi bazı metin karakterlerini desteklemiyor; altyazılar eksik olabilir.",
+    "Subtitle Text Shaping Unavailable": "Metin, FriBiDi kitaplığını gerektiren bir yazı sistemi (örneğin Hintçe veya Arapça) kullanıyor, ancak bu kitaplık bulunamadı. Altyazı harfleri yanlış yerde veya kopuk görünebilir. README'deki sık sorulan sorular bölümüne bakın.",
     "Restore Default Subtitle Settings": "Altyazı Ayarlarını Sıfırla",
     "Default Subtitle Settings Restored": "Varsayılan altyazı ayarları geri yüklendi",
     "Generate Video": "Video Oluştur",

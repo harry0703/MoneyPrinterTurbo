@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -28,6 +29,7 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
             "Subtitle Background Color",
             "Subtitle Colors Are Indistinguishable",
             "Subtitle Font Does Not Support Text",
+            "Subtitle Text Shaping Unavailable",
             "No Voice",
         }
 
@@ -140,6 +142,108 @@ class TestSubtitleBackgroundSettings(unittest.TestCase):
                 str(fonts_dir / "BeVietnamPro-Bold.ttf"), "Artificial intelligence"
             )
         )
+
+    def test_bundled_devanagari_fonts_support_hindi_mixed_with_latin(self):
+        """
+        印地语文案经常夹带 AI、5G 这类拉丁字母和数字。内置的天城文字体必须
+        同时覆盖两者，否则用户选对了字体，字幕里的英文缩写仍会变成方框。
+        """
+        fonts_dir = (
+            Path(__file__).parent.parent.parent / "resource" / "fonts"
+        )
+
+        for font_name in (
+            "NotoSansDevanagari-Bold.ttf",
+            "NotoSansDevanagari-Regular.ttf",
+        ):
+            with self.subTest(font=font_name):
+                # 字体打不开时探测函数会按“支持”放行，必须先确认文件确实存在，
+                # 否则字体被误删后这条用例仍会通过。
+                self.assertTrue((fonts_dir / font_name).is_file())
+                self.assertTrue(
+                    video.subtitle_font_supports_text(
+                        str(fonts_dir / font_name),
+                        "एआई AI 5G हमारी ज़िंदगी बदल रही है",
+                    )
+                )
+
+    def test_detects_complex_script_text_without_shaping_support(self):
+        """
+        Pillow 缺少 Raqm 时，天城文、阿拉伯文等需要整形的文字会被逐码位绘制，
+        元音符号错位、合字被拆开。只有这类文字才需要提示；中文、拉丁文和
+        泰文在 basic 布局下本来就能正确显示，不应被误报。
+        """
+        with patch.object(
+            video, "_complex_text_layout_available", return_value=False
+        ):
+            self.assertTrue(
+                video.subtitle_text_needs_unavailable_shaping("कृत्रिम बुद्धिमत्ता")
+            )
+            self.assertTrue(
+                video.subtitle_text_needs_unavailable_shaping("الذكاء الاصطناعي")
+            )
+            self.assertTrue(
+                video.subtitle_text_needs_unavailable_shaping("AI हमारी ज़िंदगी")
+            )
+            self.assertFalse(
+                video.subtitle_text_needs_unavailable_shaping(
+                    "Artificial intelligence"
+                )
+            )
+            self.assertFalse(
+                video.subtitle_text_needs_unavailable_shaping("人工智能改变生活")
+            )
+            self.assertFalse(
+                video.subtitle_text_needs_unavailable_shaping("ปัญญาประดิษฐ์")
+            )
+            self.assertFalse(video.subtitle_text_needs_unavailable_shaping(""))
+            self.assertFalse(video.subtitle_text_needs_unavailable_shaping(None))
+
+    def test_complex_script_text_is_fine_when_shaping_is_available(self):
+        with patch.object(
+            video, "_complex_text_layout_available", return_value=True
+        ):
+            self.assertFalse(
+                video.subtitle_text_needs_unavailable_shaping("कृत्रिम बुद्धिमत्ता")
+            )
+
+    def test_warns_once_when_subtitles_need_unavailable_shaping(self):
+        """
+        CLI 和 API 没有 WebUI 的就近提示，只能依靠日志。整段字幕只提示一次，
+        并且要点名 FriBiDi，用户才知道该安装什么，而不是只看到字幕错乱。
+        """
+        subtitles = [
+            ((0.0, 1.0), "कृत्रिम बुद्धिमत्ता"),
+            ((1.0, 2.0), "हमारी ज़िंदगी बदल रही है"),
+        ]
+
+        with (
+            patch.object(
+                video, "_complex_text_layout_available", return_value=False
+            ),
+            patch.object(video.logger, "warning") as warning,
+        ):
+            video._warn_if_subtitle_shaping_unavailable(subtitles)
+
+        warning.assert_called_once()
+        self.assertIn("FriBiDi", warning.call_args.args[0])
+
+    def test_does_not_warn_when_subtitles_render_correctly(self):
+        hindi_subtitles = [((0.0, 1.0), "कृत्रिम बुद्धिमत्ता")]
+        latin_subtitles = [((0.0, 1.0), "Artificial intelligence")]
+
+        with patch.object(video.logger, "warning") as warning:
+            with patch.object(
+                video, "_complex_text_layout_available", return_value=True
+            ):
+                video._warn_if_subtitle_shaping_unavailable(hindi_subtitles)
+            with patch.object(
+                video, "_complex_text_layout_available", return_value=False
+            ):
+                video._warn_if_subtitle_shaping_unavailable(latin_subtitles)
+                video._warn_if_subtitle_shaping_unavailable([])
+
+        warning.assert_not_called()
 
     def test_wrap_text_keeps_closing_punctuation_with_text(self):
         """
