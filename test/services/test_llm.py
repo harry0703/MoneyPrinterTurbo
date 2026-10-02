@@ -414,6 +414,16 @@ class TestLiteLLMProvider(unittest.TestCase):
             "https://y-api.bestvirtualgoods.com/app/keys",
         )
         self.assertEqual(yapi.model_docs_url, "https://y-api.bestvirtualgoods.com/models")
+        iflytek = get_llm_provider("iflytek")
+        self.assertEqual(iflytek.default_model, "spark-x2.5")
+        self.assertEqual(
+            iflytek.default_base_url,
+            "https://maas-api.cn-huabei-1.xf-yun.com/v2",
+        )
+        self.assertEqual(iflytek.adapter, "openai_compatible")
+        self.assertTrue(iflytek.requires_api_key)
+        self.assertEqual(iflytek.api_key_url, "https://maas.xfyun.cn/")
+        self.assertEqual(iflytek.model_docs_url, "https://maas.xfyun.cn/modelSquare")
         pollinations = get_llm_provider("pollinations")
         self.assertEqual(pollinations.default_model, "openai-fast")
         self.assertEqual(
@@ -462,6 +472,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "grok",
                 "minimax",
                 "mimo",
+                "iflytek",
                 "shengsuanyun",
                 "apimart",
                 "cloudflare",
@@ -1449,6 +1460,55 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
         self.assertEqual(result, "hello\nevolink")
 
+    def test_iflytek_provider_uses_openai_compatible_client(self):
+        """
+        iFlytek Astron MaaS serves Spark over OpenAI-compatible Chat Completions.
+        Pay-as-you-go is the default; a Token Plan base URL saved by the user
+        must be used as-is because keys from one plan do not work on the other.
+        """
+        config.app["llm_provider"] = "iflytek"
+        config.app["iflytek_api_key"] = "iflytek-key"
+        config.app["iflytek_model_name"] = ""
+
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\niflytek")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        for configured_base_url, expected_base_url in (
+            ("", "https://maas-api.cn-huabei-1.xf-yun.com/v2"),
+            (
+                "https://maas-token-api.cn-huabei-1.xf-yun.com/v2",
+                "https://maas-token-api.cn-huabei-1.xf-yun.com/v2",
+            ),
+        ):
+            with self.subTest(base_url=configured_base_url):
+                config.app["iflytek_base_url"] = configured_base_url
+                fake_completions = FakeCompletions()
+                fake_client = types.SimpleNamespace(
+                    chat=types.SimpleNamespace(completions=fake_completions)
+                )
+
+                with (
+                    patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+                    patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+                ):
+                    result = llm._generate_response("Say hello")
+
+                openai_client.assert_called_once_with(
+                    api_key="iflytek-key",
+                    base_url=expected_base_url,
+                )
+                self.assertEqual(
+                    fake_completions.kwargs,
+                    {
+                        "model": "spark-x2.5",
+                        "messages": [{"role": "user", "content": "Say hello"}],
+                    },
+                )
+                self.assertEqual(result, "hello\niflytek")
     def test_openrouter_provider_uses_openai_compatible_client(self):
         """
         OpenRouter exposes OpenAI-compatible Chat Completions through one
