@@ -362,6 +362,9 @@ def generate_terms(task_id, params, video_script):
         else:
             raise ValueError("video_terms must be a string or a list of strings.")
 
+        # Delimiter-only input must not reach paid reranking or material search.
+        video_terms = [term for term in video_terms if term]
+
         logger.debug(f"video terms: {utils.to_json(video_terms)}")
 
     if not video_terms:
