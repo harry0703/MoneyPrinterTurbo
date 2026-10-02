@@ -1614,7 +1614,7 @@ def _run_pipeline(
 
     # 2. Generate terms
     video_terms = ""
-    if params.video_source != "local":
+    if stop_at in {"terms", "materials", "video"} and params.video_source != "local":
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             return _mark_task_failed(
