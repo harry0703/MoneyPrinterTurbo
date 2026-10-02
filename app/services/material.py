@@ -341,7 +341,6 @@ def search_videos_pexels(
     video_aspect: VideoAspect = VideoAspect.portrait,
 ) -> List[MaterialInfo]:
     aspect = VideoAspect(video_aspect)
-    video_orientation = aspect.name
     video_width, video_height = aspect.to_resolution()
     api_key = get_api_key("pexels_api_keys")
     headers = {
@@ -349,7 +348,9 @@ def search_videos_pexels(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     }
     # Build URL
-    params = {"query": search_term, "per_page": 20, "orientation": video_orientation}
+    params = {"query": search_term, "per_page": 20}
+    if aspect != VideoAspect.square:
+        params["orientation"] = aspect.name
     query_url = f"https://api.pexels.com/v1/videos/search?{urlencode(params)}"
     logger.info(f"searching videos on pexels: term={search_term!r}")
 
@@ -385,7 +386,9 @@ def search_videos_pexels(
             video_files = v.get("video_files")
             if not isinstance(video_files, list):
                 continue
-            # loop through each url to determine the best quality
+            # Prefer the smallest rendition that can fill the output canvas.
+            # Square output can crop either orientation, as other providers do.
+            renditions = []
             for video in video_files:
                 if not isinstance(video, dict):
                     continue
@@ -398,34 +401,36 @@ def search_videos_pexels(
                 if not isinstance(video_url, str) or not video_url:
                     continue
                 if (
-                    _matches_video_aspect(w, h, aspect)
-                    and w == video_width
-                    and h == video_height
+                    (aspect == VideoAspect.square or _matches_video_aspect(w, h, aspect))
+                    and w >= video_width
+                    and h >= video_height
                 ):
-                    item = MaterialInfo()
-                    item.provider = "pexels"
-                    item.url = video_url
-                    item.duration = duration
-                    item.source_info = {
-                        "provider": "pexels",
-                        "search_term": search_term,
-                        "asset_id": (
-                            str(v.get("id")) if v.get("id") is not None else None
+                    renditions.append((w * h, video, w, h, video_url))
+            if renditions:
+                _, video, w, h, video_url = min(renditions, key=lambda candidate: candidate[0])
+                item = MaterialInfo()
+                item.provider = "pexels"
+                item.url = video_url
+                item.duration = duration
+                item.source_info = {
+                    "provider": "pexels",
+                    "search_term": search_term,
+                    "asset_id": (
+                        str(v.get("id")) if v.get("id") is not None else None
+                    ),
+                    "source_page": _safe_public_url(v.get("url")),
+                    "creator": _creator_info(v.get("user")),
+                    "rendition": {
+                        "id": (
+                            str(video.get("id"))
+                            if video.get("id") is not None
+                            else None
                         ),
-                        "source_page": _safe_public_url(v.get("url")),
-                        "creator": _creator_info(v.get("user")),
-                        "rendition": {
-                            "id": (
-                                str(video.get("id"))
-                                if video.get("id") is not None
-                                else None
-                            ),
-                            "width": w,
-                            "height": h,
-                        },
-                    }
-                    video_items.append(item)
-                    break
+                        "width": w,
+                        "height": h,
+                    },
+                }
+                video_items.append(item)
         return video_items
     except Exception as e:
         logger.error(
