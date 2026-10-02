@@ -789,6 +789,34 @@ def tr(key):
     return locales.get("en", {}).get("Translation", {}).get(key, key)
 
 
+if st.session_state.get("ui_language") == "ar":
+    st.markdown(
+        """<style>
+        [data-testid="stAppViewContainer"],
+        [data-testid="stSidebar"] {
+            direction: rtl;
+        }
+        [data-testid="stAppViewContainer"] [data-testid="stMarkdownContainer"],
+        [data-testid="stAppViewContainer"] [data-testid="stWidgetLabel"],
+        [data-testid="stSidebar"] {
+            text-align: right;
+        }
+        [data-testid="stAppViewContainer"] input,
+        [data-testid="stAppViewContainer"] textarea,
+        [data-testid="stAppViewContainer"] [role="combobox"] {
+            direction: rtl;
+            text-align: right;
+        }
+        [data-testid="stAppViewContainer"] pre,
+        [data-testid="stAppViewContainer"] code {
+            direction: ltr;
+            text-align: left;
+        }
+        </style>""",
+        unsafe_allow_html=True,
+    )
+
+
 # -----------------------------------------------------------------------------
 # 任务管理：历史扫描、运行状态、参数恢复与列表交互
 # -----------------------------------------------------------------------------
