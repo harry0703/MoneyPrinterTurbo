@@ -234,6 +234,11 @@ class UploadPostService:
                     # multipart 表单使用小写布尔字符串，且不能依赖 LLM 元数据
                     # 是否存在；只要发布到 YouTube，就显式传递用户的受众声明。
                     data.append(('selfDeclaredMadeForKids', str(made_for_kids).lower()))
+                    # Privacy is an account/user setting, independent of optional
+                    # generated titles and descriptions. Preserve queued overrides.
+                    data.append(('privacyStatus', (youtube_extra or {}).get(
+                        "privacyStatus", self.youtube_privacy_status
+                    )))
                     logger.info(f"YouTube audience declaration: made_for_kids={made_for_kids}")
 
                 if youtube_extra and has_youtube:
@@ -243,7 +248,6 @@ class UploadPostService:
                         data.append(('youtube_description', youtube_extra["youtube_description"]))
                     for tag in youtube_extra.get("tags", []):
                         data.append(('tags[]', tag))
-                    data.append(('privacyStatus', youtube_extra.get("privacyStatus", "public")))
                     data.append(('containsSyntheticMedia', "true"))
 
                 headers = {'Authorization': f'Apikey {self.api_key}'}
