@@ -32,6 +32,10 @@ def _sse_event(event_type, **payload):
     return f"data: {json.dumps({'type': event_type, **payload})}"
 
 
+def _sse_content(lines):
+    return ["\n".join(lines).encode("utf-8")]
+
+
 def _sse_lines(*events):
     lines = []
     for event in events:
@@ -84,11 +88,11 @@ def test_voxcpm_tts_assembles_sse_wav_and_converts_to_mp3(
     response = SimpleNamespace(
         status_code=200,
         text="",
-        iter_lines=lambda decode_unicode: _sse_lines(
+        iter_content=lambda chunk_size: _sse_content(_sse_lines(
             _sse_event("speech.audio.delta", audio=base64.b64encode(audio_chunks[0]).decode()),
             _sse_event("speech.audio.delta", audio=base64.b64encode(audio_chunks[1]).decode()),
             _sse_event("speech.audio.done", usage={"total_tokens": 1}),
-        ),
+        )),
         close=Mock(),
     )
     post = Mock(return_value=response)
@@ -263,7 +267,7 @@ def test_voxcpm_tts_failure_never_overwrites_existing_audio(
     response = SimpleNamespace(
         status_code=200,
         text="",
-        iter_lines=lambda decode_unicode: events,
+        iter_content=lambda chunk_size: _sse_content(events),
         close=lambda: None,
     )
     post = Mock(return_value=response)
@@ -315,16 +319,15 @@ def test_voxcpm_does_not_repeat_speech_after_ambiguous_transport_failure(
     """A dropped POST response or SSE stream can follow a completed generation."""
 
     def interrupted_stream(**_kwargs):
-        yield _sse_event(
+        yield (_sse_event(
             "speech.audio.delta", audio=base64.b64encode(b"partial").decode()
-        )
-        yield ""
+        ) + "\n\n").encode("utf-8")
         raise requests.ReadTimeout("stream dropped")
 
     response = SimpleNamespace(
         status_code=200,
         text="",
-        iter_lines=interrupted_stream,
+        iter_content=interrupted_stream,
         close=Mock(),
     )
     post = Mock(
