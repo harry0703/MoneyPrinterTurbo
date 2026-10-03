@@ -6,6 +6,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        DOCKER_BUILD_MIRROR: default
     container_name: "moneyprinterturbo-webui"
     ports:
       - "127.0.0.1:8501:8501"
@@ -16,6 +18,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        DOCKER_BUILD_MIRROR: default
     container_name: "moneyprinterturbo-api"
     ports:
       - "127.0.0.1:8080:8080"
