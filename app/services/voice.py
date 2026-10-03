@@ -2560,6 +2560,18 @@ def _openai_compatible_tts(
                 text=text,
                 audio_duration_seconds=audio_duration,
             )
+        except requests.exceptions.ConnectTimeout:
+            # No connection was established; retrying cannot replay synthesis.
+            logger.warning(f"{provider} tts could not connect, retrying")
+        except requests.exceptions.RequestException as exc:
+            # A lost response can follow successful remote synthesis. Keep the
+            # same acceptance boundary as hosted speech providers: do not POST
+            # again when the first request's outcome is unknown.
+            logger.error(
+                f"{provider} tts result is unconfirmed after a transport error; "
+                f"stop speech retries: {type(exc).__name__}"
+            )
+            return None
         except Exception as e:
             logger.error(f"{provider} tts failed: {str(e)}")
             if response_accepted:
