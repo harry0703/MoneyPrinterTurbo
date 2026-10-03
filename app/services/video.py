@@ -1553,6 +1553,7 @@ def generate_video(
             font=font_path,
             fontsize=params.font_size,
         )
+        wrapped_txt = utils.format_arabic_text(wrapped_txt)
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
         vertical_padding = int(params.font_size * 0.35)
