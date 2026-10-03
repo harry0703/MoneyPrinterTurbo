@@ -572,6 +572,36 @@ class TestMptAgentSkill(unittest.TestCase):
                 config_path.read_text(encoding="utf-8"),
             )
 
+    def test_opencode_provider_requires_a_model_but_not_an_api_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "opencode"'
+                )
+                .replace(
+                    'moonshot_api_key = ""',
+                    'moonshot_api_key = ""\nopencode_model_name = ""',
+                )
+                .replace("pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]'),
+                encoding="utf-8",
+            )
+
+            active_provider, missing = mpt_agent.missing_config(config_path, [])
+            self.assertEqual(active_provider, "opencode")
+            self.assertEqual(missing, ["opencode_model_name"])
+
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'opencode_model_name = ""',
+                    'opencode_model_name = "opencode/gpt-5.5"',
+                ),
+                encoding="utf-8",
+            )
+            active_provider, missing = mpt_agent.missing_config(config_path, [])
+            self.assertEqual(active_provider, "opencode")
+            self.assertEqual(missing, [])
+
     def test_only_missing_pexels_key_does_not_ask_for_llm_again(self):
         output = io.StringIO()
 
