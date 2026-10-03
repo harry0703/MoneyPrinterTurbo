@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, List, Literal, Optional, Union
 
 import pydantic
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.config import config
 
@@ -51,6 +51,56 @@ class VideoFitMode(str, Enum):
 
     cover = "cover"
     contain = "contain"
+
+
+class CreativeBrief(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    subject: str = Field(min_length=1, max_length=300)
+    goal: str = Field(min_length=1, max_length=300)
+    audience: str = Field(min_length=1, max_length=300)
+    source_notes: str = Field(min_length=1, max_length=1000)
+    metric: Literal["three_second_hold_rate", "completion_rate"]
+
+
+class CreativeBeat(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    beat: Literal["hook", "development", "payoff"]
+    narration: str = Field(max_length=300)
+    visual: str = Field(max_length=300)
+
+
+class CreativeVariant(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: Literal["question", "surprise", "demonstration"]
+    hook_type: Literal["question", "surprise", "demonstration"]
+    script: str = Field(min_length=1, max_length=8000)
+    storyboard: list[CreativeBeat] = Field(min_length=3, max_length=3)
+
+
+class CreativeScriptModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    provider: str = Field(max_length=80)
+    model: str = Field(max_length=120)
+
+
+class CreativeExperiment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    version: Literal[1]
+    experiment_id: str = Field(max_length=36)
+    brief: CreativeBrief
+    variants: list[CreativeVariant] = Field(min_length=3, max_length=3)
+    selected_variant_id: Literal["question", "surprise", "demonstration"]
+    script_model: CreativeScriptModel
+    cost_usd: Optional[float] = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_variants(self):
+        ids = {variant.id for variant in self.variants}
+        if ids != {"question", "surprise", "demonstration"}:
+            raise ValueError("Creative experiment needs three distinct hook types")
+        if any(variant.id != variant.hook_type for variant in self.variants):
+            raise ValueError("Creative variant ID must match its hook type")
+        return self
 
 
 SubtitleDisplayMode = Literal["sentence", "word_by_word"]
@@ -105,6 +155,7 @@ class VideoParams(BaseModel):
 
     video_subject: str
     video_script: str = ""  # Script used to generate the video
+    creative_experiment: Optional[CreativeExperiment] = None
     video_terms: Optional[str | List[str]] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_fit_mode: VideoFitMode = VideoFitMode.cover

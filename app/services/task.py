@@ -400,6 +400,9 @@ def save_script_data(task_id, video_script, video_terms, params):
         "search_terms": video_terms,
         "params": params,
     }
+    creative_experiment = getattr(params, "creative_experiment", None)
+    if creative_experiment is not None:
+        script_data["creative_experiment"] = creative_experiment.model_dump()
     task_artifacts.write_script_data(task_id, script_data)
 
 
