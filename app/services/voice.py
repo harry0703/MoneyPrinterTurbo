@@ -1608,9 +1608,15 @@ def siliconflow_tts(
                 url,
                 json=payload,
                 headers=headers,
+                allow_redirects=False,
                 timeout=_SILICONFLOW_TTS_TIMEOUT_SECONDS,
             )
 
+            if 300 <= response.status_code < 400:
+                # Redirecting a speech POST may replay a billed synthesis or
+                # forward its input/credentials. Do not follow or resubmit it.
+                logger.error("TTS endpoint returned a redirect; stop speech retries")
+                return None
             if response.status_code == 200:
                 response_accepted = True
                 if not response.content:
@@ -2282,7 +2288,12 @@ def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, vo
         received_success = False
         try:
             logger.info(f"start MiniMax TTS, model: {model}, voice: {voice_id}, try: {attempt + 1}")
-            response = requests.post(url, json=payload, headers=headers, timeout=120)
+            response = requests.post(url, json=payload, headers=headers, allow_redirects=False, timeout=120)
+            if 300 <= response.status_code < 400:
+                # Redirecting a speech POST may replay a billed synthesis or
+                # forward its input/credentials. Do not follow or resubmit it.
+                logger.error("TTS endpoint returned a redirect; stop speech retries")
+                return None
             if response.status_code != 200:
                 logger.error(f"MiniMax TTS failed with status {response.status_code}: {response.text[:200]}")
                 continue
@@ -2524,7 +2535,12 @@ def _openai_compatible_tts(
             logger.info(f"start {provider} tts, voice: {voice}, try: {i + 1}")
             ensure_file_path_exists(voice_file)
 
-            response = requests.post(url, json=payload, headers=headers, timeout=120)
+            response = requests.post(url, json=payload, headers=headers, allow_redirects=False, timeout=120)
+            if 300 <= response.status_code < 400:
+                # Redirecting a speech POST may replay a billed synthesis or
+                # forward its input/credentials. Do not follow or resubmit it.
+                logger.error("TTS endpoint returned a redirect; stop speech retries")
+                return None
             if response.status_code != 200:
                 logger.error(
                     f"{provider} tts failed with status {response.status_code}: {response.text[:200]}"
@@ -2759,7 +2775,12 @@ def fish_audio_tts(
             )
             ensure_file_path_exists(voice_file)
 
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            response = requests.post(url, json=payload, headers=headers, allow_redirects=False, timeout=60)
+            if 300 <= response.status_code < 400:
+                # Redirecting a speech POST may replay a billed synthesis or
+                # forward its input/credentials. Do not follow or resubmit it.
+                logger.error("TTS endpoint returned a redirect; stop speech retries")
+                return None
             if response.status_code == 401:
                 logger.error(
                     "Fish Audio TTS failed: Invalid API key (401). "
@@ -3059,9 +3080,15 @@ def voxcpm_tts(
                 url,
                 json=payload,
                 headers=headers,
+                allow_redirects=False,
                 stream=True,
                 timeout=(10, 120),
             )
+            if 300 <= response.status_code < 400:
+                # Redirecting a speech POST may replay a billed synthesis or
+                # forward its input/credentials. Do not follow or resubmit it.
+                logger.error("TTS endpoint returned a redirect; stop speech retries")
+                return None
             if response.status_code != 200:
                 logger.error(
                     f"VoxCPM TTS failed with status {response.status_code}: "

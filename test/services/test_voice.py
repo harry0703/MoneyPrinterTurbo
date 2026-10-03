@@ -716,7 +716,8 @@ class TestVoiceService(unittest.TestCase):
 
         captured = {}
 
-        def _post(url, json=None, headers=None, timeout=None):
+        def _post(url, json=None, headers=None, timeout=None, allow_redirects=True):
+            self.assertFalse(allow_redirects)
             captured.update(url=url, json=json, headers=headers, timeout=timeout)
             return _Response()
 
@@ -759,7 +760,8 @@ class TestVoiceService(unittest.TestCase):
 
         captured = {}
 
-        def _post(url, json=None, headers=None, timeout=None):
+        def _post(url, json=None, headers=None, timeout=None, allow_redirects=True):
+            self.assertFalse(allow_redirects)
             captured.update(url=url, headers=headers)
             return _Response()
 
@@ -942,7 +944,8 @@ class TestVoiceService(unittest.TestCase):
 
         captured = {}
 
-        def _fake_post(url, json=None, headers=None, timeout=None):
+        def _fake_post(url, json=None, headers=None, timeout=None, allow_redirects=True):
+            self.assertFalse(allow_redirects)
             captured["url"] = url
             captured["json"] = json
             captured["headers"] = headers

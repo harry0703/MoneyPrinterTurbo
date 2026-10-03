@@ -146,7 +146,8 @@ class TestFishAudioTTSRequest(unittest.TestCase):
         """Helper: call fish_audio_tts and capture the outgoing request."""
         captured = {}
 
-        def _fake_post(url, json=None, headers=None, timeout=None):
+        def _fake_post(url, json=None, headers=None, timeout=None, allow_redirects=True):
+            self.assertFalse(allow_redirects)
             captured["url"] = url
             captured["json"] = json
             captured["headers"] = headers
