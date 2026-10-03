@@ -1216,10 +1216,12 @@ def _delete_task(task_id, task_path, task_state=None):
         return False
 
     try:
-        if hasattr(sm.state, "delete_task"):
-            sm.state.delete_task(task_id)
         if os.path.isdir(normalized_path):
             shutil.rmtree(normalized_path)
+        # Keep the persisted task available for retry when file removal fails
+        # (for example, a video is still locked by another process on Windows).
+        if hasattr(sm.state, "delete_task"):
+            sm.state.delete_task(task_id)
         logger.info(f"deleted task: {task_id}")
         return True
     except Exception as e:
