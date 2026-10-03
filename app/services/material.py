@@ -1540,6 +1540,7 @@ def _request_openai_image(endpoint: str, payload: dict) -> tuple[bytes | None, s
                 proxies=config.proxy,
                 verify=_get_tls_verify(),
                 timeout=OPENAI_IMAGE_REQUEST_TIMEOUT,
+                allow_redirects=False,
             )
         except requests.exceptions.ConnectTimeout as e:
             # 连接阶段超时：请求确定没有送达服务端，没有创建生成任务，
@@ -1557,6 +1558,12 @@ def _request_openai_image(endpoint: str, payload: dict) -> tuple[bytes | None, s
             ) from e
         else:
             status = int(getattr(response, "status_code", 200) or 200)
+            if 300 <= status < 400:
+                response.close()
+                raise OpenAIImageUnconfirmedError(
+                    "image submission returned a redirect; no redirected request "
+                    "or retry was sent because the paid outcome is unconfirmed"
+                )
             if status in OPENAI_IMAGE_KEY_ERROR_STATUS_CODES:
                 failure_detail = _openai_image_http_failure(response, status, api_key)
                 # 只有多 key 配置下，重试才可能轮换到可用 key。
