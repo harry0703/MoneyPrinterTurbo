@@ -61,6 +61,66 @@ def write_script_data(task_id: str, payload: Mapping[str, Any]) -> None:
     _write_json_atomic(_script_file(task_id), payload)
 
 
+def _task_file(task_id: str, file_name: str) -> Path:
+    """返回任务目录内的附加清单路径，并复用统一的任务目录创建逻辑。"""
+    return Path(utils.task_dir(task_id)) / file_name
+
+
+def _shot_plan_file(task_id: str) -> Path:
+    """返回任务镜头计划路径，并复用统一的任务目录创建逻辑。"""
+    return _task_file(task_id, "shot_plan.json")
+
+
+def write_task_json(task_id: str, file_name: str, payload: Mapping[str, Any]) -> None:
+    """在任务目录内原子写入一个附加 JSON 清单。"""
+    _write_json_atomic(_task_file(task_id, file_name), payload)
+
+
+def write_shot_plan_data(task_id: str, payload: Mapping[str, Any]) -> None:
+    """创建或完整替换任务的 ``shot_plan.json`` 镜头计划。"""
+    _write_json_atomic(_shot_plan_file(task_id), payload)
+
+
+def read_shot_plan_data(task_id: str) -> Mapping[str, Any] | None:
+    """读取任务镜头计划，文件不存在时返回 ``None``。"""
+    try:
+        with _shot_plan_file(task_id).open("r", encoding="utf-8") as plan_file:
+            return json.load(plan_file)
+    except FileNotFoundError:
+        return None
+
+
+def patch_shot_plan_data(task_id: str, **updates: Any) -> bool:
+    """
+    在保留原有字段的前提下补充镜头计划，失败时返回 ``False``。
+
+    镜头计划编辑属于辅助操作，不能因为文件权限或历史文件损坏阻断主流程。
+    """
+    try:
+        target = _shot_plan_file(task_id)
+        with target.open("r", encoding="utf-8") as plan_file:
+            payload = json.load(plan_file)
+        if not isinstance(payload, dict):
+            raise ValueError("shot plan data must be a JSON object")
+
+        payload.update(updates)
+        _write_json_atomic(target, payload)
+        return True
+    except FileNotFoundError:
+        logger.debug(
+            f"skip shot plan update because shot_plan.json does not exist: "
+            f"task_id={task_id}"
+        )
+        return False
+    except Exception as exc:
+        logger.warning(
+            "failed to update task shot plan: "
+            f"task_id={task_id}, fields={sorted(updates)}, "
+            f"error={type(exc).__name__}, detail={exc}"
+        )
+        return False
+
+
 def patch_script_data(task_id: str, **updates: Any) -> bool:
     """
     在保留原有字段的前提下补充任务清单，失败时返回 ``False``。
