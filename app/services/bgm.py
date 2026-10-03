@@ -159,6 +159,12 @@ def _validate_audio(file_path: str, timeout_seconds: int = 30) -> None:
                 "-v",
                 "error",
                 "-xerror",
+                # Uploaded files must be self-contained media, not playlists
+                # that cause validation/rendering to read adjacent files or URLs.
+                "-protocol_whitelist",
+                "file,pipe",
+                "-format_whitelist",
+                "mp3,mov,aac,wav,flac,ogg,asf",
                 "-i",
                 file_path,
                 "-map",

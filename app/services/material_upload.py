@@ -195,6 +195,12 @@ def _validate_video(
                 "-v",
                 "error",
                 "-xerror",
+                # Uploaded files must be self-contained media, not playlists
+                # that cause validation/rendering to read adjacent files or URLs.
+                "-protocol_whitelist",
+                "file,pipe",
+                "-format_whitelist",
+                "mov,avi,flv,matroska",
                 "-i",
                 file_path,
                 "-map",
