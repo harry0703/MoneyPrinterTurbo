@@ -2850,19 +2850,33 @@ def _iter_voxcpm_sse_events(response):
     """Yield bounded SSE events without Requests' unbounded line buffer."""
     def lines():
         pending = bytearray()
+        skip_lf = False
         for chunk in response.iter_content(chunk_size=64 * 1024):
             if not chunk:
                 continue
-            pieces = chunk.split(b"\n")
-            for index, piece in enumerate(pieces):
-                if len(pending) + len(piece) > _VOXCPM_SSE_MAX_EVENT_BYTES:
+            # Consume the optional LF after a CR, even across transport chunks.
+            if skip_lf:
+                skip_lf = False
+                if chunk.startswith(b"\n"):
+                    chunk = chunk[1:]
+                if not chunk:
+                    continue
+            for piece in chunk.splitlines(keepends=True):
+                if piece.endswith(b"\r\n"):
+                    payload, terminated = piece[:-2], True
+                elif piece.endswith((b"\r", b"\n")):
+                    payload, terminated = piece[:-1], True
+                else:
+                    payload, terminated = piece, False
+                if len(pending) + len(payload) > _VOXCPM_SSE_MAX_EVENT_BYTES:
                     raise ValueError("VoxCPM SSE line exceeds the size limit")
-                pending.extend(piece)
-                if index < len(pieces) - 1:
-                    yield bytes(pending).rstrip(b"\r").decode("utf-8")
+                pending.extend(payload)
+                if terminated:
+                    yield bytes(pending).decode("utf-8")
                     pending.clear()
+            skip_lf = chunk.endswith(b"\r")
         if pending:
-            yield bytes(pending).rstrip(b"\r").decode("utf-8")
+            yield bytes(pending).decode("utf-8")
 
     def parse_event(data):
         try:
