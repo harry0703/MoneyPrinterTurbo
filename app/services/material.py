@@ -1918,11 +1918,19 @@ def _search_terms_in_parallel(
     if workers == 1:
         results = []
         for search_term in search_terms:
-            items = search_videos(
-                search_term=search_term,
-                minimum_duration=minimum_duration,
-                video_aspect=video_aspect,
-            )
+            try:
+                items = search_videos(
+                    search_term=search_term,
+                    minimum_duration=minimum_duration,
+                    video_aspect=video_aspect,
+                )
+            except Exception as exc:
+                logger.error(
+                    "failed to search material videos: "
+                    f"search_term={search_term!r}, "
+                    f"error={type(exc).__name__}"
+                )
+                items = []
             logger.info(f"found {len(items)} videos for '{search_term}'")
             results.append((search_term, items))
         return results
