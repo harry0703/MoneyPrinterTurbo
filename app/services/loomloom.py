@@ -463,6 +463,11 @@ class LoomLoomScriptBackend:
         last_progress_log_at = started_at
         consecutive_poll_errors = 0
         while True:
+            if self._clock() >= deadline:
+                raise LoomLoomRunError(
+                    f"LoomLoom run {run_id} did not complete within "
+                    f"{self.settings.run_timeout_seconds:g} seconds"
+                )
             try:
                 run = self.get_run(run_id)
                 consecutive_poll_errors = 0
@@ -513,7 +518,7 @@ class LoomLoomScriptBackend:
                     f"LoomLoom run {run.run_id} did not complete within "
                     f"{self.settings.run_timeout_seconds:g} seconds"
                 )
-            self._sleep(self.settings.poll_interval_seconds)
+            self._sleep(min(self.settings.poll_interval_seconds, deadline - now))
 
     def get_script_results(self, run_id: str) -> LoomLoomScriptBatchResult:
         normalized_run_id = self._required_identifier(run_id, "run_id")
