@@ -266,10 +266,9 @@ class UploadPostService:
                         "Upload-Post upload returned an unexpected redirect: "
                         f"status={response.status_code}"
                     )
-                    return {
-                        "success": False,
-                        "error": "Upload-Post upload returned an unexpected redirect",
-                    }
+                    return unconfirmed_response(
+                        "Upload-Post upload returned an unexpected redirect"
+                    )
 
                 response.raise_for_status()
                 try:
