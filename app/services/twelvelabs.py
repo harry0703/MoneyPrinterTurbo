@@ -102,7 +102,12 @@ def _embed_text_cached(text: str, model: str) -> List[float]:
     with _managed_client() as client:
         resp = client.embed.create(model_name=model, text=text)
         # SDK aliases the raw JSON 'float' vector key to `float_`.
-        return list(resp.text_embedding.segments[0].float_)
+        vector = list(resp.text_embedding.segments[0].float_)
+        if not vector or not all(math.isfinite(value) for value in vector):
+            raise ValueError("embedding must contain finite components")
+        if not any(vector):
+            raise ValueError("embedding must have a nonzero norm")
+        return vector
 
 
 def rerank_terms_by_subject(
