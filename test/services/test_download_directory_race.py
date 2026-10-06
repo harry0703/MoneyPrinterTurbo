@@ -21,7 +21,8 @@ def test_parallel_first_downloads_share_new_directory(tmp_path):
         return MagicMock(duration=3.0, fps=30)
     with (patch.object(material.os, "makedirs", side_effect=makedirs),
           patch.object(material.requests, "get", return_value=response),
-          patch.object(material, "VideoFileClip", side_effect=decode)):
+          patch.object(material, "VideoFileClip", side_effect=decode),
+          patch.object(material.material_upload, "_validate_video")):
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(lambda n: material.save_video(f"https://example.test/{n}.mp4", str(destination)), [1, 2]))
     assert len(set(results)) == 2
