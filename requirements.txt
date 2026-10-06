@@ -7,6 +7,8 @@ fastapi==0.136.3
 uvicorn==0.32.1
 openai==2.24.0
 faster-whisper==1.1.0
+# faster-whisper passes metadata_errors to av.open(), which PyAV 19 removed
+av<19
 loguru==0.7.3
 google-genai==2.11.0
 dashscope==1.20.14
