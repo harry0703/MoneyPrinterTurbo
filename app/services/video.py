@@ -710,8 +710,9 @@ def concat_video_clips_with_ffmpeg(
 def _sanitize_image_file(image_path: str) -> str:
     # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
     # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
-    image_root, _ = os.path.splitext(image_path)
-    sanitized_path = f"{image_root}.sanitized.png"
+    # Keep the complete source identity: scene.jpg and scene.png may be
+    # normalized concurrently and must not overwrite each other's pixels.
+    sanitized_path = f"{image_path}.sanitized.png"
 
     temp_path = ""
     try:
