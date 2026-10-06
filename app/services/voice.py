@@ -2381,6 +2381,18 @@ def elevenlabs_tts(
         },
     }
 
+    # ElevenLabs supports 0.7–1.2; do not silently ignore the shared UI/API rate.
+    # Preserve the existing unity request when no adjustment is requested.
+    try:
+        requested_speed = float(voice_rate) if voice_rate is not None else 1.0
+    except (TypeError, ValueError):
+        requested_speed = 1.0
+    if not math.isfinite(requested_speed):
+        requested_speed = 1.0
+    speed = max(0.7, min(1.2, requested_speed))
+    if speed != 1.0:
+        payload["voice_settings"]["speed"] = speed
+
     # Errors where retrying will never help (auth/access/validation failures).
     _NON_RETRYABLE_CODES = {401, 403, 422}
     _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized"}
