@@ -55,3 +55,13 @@ def test_concurrent_same_stem_images_render_their_own_pixels(tmp_path):
         assert original.mode == "CMYK"
     with Image.open(green) as original:
         assert original.getexif()[274] == 6
+
+
+def test_long_source_name_renders_without_exceeding_filesystem_name_limit(tmp_path):
+    source = tmp_path / ("a" * 240 + ".jpg")
+    Image.new("RGB", (64, 64), "red").convert("CMYK").save(source)
+    output = video.render_image_zoom_video(str(source), clip_duration=0.1)
+    assert len(__import__("os").fsencode(__import__("os").path.basename(output))) <= 255
+    with VideoFileClip(output, audio=False) as clip:
+        assert clip.get_frame(0)[32, 32, 0] > 200
+    assert source.exists()
