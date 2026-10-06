@@ -1212,7 +1212,7 @@ def generate_social_metadata(
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
-            if isinstance(response, str) and "Error: " in response:
+            if isinstance(response, str) and response.startswith("Error: "):
                 logger.error(f"failed to generate social metadata: {response}")
                 break
             metadata = _parse_social_metadata(response, platform)
