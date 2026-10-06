@@ -159,6 +159,33 @@ class TestMptAgentSkill(unittest.TestCase):
             self.assertEqual(default_missing, ["pexels_api_keys"])
             self.assertEqual(pixabay_missing, [])
 
+    def test_local_video_source_requires_video_materials(self):
+        """本地素材源必须提供 --video-materials，否则应提前报错。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                mpt_agent.SkillError, "--video-materials"
+            ):
+                mpt_agent.missing_config(config_path, ["--video-source", "local"])
+
+            _, missing = mpt_agent.missing_config(
+                config_path,
+                ["--video-source", "local", "--video-materials", "./clips"],
+            )
+            _, missing_eq = mpt_agent.missing_config(
+                config_path,
+                ["--video-source=local", "--video-materials=./clips"],
+            )
+            self.assertEqual(missing, [])
+            self.assertEqual(missing_eq, [])
+
     def test_openai_image_source_accepts_keyless_local_gateway(self):
         """文生图素材源只需要端点与模型名，本地网关允许不配置 API Key。"""
         with tempfile.TemporaryDirectory() as temp_dir:
