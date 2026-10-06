@@ -129,7 +129,6 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
         self.assertGreater(vs.get_audio_duration(sub_maker), 0)
 
-    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_get_audio_duration_accepts_non_mp3_files(self):
         """
         自定义音频（custom_audio_file）常见为 m4a/wav/aac 等非 mp3 格式。
