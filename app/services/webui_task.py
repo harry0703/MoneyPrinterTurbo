@@ -1,3 +1,4 @@
+import copy
 import threading
 from collections import deque
 
@@ -146,9 +147,9 @@ def submit_generation(
     浏览器刷新或 WebSocket 重连也不依赖旧页面内存中的占位符。
     """
     task_params = params.model_copy(deep=True)
-    # 预览载荷只包含不可变音频路径、参数快照和只读字幕时间轴。复制外层字典，
-    # 避免页面后续 rerun 替换缓存字段时影响已经提交到后台队列的任务。
-    voice_preview_snapshot = dict(voice_preview) if voice_preview else None
+    # The subtitle timeline and nested preview parameters remain mutable in
+    # Streamlit session state. Snapshot them before this job enters the queue.
+    voice_preview_snapshot = copy.deepcopy(voice_preview) if voice_preview else None
     # Reference audio belongs only to this queued request. It is deliberately
     # separate from VideoParams so it cannot reach task history, presets, state
     # persistence, or logs. ``bytes`` is immutable; make an explicit snapshot
