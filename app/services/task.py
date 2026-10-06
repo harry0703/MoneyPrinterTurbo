@@ -1490,6 +1490,12 @@ def _run_pipeline(
         failed_stage=None, error=None,
     )
 
+    if stop_at == "video" and params.subtitle_enabled:
+        try:
+            video.validate_subtitle_colors(params)
+        except ValueError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
+
     if stop_at in {"materials", "video"} and params.video_source not in _SUPPORTED_VIDEO_SOURCES:
         return _mark_task_failed(
             task_id, "preflight", f"unsupported video source: {params.video_source!r}"
