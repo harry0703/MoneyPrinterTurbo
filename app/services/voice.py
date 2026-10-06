@@ -385,14 +385,18 @@ def parse_voice_name(name: str):
     # zh-CN-XiaoyiNeural-Female
     # zh-CN-YunxiNeural-Male
     # zh-CN-XiaoxiaoMultilingualNeural-V2-Female
-    name = name.replace("-Female", "").replace("-Male", "").strip()
+    name = name.strip()
+    # Qualified IDs belong to their provider. Gender/style display labels are
+    # parsed by each provider adapter, not rewritten inside an opaque voice ID.
+    if ":" not in name:
+        name = name.removesuffix("-Female").removesuffix("-Male")
     return name
 
 
 def is_azure_v2_voice(voice_name: str):
     voice_name = parse_voice_name(voice_name)
-    if voice_name.endswith("-V2"):
-        return voice_name.replace("-V2", "").strip()
+    if ":" not in voice_name and voice_name.endswith("-V2"):
+        return voice_name.removesuffix("-V2").strip()
     return ""
 
 
