@@ -203,21 +203,57 @@ def get_elevenlabs_voices(api_key: str) -> list[str]:
         headers = {"xi-api-key": api_key}
         # Requests preserves custom xi-api-key headers across redirects. Keep
         # the key on the provider endpoint even if it responds with a redirect.
-        response = requests.get(
-            url, params=params, headers=headers, timeout=10, allow_redirects=False
-        )
-        if response.status_code != 200:
-            logger.warning(
-                f"ElevenLabs voices fetch failed with status {response.status_code}: {response.text}"
+        result = []
+        seen_voices = set()
+        seen_tokens = set()
+        deadline = time.monotonic() + 30.0
+        # v2 catalogs are paginated even when page_size is at its maximum.
+        # Retain the fixed endpoint and no-redirect credential boundary.
+        for _ in range(100):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logger.warning("ElevenLabs voice catalog time budget exhausted; returning partial catalog")
+                break
+            phase_timeout = min(10.0, remaining / 2.0)
+            response = requests.get(
+                url, params=dict(params), headers=headers,
+                timeout=(phase_timeout, phase_timeout), allow_redirects=False,
             )
-            return []
-        data = response.json()
-        voices = data.get("voices", [])
-        return [
-            f"elevenlabs:{v['voice_id']}:{v['name']}"
-            for v in voices
-            if v.get("voice_id") and v.get("name") and v.get("status") != "disabled"
-        ]
+            try:
+                if response.status_code != 200:
+                    logger.warning(
+                        f"ElevenLabs voices fetch failed with status {response.status_code}"
+                    )
+                    return []
+                data = response.json()
+            finally:
+                response.close()
+            if not isinstance(data, dict) or not isinstance(data.get("voices"), list):
+                return []
+            for entry in data["voices"]:
+                if not isinstance(entry, dict):
+                    continue
+                identity = entry.get("voice_id")
+                name = entry.get("name")
+                if (
+                    isinstance(identity, str) and identity
+                    and isinstance(name, str) and name
+                    and entry.get("status") != "disabled"
+                    and identity not in seen_voices
+                ):
+                    seen_voices.add(identity)
+                    result.append(f"elevenlabs:{identity}:{name}")
+            token = data.get("next_page_token")
+            if data.get("has_more") is not True or not isinstance(token, str) or not token:
+                break
+            if token in seen_tokens:
+                logger.warning("ElevenLabs voice catalog repeated a page token")
+                break
+            seen_tokens.add(token)
+            params["next_page_token"] = token
+        else:
+            logger.warning("ElevenLabs voice catalog page limit reached; returning partial catalog")
+        return result
     except Exception as e:
         logger.warning(f"ElevenLabs voices fetch failed: {str(e)}")
         return []
