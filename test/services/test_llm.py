@@ -498,6 +498,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "opper",
                 "ollama",
                 "claude_code",
+                "opencode",
                 "oneapi",
                 "litellm",
                 "groq",
@@ -2268,6 +2269,361 @@ class TestClaudeCodeProvider(unittest.TestCase):
             response = llm._generate_response("write something")
         self.assertIn("upgrade", response.lower())
         self.assertIn(llm.CLAUDE_CODE_MIN_CLI_VERSION, response)
+
+
+class TestOpenCodeCliProvider(unittest.TestCase):
+    """opencode Provider 通过本机 OpenCode CLI 复用已配置账号，不走 HTTP API。"""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        config.app["llm_provider"] = "opencode"
+        config.app["opencode_model_name"] = ""
+        config.app["opencode_cli_path"] = ""
+        config.app["opencode_timeout"] = ""
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    @staticmethod
+    def _completed(stdout="", stderr="", returncode=0):
+        return types.SimpleNamespace(
+            stdout=stdout, stderr=stderr, returncode=returncode
+        )
+
+    @staticmethod
+    def _text_events(*texts):
+        """模拟 `opencode run --format json` 的行分隔事件流。"""
+        lines = [
+            json.dumps({"type": "step_start", "part": {"type": "step-start"}})
+        ]
+        lines.extend(
+            json.dumps({"type": "text", "part": {"type": "text", "text": text}})
+            for text in texts
+        )
+        lines.append(
+            json.dumps(
+                {"type": "step_finish", "part": {"type": "step-finish", "reason": "stop"}}
+            )
+        )
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _error_event(message, name="UnknownError"):
+        return (
+            json.dumps(
+                {
+                    "type": "error",
+                    "error": {"name": name, "data": {"message": message}},
+                }
+            )
+            + "\n"
+        )
+
+    # ------------------------------------------------------------- success
+    def test_successful_generation_parses_text_events(self):
+        """正文只来自 type=text 事件，事件流的其余部分不应泄漏进脚本。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("Hello", " world")),
+            ) as run,
+        ):
+            self.assertEqual(llm._generate_response("write something"), "Hello world")
+
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "/usr/local/bin/opencode")
+        self.assertEqual(command[1], "run")
+        self.assertEqual(command[command.index("--format") + 1], "json")
+        self.assertIn("--pure", command)
+        self.assertEqual(
+            run.call_args.kwargs["timeout"], llm.OPENCODE_DEFAULT_TIMEOUT
+        )
+
+    def test_prompt_is_sent_through_stdin_with_copywriter_prelude(self):
+        """stdin 输入让 Windows 的 .cmd shim 不会截断多行 prompt；固定的写作
+        提示需要压过 OpenCode 编码 agent 的系统提示对文案生成的干扰。"""
+        prompt = "# Role: Generator\n\n## Goals:\nwrite something"
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response(prompt)
+
+        stdin_payload = run.call_args.kwargs["input"]
+        self.assertTrue(stdin_payload.startswith(llm.OPENCODE_SYSTEM_PROMPT))
+        self.assertTrue(stdin_payload.endswith(prompt))
+        command = run.call_args.args[0]
+        self.assertNotIn(prompt, command)
+        # prompt 不在 argv 上，多行内容不会被命令行截断。
+        self.assertFalse(any("\n" in arg for arg in command))
+
+    def test_model_reference_is_only_passed_when_configured(self):
+        """模型引用留空时沿用 OpenCode 默认模型；填写后按原样传递。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+            self.assertNotIn("--model", run.call_args.args[0])
+
+            config.app["opencode_model_name"] = "opencode/mimo-v2.6-flash-free"
+            llm._generate_response("write something")
+            command = run.call_args.args[0]
+            self.assertEqual(
+                command[command.index("--model") + 1], "opencode/mimo-v2.6-flash-free"
+            )
+
+    def test_tools_and_plugins_are_disabled_for_generation(self):
+        """纯文本生成必须禁用全部工具权限和外部插件，避免读写文件或执行命令。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        self.assertIn("--pure", run.call_args.args[0])
+        self.assertEqual(
+            run.call_args.kwargs["env"].get("OPENCODE_PERMISSION"),
+            llm.OPENCODE_PERMISSION_CONFIG,
+        )
+
+    def test_provider_spec_requires_no_key_or_base_url(self):
+        """Registry 声明：无 Key、无 Base URL，凭证始终留在 OpenCode 一侧。"""
+        provider = get_llm_provider("opencode")
+        self.assertIsNotNone(provider)
+        self.assertEqual(provider.adapter, "opencode")
+        self.assertFalse(provider.requires_api_key)
+        self.assertFalse(provider.show_api_key)
+        self.assertFalse(provider.requires_base_url)
+        self.assertFalse(provider.requires_model_name)
+        self.assertEqual(
+            [field.config_suffix for field in provider.extra_fields],
+            ["cli_path", "timeout"],
+        )
+
+    # -------------------------------------------------------- failure modes
+    def test_missing_cli_reports_actionable_error(self):
+        with (
+            patch.object(llm.shutil, "which", return_value=None),
+            patch.object(llm.os.path, "isfile", return_value=False),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("opencode CLI not found", response)
+        self.assertIn("opencode_cli_path", response)
+
+    def test_error_event_surfaces_opencode_message(self):
+        """error 事件（模型不可用、鉴权失败等）比退出码更具体，应优先透出。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(
+                    stdout=self._error_event("Model not found"), returncode=1
+                ),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("returned an error response", response)
+        self.assertIn("Model not found", response)
+
+    def test_timeout_is_reported_with_configured_seconds(self):
+        config.app["opencode_timeout"] = 12
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                side_effect=llm.subprocess.TimeoutExpired(cmd="opencode", timeout=12),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("timed out after 12s", response)
+        # 未登录时 opencode run 会静默挂起，超时提示必须给出可操作的排查方向。
+        self.assertIn("auth list", response)
+
+    def test_invalid_timeout_reports_configuration_error(self):
+        config.app["opencode_timeout"] = "soon"
+        with patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"):
+            response = llm._generate_response("write something")
+        self.assertIn("opencode_timeout", response)
+        self.assertTrue(response.startswith("Error:"), response)
+
+    def test_unknown_flag_reports_upgrade_hint(self):
+        """旧版 CLI 缺少 --format/--pure 时应提示升级，而不是丢出裸 stderr。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(
+                    stderr="error: unknown argument '--pure'", returncode=2
+                ),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("upgrade", response.lower())
+        self.assertIn(llm.OPENCODE_MIN_CLI_VERSION, response)
+
+    def test_nonzero_exit_reports_exit_code_and_stderr(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stderr="provider exploded", returncode=2),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("exited with code 2", response)
+        self.assertIn("provider exploded", response)
+
+    def test_unparseable_output_is_reported_instead_of_crashing(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout="not json at all"),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("invalid response", response)
+
+    def test_empty_text_events_report_empty_content(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events()),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertTrue(response.startswith("Error:"), response)
+        self.assertIn("empty text content", response)
+
+    # -------------------------------------------------------- model discovery
+    def test_discovery_parses_sorts_and_deduplicates_models(self):
+        stdout = (
+            "zeta/m2\n"
+            "alpha/m1\n"
+            "alpha/m1\n"
+            "\n"
+            "Available models:\n"  # 标题行含空白，应被忽略
+            "error: refresh failed\n"
+        )
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=stdout),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, ["alpha/m1", "zeta/m2"])
+        self.assertEqual(error, "")
+
+    def test_discovery_keeps_model_ids_containing_slashes(self):
+        """openrouter 等聚合商的模型 ID 内部含斜杠，不能按第二个斜杠截断。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout="openrouter/qwen/qwen-2.5\n"),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, ["openrouter/qwen/qwen-2.5"])
+        self.assertEqual(error, "")
+
+    def test_discovery_passes_refresh_flag_only_when_requested(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout="a/b\n"),
+            ) as run,
+        ):
+            llm.discover_opencode_models(cli_path="/opt/homebrew/bin/opencode")
+            self.assertEqual(run.call_args.args[0], [
+                "/usr/local/bin/opencode", "models"
+            ])
+            llm.discover_opencode_models(refresh=True)
+            self.assertEqual(
+                run.call_args.args[0],
+                ["/usr/local/bin/opencode", "models", "--refresh"],
+            )
+        # stdin 关闭：模型发现不允许任何交互提示阻塞渲染。
+        self.assertEqual(run.call_args.kwargs["stdin"], llm.subprocess.DEVNULL)
+
+    def test_discovery_reports_missing_cli(self):
+        with (
+            patch.object(llm.shutil, "which", return_value=None),
+            patch.object(llm.os.path, "isfile", return_value=False),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, [])
+        self.assertIn("opencode CLI not found", error)
+        self.assertIn("opencode_cli_path", error)
+
+    def test_discovery_reports_failure_exit_code(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stderr="broken", returncode=3),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, [])
+        self.assertIn("exited with code 3", error)
+        self.assertIn("broken", error)
+
+    def test_discovery_reports_empty_catalog(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=""),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, [])
+        self.assertIn("returned no models", error)
+
+    def test_discovery_reports_timeout(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                side_effect=llm.subprocess.TimeoutExpired(cmd="opencode", timeout=30),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, [])
+        self.assertIn("timed out after 30s", error)
 
 
 class TestRuntimeEnvironmentDetection(unittest.TestCase):

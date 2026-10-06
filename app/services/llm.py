@@ -80,6 +80,24 @@ CLAUDE_CODE_PRESERVED_ENV_VARS = (
     "CLAUDE_CONFIG_DIR",
 )
 
+# OpenCode CLI 以 headless 模式完成一次性文本生成：prompt 通过 stdin 传入
+# （`opencode run` 在没有位置参数时读取 stdin），stdout 输出 `--format json`
+# 的行分隔事件。鉴权与模型目录完全由 OpenCode 自己管理，这里不读取、
+# 复制也不持久化它的任何凭证。
+OPENCODE_SYSTEM_PROMPT = (
+    "You are a concise copywriter. Follow the user's instructions and output "
+    "format exactly, and output nothing else."
+)
+OPENCODE_DEFAULT_TIMEOUT = 300.0
+# 模型发现只是一次本地命令，不值得长时间阻塞 Streamlit 重渲染。
+OPENCODE_DISCOVERY_TIMEOUT = 30.0
+# 已验证 `run --format json`、`--pure` 和 stdin 输入可用的最低版本；更旧的
+# CLI 会在参数解析阶段以 unknown argument 退出，由调用处转成升级提示。
+OPENCODE_MIN_CLI_VERSION = "1.18.34"
+# 只做 prompt→text：权限全部 deny（bash/edit/read/task/...），配合命令行的
+# `--pure` 关闭外部插件，编码 agent 不会读写文件、执行命令或加载 MCP。
+OPENCODE_PERMISSION_CONFIG = '{"*": "deny"}'
+
 
 def _is_conflicting_claude_code_env(name: str) -> bool:
     """判断某个环境变量是否会把 CLI 从订阅登录切换到别的鉴权方式。"""
@@ -157,6 +175,101 @@ def build_claude_code_env(base_env=None):
     for name in removed:
         env.pop(name, None)
     return env, removed
+
+
+def resolve_opencode_cli_path(configured_path="") -> str:
+    """按配置值或 PATH 解析 opencode 可执行文件，找不到时返回空字符串。"""
+    configured = (configured_path or "").strip() or "opencode"
+    cli_path = shutil.which(configured)
+    if not cli_path and os.path.isfile(configured):
+        cli_path = configured
+    return cli_path or ""
+
+
+def _is_opencode_model_reference(value: str) -> bool:
+    # `opencode models` 每行输出一个 provider/model 引用；模型 ID 内部可能
+    # 还包含斜杠（如 openrouter/qwen/...），因此只按第一个斜杠分割，
+    # 并要求两侧非空且整行没有空白，忽略标题、空行和告警等噪音。
+    if not value or any(char.isspace() for char in value):
+        return False
+    provider_id, sep, model_id = value.partition("/")
+    return bool(sep and provider_id and model_id)
+
+
+def discover_opencode_models(
+    cli_path="",
+    refresh: bool = False,
+    timeout: float = OPENCODE_DISCOVERY_TIMEOUT,
+) -> tuple[list[str], str]:
+    """
+    运行一次 `opencode models` 并解析其 provider/model 列表。
+
+    返回 (模型引用列表, 错误信息)，二者只有一个有效。结果由 WebUI 缓存，
+    因此失败以文本返回而不是抛出：界面可以退回手动输入，同时展示具体原因。
+    """
+    resolved = resolve_opencode_cli_path(cli_path)
+    if not resolved:
+        suggested = (cli_path or "").strip() or "opencode"
+        return [], (
+            f"opencode CLI not found ('{suggested}'); install it or set "
+            "opencode_cli_path in the config.toml file."
+        )
+
+    command = [resolved, "models"]
+    if refresh:
+        command.append("--refresh")
+
+    try:
+        completed = subprocess.run(
+            command,
+            # 交互提示在无人值守场景只会挂起；模型发现不需要任何输入。
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return [], f"opencode models timed out after {timeout:.0f}s"
+    except OSError as exc:
+        return [], f"failed to run the opencode CLI: {exc}"
+
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        return [], (
+            f"opencode models exited with code {completed.returncode}"
+            + (f": {detail[:500]}" if detail else "")
+        )
+
+    models = sorted(
+        {
+            line.strip()
+            for line in (completed.stdout or "").splitlines()
+            if _is_opencode_model_reference(line.strip())
+        }
+    )
+    if not models:
+        return [], (
+            "the opencode CLI returned no models; connect a provider with "
+            "`opencode auth login` or check the OpenCode configuration."
+        )
+    return models, ""
+
+
+def _extract_opencode_error(event: dict) -> str:
+    """从 `opencode run --format json` 的 error 事件中提取可读原因。"""
+    error = event.get("error")
+    if not isinstance(error, dict):
+        return str(error if error is not None else event)[:500]
+
+    data = error.get("data")
+    message = str(data.get("message") or "") if isinstance(data, dict) else ""
+    message = message or str(error.get("message") or "")
+    name = str(error.get("name") or "")
+    if name and message:
+        return f"{name}: {message}"
+    return (message or name or json.dumps(error))[:500]
 
 
 def _normalize_text_response(content, llm_provider: str) -> str:
@@ -608,6 +721,28 @@ def _generate_response(prompt: str, app_config=None) -> str:
             except ValueError as timeout_error:
                 raise ValueError(f"{llm_provider}: {timeout_error}") from None
 
+        if adapter == "opencode":
+            # OpenCode 复用本机 OpenCode CLI 已配置的 Provider 与登录态，
+            # 不签发 API Key，也不读取它的凭证；模型可用性由
+            # `opencode models` 动态发现，这里只负责一次性文本生成。
+            configured_cli = (
+                extra_values.get("cli_path") or ""
+            ).strip() or "opencode"
+            cli_path = resolve_opencode_cli_path(configured_cli)
+            if not cli_path:
+                raise ValueError(
+                    f"{llm_provider}: opencode CLI not found ('{configured_cli}'), "
+                    f"install it in the runtime or set "
+                    f"{provider.config_key('cli_path')} in the config.toml file."
+                )
+
+            try:
+                timeout_seconds = coerce_claude_code_timeout(
+                    extra_values.get("timeout"), provider.config_key("timeout")
+                )
+            except ValueError as timeout_error:
+                raise ValueError(f"{llm_provider}: {timeout_error}") from None
+
             access_token = kimi_code_oauth.get_valid_access_token()
             # 授权区域以凭证为准：token 只对签发它的区域有效。用户在授权后切换
             # API Platform 时，若按界面区域发请求会把中国签发的 token 打到
@@ -646,6 +781,111 @@ def _generate_response(prompt: str, app_config=None) -> str:
             raise Exception(
                 f'[{llm_provider}] returned an invalid response: "{response}"'
             )
+
+            command = [
+                cli_path,
+                "run",
+                # 结构化事件流：解析 JSON 而不是终端渲染文本，避免把格式化
+                # 噪音、进度绘制带进脚本正文。
+                "--format",
+                "json",
+                # 关闭外部插件；OPENCODE_PERMISSION 再禁止全部工具，保证
+                # 普通脚本生成不会触发文件、命令、MCP 或插件行为。
+                "--pure",
+            ]
+            # 模型名留空时沿用 OpenCode 自己的默认模型，避免硬编码一个
+            # 用户环境中可能不存在的 provider/model 引用。
+            if model_name:
+                command += ["--model", model_name]
+
+            # prompt 经 stdin 传入：`opencode run` 在没有位置参数时读取 stdin，
+            # 同时规避 Windows 上 .cmd shim 对多行参数的截断。固定的写作系统
+            # 提示拼在最前面，抵消 OpenCode 编码 agent 系统提示对文案生成的干扰。
+            prompt_input = f"{OPENCODE_SYSTEM_PROMPT}\n\n{prompt}"
+            cli_env = {**os.environ, "OPENCODE_PERMISSION": OPENCODE_PERMISSION_CONFIG}
+
+            logger.info(
+                f"invoking opencode cli, model: {model_name or 'opencode default'}"
+            )
+            # 与 claude_code 相同：在临时空目录中执行，避免读取当前项目的
+            # opencode 配置、指令文件或把会话写入用户仓库。
+            with tempfile.TemporaryDirectory() as work_dir:
+                try:
+                    completed = subprocess.run(
+                        command,
+                        input=prompt_input,
+                        capture_output=True,
+                        text=True,
+                        # CLI 输出固定为 UTF-8；不指定编码时 Windows 会用
+                        # 区域设置（如 cp1252）解码，中文脚本直接变乱码。
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=timeout_seconds,
+                        cwd=work_dir,
+                        env=cli_env,
+                    )
+                except subprocess.TimeoutExpired:
+                    # 未登录、模型不可用或上游挂起时，opencode run 可能不产生
+                    # 任何输出地一直等待；必须靠有界超时给出可操作提示。
+                    raise Exception(
+                        f"[{llm_provider}] opencode cli timed out after "
+                        f"{timeout_seconds:.0f}s; check that OpenCode is logged in "
+                        f"(`opencode auth list`) and that the selected model is available"
+                    )
+
+            stdout = completed.stdout or ""
+            text_parts: list[str] = []
+            error_message = ""
+            parsed_event = False
+            for line in stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    # 非事件行（进度输出、日志）不参与正文，也不算失败。
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                parsed_event = True
+                if event.get("type") == "text":
+                    text = (event.get("part") or {}).get("text")
+                    if isinstance(text, str):
+                        text_parts.append(text)
+                elif event.get("type") == "error" and not error_message:
+                    error_message = _extract_opencode_error(event)
+
+            # error 事件比退出码更具体（例如模型不可用、鉴权失败），优先抛出。
+            if error_message:
+                raise Exception(
+                    f'[{llm_provider}] returned an error response: '
+                    f'"{error_message[:500]}"'
+                )
+
+            if completed.returncode != 0:
+                detail = (completed.stderr or "").strip() or stdout.strip()
+                lowered = detail.lower()
+                if "unknown" in lowered and (
+                    "argument" in lowered or "option" in lowered
+                ):
+                    raise Exception(
+                        f"[{llm_provider}] the installed opencode CLI does not "
+                        f"support the required flags; upgrade to "
+                        f"{OPENCODE_MIN_CLI_VERSION} or newer: {detail[:300]}"
+                    )
+                raise Exception(
+                    f"[{llm_provider}] opencode cli exited with code "
+                    f"{completed.returncode}: {detail[:500]}"
+                )
+
+            if not parsed_event:
+                detail = ((completed.stderr or "") + stdout).strip()
+                raise Exception(
+                    f'[{llm_provider}] returned an invalid response: "{detail[:500]}"'
+                )
+
+            return _normalize_text_response("".join(text_parts), llm_provider)
 
         if adapter == "modelscope":
             content = ""

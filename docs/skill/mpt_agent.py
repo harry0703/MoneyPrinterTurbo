@@ -76,12 +76,19 @@ RECOMMENDED_LLM_PROVIDERS = {
 # Providers that generate without an API key stored in config.toml: Ollama talks
 # to a local server, LiteLLM resolves credentials through its own environment,
 # ``claude_code`` consumes the Claude subscription through the locally
-# logged-in ``claude`` CLI, and ``kimi_code`` consumes the Kimi Code plan
-# through the OAuth credentials the WebUI sign-in stores in config.toml. Keep
-# this set aligned with the ``requires_api_key=False`` entries of
+# logged-in ``claude`` CLI, ``kimi_code`` consumes the Kimi Code plan through
+# the OAuth credentials the WebUI sign-in stores in config.toml, and
+# ``opencode`` reuses the accounts configured in the locally installed OpenCode
+# CLI. Keep this set aligned with the ``requires_api_key=False`` entries of
 # ``app/models/llm_provider.py``; asking the user for a key that the provider
 # never reads leaves the Skill stuck.
-KEYLESS_LLM_PROVIDERS = {"ollama", "litellm", "claude_code", "kimi_code"}
+KEYLESS_LLM_PROVIDERS = {
+    "ollama",
+    "litellm",
+    "claude_code",
+    "kimi_code",
+    "opencode",
+}
 CUSTOM_OPENAI_PROVIDER = "oneapi"
 
 # Hidden providers such as Qwen, Azure, and Grok remain usable when already

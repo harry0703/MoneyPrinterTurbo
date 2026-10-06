@@ -523,6 +523,23 @@ LLM_PROVIDER_REGISTRY = (
             LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
         ),
     ),
+    # OpenCode 复用本机 OpenCode CLI 已配置的 Provider 与登录态，不签发 API
+    # Key，也不读取 OpenCode 的凭证。模型名是 `opencode models` 展示的
+    # provider/model 引用，留空时由 CLI 使用自己的默认模型。
+    LLMProviderSpec(
+        "opencode",
+        "OpenCode CLI",
+        adapter="opencode",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        requires_model_name=False,
+        extra_fields=(
+            LLMProviderField("cli_path", "OpenCode CLI Path"),
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
+        ),
+    ),
     LLMProviderSpec(
         "oneapi",
         "OneAPI",
