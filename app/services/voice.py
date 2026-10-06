@@ -1749,6 +1749,8 @@ def azure_tts_v2(
 
     for i in range(3):
         temporary_audio = None
+        audio_config = None
+        speech_synthesizer = None
         try:
             logger.info(
                 f"start, voice name: {voice_name}, rate: {voice_rate}, try: {i + 1}"
@@ -1816,9 +1818,10 @@ def azure_tts_v2(
                 if os.path.getsize(temporary_audio) <= 0:
                     logger.error("Azure completed without audio; preserve the previous export")
                     return None
-                # Completed synthesis closes its file output. Release the SDK
-                # owners before publication, including on Windows.
-                del speech_synthesizer, audio_config
+                # Release SDK file-output owners before publication, including
+                # on Windows where an open handle can prevent replacement.
+                speech_synthesizer = None
+                audio_config = None
                 os.replace(temporary_audio, voice_file)
                 temporary_audio = None
                 logger.success(f"azure v2 speech synthesis succeeded: {voice_file}")
@@ -1836,6 +1839,10 @@ def azure_tts_v2(
         except Exception as e:
             logger.error(f"failed, error: {str(e)}")
         finally:
+            # Exceptions/cancellation can also leave the SDK output owner alive.
+            # Drop all file owners before attempting to remove its staged file.
+            speech_synthesizer = None
+            audio_config = None
             if temporary_audio is not None:
                 try:
                     os.remove(temporary_audio)

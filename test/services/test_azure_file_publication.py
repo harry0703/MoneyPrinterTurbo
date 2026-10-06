@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import sys
+import weakref
 from datetime import timedelta
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -23,6 +24,12 @@ def test_public_azure_file_output_preserves_last_success(tmp_path, outcome, stri
     if not nested:
         output.write_bytes(previous)
     configured = []
+    open_outputs = set()
+    real_remove = voice.os.remove
+
+    def remove_after_sdk_release(path):
+        assert str(path) not in open_outputs, "SDK still owns the staged output"
+        return real_remove(path)
     requests = []
 
     class AudioOutput:
@@ -32,7 +39,14 @@ def test_public_azure_file_output_preserves_last_success(tmp_path, outcome, stri
             if not Path(filename).parent.is_dir():
                 raise OSError("audio output parent does not exist")
             self.filename = filename
+            self.output = open(filename, "wb")
+            open_outputs.add(str(filename))
             configured.append(filename)
+
+        def __del__(self):
+            if hasattr(self, "output"):
+                self.output.close()
+                open_outputs.discard(str(self.filename))
 
     class SpeechConfig:
         def __init__(self, **_kwargs):
@@ -46,18 +60,18 @@ def test_public_azure_file_output_preserves_last_success(tmp_path, outcome, stri
 
     class Synthesizer:
         def __init__(self, audio_config, speech_config):
+            self.audio_config = audio_config
             self.destination = Path(audio_config.filename)
             self.callback = None
-            self.synthesis_word_boundary = SimpleNamespace(connect=self.connect)
-
-        def connect(self, callback):
-            self.callback = callback
+            owner = weakref.ref(self)
+            self.synthesis_word_boundary = SimpleNamespace(connect=lambda callback: setattr(owner(), "callback", callback))
 
         def speak_ssml_async(self, text):
             requests.append(text)
 
             def get():
-                self.destination.write_bytes(complete if outcome == "completed" else b"" if outcome == "empty" else complete[:50])
+                self.audio_config.output.write(complete if outcome == "completed" else b"" if outcome == "empty" else complete[:50])
+                self.audio_config.output.flush()
                 if outcome == "error":
                     raise OSError("controlled SDK failure after writing partial bytes")
                 if self.callback and outcome == "completed":
@@ -78,7 +92,7 @@ def test_public_azure_file_output_preserves_last_success(tmp_path, outcome, stri
     cognitive = ModuleType("azure.cognitiveservices")
     azure.cognitiveservices = cognitive
     cognitive.speech = sdk
-    with patch.dict(sys.modules, {"azure": azure, "azure.cognitiveservices": cognitive, "azure.cognitiveservices.speech": sdk}), patch.dict(config.azure, {"speech_key": "fixture", "speech_region": "fixture"}):
+    with patch.object(voice.os, "remove", side_effect=remove_after_sdk_release), patch.dict(sys.modules, {"azure": azure, "azure.cognitiveservices": cognitive, "azure.cognitiveservices.speech": sdk}), patch.dict(config.azure, {"speech_key": "fixture", "speech_region": "fixture"}):
         result = voice.azure_tts_v2("Hello", "en-US-AriaNeural-V2", str(output))
     if outcome == "completed":
         assert result is not None
@@ -88,6 +102,7 @@ def test_public_azure_file_output_preserves_last_success(tmp_path, outcome, stri
     else:
         assert result is None
         assert output.read_bytes() == previous
+    assert not open_outputs
     assert all(Path(path) != output for path in configured)
     assert list(output.parent.iterdir()) == [output]
     assert len(requests) == (3 if outcome in {"cancelled", "error"} else 1)
