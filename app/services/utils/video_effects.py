@@ -128,7 +128,7 @@ def zoomin_transition(clip: Clip, t: float) -> Clip:
         scale_factor = 1 + (_ZOOM_MAX_SCALE - 1) * progress
         return _zoom_frame(get_frame(current_time), scale_factor)
 
-    return clip.transform(scale_effect)
+    return clip.transform(scale_effect, apply_to=["mask"])
 
 
 def zoomout_transition(clip: Clip, t: float) -> Clip:
@@ -142,4 +142,4 @@ def zoomout_transition(clip: Clip, t: float) -> Clip:
         scale_factor = _ZOOM_MAX_SCALE - (_ZOOM_MAX_SCALE - 1) * progress
         return _zoom_frame(get_frame(current_time), scale_factor)
 
-    return clip.transform(scale_effect)
+    return clip.transform(scale_effect, apply_to=["mask"])
