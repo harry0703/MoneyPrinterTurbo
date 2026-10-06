@@ -365,6 +365,11 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
     source = selected_video_source(cli_args)
     if source not in SUPPORTED_SOURCES:
         raise SkillError(f"unsupported video source: {source}")
+    if source == "local" and not has_cli_option(cli_args, "--video-materials"):
+        raise SkillError(
+            "Local video source requires --video-materials pointing to a "
+            "directory of video files"
+        )
     if source == "volcengine_seedance":
         # 与运行时 Provider 保持完全一致的凭据优先级，避免 Skill 预检通过后
         # 主程序却读取了另一把 Key。ARK_API_KEY 语义过于宽泛，明确不再兼容。
