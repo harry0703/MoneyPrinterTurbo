@@ -455,6 +455,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.y-api.bestvirtualgoods.com/v1",
         model_docs_url="https://y-api.bestvirtualgoods.com/models",
     ),
+    LLMProviderSpec(
+        "opper",
+        "Opper",
+        api_key_url="https://platform.opper.ai",
+        default_model="gpt-5.4-mini",
+        default_base_url="https://api.opper.ai/v3/compat",
+        model_docs_url="https://opper.ai/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
