@@ -1,3 +1,4 @@
+import functools
 import json
 import logging
 import math
@@ -94,9 +95,17 @@ OPENCODE_DISCOVERY_TIMEOUT = 30.0
 # 已验证 `run --format json`、`--pure` 和 stdin 输入可用的最低版本；更旧的
 # CLI 会在参数解析阶段以 unknown argument 退出，由调用处转成升级提示。
 OPENCODE_MIN_CLI_VERSION = "1.18.34"
-# 只做 prompt→text：权限全部 deny（bash/edit/read/task/...），配合命令行的
-# `--pure` 关闭外部插件，编码 agent 不会读写文件、执行命令或加载 MCP。
+# 只做 prompt→text：权限全部 deny（bash/edit/read/task/...），保证普通脚本
+# 生成不会读写文件、执行命令或加载 MCP。
 OPENCODE_PERMISSION_CONFIG = '{"*": "deny"}'
+# OpenCode 2.x 移除了 `--pure` 与 OPENCODE_PERMISSION 环境变量（已用 2.0.24
+# 实测：传 `--pure` 会以 "Unrecognized flag: --pure" 退出）。2.x 仍迁移 v1
+# 形状的 `permission` 配置键，且 OPENCODE_CONFIG_CONTENT 在两个版本的配置
+# 合并中都最后生效，因此对 2.x 改由它注入同样的 deny-all 权限；1.x 继续
+# 使用 `--pure` + OPENCODE_PERMISSION，保持已验证的行为不变。
+# 2.x 没有等效的“跳过外部插件”机制：临时工作目录已隔离项目级插件，用户级
+# 插件仍会加载（v1 式单文件插件 2.x 本身也不再加载），但工具执行已被全部
+# 拒绝，插件无法借工具产生副作用。
 
 
 def _is_conflicting_claude_code_env(name: str) -> bool:
@@ -184,6 +193,70 @@ def resolve_opencode_cli_path(configured_path="") -> str:
     if not cli_path and os.path.isfile(configured):
         cli_path = configured
     return cli_path or ""
+
+
+@functools.lru_cache(maxsize=8)
+def _opencode_cli_major_version(cli_path: str) -> int | None:
+    """
+    读取 `opencode --version` 的主版本号，用于选择权限隔离的注入方式。
+
+    1.18.x 输出 "1.18.34"，2.x 输出 "opencode v2.0.24"。无法执行、超时或
+    输出无法识别时返回 None，调用处按 1.x 的已验证行为处理（此时若 CLI
+    实际是 2.x，会以 "Unrecognized flag" 退出，由错误处理转成可操作的提示）。
+    """
+    try:
+        completed = subprocess.run(
+            [cli_path, "--version"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=OPENCODE_DISCOVERY_TIMEOUT,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    output = (completed.stdout or "") + (completed.stderr or "")
+    match = re.search(r"v?(\d+)\.", output)
+    return int(match.group(1)) if match else None
+
+
+def _opencode_permission_env(cli_env: dict, major_version: int | None) -> None:
+    """
+    按已安装 CLI 的主版本选择 deny-all 权限的注入方式，原地修改 cli_env。
+
+    2.x 移除了 OPENCODE_PERMISSION 环境变量，同样的权限改经
+    OPENCODE_CONFIG_CONTENT 注入；用户已设置该变量时按 JSON 对象合并，
+    其余键保留、权限键以这里的 deny 为准。用户自定义值解析不成 JSON
+    对象时保持原样并告警——不覆盖用户显式提供的配置。
+    """
+    if major_version is not None and major_version >= 2:
+        existing = cli_env.get("OPENCODE_CONFIG_CONTENT")
+        if existing and existing.strip():
+            try:
+                merged = json.loads(existing)
+            except ValueError:
+                logger.warning(
+                    "OPENCODE_CONFIG_CONTENT is set but is not valid JSON; "
+                    "leaving it untouched and skipping the deny-all "
+                    "permissions injection."
+                )
+                return
+            if not isinstance(merged, dict):
+                logger.warning(
+                    "OPENCODE_CONFIG_CONTENT is set but is not a JSON object; "
+                    "leaving it untouched and skipping the deny-all "
+                    "permissions injection."
+                )
+                return
+            merged["permission"] = json.loads(OPENCODE_PERMISSION_CONFIG)
+            cli_env["OPENCODE_CONFIG_CONTENT"] = json.dumps(
+                merged, ensure_ascii=False
+            )
+        else:
+            cli_env["OPENCODE_CONFIG_CONTENT"] = OPENCODE_PERMISSION_CONFIG
+    else:
+        cli_env["OPENCODE_PERMISSION"] = OPENCODE_PERMISSION_CONFIG
 
 
 def _is_opencode_model_reference(value: str) -> bool:
@@ -721,28 +794,6 @@ def _generate_response(prompt: str, app_config=None) -> str:
             except ValueError as timeout_error:
                 raise ValueError(f"{llm_provider}: {timeout_error}") from None
 
-        if adapter == "opencode":
-            # OpenCode 复用本机 OpenCode CLI 已配置的 Provider 与登录态，
-            # 不签发 API Key，也不读取它的凭证；模型可用性由
-            # `opencode models` 动态发现，这里只负责一次性文本生成。
-            configured_cli = (
-                extra_values.get("cli_path") or ""
-            ).strip() or "opencode"
-            cli_path = resolve_opencode_cli_path(configured_cli)
-            if not cli_path:
-                raise ValueError(
-                    f"{llm_provider}: opencode CLI not found ('{configured_cli}'), "
-                    f"install it in the runtime or set "
-                    f"{provider.config_key('cli_path')} in the config.toml file."
-                )
-
-            try:
-                timeout_seconds = coerce_claude_code_timeout(
-                    extra_values.get("timeout"), provider.config_key("timeout")
-                )
-            except ValueError as timeout_error:
-                raise ValueError(f"{llm_provider}: {timeout_error}") from None
-
             access_token = kimi_code_oauth.get_valid_access_token()
             # 授权区域以凭证为准：token 只对签发它的区域有效。用户在授权后切换
             # API Platform 时，若按界面区域发请求会把中国签发的 token 打到
@@ -782,6 +833,29 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 f'[{llm_provider}] returned an invalid response: "{response}"'
             )
 
+        if adapter == "opencode":
+            # OpenCode 复用本机 OpenCode CLI 已配置的 Provider 与登录态，
+            # 不签发 API Key，也不读取它的凭证；模型可用性由
+            # `opencode models` 动态发现，这里只负责一次性文本生成。
+            configured_cli = (
+                extra_values.get("cli_path") or ""
+            ).strip() or "opencode"
+            cli_path = resolve_opencode_cli_path(configured_cli)
+            if not cli_path:
+                raise ValueError(
+                    f"{llm_provider}: opencode CLI not found ('{configured_cli}'), "
+                    f"install it in the runtime or set "
+                    f"{provider.config_key('cli_path')} in the config.toml file."
+                )
+
+            try:
+                timeout_seconds = coerce_claude_code_timeout(
+                    extra_values.get("timeout"), provider.config_key("timeout")
+                )
+            except ValueError as timeout_error:
+                raise ValueError(f"{llm_provider}: {timeout_error}") from None
+
+            major_version = _opencode_cli_major_version(cli_path)
             command = [
                 cli_path,
                 "run",
@@ -789,10 +863,12 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 # 噪音、进度绘制带进脚本正文。
                 "--format",
                 "json",
-                # 关闭外部插件；OPENCODE_PERMISSION 再禁止全部工具，保证
-                # 普通脚本生成不会触发文件、命令、MCP 或插件行为。
-                "--pure",
             ]
+            if not (major_version is not None and major_version >= 2):
+                # 1.x 用 --pure 关闭外部插件；2.x 已移除该 flag（传参会以
+                # "Unrecognized flag: --pure" 退出），工具隔离改由下面经
+                # OPENCODE_CONFIG_CONTENT 注入的 deny-all 权限承担。
+                command.append("--pure")
             # 模型名留空时沿用 OpenCode 自己的默认模型，避免硬编码一个
             # 用户环境中可能不存在的 provider/model 引用。
             if model_name:
@@ -802,7 +878,8 @@ def _generate_response(prompt: str, app_config=None) -> str:
             # 同时规避 Windows 上 .cmd shim 对多行参数的截断。固定的写作系统
             # 提示拼在最前面，抵消 OpenCode 编码 agent 系统提示对文案生成的干扰。
             prompt_input = f"{OPENCODE_SYSTEM_PROMPT}\n\n{prompt}"
-            cli_env = {**os.environ, "OPENCODE_PERMISSION": OPENCODE_PERMISSION_CONFIG}
+            cli_env = {**os.environ}
+            _opencode_permission_env(cli_env, major_version)
 
             logger.info(
                 f"invoking opencode cli, model: {model_name or 'opencode default'}"
@@ -863,9 +940,21 @@ def _generate_response(prompt: str, app_config=None) -> str:
                     f'"{error_message[:500]}"'
                 )
 
-            if completed.returncode != 0:
+            if completed.returncode != 0 or not parsed_event:
+                # 2.x 的参数错误把 usage 与 ERROR 文本一起写出（可能以退出码
+                # 0 结束），因此升级提示需要在退出码判定之前匹配两种措辞。
                 detail = (completed.stderr or "").strip() or stdout.strip()
                 lowered = detail.lower()
+                if "unrecognized flag" in lowered or (
+                    "unrecognized option" in lowered
+                ):
+                    raise Exception(
+                        f"[{llm_provider}] the installed opencode CLI rejected "
+                        f"the required isolation flags (OpenCode 2.x removed "
+                        f"--pure and changed its command-line interface); "
+                        f"upgrade OpenCode to {OPENCODE_MIN_CLI_VERSION}+ "
+                        f"(1.x) or 2.0+ (2.x) and retry: {detail[:300]}"
+                    )
                 if "unknown" in lowered and (
                     "argument" in lowered or "option" in lowered
                 ):
@@ -874,6 +963,9 @@ def _generate_response(prompt: str, app_config=None) -> str:
                         f"support the required flags; upgrade to "
                         f"{OPENCODE_MIN_CLI_VERSION} or newer: {detail[:300]}"
                     )
+
+            if completed.returncode != 0:
+                detail = (completed.stderr or "").strip() or stdout.strip()
                 raise Exception(
                     f"[{llm_provider}] opencode cli exited with code "
                     f"{completed.returncode}: {detail[:500]}"

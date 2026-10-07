@@ -2,7 +2,13 @@ import json
 import os
 import sys
 import tempfile
-import tomllib
+
+try:
+    import tomllib as _tomllib_mod
+except ImportError:
+    import tomli as _tomllib_mod
+sys.modules.setdefault("tomllib", _tomllib_mod)
+
 import types
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -790,7 +796,7 @@ class TestLiteLLMProvider(unittest.TestCase):
     def test_example_config_does_not_duplicate_registry_defaults(self):
         """示例配置只保存用户覆盖值，默认模型和地址由 Registry 唯一维护。"""
         config_path = Path(__file__).parent.parent.parent / "config.example.toml"
-        app_config = tomllib.loads(config_path.read_text(encoding="utf-8"))["app"]
+        app_config = _tomllib_mod.loads(config_path.read_text(encoding="utf-8"))["app"]
 
         for provider in LLM_PROVIDER_REGISTRY:
             if provider.default_model:
@@ -2280,10 +2286,12 @@ class TestOpenCodeCliProvider(unittest.TestCase):
         config.app["opencode_model_name"] = ""
         config.app["opencode_cli_path"] = ""
         config.app["opencode_timeout"] = ""
+        llm._opencode_cli_major_version.cache_clear()
 
     def tearDown(self):
         config.app.clear()
         config.app.update(self.original_app_config)
+        llm._opencode_cli_major_version.cache_clear()
 
     @staticmethod
     def _completed(stdout="", stderr="", returncode=0):
@@ -2402,6 +2410,114 @@ class TestOpenCodeCliProvider(unittest.TestCase):
             llm.OPENCODE_PERMISSION_CONFIG,
         )
 
+    def test_v2_cli_drops_pure_and_injects_permissions_via_config_content(self):
+        """OpenCode 2.x 移除了 --pure 与 OPENCODE_PERMISSION（2.0.24 实测：
+        传 --pure 以 "Unrecognized flag" 退出）：改经 OPENCODE_CONFIG_CONTENT
+        注入同样的 deny-all 权限，命令行不再携带 --pure。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        command = run.call_args.args[0]
+        self.assertNotIn("--pure", command)
+        env = run.call_args.kwargs["env"]
+        self.assertNotIn("OPENCODE_PERMISSION", env)
+        self.assertEqual(
+            env.get("OPENCODE_CONFIG_CONTENT"), llm.OPENCODE_PERMISSION_CONFIG
+        )
+
+    def test_v2_merges_permissions_into_existing_config_content(self):
+        """用户已设置 OPENCODE_CONFIG_CONTENT 时按 JSON 对象合并：其余键
+        保留，权限键以 deny-all 为准。"""
+        existing = json.dumps({"provider": {"openai": {"options": {}}}})
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": existing}),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        merged = json.loads(run.call_args.kwargs["env"]["OPENCODE_CONFIG_CONTENT"])
+        self.assertIn("provider", merged)
+        self.assertEqual(merged["permission"], {"*": "deny"})
+
+    def test_v2_keeps_unparseable_config_content(self):
+        """用户的 OPENCODE_CONFIG_CONTENT 解析不成 JSON 对象时保持原样，
+        不覆盖用户显式提供的配置（deny-all 注入被跳过并记录告警）。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": "not json"}),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        env = run.call_args.kwargs["env"]
+        self.assertEqual(env.get("OPENCODE_CONFIG_CONTENT"), "not json")
+
+    def test_version_detection_failure_falls_back_to_v1_invocation(self):
+        """版本无法识别时按 1.x 的已验证行为处理（--pure + OPENCODE_PERMISSION）；
+        若 CLI 实际是 2.x，会以 Unrecognized flag 退出并由错误处理转成提示。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=None),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        command = run.call_args.args[0]
+        self.assertIn("--pure", command)
+        self.assertEqual(
+            run.call_args.kwargs["env"].get("OPENCODE_PERMISSION"),
+            llm.OPENCODE_PERMISSION_CONFIG,
+        )
+
+    def test_major_version_is_parsed_from_version_output(self):
+        """1.18.x 输出 "1.18.34"，2.x 输出 "opencode v2.0.24"；无法执行或
+        超时时返回 None。"""
+        for version_output, expected in [
+            ("1.18.34", 1),
+            ("opencode v2.0.24", 2),
+            ("opencode 1.18.35", 1),
+        ]:
+            with self.subTest(version_output=version_output):
+                llm._opencode_cli_major_version.cache_clear()
+                with patch.object(
+                    llm.subprocess,
+                    "run",
+                    return_value=self._completed(stdout=version_output),
+                ):
+                    self.assertEqual(
+                        llm._opencode_cli_major_version("opencode"), expected
+                    )
+        llm._opencode_cli_major_version.cache_clear()
+        with patch.object(
+            llm.subprocess,
+            "run",
+            side_effect=llm.subprocess.TimeoutExpired(cmd="opencode", timeout=30),
+        ):
+            self.assertIsNone(llm._opencode_cli_major_version("opencode"))
+
     def test_provider_spec_requires_no_key_or_base_url(self):
         """Registry 声明：无 Key、无 Base URL，凭证始终留在 OpenCode 一侧。"""
         provider = get_llm_provider("opencode")
@@ -2479,6 +2595,45 @@ class TestOpenCodeCliProvider(unittest.TestCase):
             response = llm._generate_response("write something")
         self.assertIn("upgrade", response.lower())
         self.assertIn(llm.OPENCODE_MIN_CLI_VERSION, response)
+
+    def test_unrecognized_flag_reports_upgrade_hint(self):
+        """OpenCode 2.x 对未识别 flag 输出 "Unrecognized flag"，应转成
+        可操作的升级提示而不是丢出裸 stderr。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=None),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(
+                    stderr="ERROR\n  Unrecognized flag: --pure in command opencode run",
+                    returncode=1,
+                ),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("upgrade", response.lower())
+        self.assertIn(llm.OPENCODE_MIN_CLI_VERSION, response)
+
+    def test_unrecognized_flag_on_zero_exit_with_usage_is_caught(self):
+        """2.x 把 usage 与 ERROR 文本写在一起、可能以退出码 0 结束：无事件
+        输出时同样要匹配升级提示，而不是丢出 invalid response。"""
+        stdout = (
+            "DESCRIPTION\n  Run OpenCode with a message\n"
+            "ERROR\n  Unrecognized flag: --pure in command opencode run\n"
+        )
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=None),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=stdout, returncode=0),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("upgrade", response.lower())
+        self.assertIn("Unrecognized flag", response)
 
     def test_nonzero_exit_reports_exit_code_and_stderr(self):
         with (
