@@ -13,7 +13,7 @@ from app.models.schema import VideoParams
 from app.services import task, voice
 
 
-@pytest.mark.parametrize("rate,expected", [(0.8, 0.8), (1.2, 1.2), (0.5, 0.7), (2.0, 1.2), (1.0, None), (None, None)])
+@pytest.mark.parametrize("rate,expected", [(0.25, 0.25), (0.5, 0.5), (0.8, 0.8), (1.2, 1.2), (1.5, 1.5), (2.0, 2.0), (4.0, 4.0), (1.0, None), (None, None)])
 def test_selected_rate_reaches_real_elevenlabs_http_transport(tmp_path, rate, expected):
     if not shutil.which("ffmpeg"):
         pytest.skip("native FFmpeg required")
@@ -53,3 +53,21 @@ def test_selected_rate_reaches_real_elevenlabs_http_transport(tmp_path, rate, ex
         server.server_close()
         thread.join(5)
         assert not thread.is_alive()
+
+
+@pytest.mark.parametrize("rate", [0.24, 4.01, 0.0, -1.0, float("nan"), float("inf"), "invalid"])
+def test_unsupported_rate_is_reported_without_a_paid_request(tmp_path, rate):
+    with patch.dict(config.elevenlabs, {"api_key": "fixture-key"}), patch.object(voice.requests, "post") as post, patch.object(voice.logger, "error") as error:
+        assert voice.elevenlabs_tts("Coffee", "fixture", str(tmp_path / "voice.mp3"), voice_rate=rate) is None
+    post.assert_not_called()
+    assert "0.25" in str(error.call_args)
+    assert "4.0" in str(error.call_args)
+
+
+@pytest.mark.parametrize("model", ["eleven_v4", "eleven_v4_turbo"])
+def test_v4_nonunity_speed_is_reported_without_a_paid_request(tmp_path, model):
+    with patch.dict(config.elevenlabs, {"api_key": "fixture-key", "model_id": model}), patch.object(voice.requests, "post") as post, patch.object(voice.logger, "error") as error:
+        assert voice.elevenlabs_tts("Coffee", "fixture", str(tmp_path / "voice.mp3"), voice_rate=1.5) is None
+    post.assert_not_called()
+    assert "does not support" in str(error.call_args)
+    assert model in str(error.call_args)

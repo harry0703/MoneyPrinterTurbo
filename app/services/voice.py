@@ -2381,15 +2381,19 @@ def elevenlabs_tts(
         },
     }
 
-    # ElevenLabs supports 0.7–1.2; do not silently ignore the shared UI/API rate.
-    # Preserve the existing unity request when no adjustment is requested.
+    # REST TTS supports 0.25–4.0 on v2/v3; 0.7–1.2 is the Agents limit.
+    # Reject unsupported selections instead of silently changing the UI/API rate.
     try:
-        requested_speed = float(voice_rate) if voice_rate is not None else 1.0
-    except (TypeError, ValueError):
-        requested_speed = 1.0
-    if not math.isfinite(requested_speed):
-        requested_speed = 1.0
-    speed = max(0.7, min(1.2, requested_speed))
+        speed = float(voice_rate) if voice_rate is not None else 1.0
+    except (TypeError, ValueError, OverflowError):
+        logger.error("ElevenLabs TTS speed must be a finite number from 0.25 to 4.0")
+        return None
+    if not math.isfinite(speed) or not 0.25 <= speed <= 4.0:
+        logger.error("ElevenLabs TTS speed must be a finite number from 0.25 to 4.0")
+        return None
+    if speed != 1.0 and model_id in {"eleven_v4", "eleven_v4_turbo"}:
+        logger.error(f"ElevenLabs model {model_id} does not support speech speed; use 1.0 or a v2/v3 model")
+        return None
     if speed != 1.0:
         payload["voice_settings"]["speed"] = speed
 
