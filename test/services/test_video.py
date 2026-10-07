@@ -635,7 +635,7 @@ class TestVideoService(unittest.TestCase):
             self.assertEqual(Path(output).read_bytes(), b"complete")
             self.assertEqual(
                 sorted(path.name for path in Path(temp_dir).iterdir()),
-                ["image.png.zoom-5.mp4"],
+                [Path(output).name],
             )
 
     def test_preprocess_video_rejects_material_outside_local_videos(self):

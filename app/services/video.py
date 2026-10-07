@@ -1,4 +1,5 @@
 import itertools
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 import io
 import math
@@ -710,8 +711,11 @@ def concat_video_clips_with_ffmpeg(
 def _sanitize_image_file(image_path: str) -> str:
     # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
     # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
-    image_root, _ = os.path.splitext(image_path)
-    sanitized_path = f"{image_root}.sanitized.png"
+    # Bound the intermediate basename while retaining complete source identity.
+    # Different extensions must not overwrite pixels, and valid long filenames
+    # must not exceed the filesystem's component limit after adding a suffix.
+    source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
+    sanitized_path = os.path.join(os.path.dirname(image_path), f"{source_identity}.sanitized.png")
 
     temp_path = ""
     try:
@@ -1861,7 +1865,11 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
             # The duration changes the rendered content, so it must be part of
             # the output identity. Different tasks may render the same image
             # concurrently; only publish a complete MP4 after MoviePy closes it.
-            video_file = f"{image_path}.zoom-{clip_duration}.mp4"
+            source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
+            duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
+            video_file = os.path.join(
+                os.path.dirname(image_path), f"{source_identity}.zoom-{duration_identity}.mp4"
+            )
             descriptor, temp_path = tempfile.mkstemp(
                 prefix=".image-zoom-",
                 suffix=".mp4",
