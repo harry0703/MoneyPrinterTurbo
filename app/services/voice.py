@@ -29,6 +29,7 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 from openai import OpenAI
 
 from app.config import config
+from app.services import bgm
 from app.utils import utils
 from app.utils.subtitle_writer import staged_subtitle_file
 
@@ -1681,6 +1682,7 @@ def siliconflow_tts(
                 sub_maker = ensure_legacy_submaker_fields(SubMaker())
 
                 try:
+                    _validate_remote_tts_audio(temporary_audio)
                     audio_clip = AudioFileClip(temporary_audio)
                     try:
                         audio_duration = audio_clip.duration
@@ -2257,6 +2259,19 @@ def get_minimax_voice_catalog(
     return catalog
 
 
+def _validate_remote_tts_audio(file_path: str) -> None:
+    """Decode accepted audio fully before replacing a successful narration.
+
+    MoviePy's duration/initial frame probe does not validate later MP3 frames.
+    Reuse the bounded, self-contained FFmpeg audio validator without following
+    playlists or resubmitting an already accepted speech request.
+    """
+    try:
+        bgm.validate_audio_file(file_path, timeout_seconds=120)
+    except (bgm.BgmUploadError, bgm.BgmServiceError) as exc:
+        raise ValueError("TTS returned audio that could not be fully decoded") from exc
+
+
 def _write_validated_minimax_audio(audio_bytes: bytes, voice_file: str) -> float:
     """
     将 MiniMax 音频原子写入目标路径，并返回时长。
@@ -2276,6 +2291,7 @@ def _write_validated_minimax_audio(audio_bytes: bytes, voice_file: str) -> float
         with open(temp_path, "wb") as output:
             output.write(audio_bytes)
 
+        _validate_remote_tts_audio(temp_path)
         audio_clip = AudioFileClip(temp_path)
         try:
             audio_duration = float(audio_clip.duration)
@@ -2494,6 +2510,7 @@ def elevenlabs_tts(
                 logger.error("ElevenLabs TTS returned no audio data")
                 return None
 
+            _validate_remote_tts_audio(temp_path)
             audio_clip = AudioFileClip(temp_path)
             try:
                 audio_duration = float(audio_clip.duration)
@@ -2604,6 +2621,7 @@ def _openai_compatible_tts(
                 temporary_audio = f.name
                 f.write(response.content)
 
+            _validate_remote_tts_audio(temporary_audio)
             audio_clip = AudioFileClip(temporary_audio)
             try:
                 audio_duration = audio_clip.duration
@@ -2878,6 +2896,7 @@ def fish_audio_tts(
                 temporary_audio = f.name
                 f.write(response.content)
 
+            _validate_remote_tts_audio(temporary_audio)
             audio_clip = AudioFileClip(temporary_audio)
             try:
                 audio_duration = audio_clip.duration

@@ -1,7 +1,7 @@
 """Kokoro 协议兼容和共享音频传输回归，不依赖外部服务。"""
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 import requests
@@ -72,6 +72,7 @@ def test_unspeakable_text_does_not_make_requests(monkeypatch, kokoro_config, tmp
     post.assert_not_called()
 
 
+@patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
 @pytest.mark.parametrize("provider", ["kokoro", "chatterbox"])
 @pytest.mark.parametrize("rate, expected", [(0.1, 0.25), (1.2, 1.2), (5, 4.0)])
 def test_transport_closes_audio_and_preserves_contract(monkeypatch, tmp_path, provider, rate, expected):
@@ -94,6 +95,7 @@ def test_transport_closes_audio_and_preserves_contract(monkeypatch, tmp_path, pr
     assert post.call_args.kwargs["headers"]["Authorization"] == "Bearer key"
 
 
+@patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
 @pytest.mark.parametrize("provider", ["kokoro", "chatterbox"])
 @pytest.mark.parametrize("failure", ["empty", "decode", "zero", "nan", "replace", "http", "timeout", "connect_timeout"])
 def test_failed_audio_never_overwrites_output(monkeypatch, tmp_path, provider, failure):
@@ -128,6 +130,7 @@ def test_failed_audio_never_overwrites_output(monkeypatch, tmp_path, provider, f
         clip.close.assert_called_once()
 
 
+@patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
 def test_preconnection_error_retries_successfully(monkeypatch, tmp_path):
     responses = [requests.ConnectTimeout(), SimpleNamespace(status_code=200, content=b"audio", text="")]
     post = Mock(side_effect=responses)
