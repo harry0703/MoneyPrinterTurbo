@@ -1876,7 +1876,9 @@ def get_all_fonts():
     for root, dirs, files in os.walk(font_dir):
         for file in files:
             if file.endswith(".ttf") or file.endswith(".ttc"):
-                fonts.append(file)
+                # Keep each option tied to its file, including nested fonts.
+                relative_path = os.path.relpath(os.path.join(root, file), font_dir)
+                fonts.append(relative_path.replace(os.sep, "/"))
     fonts.sort()
     return fonts
 
