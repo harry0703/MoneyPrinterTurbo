@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -890,6 +891,106 @@ class TestMptAgentSkill(unittest.TestCase):
             "utf-8",
             "piped output must be decoded as UTF-8, not the host locale",
         )
+
+    def test_dependency_sync_sets_default_lock_timeout_without_mutating_environment(self):
+        """默认值只作用于安装子进程，其他环境变量保持原样。"""
+        environment = {"UV_CACHE_DIR": "cache-fixture", "TOKEN": "private-fixture"}
+        with (
+            patch.dict(os.environ, environment, clear=True),
+            patch.object(
+                mpt_agent.subprocess, "run",
+                return_value=SimpleNamespace(returncode=0, stdout=""),
+            ) as run_mock,
+            redirect_stdout(io.StringIO()),
+        ):
+            mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+            child_env = run_mock.call_args.kwargs["env"]
+            self.assertEqual(child_env["UV_LOCK_TIMEOUT"], "1200")
+            self.assertEqual(child_env["UV_CACHE_DIR"], "cache-fixture")
+            self.assertEqual(child_env["TOKEN"], "private-fixture")
+            self.assertEqual(dict(os.environ), environment)
+            self.assertEqual(run_mock.call_args.args[0], ["uv", "sync", "--frozen"])
+
+    def test_dependency_sync_preserves_explicit_lock_timeout(self):
+        """用户自定义值包括空值或非法值，均交给 uv 自己校验。"""
+        for value in ("600", "2400", "0", "", "invalid"):
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"UV_LOCK_TIMEOUT": value}, clear=True),
+                patch.object(
+                    mpt_agent.subprocess, "run",
+                    return_value=SimpleNamespace(returncode=0, stdout=""),
+                ) as run_mock,
+                redirect_stdout(io.StringIO()),
+            ):
+                mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+                self.assertEqual(run_mock.call_args.kwargs["env"]["UV_LOCK_TIMEOUT"], value)
+                self.assertEqual(os.environ["UV_LOCK_TIMEOUT"], value)
+
+    def test_dependency_sync_passes_timeout_to_real_child_process(self):
+        """不模拟 subprocess，真实验证默认值与用户覆盖能够传给子进程。"""
+        for configured, expected in ((None, "1200"), ("2400", "2400")):
+            with self.subTest(configured=configured), patch.dict(os.environ), redirect_stdout(io.StringIO()):
+                os.environ.pop("UV_LOCK_TIMEOUT", None)
+                if configured is not None:
+                    os.environ["UV_LOCK_TIMEOUT"] = configured
+                mpt_agent.run_checked(
+                    [sys.executable, "-c", "import os,sys; assert os.environ['UV_LOCK_TIMEOUT'] == sys.argv[1]", expected],
+                    cwd=Path.cwd(),
+                )
+                self.assertEqual(os.environ.get("UV_LOCK_TIMEOUT"), configured)
+
+    def test_dependency_lock_timeout_has_actionable_hint_and_bounded_log_tail(self):
+        """复用用户实际报错；匹配完整输出，但仍仅输出末尾 30 行。"""
+        output = "Timeout (300s) when waiting for lock on pyarrow.lock\n"
+        output += "\n".join(f"line-{index}" for index in range(35))
+        stderr = io.StringIO()
+        with (
+            patch.object(
+                mpt_agent.subprocess, "run",
+                return_value=SimpleNamespace(returncode=1, stdout=output),
+            ),
+            redirect_stdout(io.StringIO()), redirect_stderr(stderr),
+            self.assertRaisesRegex(mpt_agent.SkillError, "exit code 1"),
+        ):
+            mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+        text = stderr.getvalue()
+        self.assertNotIn("line-0\n", text)
+        self.assertNotIn("line-4\n", text)
+        self.assertIn("line-5\n", text)
+        self.assertIn("line-34\n", text)
+        self.assertIn("Wait for other uv installs", text)
+        self.assertIn("UV_LOCK_TIMEOUT", text)
+        self.assertIn("uv 0.9.4", text)
+
+    def test_dependency_errors_do_not_misreport_cache_lock_timeout(self):
+        """网络超时、普通缓存错误和空输出不得被误诊为锁超时。"""
+        for output in ("HTTP request timeout", "Could not acquire lock: permission denied", "", None):
+            with (
+                self.subTest(output=output),
+                patch.object(
+                    mpt_agent.subprocess, "run",
+                    return_value=SimpleNamespace(returncode=2, stdout=output),
+                ),
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaisesRegex(mpt_agent.SkillError, "exit code 2"),
+            ):
+                mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+            self.assertNotIn("UV_LOCK_TIMEOUT", stderr.getvalue())
+
+    def test_dependency_lock_wait_alternative_wording_has_hint(self):
+        """兼容不同 uv 版本使用的 timed out 表述。"""
+        stderr = io.StringIO()
+        with (
+            patch.object(
+                mpt_agent.subprocess, "run",
+                return_value=SimpleNamespace(returncode=1, stdout="Timed out waiting for cache lock"),
+            ),
+            redirect_stdout(io.StringIO()), redirect_stderr(stderr),
+            self.assertRaises(mpt_agent.SkillError),
+        ):
+            mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+        self.assertIn("UV_LOCK_TIMEOUT", stderr.getvalue())
 
     def test_explicit_voice_is_not_overridden(self):
         self.assertTrue(

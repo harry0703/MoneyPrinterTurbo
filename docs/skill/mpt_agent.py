@@ -24,6 +24,7 @@ PROJECT_ARCHIVE_URL = (
 )
 DEFAULT_ROOT = Path.home() / "MoneyPrinterTurbo"
 DEFAULT_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
+DEFAULT_UV_LOCK_TIMEOUT = "1200"
 NEEDS_INPUT_EXIT_CODE = 10
 SUPPORTED_SOURCES = {
     "pexels",
@@ -616,11 +617,16 @@ def write_result_manifest(root: Path, payload: dict[str, object]) -> Path:
 
 
 def run_checked(command: list[str], *, cwd: Path) -> None:
-    """Run dependency sync quietly and show only the last 30 lines on failure."""
+    """延长首次安装的缓存锁等待，失败时保留末尾日志和排查提示。"""
     log("installing or verifying project dependencies with uv")
+    # 多个安装进程可能共享较大的 wheel 缓存；只给子进程设置默认值，
+    # 保留用户覆盖及其他环境变量，不改变当前进程或视频生成子进程的环境。
+    sync_env = os.environ.copy()
+    sync_env.setdefault("UV_LOCK_TIMEOUT", DEFAULT_UV_LOCK_TIMEOUT)
     result = subprocess.run(
         command,
         cwd=cwd,
+        env=sync_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -632,6 +638,14 @@ def run_checked(command: list[str], *, cwd: Path) -> None:
         output_tail = (result.stdout or "").splitlines()[-30:]
         if output_tail:
             print("\n".join(output_tail), file=sys.stderr)
+        output = (result.stdout or "").lower()
+        if "lock" in output and ("timeout" in output or "timed out" in output):
+            print(
+                "uv timed out waiting for a cache lock. Wait for other uv installs "
+                "to finish, then retry. If needed, increase UV_LOCK_TIMEOUT "
+                "(requires uv 0.9.4 or newer).",
+                file=sys.stderr,
+            )
         raise SkillError(f"dependency installation failed with exit code {result.returncode}")
 
 
