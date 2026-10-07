@@ -229,7 +229,11 @@ class RedisState(BaseState):
             return None
 
         task = {
-            key.decode("utf-8"): self._convert_to_original_type(value)
+            key.decode("utf-8"): (
+                value.decode("utf-8")
+                if key == b"task_id"
+                else self._convert_to_original_type(value)
+            )
             for key, value in task_data.items()
         }
         return task
