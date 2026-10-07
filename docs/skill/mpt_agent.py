@@ -335,12 +335,13 @@ def reuse_existing_llm_provider(config_path: Path) -> str:
 
 def selected_video_source(cli_args: list[str]) -> str:
     """Read the effective material source from forwarded CLI arguments."""
+    source = "pexels"
     for index, item in enumerate(cli_args):
         if item == "--video-source" and index + 1 < len(cli_args):
-            return cli_args[index + 1].strip().lower()
+            source = cli_args[index + 1].strip().lower()
         if item.startswith("--video-source="):
-            return item.split("=", 1)[1].strip().lower()
-    return "pexels"
+            source = item.split("=", 1)[1].strip().lower()
+    return source
 
 
 def has_cli_option(cli_args: list[str], option: str) -> bool:
