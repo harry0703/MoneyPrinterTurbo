@@ -46,6 +46,66 @@ oneapi_model_name = ""
 
 
 class TestMptAgentSkill(unittest.TestCase):
+    def test_repeated_source_options_follow_the_actual_cli_last_value(self):
+        import cli
+
+        for last_source in ("local", "pexels"):
+            first_source = "pexels" if last_source == "local" else "local"
+            for first_equals in (False, True):
+                for last_equals in (False, True):
+                    with self.subTest(last_source=last_source, first_equals=first_equals, last_equals=last_equals):
+                        forwarded = ([f"--video-source={first_source}"] if first_equals
+                                     else ["--video-source", first_source])
+                        forwarded += ([f"--video-source={last_source}"] if last_equals
+                                      else ["--video-source", last_source])
+                        if last_source == "local":
+                            forwarded += ["--video-materials", "./owned.mp4"]
+                        actual = cli.parse_args(["--video-subject", "owned topic", *forwarded])
+                        parsed = mpt_agent.parse_args(["--subject", "owned topic", "--", *forwarded])
+                        self.assertEqual(parsed.cli_args, forwarded)
+                        self.assertEqual(mpt_agent.selected_video_source(parsed.cli_args), actual.video_source)
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            config = Path(temp_dir) / "config.toml"
+                            text = '[app]\nllm_provider = "ollama"\n'
+                            if last_source == "pexels":
+                                text += 'pexels_api_keys = ["owned-fixture-key"]\n'
+                            config.write_text(text, encoding="utf-8")
+                            provider, missing = mpt_agent.missing_config(config, parsed.cli_args)
+                            self.assertEqual((provider, missing), ("ollama", []))
+
+    def test_helper_main_accepts_keyless_local_override_after_source_defaults(self):
+        for forwarded in (
+            ["--video-source", "pexels", "--video-source=local", "--video-materials", "./owned.mp4"],
+            ["--video-source=pexels", "--video-source", "local", "--video-materials", "./owned.mp4"],
+        ):
+            with self.subTest(forwarded=forwarded), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir) / "project"
+                self.create_project(root)
+                (root / "config.toml").write_text('[app]\nllm_provider = "ollama"\n', encoding="utf-8")
+                video, task, log = root / "owned.mp4", root / "task", root / "log"
+                video.write_bytes(b"owned output boundary fixture")
+                manifest = root / "result.json"
+                with (
+                    patch.dict(os.environ, {}, clear=True),
+                    patch.object(mpt_agent, "validate_pexels_config", wraps=mpt_agent.validate_pexels_config) as validation,
+                    patch.object(mpt_agent, "generate_video", return_value=([video], task, log, manifest)) as generate,
+                    patch.object(mpt_agent.urllib.request, "urlopen", side_effect=AssertionError("local source must not probe Pexels")),
+                    redirect_stdout(io.StringIO()),
+                ):
+                    status = mpt_agent.main(["--subject", "owned topic", "--root", str(root), "--", *forwarded])
+                self.assertEqual(status, 0)
+                validation.assert_called_once()
+                generate.assert_called_once_with(root.resolve(), "owned topic", forwarded)
+
+    def test_source_option_default_and_single_value_controls(self):
+        import cli
+
+        for forwarded in ([], ["--video-source", "pexels"], ["--video-source=pexels"],
+                          ["--video-source", "local", "--video-materials", "./owned.mp4"]):
+            with self.subTest(forwarded=forwarded):
+                actual = cli.parse_args(["--video-subject", "owned topic", *forwarded])
+                self.assertEqual(mpt_agent.selected_video_source(forwarded), actual.video_source)
+
     def create_project(self, root: Path) -> None:
         """创建足够完成安装和配置检查的最小项目结构。"""
         root.mkdir()
