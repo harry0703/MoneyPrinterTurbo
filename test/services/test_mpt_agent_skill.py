@@ -63,6 +63,33 @@ class TestMptAgentSkill(unittest.TestCase):
         def __exit__(self, exc_type, exc_value, traceback):
             return False
 
+    def test_toml_literal_provider_and_multiline_key_arrays(self):
+        # These are valid TOML configurations understood by the backend loader.
+        for text in (
+            "[app]\nllm_provider = 'ollama'\npexels_api_keys = [\n 'fixture#key', # comment\n]\n",
+            '[app]\n"llm_provider" = "ollama"\npexels_api_keys = ["fixture#key"]\n',
+        ):
+            with self.subTest(text=text), tempfile.TemporaryDirectory() as directory:
+                config_path = Path(directory) / "config.toml"
+                config_path.write_text(text, encoding="utf-8")
+                with patch.dict(os.environ, {}, clear=True):
+                    self.assertEqual(mpt_agent.reuse_existing_llm_provider(config_path), "ollama")
+                    self.assertEqual(mpt_agent.missing_config(config_path, ["--video-source", "local", "--video-materials", directory]), ("ollama", []))
+                    with patch.object(mpt_agent, "_validate_pexels_key", return_value="valid") as validate:
+                        self.assertTrue(mpt_agent.validate_pexels_config(config_path, []))
+                    validate.assert_called_once_with("fixture#key")
+                self.assertEqual(config_path.read_text(encoding="utf-8"), text)
+
+    def test_config_reader_uses_app_table_not_unrelated_provider_fields(self):
+        text = "[other]\nllm_provider = 'moonshot'\n[app]\nllm_provider = 'ollama'\n"
+        self.assertEqual(mpt_agent._plain_config_value(text, "llm_provider"), "ollama")
+
+    def test_config_reader_reports_invalid_toml_without_echoing_contents(self):
+        with self.assertRaises(mpt_agent.SkillError) as error:
+            mpt_agent._plain_config_value("[app]\nllm_provider = 'fixture\n", "llm_provider")
+        self.assertNotIn("fixture", str(error.exception))
+        self.assertIn("TOML", str(error.exception))
+
     def test_skill_runs_helper_from_its_working_directory(self):
         """确保 Windows Agent 不会在命令中嵌入易被破坏的绝对路径。"""
         text = SKILL_DOCUMENT.read_text(encoding="utf-8")
