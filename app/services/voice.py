@@ -1790,6 +1790,9 @@ def azure_tts_v2(
         return 0
 
     for i in range(3):
+        temporary_audio = None
+        audio_config = None
+        speech_synthesizer = None
         try:
             logger.info(
                 f"start, voice name: {voice_name}, rate: {voice_rate}, try: {i + 1}"
@@ -1820,9 +1823,15 @@ def azure_tts_v2(
                 logger.error("Azure speech key or region is not set")
                 return None
 
-            audio_config = speechsdk.audio.AudioOutputConfig(
-                filename=voice_file, use_default_speaker=True
+            # File and default-speaker output are mutually exclusive SDK modes.
+            # Let each attempt own a private file, never the last good export.
+            ensure_file_path_exists(voice_file)
+            descriptor, temporary_audio = tempfile.mkstemp(
+                prefix=".azure-tts-", suffix=".mp3",
+                dir=os.path.dirname(os.path.abspath(voice_file)),
             )
+            os.close(descriptor)
+            audio_config = speechsdk.audio.AudioOutputConfig(filename=temporary_audio)
             speech_config = speechsdk.SpeechConfig(
                 subscription=speech_key, region=service_region
             )
@@ -1848,6 +1857,15 @@ def azure_tts_v2(
             # 正式生成都会按 WebUI/API 传入的 voice_rate 调整语速。
             result = speech_synthesizer.speak_ssml_async(ssml).get()
             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                if os.path.getsize(temporary_audio) <= 0:
+                    logger.error("Azure completed without audio; preserve the previous export")
+                    return None
+                # Release SDK file-output owners before publication, including
+                # on Windows where an open handle can prevent replacement.
+                speech_synthesizer = None
+                audio_config = None
+                os.replace(temporary_audio, voice_file)
+                temporary_audio = None
                 logger.success(f"azure v2 speech synthesis succeeded: {voice_file}")
                 return sub_maker
             elif result.reason == speechsdk.ResultReason.Canceled:
@@ -1862,6 +1880,18 @@ def azure_tts_v2(
             logger.info(f"completed, output file: {voice_file}")
         except Exception as e:
             logger.error(f"failed, error: {str(e)}")
+        finally:
+            # Exceptions/cancellation can also leave the SDK output owner alive.
+            # Drop all file owners before attempting to remove its staged file.
+            speech_synthesizer = None
+            audio_config = None
+            if temporary_audio is not None:
+                try:
+                    os.remove(temporary_audio)
+                except FileNotFoundError:
+                    pass
+                except OSError as exc:
+                    logger.warning(f"failed to remove staged Azure audio: {exc}")
     return None
 
 
