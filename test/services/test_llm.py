@@ -414,6 +414,13 @@ class TestLiteLLMProvider(unittest.TestCase):
             "https://y-api.bestvirtualgoods.com/app/keys",
         )
         self.assertEqual(yapi.model_docs_url, "https://y-api.bestvirtualgoods.com/models")
+        opper = get_llm_provider("opper")
+        self.assertEqual(opper.default_model, "gpt-5.4-mini")
+        self.assertEqual(opper.default_base_url, "https://api.opper.ai/v3/compat")
+        self.assertEqual(opper.adapter, "openai_compatible")
+        self.assertTrue(opper.requires_api_key)
+        self.assertEqual(opper.api_key_url, "https://platform.opper.ai")
+        self.assertEqual(opper.model_docs_url, "https://opper.ai/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -487,6 +494,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "requesty",
                 "futureinfra",
                 "yapi",
+                "opper",
                 "ollama",
                 "claude_code",
                 "oneapi",
