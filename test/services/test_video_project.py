@@ -582,3 +582,90 @@ def test_dash_external_segments_cannot_escape_source_snapshot(native):
         project.render()
     assert project.status()["failed_stage"] == "opening:scene"
     assert project.metadata()["last_successful_export"] is None
+
+
+@pytest.mark.parametrize("rounded", [False, True])
+@pytest.mark.parametrize("color", ["#ff0000", "red", "rgb(255,0,0)"])
+def test_final_subtitle_background_preserves_supported_color(tmp_path, rounded, color):
+    import numpy as np
+    from moviepy import VideoFileClip
+
+    from app.config import config
+    from app.models.schema import VideoAspect, VideoParams
+    from app.services import video
+    from app.utils.subtitle_writer import write_subtitle_file
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("native FFmpeg executable is unavailable")
+    font = Path(config.root_dir) / "resource/fonts/Charm-Regular.ttf"
+    if not font.is_file():
+        pytest.skip("native caption font is unavailable")
+
+    base = [ffmpeg, "-nostdin", "-v", "error", "-y", "-threads", "1"]
+    media = tmp_path / "white.mp4"
+    audio = tmp_path / "narration.wav"
+    subprocess.run([
+        *base, "-f", "lavfi", "-i", "color=c=white:s=1080x1080:r=10:d=0.4",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(media),
+    ], check=True, timeout=30)
+    subprocess.run([
+        *base, "-f", "lavfi", "-i", "sine=frequency=220:duration=0.4",
+        "-ar", "44100", str(audio),
+    ], check=True, timeout=30)
+    artifact = tmp_path / "accepted.srt"
+    assert write_subtitle_file(
+        str(artifact), "1\n00:00:00,000 --> 00:00:00,400\nOwned caption\n\n"
+    )
+    output = tmp_path / "captioned.mp4"
+    params = VideoParams(
+        video_subject="owned-color", video_aspect=VideoAspect.square,
+        subtitle_enabled=True, subtitle_position="center",
+        font_name="Charm-Regular.ttf", font_size=36,
+        text_fore_color="#ffffff", stroke_width=0,
+        text_background_color=color, rounded_subtitle_background=rounded,
+        bgm_type="", bgm_volume=0, voice_volume=1, n_threads=1,
+    )
+    previous = config.app.copy()
+    try:
+        config.app.update({"video_codec": "libx264", "video_clip_concurrency": 1})
+        video.validate_subtitle_colors(params)
+        assert video.generate_video(
+            str(media), str(audio), str(artifact), str(output), params
+        )
+        with VideoFileClip(str(output), audio=False) as rendered:
+            assert 0.3 <= rendered.duration <= 0.5
+            frame = rendered.get_frame(0.2).astype(np.int16)
+            red = (
+                (frame[:, :, 0] > 80)
+                & (frame[:, :, 0] > frame[:, :, 1] + 40)
+                & (frame[:, :, 0] > frame[:, :, 2] + 40)
+            )
+            assert int(red.sum()) > 1000
+    finally:
+        config.app.clear()
+        config.app.update(previous)
+
+
+@pytest.mark.parametrize("color,expected", [
+    ("red", (255, 0, 0)),
+    ("#f00", (255, 0, 0)),
+    ("rgb(255,0,0)", (255, 0, 0)),
+    ("hsl(0,100%,50%)", (255, 0, 0)),
+    ("#ff000080", (255, 0, 0)),
+    ("rgba(255,0,0,0)", (255, 0, 0)),
+    ("#abcd", (170, 187, 204)),
+    ("invalid-color", (0, 0, 0)),
+])
+def test_subtitle_background_retains_color_and_explicit_opacity(color, expected):
+    from app.services import video
+
+    clip = video._rounded_subtitle_background_clip(
+        width=32, height=32, color=color, alpha=140, radius=8
+    )
+    try:
+        assert tuple(clip.get_frame(0)[16, 16]) == expected
+        assert clip.mask.get_frame(0)[16, 16] == pytest.approx(140 / 255)
+        assert clip.mask.get_frame(0)[0, 0] == 0
+    finally:
+        video.close_clip(clip)
