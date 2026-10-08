@@ -2032,20 +2032,21 @@ def _render_generation_task_snapshot(task_id, task):
         _render_generation_logs(task_id)
         return
 
+    video_files = task.get("videos") or []
     if state == const.TASK_STATE_FAILED:
         error = str(task.get("error") or "").strip()
         message = tr("Video Generation Failed")
         st.error(f"{message}: {error}" if error else message)
-        _render_generation_logs(task_id)
-        return
-
-    video_files = task.get("videos") or []
-    if state != const.TASK_STATE_COMPLETE or not video_files:
+        if not video_files:
+            _render_generation_logs(task_id)
+            return
+    elif state != const.TASK_STATE_COMPLETE or not video_files:
         st.error(tr("Video Generation Failed"))
         _render_generation_logs(task_id)
         return
 
-    st.success(tr("Video Generation Completed"))
+    if state == const.TASK_STATE_COMPLETE:
+        st.success(tr("Video Generation Completed"))
     for warning in task.get("warnings") or []:
         if isinstance(warning, Mapping) and warning.get("code") == "batch_materials_reused":
             st.warning(
@@ -2118,7 +2119,10 @@ def _render_generation_task_snapshot(task_id, task):
         )
 
     _render_generation_logs(task_id)
-    if st.session_state.get("handled_generation_task_id") != task_id:
+    if (
+        state == const.TASK_STATE_COMPLETE
+        and st.session_state.get("handled_generation_task_id") != task_id
+    ):
         # Fragment 可能重复渲染同一个完成任务。无论是否开启自动打开目录，
         # 每个任务都只处理一次完成事件，避免重复弹出资源管理器或重复写入日志。
         st.session_state["handled_generation_task_id"] = task_id
