@@ -582,3 +582,61 @@ def test_dash_external_segments_cannot_escape_source_snapshot(native):
         project.render()
     assert project.status()["failed_stage"] == "opening:scene"
     assert project.metadata()["last_successful_export"] is None
+
+
+@pytest.mark.parametrize("text", [
+    "Jump to the recording.",
+    "Jump to 00:01:23,456 in the recording.",
+    "Show 00:01:23,456 --> 00:01:25,456 in the log.",
+])
+def test_final_caption_render_keeps_body_timecodes_and_duration(tmp_path, text):
+    from moviepy import VideoFileClip
+
+    from app.config import config
+    from app.models.schema import VideoAspect, VideoParams
+    from app.services import video
+    from app.utils.subtitle_writer import write_subtitle_file
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("native FFmpeg executable is unavailable")
+    font = Path(config.root_dir) / "resource/fonts/Charm-Regular.ttf"
+    if not font.is_file():
+        pytest.skip("native caption font is unavailable")
+
+    base = [ffmpeg, "-nostdin", "-v", "error", "-y", "-threads", "1"]
+    media = tmp_path / "white.mp4"
+    audio = tmp_path / "narration.wav"
+    subprocess.run([
+        *base, "-f", "lavfi", "-i", "color=c=white:s=1080x1080:r=10:d=0.8",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(media),
+    ], check=True, timeout=30)
+    subprocess.run([
+        *base, "-f", "lavfi", "-i", "sine=frequency=220:duration=0.8",
+        "-ar", "44100", str(audio),
+    ], check=True, timeout=30)
+    artifact = tmp_path / "accepted.srt"
+    assert write_subtitle_file(
+        str(artifact), "1\n00:00:00,100 --> 00:00:00,700\n" + text + "\n\n"
+    )
+    output = tmp_path / "captioned.mp4"
+    params = VideoParams(
+        video_subject="owned-caption", video_aspect=VideoAspect.square,
+        subtitle_enabled=True, subtitle_position="center",
+        font_name="Charm-Regular.ttf", font_size=36,
+        text_fore_color="#000000", stroke_width=0, text_background_color=False,
+        bgm_type="", bgm_volume=0, voice_volume=1, n_threads=1,
+    )
+    previous = config.app.copy()
+    try:
+        config.app.update({"video_codec": "libx264", "video_clip_concurrency": 1})
+        assert video.generate_video(
+            str(media), str(audio), str(artifact), str(output), params
+        )
+        with VideoFileClip(str(output), audio=False) as rendered:
+            assert 0.7 <= rendered.duration <= 0.9
+            frame = rendered.get_frame(0.4)
+            assert int((frame.mean(axis=2) < 180).sum()) > 100
+    finally:
+        config.app.clear()
+        config.app.update(previous)
