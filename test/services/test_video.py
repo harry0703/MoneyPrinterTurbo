@@ -857,7 +857,7 @@ class TestVideoService(unittest.TestCase):
             vd.os.path,
             "abspath",
             return_value=r"C:\Users\Test User's Videos\clip.mp4",
-        ):
+        ), patch.object(vd.os, "sep", "\\"):
             self.assertEqual(
                 vd._format_ffmpeg_concat_path(
                     r"C:\Users\Test User's Videos\clip.mp4"
