@@ -635,7 +635,7 @@ class TestVideoService(unittest.TestCase):
             self.assertEqual(Path(output).read_bytes(), b"complete")
             self.assertEqual(
                 sorted(path.name for path in Path(temp_dir).iterdir()),
-                ["image.png.zoom-5.mp4"],
+                [Path(output).name],
             )
 
     def test_preprocess_video_rejects_material_outside_local_videos(self):
@@ -1220,7 +1220,6 @@ class TestVideoService(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             output_file = os.path.join(temp_dir, "combined.mp4")
-            temp_clip = Path(temp_dir, "temp-clip-1.mp4")
             with (
                 patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()),
                 patch.object(vd, "_open_video_clip_quietly", return_value=FakeVideoClip()),
@@ -1241,7 +1240,7 @@ class TestVideoService(unittest.TestCase):
                         video_concat_mode=vd.VideoConcatMode.sequential,
                     )
 
-            self.assertFalse(temp_clip.exists())
+            self.assertFalse(list(Path(temp_dir).glob("temp-clip-*.mp4")))
 
     def test_combine_videos_cleans_failed_encoded_clip_and_reader(self):
         """A bad source must not strand a partial MP4 or an FFmpeg reader."""
@@ -1299,8 +1298,7 @@ class TestVideoService(unittest.TestCase):
 
             concat.assert_called_once()
             self.assertEqual(derived_clips[0].close_calls, 1)
-            self.assertFalse(Path(temp_dir, "temp-clip-1.mp4").exists())
-            self.assertFalse(Path(temp_dir, "temp-clip-2.mp4").exists())
+            self.assertFalse(list(Path(temp_dir).glob("temp-clip-*.mp4")))
 
     def test_combine_videos_skips_unreadable_source_when_good_clip_remains(self):
         """A stale corrupt cache clip must not discard healthy downloaded footage."""

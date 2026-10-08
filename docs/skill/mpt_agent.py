@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import urllib.error
 import urllib.request
 import uuid
@@ -24,6 +25,7 @@ PROJECT_ARCHIVE_URL = (
 )
 DEFAULT_ROOT = Path.home() / "MoneyPrinterTurbo"
 DEFAULT_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
+DEFAULT_UV_LOCK_TIMEOUT = "1200"
 NEEDS_INPUT_EXIT_CODE = 10
 SUPPORTED_SOURCES = {
     "pexels",
@@ -178,14 +180,20 @@ def ensure_config(root: Path) -> Path:
 
 
 def _plain_config_value(text: str, key: str) -> str:
-    """Read a simple top-level TOML value without printing its contents."""
-    match = re.search(rf"(?m)^{re.escape(key)}\s*=\s*(.*)$", text)
-    if not match:
-        return ""
-    value = match.group(1).split("#", 1)[0].strip()
-    if value.startswith('"') and value.endswith('"'):
-        return value[1:-1]
-    return value
+    """Read app settings with the same TOML syntax as the backend loader."""
+    try:
+        document = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        # Configuration can contain credentials; do not echo its source text.
+        raise SkillError("configuration is not valid TOML") from exc
+    settings = document.get("app", document)
+    if not isinstance(settings, dict):
+        raise SkillError("configuration app settings must be a TOML table")
+    value = settings.get(key, "")
+    # Existing readiness/list consumers expect an unquoted string or JSON array.
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False)
 
 
 def _replace_config_value(text: str, key: str, value: object) -> str:
@@ -334,12 +342,13 @@ def reuse_existing_llm_provider(config_path: Path) -> str:
 
 def selected_video_source(cli_args: list[str]) -> str:
     """Read the effective material source from forwarded CLI arguments."""
+    source = "pexels"
     for index, item in enumerate(cli_args):
         if item == "--video-source" and index + 1 < len(cli_args):
-            return cli_args[index + 1].strip().lower()
+            source = cli_args[index + 1].strip().lower()
         if item.startswith("--video-source="):
-            return item.split("=", 1)[1].strip().lower()
-    return "pexels"
+            source = item.split("=", 1)[1].strip().lower()
+    return source
 
 
 def has_cli_option(cli_args: list[str], option: str) -> bool:
@@ -365,6 +374,11 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
     source = selected_video_source(cli_args)
     if source not in SUPPORTED_SOURCES:
         raise SkillError(f"unsupported video source: {source}")
+    if source == "local" and not has_cli_option(cli_args, "--video-materials"):
+        raise SkillError(
+            "Local video source requires --video-materials pointing to a "
+            "directory of video files"
+        )
     if source == "volcengine_seedance":
         # 与运行时 Provider 保持完全一致的凭据优先级，避免 Skill 预检通过后
         # 主程序却读取了另一把 Key。ARK_API_KEY 语义过于宽泛，明确不再兼容。
@@ -611,11 +625,16 @@ def write_result_manifest(root: Path, payload: dict[str, object]) -> Path:
 
 
 def run_checked(command: list[str], *, cwd: Path) -> None:
-    """Run dependency sync quietly and show only the last 30 lines on failure."""
+    """延长首次安装的缓存锁等待，失败时保留末尾日志和排查提示。"""
     log("installing or verifying project dependencies with uv")
+    # 多个安装进程可能共享较大的 wheel 缓存；只给子进程设置默认值，
+    # 保留用户覆盖及其他环境变量，不改变当前进程或视频生成子进程的环境。
+    sync_env = os.environ.copy()
+    sync_env.setdefault("UV_LOCK_TIMEOUT", DEFAULT_UV_LOCK_TIMEOUT)
     result = subprocess.run(
         command,
         cwd=cwd,
+        env=sync_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -627,6 +646,14 @@ def run_checked(command: list[str], *, cwd: Path) -> None:
         output_tail = (result.stdout or "").splitlines()[-30:]
         if output_tail:
             print("\n".join(output_tail), file=sys.stderr)
+        output = (result.stdout or "").lower()
+        if "lock" in output and ("timeout" in output or "timed out" in output):
+            print(
+                "uv timed out waiting for a cache lock. Wait for other uv installs "
+                "to finish, then retry. If needed, increase UV_LOCK_TIMEOUT "
+                "(requires uv 0.9.4 or newer).",
+                file=sys.stderr,
+            )
         raise SkillError(f"dependency installation failed with exit code {result.returncode}")
 
 

@@ -398,8 +398,9 @@ class TestLoomLoomScriptBackend(unittest.TestCase):
                 completed,
             ]
         )
-        self.backend._clock = MagicMock(side_effect=[0, 0, 0, 0.1])
-        self.backend._sleep = MagicMock()
+        now = [0.0]
+        self.backend._clock = lambda: now[0]
+        self.backend._sleep = MagicMock(side_effect=lambda delay: now.__setitem__(0, now[0] + delay))
 
         result = self.backend.wait_for_run("run-1")
 
@@ -411,8 +412,9 @@ class TestLoomLoomScriptBackend(unittest.TestCase):
         completed = LoomLoomRun("run-1", "completed", 1, 1, 0, 0, "")
         self.backend.get_run = MagicMock(side_effect=[running, running, completed])
         self.backend.settings = replace(self.backend.settings, run_timeout_seconds=100)
-        self.backend._clock = MagicMock(side_effect=[0, 0, 0, 31, 32])
-        self.backend._sleep = MagicMock()
+        now = [0.0]
+        self.backend._clock = lambda: now[0]
+        self.backend._sleep = MagicMock(side_effect=lambda delay: now.__setitem__(0, now[0] + 31))
 
         with patch("app.services.loomloom.logger.info") as log_info:
             result = self.backend.wait_for_run("run-1")

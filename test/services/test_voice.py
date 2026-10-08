@@ -700,6 +700,7 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(getattr(sub_maker, "subs", []), ["小米语音合成测试", "第二句话"])
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_minimax_tts_uses_regional_endpoint_and_hex_audio(self):
         class _Response:
             status_code, text = 200, ""
@@ -716,7 +717,8 @@ class TestVoiceService(unittest.TestCase):
 
         captured = {}
 
-        def _post(url, json=None, headers=None, timeout=None):
+        def _post(url, json=None, headers=None, timeout=None, allow_redirects=True):
+            self.assertFalse(allow_redirects)
             captured.update(url=url, json=json, headers=headers, timeout=timeout)
             return _Response()
 
@@ -742,6 +744,7 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(captured["json"]["voice_setting"]["voice_id"], "male-qn-qingse")
         self.assertEqual(captured["json"]["audio_setting"]["format"], "mp3")
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_minimax_tts_reuses_cn_llm_key_and_endpoint(self):
         """TTS 未单独配置时，应复用同区域的 MiniMax LLM 凭证和地址。"""
         class _Response:
@@ -759,7 +762,8 @@ class TestVoiceService(unittest.TestCase):
 
         captured = {}
 
-        def _post(url, json=None, headers=None, timeout=None):
+        def _post(url, json=None, headers=None, timeout=None, allow_redirects=True):
+            self.assertFalse(allow_redirects)
             captured.update(url=url, headers=headers)
             return _Response()
 
@@ -859,6 +863,7 @@ class TestVoiceService(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "invalid api key"):
                 vs.get_minimax_voice_catalog(api_key="invalid-key")
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_minimax_tts_does_not_leave_invalid_audio_output(self):
         """响应音频无法解析时，不应覆盖已有文件或留下临时文件。"""
         class _Response:
@@ -926,6 +931,7 @@ class TestVoiceService(unittest.TestCase):
         with patch.object(vs.config, "chatterbox", {}):
             self.assertEqual(vs.get_chatterbox_voices(), ["chatterbox:default-Female"])
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_chatterbox_tts_posts_to_openai_compatible_endpoint(self):
         """Success path: POST /audio/speech, write audio, return legacy SubMaker."""
 
@@ -942,7 +948,8 @@ class TestVoiceService(unittest.TestCase):
 
         captured = {}
 
-        def _fake_post(url, json=None, headers=None, timeout=None):
+        def _fake_post(url, json=None, headers=None, timeout=None, allow_redirects=True):
+            self.assertFalse(allow_redirects)
             captured["url"] = url
             captured["json"] = json
             captured["headers"] = headers
@@ -1030,6 +1037,7 @@ class TestVoiceService(unittest.TestCase):
 
         return _BrokenClip
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_elevenlabs_tts_audio_clip_closed_on_duration_error(self):
         """AudioFileClip.close() must be called even when reading .duration raises."""
         close_calls: list = []
@@ -1066,6 +1074,7 @@ class TestVoiceService(unittest.TestCase):
         self.assertIsNone(result)
         self.assertTrue(close_calls, "AudioFileClip.close() was never called")
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_chatterbox_tts_audio_clip_closed_on_duration_error(self):
         """AudioFileClip.close() must be called even when reading .duration raises."""
         close_calls: list = []
@@ -1096,6 +1105,7 @@ class TestVoiceService(unittest.TestCase):
         self.assertIsNone(result)
         self.assertTrue(close_calls, "AudioFileClip.close() was never called")
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_fish_audio_tts_audio_clip_closed_on_duration_error(self):
         """AudioFileClip.close() must be called even when reading .duration raises."""
         close_calls: list = []
@@ -1499,6 +1509,7 @@ class TestElevenLabsVoice(unittest.TestCase):
         result = vs.get_elevenlabs_voices("fake-key")
         self.assertEqual(result, [])
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     @patch("app.services.voice.requests.post")
     @patch("app.services.voice.AudioFileClip")
     @patch("app.services.voice.config")
@@ -1522,6 +1533,7 @@ class TestElevenLabsVoice(unittest.TestCase):
             if os.path.exists(out_path):
                 os.remove(out_path)
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_elevenlabs_tts_rejects_oversize_audio_without_replacing_existing_file(self):
         """A paid 200 response can be much larger than usable speech."""
         response = SimpleNamespace(
@@ -1547,6 +1559,7 @@ class TestElevenLabsVoice(unittest.TestCase):
             self.assertEqual(post.call_count, 1)
             self.assertEqual(sorted(path.name for path in Path(tmp_dir).iterdir()), ["voice.mp3"])
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_elevenlabs_tts_decode_failure_preserves_existing_file(self):
         """A corrupt successful response must not publish a partial final MP3."""
         response = SimpleNamespace(
@@ -1641,6 +1654,7 @@ class TestElevenLabsVoice(unittest.TestCase):
                     )
 
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_siliconflow_subtitle_spans_full_audio_duration(self):
         """Last subtitle entry must end at the actual audio end, not truncated early.
 
@@ -1755,6 +1769,7 @@ class TestElevenLabsVoice(unittest.TestCase):
                     self.assertIsNone(result)
                     post.assert_called_once()
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_siliconflow_tts_rejects_invalid_success_audio(self):
         """HTTP 200 with corrupt audio must not become a fake 10-second success."""
         fake_response = SimpleNamespace(status_code=200, content=b"invalid mp3")
@@ -1777,6 +1792,7 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertIsNone(result)
         post.assert_called_once()
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_siliconflow_tts_invalid_audio_preserves_existing_narration(self):
         fake_response = SimpleNamespace(status_code=200, content=b"invalid mp3")
         with (
@@ -1799,6 +1815,7 @@ class TestElevenLabsVoice(unittest.TestCase):
             self.assertEqual(voice_file.read_bytes(), b"previous valid narration")
             self.assertEqual(list(Path(temp_dir).iterdir()), [voice_file])
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_siliconflow_tts_publishes_only_after_audio_validation(self):
         fake_response = SimpleNamespace(status_code=200, content=b"new mp3")
         with tempfile.TemporaryDirectory() as temp_dir:

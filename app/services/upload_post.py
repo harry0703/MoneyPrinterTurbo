@@ -206,6 +206,16 @@ class UploadPostService:
         # Generate the remote handle before POST: a lost response does not
         # prove that Upload-Post stopped publishing the received video.
         client_request_id = str(uuid4())
+        def unconfirmed_response(message: str) -> dict:
+            return {
+                "success": False,
+                "request_id": client_request_id,
+                "error": (
+                    f"{message}; upload outcome is unconfirmed; "
+                    f"check request_id {client_request_id} before submitting again"
+                ),
+            }
+
         try:
             with open(video_path, 'rb') as video_file:
                 files = {'video': video_file}
@@ -224,6 +234,11 @@ class UploadPostService:
                     # multipart 表单使用小写布尔字符串，且不能依赖 LLM 元数据
                     # 是否存在；只要发布到 YouTube，就显式传递用户的受众声明。
                     data.append(('selfDeclaredMadeForKids', str(made_for_kids).lower()))
+                    # Privacy is an account/user setting, independent of optional
+                    # generated titles and descriptions. Preserve queued overrides.
+                    data.append(('privacyStatus', (youtube_extra or {}).get(
+                        "privacyStatus", self.youtube_privacy_status
+                    )))
                     logger.info(f"YouTube audience declaration: made_for_kids={made_for_kids}")
 
                 if youtube_extra and has_youtube:
@@ -233,7 +248,6 @@ class UploadPostService:
                         data.append(('youtube_description', youtube_extra["youtube_description"]))
                     for tag in youtube_extra.get("tags", []):
                         data.append(('tags[]', tag))
-                    data.append(('privacyStatus', youtube_extra.get("privacyStatus", "public")))
                     data.append(('containsSyntheticMedia', "true"))
 
                 headers = {'Authorization': f'Apikey {self.api_key}'}
@@ -252,20 +266,16 @@ class UploadPostService:
                         "Upload-Post upload returned an unexpected redirect: "
                         f"status={response.status_code}"
                     )
-                    return {
-                        "success": False,
-                        "error": "Upload-Post upload returned an unexpected redirect",
-                    }
+                    return unconfirmed_response(
+                        "Upload-Post upload returned an unexpected redirect"
+                    )
 
                 response.raise_for_status()
                 try:
                     result = response.json()
                 except ValueError:
                     logger.error("Upload-Post returned invalid JSON to upload")
-                    return {
-                        "success": False,
-                        "error": "Upload-Post returned invalid JSON",
-                    }
+                    return unconfirmed_response("Upload-Post returned invalid JSON")
 
             # Release the source file before waiting for a remote background
             # upload, which can take much longer than the initial POST.
@@ -273,21 +283,16 @@ class UploadPostService:
                 result.get("success"), bool
             ):
                 logger.error("Upload-Post returned an invalid response to upload")
-                return {
-                    "success": False,
-                    "error": "Upload-Post returned an invalid response",
-                }
+                return unconfirmed_response("Upload-Post returned an invalid response")
 
             if result["success"]:
                 is_background = "results" not in result
                 if is_background:
                     request_id = result.get("request_id")
                     if not isinstance(request_id, str) or not request_id.strip():
-                        return {
-                            "success": False,
-                            "error": "Upload-Post started a background upload "
-                            "without a request_id",
-                        }
+                        return unconfirmed_response(
+                            "Upload-Post started a background upload without a request_id"
+                        )
                     logger.info(
                         "Upload-Post background upload accepted: "
                         f"request_id={request_id.strip()}"

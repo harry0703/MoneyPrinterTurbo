@@ -1,4 +1,5 @@
 import itertools
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 import io
 import math
@@ -27,7 +28,7 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 
 from app.config import config
 from app.models import const
@@ -115,6 +116,15 @@ _SUPPORTED_VIDEO_CODECS = (
     "h264_videotoolbox",
 )
 _runtime_disabled_video_codecs = set()
+# MoviePy pipes sRGB frames, and ffmpeg's default RGB→YUV matrix is BT.601 with no color tags,
+# while players and YouTube decode untagged HD as BT.709 and shift the colors. Convert with the
+# BT.709 matrix and tag the stream; setparams writes the tags the -color_* flags alone do not.
+# The pixel format stays the encoder's choice: MoviePy leaves odd-sized frames to libx264.
+_BT709_VIDEO_FILTER = (
+    "scale=out_color_matrix=bt709:out_range=tv,"
+    "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv"
+)
+_BT709_FFMPEG_PARAMS = ["-vf", _BT709_VIDEO_FILTER]
 
 
 def _get_subtitle_spring_scale(time_seconds: float, duration_seconds: float) -> float:
@@ -428,6 +438,7 @@ def _write_videofile_with_codec_fallback(
     硬件编码器是否可用不仅取决于 FFmpeg，还取决于显卡、驱动和当前运行环境。
     生成任务不能因为高级编码器不可用而整体失败，所以这里把回退集中处理。
     """
+    kwargs.setdefault("ffmpeg_params", _BT709_FFMPEG_PARAMS)
     if atomic_output:
         # Final videos can be downloaded by path while they are being rendered.
         # Keep both failed encodes and in-progress writes away from that path.
@@ -648,6 +659,8 @@ def concat_video_clips_with_ffmpeg(
             codec,
             "-threads",
             str(threads or 2),
+            "-vf",
+            _BT709_VIDEO_FILTER,
             "-pix_fmt",
             "yuv420p",
         ]
@@ -698,20 +711,53 @@ def concat_video_clips_with_ffmpeg(
 def _sanitize_image_file(image_path: str) -> str:
     # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
     # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
-    image_root, _ = os.path.splitext(image_path)
-    sanitized_path = f"{image_root}.sanitized.png"
+    # Bound the intermediate basename while retaining complete source identity.
+    # Different extensions must not overwrite pixels, and valid long filenames
+    # must not exceed the filesystem's component limit after adding a suffix.
+    source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
+    sanitized_path = os.path.join(os.path.dirname(image_path), f"{source_identity}.sanitized.png")
 
-    with Image.open(image_path) as image:
-        image.load()
-        # 统一导出为 PNG，避免 JPEG/PNG 不同元数据路径继续把坏块带过去。
-        cleaned_image = Image.new(image.mode, image.size)
-        cleaned_image.putdata(list(image.getdata()))
-        cleaned_image.save(sanitized_path)
+    temp_path = ""
+    try:
+        with Image.open(image_path) as image:
+            with ImageOps.exif_transpose(image) as upright:
+                upright.load()
+                # Strip metadata after applying the camera's orientation.
+                # Palette transparency belongs to pixels, not removable metadata.
+                mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
+                cleaned_image = upright.convert(mode)
+                cleaned_image.info.clear()
+                descriptor, temp_path = tempfile.mkstemp(
+                    prefix=".image-sanitize-", suffix=".png",
+                    dir=os.path.dirname(os.path.abspath(sanitized_path)),
+                )
+                os.close(descriptor)
+                cleaned_image.save(temp_path)
+                cleaned_image.close()
+        os.replace(temp_path, sanitized_path)
+        temp_path = ""
+    finally:
+        if temp_path:
+            delete_files(temp_path)
 
     return sanitized_path
 
 
 def _open_image_clip_with_fallback(image_path: str):
+    # MoviePy does not apply camera EXIF orientation while decoding an image.
+    # CMYK JPEG channels also must become RGB rather than an apparent alpha mask.
+    # Ordinary RGB inputs retain the direct path.
+    try:
+        with Image.open(image_path) as image:
+            orientation = image.getexif().get(274, 1)
+            image_mode = image.mode
+    except Exception:
+        orientation = 1
+        image_mode = None
+    if orientation in range(2, 9) or image_mode == "CMYK":
+        sanitized_path = _sanitize_image_file(image_path)
+        return ImageClip(sanitized_path), sanitized_path
+
     # 优先直接打开原始图片；如果因为损坏元数据失败，再尝试生成无元数据副本。
     try:
         return ImageClip(image_path), image_path
@@ -922,6 +968,9 @@ def combine_videos(
     used_video_paths: List[str] | None = None,
     progress_callback: Callable[[float], None] | None = None,
 ) -> str:
+    # Pydantic leaves this optional default as the string "random" unless
+    # explicitly provided. Normalize it once for all downstream enum access.
+    video_concat_mode = VideoConcatMode(video_concat_mode or VideoConcatMode.random)
     audio_clip = AudioFileClip(audio_file)
     try:
         # 这里只需要读取旁白音频时长来决定素材视频拼接长度；后续不会再使用
@@ -1057,24 +1106,27 @@ def combine_videos(
                 )
 
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
+            # Short footage and faster playback can leave less than one second.
+            # Keep the chosen transition inside the rendered clip's timeline.
+            transition_duration = min(1.0, clip.duration)
             if transition_value == VideoTransitionMode.fade_in.value:
-                clip = video_effects.fadein_transition(clip, 1)
+                clip = video_effects.fadein_transition(clip, transition_duration)
             elif transition_value == VideoTransitionMode.fade_out.value:
-                clip = video_effects.fadeout_transition(clip, 1)
+                clip = video_effects.fadeout_transition(clip, transition_duration)
             elif transition_value == VideoTransitionMode.slide_in.value:
-                clip = video_effects.slidein_transition(clip, 1, shuffle_side)
+                clip = video_effects.slidein_transition(clip, transition_duration, shuffle_side)
             elif transition_value == VideoTransitionMode.slide_out.value:
-                clip = video_effects.slideout_transition(clip, 1, shuffle_side)
+                clip = video_effects.slideout_transition(clip, transition_duration, shuffle_side)
             elif transition_value == VideoTransitionMode.zoom_in.value:
                 clip = video_effects.zoomin_transition(clip, 1)
             elif transition_value == VideoTransitionMode.zoom_out.value:
                 clip = video_effects.zoomout_transition(clip, 1)
             elif transition_value == VideoTransitionMode.shuffle.value:
                 transition_funcs = [
-                    lambda c: video_effects.fadein_transition(c, 1),
-                    lambda c: video_effects.fadeout_transition(c, 1),
-                    lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
-                    lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
+                    lambda c: video_effects.fadein_transition(c, transition_duration),
+                    lambda c: video_effects.fadeout_transition(c, transition_duration),
+                    lambda c: video_effects.slidein_transition(c, transition_duration, shuffle_side),
+                    lambda c: video_effects.slideout_transition(c, transition_duration, shuffle_side),
                     lambda c: video_effects.zoomin_transition(c, 1),
                     lambda c: video_effects.zoomout_transition(c, 1),
                 ]
@@ -1086,7 +1138,12 @@ def combine_videos(
 
             # Write each candidate clip to a unique temporary file. Threads must not
             # share the same output path.
-            clip_file = f"{output_dir}/temp-clip-{index + 1}.mp4"
+            # Distinct combinations can share a task/output directory. Reserve
+            # an owned path so their encoders and cleanup never share a clip.
+            with tempfile.NamedTemporaryFile(
+                dir=output_dir or ".", prefix="temp-clip-", suffix=".mp4", delete=False
+            ) as temporary_clip:
+                clip_file = temporary_clip.name
             _write_videofile_with_codec_fallback(
                 clip,
                 clip_file,
@@ -1222,6 +1279,18 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
     # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
     # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
+    if "\n" in text:
+        # Hard breaks in SRT text are separate layout lines. Measuring a token
+        # across a newline makes Pillow count both lines as one wide string,
+        # then character wrapping can split an otherwise fitting word.
+        wrapped_lines = [
+            wrap_text(line, max_width, font=font, fontsize=fontsize)
+            for line in text.split("\n")
+        ]
+        return "\n".join(line for line, _ in wrapped_lines), sum(
+            height for _, height in wrapped_lines
+        )
+
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
@@ -1386,6 +1455,25 @@ def _get_visible_center_position(
         logger.debug(f"failed to center subtitle text by visible mask: {str(exc)}")
 
     return x, y
+
+
+def validate_subtitle_colors(params: VideoParams) -> None:
+    """Reject colors Pillow cannot render, before generation services run."""
+    if not params.subtitle_enabled:
+        return
+    colors = [("text_fore_color", params.text_fore_color)]
+    # Rendering truncates the width to an integer; a zero-width stroke is unused.
+    if int(params.stroke_width) > 0:
+        colors.append(("stroke_color", params.stroke_color))
+    if isinstance(params.text_background_color, str):
+        colors.append(("text_background_color", params.text_background_color))
+    for field, value in colors:
+        if value is None:
+            continue
+        try:
+            ImageColor.getcolor(value, "RGBA")
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"invalid subtitle color: {field}") from exc
 
 
 def subtitle_colors_are_indistinguishable(params: VideoParams) -> bool:
@@ -1677,7 +1765,7 @@ def generate_video(
         voice_source_clip = clip_stack.enter_context(AudioFileClip(audio_path))
         video_clip = source_video_clip
         audio_clip = voice_source_clip.with_effects(
-            [afx.MultiplyVolume(params.voice_volume)]
+            [afx.MultiplyVolume(1.0 if params.voice_volume is None else params.voice_volume)]
         )
 
         def make_textclip(text):
@@ -1728,15 +1816,14 @@ def generate_video(
         bgm_mix_succeeded = True
         if bgm_file:
             try:
-                bgm_effects = [
-                    afx.MultiplyVolume(params.bgm_volume),
-                    afx.AudioFadeOut(3),
-                ]
+                bgm_effects = [afx.MultiplyVolume(params.bgm_volume)]
                 # 服务内解析的随机/自定义音乐可能比成片短，需要循环铺满；任务层
                 # 通过 override 传入的文件表示提供商已经完成时长适配。这里依据
                 # 文件来源决定是否循环，避免今后每增加一个提供商都修改名称白名单。
                 if bgm_file_override is None:
                     bgm_effects.append(afx.AudioLoop(duration=video_clip.duration))
+                # Fade the complete playback timeline, not each source loop.
+                bgm_effects.append(afx.AudioFadeOut(3))
                 bgm_source_clip = clip_stack.enter_context(AudioFileClip(bgm_file))
                 bgm_clip = bgm_source_clip.with_effects(bgm_effects)
                 audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
@@ -1780,7 +1867,8 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
     动态放大，避免静态画面在成片中显得呆板。渲染异常由调用方按各自
     素材源的失败约定处理。
     """
-    clip = ImageClip(image_path).with_duration(clip_duration).with_position("center")
+    clip, _ = _open_image_clip_with_fallback(image_path)
+    clip = clip.with_duration(clip_duration).with_position("center")
     temp_path = ""
     try:
         # Apply a zoom effect using the resize method.
@@ -1799,14 +1887,20 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
             # The duration changes the rendered content, so it must be part of
             # the output identity. Different tasks may render the same image
             # concurrently; only publish a complete MP4 after MoviePy closes it.
-            video_file = f"{image_path}.zoom-{clip_duration}.mp4"
+            source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
+            duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
+            video_file = os.path.join(
+                os.path.dirname(image_path), f"{source_identity}.zoom-{duration_identity}.mp4"
+            )
             descriptor, temp_path = tempfile.mkstemp(
                 prefix=".image-zoom-",
                 suffix=".mp4",
                 dir=os.path.dirname(os.path.abspath(video_file)),
             )
             os.close(descriptor)
-            final_clip.write_videofile(temp_path, fps=30, logger=None)
+            final_clip.write_videofile(
+                temp_path, fps=30, logger=None, ffmpeg_params=_BT709_FFMPEG_PARAMS
+            )
         finally:
             close_clip(final_clip)
         os.replace(temp_path, video_file)

@@ -62,6 +62,17 @@ jobs:
         # 测试，避免测试文件已存在但 CI 没有真正执行。
         run: uv run --no-sync python -X utf8 -m coverage run -m pytest -q test
 
+      # Keep the legacy suite's portable media backend selection unchanged.
+      # Native project rendering is a separate mandatory pass after installing
+      # system tools; append its coverage before enforcing the shared threshold.
+      - name: Install FFmpeg for native revision-rendering tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Run native revision-rendering tests
+        run: >-
+          uv run --no-sync python -X utf8 -m coverage run --append -m pytest -q
+          test/services/test_video_project.py
+
       - name: Report test coverage
         run: uv run --no-sync python -m coverage report
 

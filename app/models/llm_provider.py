@@ -318,6 +318,17 @@ LLM_PROVIDER_REGISTRY = (
         default_model="mimo-v2.5-pro",
         default_base_url="https://api.xiaomimimo.com/v1",
     ),
+    # 讯飞星辰 MaaS 的按量付费和 Token Plan 使用不同的 OpenAI 兼容地址，
+    # 两边的 API Key 不能混用。这里默认按量付费，Token Plan 用户在 Base URL
+    # 中改填 maas-token-api 的地址即可。
+    LLMProviderSpec(
+        "iflytek",
+        "iFlytek Spark (Astron MaaS)",
+        api_key_url="https://maas.xfyun.cn/",
+        default_model="spark-x2.5",
+        default_base_url="https://maas-api.cn-huabei-1.xf-yun.com/v2",
+        model_docs_url="https://maas.xfyun.cn/modelSquare",
+    ),
     # 聚合与统一接入平台
     LLMProviderSpec(
         "shengsuanyun",
@@ -427,6 +438,30 @@ LLM_PROVIDER_REGISTRY = (
         default_model="openai/gpt-5.4-mini",
         default_base_url="https://router.requesty.ai/v1",
         model_docs_url="https://www.requesty.ai/models",
+    ),
+    LLMProviderSpec(
+        "futureinfra",
+        "FutureInfra",
+        api_key_url="https://futureinfra.ai/console/?screen=ai-router",
+        default_model="openai/gpt-4o-mini",
+        default_base_url="https://futureinfra.ai/v1/ai",
+        model_docs_url="https://futureinfra.ai/ai/",
+    ),
+    LLMProviderSpec(
+        "yapi",
+        "Y-API",
+        api_key_url="https://y-api.bestvirtualgoods.com/app/keys",
+        default_model="deepseek/deepseek-v4-flash",
+        default_base_url="https://api.y-api.bestvirtualgoods.com/v1",
+        model_docs_url="https://y-api.bestvirtualgoods.com/models",
+    ),
+    LLMProviderSpec(
+        "opper",
+        "Opper",
+        api_key_url="https://platform.opper.ai",
+        default_model="gpt-5.4-mini",
+        default_base_url="https://api.opper.ai/v3/compat",
+        model_docs_url="https://opper.ai/models",
     ),
     # 本地部署与通用网关
     LLMProviderSpec(

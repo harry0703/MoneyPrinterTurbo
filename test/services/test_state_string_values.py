@@ -1,6 +1,22 @@
+import pytest
+
 from app.models import const
 from app.services.state import RedisState
 from test.services.test_state import _FakeRedis
+
+
+@pytest.mark.parametrize("task_id", ["2026", "None", "False", "[]", "'quoted'"])
+def test_redis_preserves_literal_looking_task_ids(task_id):
+    state = RedisState.__new__(RedisState)
+    state._redis = _FakeRedis([[]])
+    state.update_task(task_id, state=const.TASK_STATE_COMPLETE)
+    state._redis.batches = [[task_id.encode()]]
+
+    assert state.list_task_ids() == [task_id]
+    task = state.get_task(task_id)
+    assert task["task_id"] == task_id
+    assert state.get_task(task["task_id"]) == task
+    assert state.get_all_tasks(page=1, page_size=10) == ([task], 1)
 
 
 def test_redis_update_preserves_literal_looking_string_values():

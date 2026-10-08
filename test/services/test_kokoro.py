@@ -1,7 +1,7 @@
 """Kokoro 协议兼容和共享音频传输回归，不依赖外部服务。"""
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 import requests
@@ -72,6 +72,7 @@ def test_unspeakable_text_does_not_make_requests(monkeypatch, kokoro_config, tmp
     post.assert_not_called()
 
 
+@patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
 @pytest.mark.parametrize("provider", ["kokoro", "chatterbox"])
 @pytest.mark.parametrize("rate, expected", [(0.1, 0.25), (1.2, 1.2), (5, 4.0)])
 def test_transport_closes_audio_and_preserves_contract(monkeypatch, tmp_path, provider, rate, expected):
@@ -94,8 +95,9 @@ def test_transport_closes_audio_and_preserves_contract(monkeypatch, tmp_path, pr
     assert post.call_args.kwargs["headers"]["Authorization"] == "Bearer key"
 
 
+@patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
 @pytest.mark.parametrize("provider", ["kokoro", "chatterbox"])
-@pytest.mark.parametrize("failure", ["empty", "decode", "zero", "nan", "replace", "http", "timeout"])
+@pytest.mark.parametrize("failure", ["empty", "decode", "zero", "nan", "replace", "http", "timeout", "connect_timeout"])
 def test_failed_audio_never_overwrites_output(monkeypatch, tmp_path, provider, failure):
     """失败保留原文件，解码资源与临时文件均释放，包括 Windows 替换失败。"""
     output = tmp_path / "existing.mp3"
@@ -105,6 +107,8 @@ def test_failed_audio_never_overwrites_output(monkeypatch, tmp_path, provider, f
         content=b"" if failure == "empty" else b"invalid audio", text="Unavailable"))
     if failure == "timeout":
         post.side_effect = requests.Timeout()
+    elif failure == "connect_timeout":
+        post.side_effect = requests.ConnectTimeout()
     monkeypatch.setattr(voice.requests, "post", post)
     clip = Mock(duration=0 if failure == "zero" else float("nan") if failure == "nan" else 1)
     reader = Mock(return_value=clip)
@@ -118,14 +122,17 @@ def test_failed_audio_never_overwrites_output(monkeypatch, tmp_path, provider, f
     ) is None
     assert output.read_bytes() == b"previous audio"
     assert list(tmp_path.iterdir()) == [output]
-    expected_attempts = 3 if failure in {"http", "timeout"} else 1
+    # An unspecified request timeout may occur after synthesis was accepted;
+    # only a proven pre-connection timeout is safe to submit again.
+    expected_attempts = 3 if failure in {"http", "connect_timeout"} else 1
     assert post.call_count == expected_attempts
     if failure in {"zero", "nan", "replace"}:
         clip.close.assert_called_once()
 
 
-def test_transient_error_retries_successfully(monkeypatch, tmp_path):
-    responses = [requests.Timeout(), SimpleNamespace(status_code=200, content=b"audio", text="")]
+@patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
+def test_preconnection_error_retries_successfully(monkeypatch, tmp_path):
+    responses = [requests.ConnectTimeout(), SimpleNamespace(status_code=200, content=b"audio", text="")]
     post = Mock(side_effect=responses)
     monkeypatch.setattr(voice.requests, "post", post)
     monkeypatch.setattr(voice, "AudioFileClip", Mock(return_value=Mock(duration=1)))

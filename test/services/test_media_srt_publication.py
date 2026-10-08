@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services import subtitle, task, voice
+from app.utils import subtitle_writer
 
 
 CUE = '1\n00:00:00,000 --> 00:00:01,000\nOld transcript\n\n'
@@ -66,8 +67,6 @@ def test_failed_caption_write_preserves_complete_existing_srt(tmp_path, monkeypa
 
 
 def test_subtitle_cleanup_error_does_not_hide_primary_write_failure(tmp_path, monkeypatch):
-    from app.utils import subtitle_writer
-
     destination = tmp_path / 'subtitle.srt'
     destination.write_text(CUE, encoding='utf-8')
     staged = None
@@ -85,3 +84,55 @@ def test_subtitle_cleanup_error_does_not_hide_primary_write_failure(tmp_path, mo
     assert staged != str(destination)
     with builtins.open(staged, encoding='utf-8') as output:
         assert output.read() == 'partial captions'
+
+
+@pytest.mark.parametrize('body', ['', '   ', '\n\n', '1\n00:00:01,000\nText\n'])
+def test_body_without_a_cue_does_not_replace_published_captions(tmp_path, body):
+    destination = tmp_path / 'subtitle.srt'
+    destination.write_text(CUE, encoding='utf-8')
+
+    assert subtitle_writer.write_subtitle_file(str(destination), body) is False
+    assert destination.read_text(encoding='utf-8') == CUE
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_complete_body_is_still_published(tmp_path):
+    destination = tmp_path / 'subtitle.srt'
+    destination.write_text(CUE, encoding='utf-8')
+    replacement = '1\n00:00:00,000 --> 00:00:02,000\nReplacement\n\n'
+
+    assert subtitle_writer.write_subtitle_file(str(destination), replacement) is not False
+    assert destination.read_text(encoding='utf-8') == replacement
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+@pytest.mark.parametrize('script', ['---', '***', '___', '   ', '[pause: 3s]'])
+def test_correction_that_drops_every_cue_preserves_published_captions(tmp_path, script):
+    """A script that normalizes to nothing must not delete the transcript.
+
+    whisper ``correct()`` merges cues against the script. When the script
+    carries no line to merge against, the corrected body is empty; writing it
+    would delete the cues whisper already produced, so the original
+    transcription has to survive for ``task.generate_subtitle`` to publish.
+    """
+    destination = tmp_path / 'subtitle.srt'
+    destination.write_text(CUE, encoding='utf-8')
+
+    subtitle.correct(str(destination), script)
+
+    assert destination.read_text(encoding='utf-8') == CUE
+    assert len(subtitle.file_to_subtitles(str(destination))) == 1
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_correction_still_publishes_when_the_script_has_lines(tmp_path):
+    destination = tmp_path / 'subtitle.srt'
+    destination.write_text(CUE, encoding='utf-8')
+
+    subtitle.correct(str(destination), 'New transcript.')
+
+    published = destination.read_text(encoding='utf-8')
+    assert '-->' in published
+    assert 'New transcript' in published
+    assert 'Old transcript' not in published
+    assert list(tmp_path.iterdir()) == [destination]

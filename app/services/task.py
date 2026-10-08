@@ -3,6 +3,7 @@ import math
 import os
 import re
 import socket
+import tempfile
 import threading
 import time
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
@@ -89,6 +90,13 @@ _VIDEO_MUSIC_PROVIDERS = {
         "display_name": "ElevenLabs",
     },
 }
+
+
+_SUPPORTED_VIDEO_SOURCES = frozenset({
+    "pexels", "pixabay", "coverr", "local", "wavespeed",
+    "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
+    "loomloom", "openai_image",
+})
 
 
 def _get_video_music_prompt(params: VideoParams) -> str:
@@ -361,6 +369,9 @@ def generate_terms(task_id, params, video_script):
             video_terms = [term.strip() for term in video_terms]
         else:
             raise ValueError("video_terms must be a string or a list of strings.")
+
+        # Delimiter-only input must not reach paid reranking or material search.
+        video_terms = [term for term in video_terms if term]
 
         logger.debug(f"video terms: {utils.to_json(video_terms)}")
 
@@ -1474,7 +1485,21 @@ def _run_pipeline(
     voxcpm_prompt_text: str = "",
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
-    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+    sm.state.update_task(
+        task_id, state=const.TASK_STATE_PROCESSING, progress=5,
+        failed_stage=None, error=None,
+    )
+
+    if stop_at == "video" and params.subtitle_enabled:
+        try:
+            video.validate_subtitle_colors(params)
+        except ValueError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
+
+    if stop_at in {"materials", "video"} and params.video_source not in _SUPPORTED_VIDEO_SOURCES:
+        return _mark_task_failed(
+            task_id, "preflight", f"unsupported video source: {params.video_source!r}"
+        )
 
     if (
         stop_at in {"materials", "video"}
@@ -1614,7 +1639,7 @@ def _run_pipeline(
 
     # 2. Generate terms
     video_terms = ""
-    if params.video_source != "local":
+    if stop_at in {"terms", "materials", "video"} and params.video_source != "local":
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             return _mark_task_failed(
@@ -1659,6 +1684,26 @@ def _run_pipeline(
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
 
     if stop_at == "audio":
+        # Full video jobs apply gain in the final mixer. Audio-only exports have
+        # no mixer, so apply it here to an owned output (never a custom input).
+        audio_volume = 1.0 if params.voice_volume is None else float(params.voice_volume)
+        if audio_volume != 1.0:
+            descriptor, output_file = tempfile.mkstemp(
+                prefix="audio-export-", suffix=".mp3", dir=utils.task_dir(task_id)
+            )
+            os.close(descriptor)
+            export_ready = False
+            try:
+                export_ready = voice.apply_audio_volume(audio_file, output_file, audio_volume)
+                if not export_ready:
+                    return _mark_task_failed(task_id, "audio", "failed to apply audio export volume")
+            finally:
+                if not export_ready:
+                    try:
+                        os.remove(output_file)
+                    except OSError as exc:
+                        logger.warning(f"failed to remove incomplete audio export: {exc}")
+            audio_file = output_file
         sm.state.update_task(
             task_id,
             state=const.TASK_STATE_COMPLETE,

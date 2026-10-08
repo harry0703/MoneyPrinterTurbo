@@ -955,7 +955,11 @@ Please note that you must use English for generating video search terms; Chinese
             logger.error("response is not a list of strings.")
             search_terms = []
 
-        if search_terms and len(search_terms) > 0:
+        # The model may ignore the requested count or return blank strings.
+        # Enforce the prompt contract before material providers are contacted;
+        # repeated topics remain meaningful in chronological mode.
+        search_terms = [term.strip() for term in search_terms if term.strip()][:amount]
+        if search_terms:
             break
         if i < _max_retries - 1:
             logger.warning(f"failed to generate video terms, trying again... {i + 1}")
@@ -1208,7 +1212,7 @@ def generate_social_metadata(
     for i in range(_max_retries):
         try:
             response = _generate_response(prompt)
-            if isinstance(response, str) and "Error: " in response:
+            if isinstance(response, str) and response.startswith("Error: "):
                 logger.error(f"failed to generate social metadata: {response}")
                 break
             metadata = _parse_social_metadata(response, platform)
