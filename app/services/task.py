@@ -60,6 +60,8 @@ _ACTIVE_CROSS_POST_STATES = {
 }
 _CROSS_POST_STATE_WRITE_ATTEMPTS = 3
 _CROSS_POST_STATE_RETRY_DELAY_SECONDS = 0.1
+_TASK_FAILURE_STATE_WRITE_ATTEMPTS = 3
+_TASK_FAILURE_STATE_RETRY_DELAY_SECONDS = 0.1
 _LOOMLOOM_STATE_WRITE_ATTEMPTS = 3
 _LOOMLOOM_STATE_RETRY_DELAY_SECONDS = 0.1
 _INTERRUPTED_CROSS_POST_ERROR = (
@@ -283,18 +285,37 @@ def _mark_task_failed(
     }
     # 某些外部任务已经创建了可用于恢复或排障的远端 ID。失败状态需要保留
     # 这些非敏感字段，但不能允许调用方覆盖统一的状态、进度和错误结构。
+    # Keep completed batch outputs in both the persisted state and the direct
+    # return value used by the CLI. These fields are reset before a new attempt.
     failure_details = {
-        key: value for key, value in dict(details or {}).items() if key not in failure
+        key: existing_task[key]
+        for key in ("videos", "combined_videos", "warnings", "failed_video_index")
+        if existing_task and key in existing_task
     }
+    failure_details.update({
+        key: value for key, value in dict(details or {}).items() if key not in failure
+    })
     failure.update(failure_details)
-    sm.state.update_task(
-        task_id,
-        state=failure["state"],
-        progress=failure["progress"],
-        failed_stage=failure["failed_stage"],
-        error=failure["error"],
-        **failure_details,
-    )
+    fields = {key: value for key, value in failure.items() if key != "task_id"}
+    for attempt in range(_TASK_FAILURE_STATE_WRITE_ATTEMPTS):
+        try:
+            if attempt == 0:
+                sm.state.update_task(task_id, **fields)
+            else:
+                # A lost acknowledgement may mean the first write succeeded.
+                # Patch only an existing record so retries cannot revive a task
+                # that the user has since deleted.
+                sm.state.patch_task(task_id, **fields)
+            break
+        except Exception as exc:
+            if attempt + 1 == _TASK_FAILURE_STATE_WRITE_ATTEMPTS:
+                logger.exception(
+                    f"failed to persist task failure, task_id: {task_id}, error: {exc}"
+                )
+            else:
+                time.sleep(_TASK_FAILURE_STATE_RETRY_DELAY_SECONDS)
+    # A state outage must not discard the only completed-file snapshot held by
+    # the caller. Return it even when all bounded persistence attempts fail.
     return failure
 
 
@@ -948,11 +969,20 @@ def _get_material_source_groups(task_id: str, video_paths: list[str]) -> dict[st
 
 
 def generate_final_videos(
-    task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration
+    task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration,
+    *, partial_results: dict | None = None,
 ):
+    """Record completed outputs even if a later clip raises before returning."""
     final_video_paths = []
     combined_video_paths = []
     warnings = []
+    if partial_results is not None:
+        # The caller owns this snapshot so it can report completed files even
+        # when the state backend fails during a progress/checkpoint write.
+        partial_results.update(
+            videos=final_video_paths, combined_videos=combined_video_paths,
+            warnings=warnings,
+        )
     allocate_batch_materials = params.video_count > 1 and params.video_source in {
         "pexels", "pixabay", "coverr", "local"
     }
@@ -981,6 +1011,8 @@ def generate_final_videos(
     _progress = 50
     for i in range(params.video_count):
         index = i + 1
+        if partial_results is not None:
+            partial_results["failed_video_index"] = index
         combined_video_path = path.join(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
@@ -1093,11 +1125,13 @@ def generate_final_videos(
                 }
             )
 
-        _progress += 50 / params.video_count / 2
-        sm.state.update_task(task_id, progress=_progress)
-
         final_video_paths.append(final_video_path)
         combined_video_paths.append(combined_video_path)
+        _progress += 50 / params.video_count / 2
+        sm.state.update_task(
+            task_id, progress=_progress, videos=list(final_video_paths),
+            combined_videos=list(combined_video_paths), warnings=list(warnings) or None,
+        )
 
     return final_video_paths, combined_video_paths, warnings
 
@@ -1488,6 +1522,7 @@ def _run_pipeline(
     sm.state.update_task(
         task_id, state=const.TASK_STATE_PROCESSING, progress=5,
         failed_stage=None, error=None,
+        videos=[], combined_videos=[], warnings=None, failed_video_index=None,
     )
 
     if stop_at == "video" and params.subtitle_enabled:
@@ -1766,16 +1801,28 @@ def _run_pipeline(
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
     # 6. Generate final videos
-    final_video_paths, combined_video_paths, generation_warnings = (
-        generate_final_videos(
+    partial_results = {}
+    try:
+        final_video_paths, combined_video_paths, generation_warnings = generate_final_videos(
             task_id,
             params,
             downloaded_videos,
             audio_file,
             subtitle_path,
             audio_duration,
+            partial_results=partial_results,
         )
-    )
+    except Exception as exc:
+        logger.exception(f"video batch failed, task_id: {task_id}, error: {exc}")
+        # Warnings for the failing clip do not describe any usable output.
+        completed_count = len(partial_results.get("videos", []))
+        partial_results["warnings"] = [
+            warning for warning in partial_results.get("warnings", [])
+            if warning.get("video_index", 0) <= completed_count
+        ] or None
+        return _mark_task_failed(
+            task_id, "video", f"{type(exc).__name__}: {exc}", details=partial_results,
+        )
 
     if not final_video_paths:
         return _mark_task_failed(
