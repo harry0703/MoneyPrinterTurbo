@@ -497,7 +497,9 @@ def _format_ffmpeg_concat_path(file_path: str) -> str:
     让 `C:\\Users\\...` 变成 `C:/Users/...`，再处理单引号，兼容 macOS/Linux。
     """
     absolute_path = os.path.abspath(file_path)
-    return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
+    # Normalize the native separator only. A backslash can be a literal
+    # component of a valid POSIX path and must still identify the same file.
+    return _escape_ffmpeg_concat_path(absolute_path.replace(os.sep, "/"))
 
 
 def _describe_concat_output_progress(output_file: str) -> str:
