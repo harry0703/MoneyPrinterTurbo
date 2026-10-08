@@ -48,6 +48,7 @@ from app.services import bgm as bgm_service
 from app.services import material_upload as material_upload_service
 from app.services import (
     cache_manager,
+    image as image_service,
     llm,
     loomloom,
     material,
@@ -1156,6 +1157,24 @@ def _open_task_path(task_path):
         st.toast(f"{tr('Open Task Folder')}: ./storage/{rel_path}", icon="📂")
         return
     webbrowser.open(f"file://{normalized_path}")
+
+
+def _open_image_storage_path():
+    images_dir = image_service.get_image_storage_dir()
+    if not os.path.isdir(images_dir):
+        os.makedirs(images_dir, exist_ok=True)
+    if _is_headless_server():
+        st.toast(f"{tr('Save Directory')}: ./storage/images", icon="📂")
+        return
+    try:
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", images_dir])
+        elif sys.platform.startswith("win"):
+            os.startfile(images_dir)  # type: ignore[attr-defined]
+        else:
+            subprocess.Popen(["xdg-open", images_dir])
+    except Exception as e:
+        logger.error(f"failed to open images folder: {images_dir}, {e}")
 
 
 def _open_task_video(video_file):
@@ -8361,6 +8380,265 @@ def _render_generation_controls(
     return start_button
 
 
+def _render_image_generation_view():
+    """AI 文生图（OpenAI 兼容接口）独立生成与图片管理面板。"""
+    st.markdown(f"### {tr('Text-to-Image Studio')}")
+    st.caption(tr("Text-to-Image Studio Description"))
+
+    is_configured = image_service.is_image_service_configured()
+    if not is_configured:
+        st.info(tr("OpenAI Image Service Not Configured"))
+
+    col_form, col_display = st.columns([1.1, 1.3], gap="medium")
+
+    with col_form:
+        prompt = st.text_area(
+            tr("Text-to-Image Prompt"),
+            placeholder=tr("Text-to-Image Prompt Placeholder"),
+            height=120,
+            key="standalone_image_prompt_input",
+        )
+
+        size_mapping = {
+            "Square (1:1) - 1024x1024": "1024x1024",
+            "Portrait (9:16) - 1024x1536": "1024x1536",
+            "Landscape (16:9) - 1536x1024": "1536x1024",
+            "Square (1:1) - 512x512": "512x512",
+            "Square (1:1) - 768x768": "768x768",
+            "Custom Size": "custom",
+        }
+        size_labels = [tr(k) for k in size_mapping.keys()]
+        selected_size_label = st.selectbox(
+            tr("Image Size / Aspect Ratio"),
+            options=size_labels,
+            index=0,
+            key="standalone_image_size_select",
+        )
+
+        selected_size_key = list(size_mapping.keys())[size_labels.index(selected_size_label)]
+        if selected_size_key == "Custom Size":
+            custom_size_val = st.text_input(
+                tr("Custom Image Size"),
+                value=str(config.app.get("openai_image_size", "") or "1024x1024"),
+                key="standalone_image_custom_size_val",
+            )
+            final_size = custom_size_val.strip()
+        else:
+            final_size = size_mapping[selected_size_key]
+
+        sample_image_file = st.file_uploader(
+            tr("Sample / Reference Image"),
+            type=["png", "jpg", "jpeg", "webp"],
+            help=tr("Upload Reference Image Help"),
+            key="standalone_image_sample_file",
+        )
+
+        n_images = st.number_input(
+            tr("Image Count (n)"),
+            min_value=1,
+            max_value=50,
+            value=1,
+            step=1,
+            key="standalone_image_count_n",
+        )
+
+        with st.expander(tr("Advanced Image Settings"), expanded=not is_configured):
+            cfg_base_url = str(config.app.get("openai_image_base_url", "") or "")
+            cfg_model = str(config.app.get("openai_image_model", "") or "")
+            cfg_api_keys = _get_material_api_keys("openai_image_api_keys")
+            cfg_template = str(config.app.get("openai_image_prompt_template", "") or "")
+            default_storage_dir = image_service.get_image_storage_dir()
+
+            img_base_url = st.text_input(
+                tr("OpenAI Image Base URL Override"),
+                value=cfg_base_url,
+                placeholder="https://api.openai.com/v1",
+                key="standalone_img_base_url_input",
+            )
+            if img_base_url.strip() and img_base_url.strip() != cfg_base_url:
+                _set_runtime_config("app", "openai_image_base_url", img_base_url.strip())
+
+            img_api_key = st.text_input(
+                tr("OpenAI Image API Key Override"),
+                value=cfg_api_keys,
+                type="password",
+                key="standalone_img_api_key_input",
+            )
+            if img_api_key != cfg_api_keys:
+                _save_material_api_keys("openai_image_api_keys", img_api_key)
+
+            img_model = st.text_input(
+                tr("OpenAI Image Model Override"),
+                value=cfg_model,
+                placeholder="dall-e-3",
+                key="standalone_img_model_input",
+            )
+            if img_model.strip() and img_model.strip() != cfg_model:
+                _set_runtime_config("app", "openai_image_model", img_model.strip())
+
+            img_template = st.text_input(
+                tr("Prompt Template / Enhancement"),
+                value=cfg_template,
+                placeholder="cinematic photo of {prompt}, 8k, photorealistic",
+                help=tr("Prompt Template Help"),
+                key="standalone_img_template_input",
+            )
+            if img_template.strip() != cfg_template:
+                _set_runtime_config("app", "openai_image_prompt_template", img_template.strip())
+
+            custom_storage = st.text_input(
+                tr("Save Directory"),
+                value=default_storage_dir,
+                key="standalone_img_custom_storage_input",
+            )
+
+        btn_c1, btn_c2 = st.columns([1.6, 1], vertical_alignment="center")
+        gen_btn = btn_c1.button(
+            tr("Generate Images"),
+            type="primary",
+            use_container_width=True,
+            icon=":material/palette:",
+            key="standalone_generate_image_action_btn",
+        )
+        if btn_c2.button(
+            tr("Open Storage Folder"),
+            use_container_width=True,
+            icon=":material/folder_open:",
+            key="standalone_open_image_storage_btn",
+        ):
+            _open_image_storage_path()
+
+        if gen_btn:
+            active_base_url = img_base_url.strip() or cfg_base_url
+            active_model = img_model.strip() or cfg_model
+            active_api_key = img_api_key or cfg_api_keys
+            ref_bytes = sample_image_file.getvalue() if sample_image_file is not None else None
+
+            if not prompt.strip():
+                st.error(tr("Please enter a prompt first"))
+            elif not active_base_url:
+                st.error(tr("OpenAI Image Base URL Override") + " is required.")
+            elif not active_model:
+                st.error(tr("OpenAI Image Model Override") + " is required.")
+            else:
+                with st.spinner(tr("Generating Images...")):
+                    try:
+                        results = image_service.generate_images(
+                            prompt=prompt,
+                            size=final_size,
+                            n=int(n_images),
+                            model=active_model,
+                            base_url=active_base_url,
+                            api_key=active_api_key,
+                            prompt_template=img_template.strip() or cfg_template,
+                            save_dir=custom_storage.strip() or default_storage_dir,
+                            reference_image_bytes=ref_bytes,
+                        )
+                        st.session_state["standalone_last_generated_images"] = results
+                        if results and results[0].get("blueprint"):
+                            st.session_state["cached_active_blueprint"] = results[0]["blueprint"]
+                        st.toast(tr("Image Generation Succeeded"), icon="🎨")
+                    except Exception as exc:
+                        logger.error(f"Image generation failed: {exc}")
+                        st.error(f"{tr('Image Generation Failed')}: {exc}")
+
+    with col_display:
+        last_images = st.session_state.get("standalone_last_generated_images", [])
+        active_bp = st.session_state.get("cached_active_blueprint")
+
+        if active_bp and last_images:
+            with st.container(border=True):
+                st.markdown(f"#### {tr('Batch Generation with Same Blueprint')}")
+                st.caption(tr("Batch Blueprint Description"))
+                b_c1, b_c2 = st.columns([1, 2], vertical_alignment="bottom")
+                batch_count = b_c1.number_input(
+                    tr("Batch Count"),
+                    min_value=1,
+                    max_value=50,
+                    value=5,
+                    step=1,
+                    key="standalone_batch_count_input",
+                )
+                if b_c2.button(
+                    tr("Generate Batch Now"),
+                    type="primary",
+                    icon=":material/bolt:",
+                    key="standalone_generate_batch_action_btn",
+                ):
+                    with st.spinner(tr("Generating Images...")):
+                        try:
+                            batch_res = image_service.generate_images(
+                                prompt="",
+                                size=final_size,
+                                n=int(batch_count),
+                                model=active_model,
+                                base_url=active_base_url,
+                                api_key=active_api_key,
+                                save_dir=custom_storage.strip() or default_storage_dir,
+                                cached_blueprint=active_bp,
+                            )
+                            st.session_state["standalone_last_generated_images"] = batch_res
+                            st.toast(tr("Batch Generation Succeeded"), icon="🚀")
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"{tr('Image Generation Failed')}: {exc}")
+        if last_images:
+            st.markdown(f"#### 🌟 {tr('Latest Generated Images')} ({len(last_images)})")
+            grid_cols = st.columns(min(len(last_images), 2))
+            for idx, item in enumerate(last_images):
+                with grid_cols[idx % len(grid_cols)]:
+                    img_path = item.get("path", "")
+                    if os.path.isfile(img_path):
+                        st.image(img_path)
+                        st.caption(
+                            f"**{item.get('filename')}**\n\n"
+                            f"{tr('Image Dimensions')}: {item.get('width')}x{item.get('height')} | "
+                            f"{tr('File Size')}: {_format_file_size(item.get('size_bytes', 0))}"
+                        )
+                        try:
+                            with open(img_path, "rb") as f:
+                                img_data = f.read()
+                            st.download_button(
+                                label=f"⬇️ {tr('Download Image')}",
+                                data=img_data,
+                                file_name=item.get("filename", "image.png"),
+                                mime="image/png",
+                                key=f"dl_latest_{idx}_{item.get('filename')}",
+                            )
+                        except Exception as exc:
+                            logger.warning(f"failed to read image file for download: {exc}")
+            st.divider()
+
+        st.markdown(f"#### 🖼️ {tr('Saved Images Gallery')}")
+        target_dir = custom_storage.strip() if 'custom_storage' in locals() and custom_storage.strip() else ""
+        saved_items = image_service.list_saved_images(save_dir=target_dir, limit=12)
+        if not saved_items:
+            st.caption(tr("No Saved Images Yet"))
+        else:
+            gallery_cols = st.columns(3)
+            for idx, g_item in enumerate(saved_items):
+                with gallery_cols[idx % 3]:
+                    g_path = g_item.get("path", "")
+                    if os.path.isfile(g_path):
+                        st.image(g_path)
+                        st.caption(
+                            f"**{g_item.get('filename')}**\n\n"
+                            f"{_format_file_size(g_item.get('size_bytes', 0))}"
+                        )
+                        try:
+                            with open(g_path, "rb") as gf:
+                                g_data = gf.read()
+                            st.download_button(
+                                label=f"⬇️ {tr('Download Image')}",
+                                data=g_data,
+                                file_name=g_item.get("filename", "image.png"),
+                                mime="image/png",
+                                key=f"dl_gallery_{idx}_{g_item.get('filename')}",
+                            )
+                        except Exception as exc:
+                            logger.warning(f"failed to read gallery image for download: {exc}")
+
+
 def _render_application():
     """按固定顺序渲染顶部栏、弹窗、生成表单和任务结果。"""
     _render_top_bar()
@@ -8379,38 +8657,47 @@ def _render_application():
     if restore_applied or restore_succeeded:
         st.success(tr("Task Configuration Loaded"))
 
-    with st.container(key="main_settings_grid"):
-        panel = st.columns(4)
-    left_panel = panel[0]
-    middle_panel = panel[1]
-    audio_panel = panel[2]
-    right_panel = panel[3]
+    mode_tabs = st.tabs([
+        tr("Video Generation"),
+        tr("Text-to-Image Generation"),
+    ])
 
-    params = VideoParams(video_subject="")
-    params.match_materials_to_script = bool(
-        st.session_state.get("match_materials_to_script", False)
-    )
-    _render_script_settings(left_panel, params)
+    with mode_tabs[0]:
+        with st.container(key="main_settings_grid"):
+            panel = st.columns(4)
+        left_panel = panel[0]
+        middle_panel = panel[1]
+        audio_panel = panel[2]
+        right_panel = panel[3]
 
-    uploaded_files = _render_video_settings(middle_panel, params)
-    uploaded_audio_file, uploaded_bgm_file, voice_mode = _render_audio_settings(
-        audio_panel, params
-    )
+        params = VideoParams(video_subject="")
+        params.match_materials_to_script = bool(
+            st.session_state.get("match_materials_to_script", False)
+        )
+        _render_script_settings(left_panel, params)
 
-    _render_subtitle_settings(right_panel, params)
+        uploaded_files = _render_video_settings(middle_panel, params)
+        uploaded_audio_file, uploaded_bgm_file, voice_mode = _render_audio_settings(
+            audio_panel, params
+        )
 
-    generation_submitted = _render_generation_controls(
-        params,
-        uploaded_files,
-        uploaded_audio_file,
-        uploaded_bgm_file,
-        voice_mode,
-    )
+        _render_subtitle_settings(right_panel, params)
 
-    # 生成分支在启动后台线程前已经请求过保存。普通控件交互继续请求非阻塞保存；
-    # 如果后台任务正在使用配置，配置层会在任务结束时自动应用并落盘最新值。
-    if not generation_submitted:
-        _save_runtime_config()
+        generation_submitted = _render_generation_controls(
+            params,
+            uploaded_files,
+            uploaded_audio_file,
+            uploaded_bgm_file,
+            voice_mode,
+        )
+
+        # 生成分支在启动后台线程前已经请求过保存。普通控件交互继续请求非阻塞保存；
+        # 如果后台任务正在使用配置，配置层会在任务结束时自动应用并落盘最新值。
+        if not generation_submitted:
+            _save_runtime_config()
+
+    with mode_tabs[1]:
+        _render_image_generation_view()
 
 
 _render_application()
