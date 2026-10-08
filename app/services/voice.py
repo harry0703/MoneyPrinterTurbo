@@ -2467,9 +2467,31 @@ def elevenlabs_tts(
         },
     }
 
+    # The live v2 endpoint rejects speeds outside 0.7–1.2; v3 supports
+    # the wider REST range. Never silently clamp a selected UI/API speed.
+    minimum_speed, maximum_speed = (0.25, 4.0) if model_id == "eleven_v3" else (0.7, 1.2)
+    speed_error = (
+        f"ElevenLabs model {model_id} speech speed must be a finite number "
+        f"from {minimum_speed} to {maximum_speed}; choose a supported speed "
+        "or use eleven_v3 for a wider range"
+    )
+    try:
+        speed = float(voice_rate) if voice_rate is not None else 1.0
+    except (TypeError, ValueError, OverflowError):
+        logger.error(speed_error)
+        return None
+    if speed != 1.0 and model_id in {"eleven_v4", "eleven_v4_turbo"}:
+        logger.error(f"ElevenLabs model {model_id} does not support speech speed; use 1.0 or a v2/v3 model")
+        return None
+    if not math.isfinite(speed) or not minimum_speed <= speed <= maximum_speed:
+        logger.error(speed_error)
+        return None
+    if speed != 1.0:
+        payload["voice_settings"]["speed"] = speed
+
     # Errors where retrying will never help (auth/access/validation failures).
     _NON_RETRYABLE_CODES = {401, 403, 422}
-    _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized"}
+    _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized", "invalid_voice_settings"}
 
     for i in range(3):
         response = None
@@ -2512,7 +2534,9 @@ def elevenlabs_tts(
                     logger.error(
                         f"ElevenLabs TTS failed (non-retryable) — voice_id: {voice_id}, "
                         f"status: {response.status_code}, error: {error_status or error_text}. "
-                        "Please select a different ElevenLabs voice."
+                        + (f"Check the selected model and speech speed: {error_text}"
+                           if error_status == "invalid_voice_settings"
+                           else "Please select a different ElevenLabs voice.")
                     )
                     return None
 

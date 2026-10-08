@@ -294,6 +294,13 @@ yapi_api_key = ""
 yapi_base_url = ""
 yapi_model_name = ""
 
+# Opper, an EU-hosted OpenAI-compatible multi-model gateway.
+# API key: https://platform.opper.ai
+# Model list: https://opper.ai/models
+opper_api_key = ""
+opper_base_url = ""
+opper_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""

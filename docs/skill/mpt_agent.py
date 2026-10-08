@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import urllib.error
 import urllib.request
 import uuid
@@ -179,14 +180,20 @@ def ensure_config(root: Path) -> Path:
 
 
 def _plain_config_value(text: str, key: str) -> str:
-    """Read a simple top-level TOML value without printing its contents."""
-    match = re.search(rf"(?m)^{re.escape(key)}\s*=\s*(.*)$", text)
-    if not match:
-        return ""
-    value = match.group(1).split("#", 1)[0].strip()
-    if value.startswith('"') and value.endswith('"'):
-        return value[1:-1]
-    return value
+    """Read app settings with the same TOML syntax as the backend loader."""
+    try:
+        document = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        # Configuration can contain credentials; do not echo its source text.
+        raise SkillError("configuration is not valid TOML") from exc
+    settings = document.get("app", document)
+    if not isinstance(settings, dict):
+        raise SkillError("configuration app settings must be a TOML table")
+    value = settings.get(key, "")
+    # Existing readiness/list consumers expect an unquoted string or JSON array.
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False)
 
 
 def _replace_config_value(text: str, key: str, value: object) -> str:
@@ -335,12 +342,13 @@ def reuse_existing_llm_provider(config_path: Path) -> str:
 
 def selected_video_source(cli_args: list[str]) -> str:
     """Read the effective material source from forwarded CLI arguments."""
+    source = "pexels"
     for index, item in enumerate(cli_args):
         if item == "--video-source" and index + 1 < len(cli_args):
-            return cli_args[index + 1].strip().lower()
+            source = cli_args[index + 1].strip().lower()
         if item.startswith("--video-source="):
-            return item.split("=", 1)[1].strip().lower()
-    return "pexels"
+            source = item.split("=", 1)[1].strip().lower()
+    return source
 
 
 def has_cli_option(cli_args: list[str], option: str) -> bool:
