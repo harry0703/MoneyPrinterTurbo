@@ -24,13 +24,13 @@ import requests
 from edge_tts import SubMaker
 from edge_tts.srt_composer import Subtitle
 from loguru import logger
-from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from openai import OpenAI
 
 from app.config import config
 from app.services import bgm
 from app.utils import utils
+from app.utils.subtitle_reader import moviepy_subtitles
 from app.utils.subtitle_writer import staged_subtitle_file
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
@@ -3458,7 +3458,7 @@ def _write_subtitle_items(sub_items: list[str], subtitle_file: str) -> bool:
         with staged_subtitle_file(subtitle_file) as staged:
             with open(staged, "w", encoding="utf-8") as file:
                 file.write("\n".join(sub_items) + "\n")
-            sbs = subtitles.file_to_subtitles(staged, encoding="utf-8")
+            sbs = moviepy_subtitles(staged)
             if not sbs:
                 raise ValueError("subtitle output contains no cues")
             duration = max(tb for ((ta, tb), txt) in sbs)
