@@ -640,3 +640,125 @@ def test_final_caption_render_keeps_body_timecodes_and_duration(tmp_path, text):
     finally:
         config.app.clear()
         config.app.update(previous)
+
+
+@pytest.mark.parametrize("field", ["narration_volume", "bgm_volume", "duration"])
+@pytest.mark.parametrize("sign", [-1, 1])
+def test_project_cli_rejects_large_json_numbers_without_traceback(
+    tmp_path, field, sign
+):
+    import sys
+
+    media = tmp_path / "footage.mp4"
+    _media(
+        [
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=64x64:r=10:d=0.6",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(media),
+        ]
+    )
+    manifest = tmp_path / "manifest.json"
+    project = tmp_path / "project"
+    request = {
+        "project_id": "numbers",
+        "scenes": [{"id": "opening", "footage": str(media), "duration": 0.6}],
+    }
+    manifest.write_text(json.dumps(request), encoding="utf-8")
+    command = [
+        sys.executable,
+        "-m",
+        "app.services.video_project",
+        "--project",
+        str(project),
+        "revise",
+        str(manifest),
+    ]
+    accepted = subprocess.run(command, text=True, capture_output=True, timeout=20)
+    assert accepted.returncode == 0, accepted.stderr
+    previous = (project / "project.json").read_bytes()
+    if field == "duration":
+        request["scenes"][0][field] = sign * 10**399
+    else:
+        request["settings"] = {field: sign * 10**399}
+    manifest.write_text(json.dumps(request), encoding="utf-8")
+    rejected = subprocess.run(command, text=True, capture_output=True, timeout=20)
+    assert rejected.returncode == 1
+    assert (project / "project.json").read_bytes() == previous
+    assert rejected.stdout == ""
+    assert "Traceback" not in rejected.stderr
+    assert "video project:" in rejected.stderr
+    assert ("scene duration" if field == "duration" else field) in rejected.stderr
+
+
+@pytest.mark.parametrize(
+    "field,number",
+    [
+        ("narration_volume", 4),
+        ("bgm_volume", 4),
+        ("duration", 3600),
+        ("narration_volume", 5),
+        ("bgm_volume", 5),
+        ("duration", 3601),
+    ],
+)
+def test_project_cli_numeric_bounds_controls(tmp_path, field, number):
+    import sys
+
+    media = tmp_path / "footage.mp4"
+    _media(
+        [
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=64x64:r=10:d=0.6",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(media),
+        ]
+    )
+    manifest = tmp_path / "manifest.json"
+    project = tmp_path / "project"
+    request = {
+        "project_id": "numbers",
+        "scenes": [{"id": "opening", "footage": str(media), "duration": 0.6}],
+    }
+    if field == "duration":
+        request["scenes"][0][field] = number
+    else:
+        request["settings"] = {field: number}
+    manifest.write_text(json.dumps(request), encoding="utf-8")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "app.services.video_project",
+            "--project",
+            str(project),
+            "revise",
+            str(manifest),
+        ],
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+    if number in (4, 3600):
+        assert result.returncode == 0, result.stderr
+        spec = json.loads(result.stdout)
+        assert (
+            spec["scenes"][0][field] if field == "duration" else spec["settings"][field]
+        ) == number
+        assert project.joinpath("project.json").is_file()
+    else:
+        assert result.returncode == 1
+        assert "Traceback" not in result.stderr
+        assert "video project:" in result.stderr
+        assert ("scene duration" if field == "duration" else field) in result.stderr
+        assert not project.joinpath("project.json").exists()

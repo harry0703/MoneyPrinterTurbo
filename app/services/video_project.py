@@ -138,8 +138,8 @@ class RenderSettings:
             if (
                 isinstance(number, bool)
                 or not isinstance(number, (int, float))
-                or not math.isfinite(number)
                 or not 0 <= number <= 4
+                or not math.isfinite(number)
             ):
                 raise ProjectError(f"{name} must be finite and between 0 and 4")
         return result
@@ -323,8 +323,8 @@ class VideoProject:
             if (
                 isinstance(duration, bool)
                 or not isinstance(duration, (int, float))
-                or not math.isfinite(duration)
                 or not 0 < duration <= 3600
+                or not math.isfinite(duration)
             ):
                 raise ProjectError(
                     "scene duration must be finite and between 0 and 3600 seconds"
