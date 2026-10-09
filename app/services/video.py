@@ -43,6 +43,7 @@ from app.models.schema import (
 from app.services import bgm as bgm_service
 from app.services.utils import video_effects
 from app.utils import file_security, logging_utils, utils
+from app.utils.subtitle_reader import moviepy_subtitles
 
 class SubClippedVideoClip:
     def __init__(
@@ -497,7 +498,9 @@ def _format_ffmpeg_concat_path(file_path: str) -> str:
     让 `C:\\Users\\...` 变成 `C:/Users/...`，再处理单引号，兼容 macOS/Linux。
     """
     absolute_path = os.path.abspath(file_path)
-    return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
+    # Normalize the native separator only. A backslash can be a literal
+    # component of a valid POSIX path and must still identify the same file.
+    return _escape_ffmpeg_concat_path(absolute_path.replace(os.sep, "/"))
 
 
 def _describe_concat_output_progress(output_file: str) -> str:
@@ -1777,7 +1780,7 @@ def generate_video(
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
             sub = clip_stack.enter_context(
                 SubtitlesClip(
-                    subtitles=subtitle_path,
+                    subtitles=moviepy_subtitles(subtitle_path),
                     encoding="utf-8",
                     make_textclip=make_textclip,
                 )
