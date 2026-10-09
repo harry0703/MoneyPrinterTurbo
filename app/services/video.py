@@ -1392,12 +1392,12 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
 
 
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
-    # 字幕背景色来自 API/WebUI 参数，可能为空或格式不规范。这里统一只接受
-    # #RRGGBB 形式，非法值回退为黑色，避免 PIL 渲染阶段抛出异常中断任务。
-    if isinstance(color, str) and color.startswith("#") and len(color) == 7:
+    # Match the Pillow color syntax accepted by subtitle preflight.
+    # The background clip sets opacity separately from the color value.
+    if isinstance(color, str):
         try:
-            return (int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16))
-        except ValueError:
+            return ImageColor.getcolor(color, "RGB")
+        except (ValueError, TypeError):
             pass
     return (0, 0, 0)
 
