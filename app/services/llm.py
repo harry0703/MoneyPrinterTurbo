@@ -594,6 +594,59 @@ def _generate_response(prompt: str, app_config=None) -> str:
 
             return _normalize_text_response(payload.get("result"), llm_provider)
 
+        if adapter == "kimi_code":
+            # Kimi 订阅（Plus+ 的 Kimi Code 权益）不签发按量 API Key，鉴权由
+            # OAuth 设备授权完成：WebUI 引导用户在浏览器里一键确认，本地保存
+            # refresh token；access token 15 分钟过期，由 kimi_code_oauth 透明
+            # 续期。请求走官方 OpenAI 兼容端点，与按量 API 是两套独立额度。
+            from app.services import kimi_code_oauth
+
+            try:
+                timeout_seconds = kimi_code_oauth.coerce_timeout(
+                    extra_values.get("timeout")
+                )
+            except ValueError as timeout_error:
+                raise ValueError(f"{llm_provider}: {timeout_error}") from None
+
+            access_token = kimi_code_oauth.get_valid_access_token()
+            # 授权区域以凭证为准：token 只对签发它的区域有效。用户在授权后切换
+            # API Platform 时，若按界面区域发请求会把中国签发的 token 打到
+            # Global 端点（必然 401），因此请求地址优先跟随 token 的签发区域。
+            authorized_region = kimi_code_oauth.authorized_region()
+            if authorized_region:
+                request_base_url = kimi_code_oauth.api_base_url(authorized_region)
+                if base_url and authorized_region != kimi_code_oauth.resolve_region(
+                    base_url
+                ):
+                    logger.warning(
+                        f"kimi_code: API Platform selection differs from the "
+                        f"authorized region; using '{authorized_region}' to match "
+                        "the issued token"
+                    )
+            else:
+                request_base_url = base_url or kimi_code_oauth.api_base_url(
+                    kimi_code_oauth.resolve_region(base_url)
+                )
+            # 模型名留空时默认 kimi-for-coding：订阅权益内的专用编码模型，
+            # 避免硬编码的通用模型 id 随权益变化而失效。
+            request_model = model_name or "kimi-for-coding"
+            logger.info(f"requesting kimi code chat completion, model: {request_model}")
+            client = sdk_client = OpenAI(
+                api_key=access_token,
+                base_url=request_base_url,
+                timeout=timeout_seconds,
+                # 服务端反爬管线要求与 CLI 一致的设备身份头。
+                default_headers=kimi_code_oauth.api_headers(),
+            )
+            response = client.chat.completions.create(
+                model=request_model, messages=[{"role": "user", "content": prompt}]
+            )
+            if response and isinstance(response, ChatCompletion):
+                return _extract_chat_completion_text(response, llm_provider)
+            raise Exception(
+                f'[{llm_provider}] returned an invalid response: "{response}"'
+            )
+
         if adapter == "modelscope":
             content = ""
             client = sdk_client = OpenAI(
