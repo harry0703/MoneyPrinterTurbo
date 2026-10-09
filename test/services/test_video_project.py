@@ -642,6 +642,10 @@ def test_final_caption_render_keeps_body_timecodes_and_duration(tmp_path, text):
         config.app.update(previous)
 
 
+@pytest.mark.skipif(
+    not shutil.which("ffmpeg") or not shutil.which("ffprobe"),
+    reason="native FFmpeg/FFprobe required; no mocked rendering claim",
+)
 @pytest.mark.parametrize("field", ["narration_volume", "bgm_volume", "duration"])
 @pytest.mark.parametrize("sign", [-1, 1])
 def test_project_cli_rejects_large_json_numbers_without_traceback(
@@ -696,6 +700,10 @@ def test_project_cli_rejects_large_json_numbers_without_traceback(
     assert ("scene duration" if field == "duration" else field) in rejected.stderr
 
 
+@pytest.mark.skipif(
+    not shutil.which("ffmpeg") or not shutil.which("ffprobe"),
+    reason="native FFmpeg/FFprobe required; no mocked rendering claim",
+)
 @pytest.mark.parametrize(
     "field,number",
     [
