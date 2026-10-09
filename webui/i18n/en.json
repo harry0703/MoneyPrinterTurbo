@@ -584,6 +584,20 @@
     "MuAPI Billing Notice Without Script": "Each generated clip is billed by MuAPI. Enter or generate the video script to see an estimated task count.",
     "Confirm MuAPI Charge": "I understand MuAPI video generation creates paid tasks",
     "Confirm MuAPI Charge Help": "MuAPI clips are submitted one at a time and stop once they cover the voiceover duration. An ambiguous submission is not retried because it may already have created a billable remote task.",
-    "Confirm MuAPI Charge Required": "Please confirm the MuAPI charge before generating the video."
+    "Confirm MuAPI Charge Required": "Please confirm the MuAPI charge before generating the video.",
+    "llm_provider_label.kimi_code": "Kimi Code (Kimi subscription)",
+    "llm_provider_tips.kimi_code": "##### Kimi Code Configuration\n- **API Key**: not required; click **Sign in with Kimi** and approve once in the browser — requests then run on your Kimi subscription (Kimi Code plan, Plus tier and above)\n- **Base Url**: selected by the API Platform option above (China: `api.kimi.com`; Global: `api.kimi.ai`)\n- **Model Name**: optional; defaults to `kimi-for-coding`\n- New here? Get a plan at the [Kimi Code site]({api_key_url}); see the [model list]({model_docs_url})\n- Requests use your Kimi Code plan usage limits, separate from pay-as-you-go API balance. Access tokens refresh automatically after sign-in",
+    "kimi_code.oauth.login": "Sign in with Kimi",
+    "kimi_code.oauth.pending": "Approve this device in your browser to finish sign-in. Code:",
+    "kimi_code.oauth.open_page": "Open the Kimi authorization page",
+    "kimi_code.oauth.success": "Kimi sign-in completed",
+    "kimi_code.oauth.authorized": "Signed in with Kimi (region: {region}). Requests will use your Kimi Code plan quota.",
+    "kimi_code.oauth.disconnect": "Disconnect Kimi",
+    "kimi_code.oauth.expired": "This sign-in code has expired. Start sign-in again to get a new one.",
+    "kimi_code.oauth.denied": "The authorization request was declined. Start sign-in again if that was a mistake.",
+    "kimi_code.oauth.reauth": "Sign in with Kimi for the selected region",
+    "kimi_code.oauth.region_mismatch": "Signed in for region \"{authorized}\", but the selected API Platform is \"{selected}\". Requests will use \"{authorized}\" to match your credential; sign in again to switch regions.",
+    "kimi_code.oauth.network_error": "Could not reach the Kimi authorization service (network error). Check your connection, then start sign-in again.",
+    "kimi_code.oauth.poll_retry": "Network error while checking the authorization status; retrying automatically…"
   }
 }

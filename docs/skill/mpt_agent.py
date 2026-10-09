@@ -75,11 +75,13 @@ RECOMMENDED_LLM_PROVIDERS = {
 }
 # Providers that generate without an API key stored in config.toml: Ollama talks
 # to a local server, LiteLLM resolves credentials through its own environment,
-# and ``claude_code`` consumes the Claude subscription through the locally
-# logged-in ``claude`` CLI. Keep this set aligned with the
-# ``requires_api_key=False`` entries of ``app/models/llm_provider.py``; asking
-# the user for a key that the provider never reads leaves the Skill stuck.
-KEYLESS_LLM_PROVIDERS = {"ollama", "litellm", "claude_code"}
+# ``claude_code`` consumes the Claude subscription through the locally
+# logged-in ``claude`` CLI, and ``kimi_code`` consumes the Kimi Code plan
+# through the OAuth credentials the WebUI sign-in stores in config.toml. Keep
+# this set aligned with the ``requires_api_key=False`` entries of
+# ``app/models/llm_provider.py``; asking the user for a key that the provider
+# never reads leaves the Skill stuck.
+KEYLESS_LLM_PROVIDERS = {"ollama", "litellm", "claude_code", "kimi_code"}
 CUSTOM_OPENAI_PROVIDER = "oneapi"
 
 # Hidden providers such as Qwen, Azure, and Grok remain usable when already
@@ -300,6 +302,13 @@ def apply_environment_config(config_path: Path) -> None:
 
 def _provider_is_ready(text: str, provider: str) -> bool:
     """Return whether a provider has enough configuration to generate."""
+    if provider == "kimi_code":
+        # 不需要 API Key，但需要 WebUI「使用 Kimi 登录」后写入的 OAuth 凭证；
+        # 没有凭证时不能当作就绪，否则生成会在运行时才报未授权。
+        return any(
+            _has_configured_value(_plain_config_value(text, field))
+            for field in ("kimi_code_refresh_token", "kimi_code_access_token")
+        )
     if provider in KEYLESS_LLM_PROVIDERS:
         return True
     if not _has_configured_value(
@@ -365,6 +374,9 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         _plain_config_value(text, f"{provider}_api_key")
     ):
         missing.append(f"{provider}_api_key")
+    if provider == "kimi_code" and not _provider_is_ready(text, provider):
+        # 无 Key 可填，缺失的是 WebUI 登录动作而不是配置字段。
+        missing.append("kimi_code_sign_in")
     if provider == CUSTOM_OPENAI_PROVIDER:
         for suffix in ("base_url", "model_name"):
             field = f"{provider}_{suffix}"
@@ -483,6 +495,11 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
     if "pexels_api_keys" in missing:
         print(f"PEXELS_API_KEY_URL={PEXELS_API_KEY_URL}")
         print(f"PEXELS_API_KEY_HELP_URL={PEXELS_API_KEY_HELP_URL}")
+    if "kimi_code_sign_in" in missing:
+        print(
+            "KIMI_CODE_SIGN_IN_REQUIRED="
+            "open Settings -> LLM Settings and sign in with Kimi"
+        )
     if "volcengine_seedance_api_key" in missing:
         print(f"VOLCENGINE_ARK_API_KEY_URL={VOLCENGINE_ARK_API_KEY_URL}")
         print("VOLCENGINE_ARK_API_KEY_ENV=MPT_VOLCENGINE_ARK_API_KEY")

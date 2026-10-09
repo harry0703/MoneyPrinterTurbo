@@ -497,6 +497,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "opper",
                 "ollama",
                 "claude_code",
+                "kimi_code",
                 "oneapi",
                 "litellm",
                 "groq",
