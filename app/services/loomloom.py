@@ -627,8 +627,8 @@ class LoomLoomScriptBackend:
         if not isinstance(value, dict):
             raise LoomLoomAPIError("result artifact JSON must be an object")
 
-        script = str(value.get("script", "")).strip()
-        if not script:
+        script = value.get("script")
+        if not isinstance(script, str) or not script.strip():
             raise LoomLoomAPIError("result artifact script is required")
         video_terms = value.get("videoTerms")
         if not isinstance(video_terms, list) or not video_terms:
@@ -636,13 +636,13 @@ class LoomLoomScriptBackend:
                 "result artifact videoTerms must be a non-empty list"
             )
         normalized_terms = tuple(
-            str(term).strip() for term in video_terms if str(term).strip()
+            term.strip() for term in video_terms if isinstance(term, str) and term.strip()
         )
         if not normalized_terms:
             raise LoomLoomAPIError("result artifact videoTerms must not be empty")
         return LoomLoomScriptCandidate(
             row_index=row_index,
-            script=script,
+            script=script.strip(),
             video_terms=normalized_terms,
         )
 
