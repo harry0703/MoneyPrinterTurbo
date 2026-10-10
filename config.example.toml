@@ -301,6 +301,13 @@ opper_api_key = ""
 opper_base_url = ""
 opper_model_name = ""
 
+# onomeo, a small OpenAI-compatible LLM gateway with a free model tier.
+# API key: https://onomeo.com/dashboard
+# Model list: https://onomeo.com/models
+onomeo_api_key = ""
+onomeo_base_url = ""
+onomeo_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
