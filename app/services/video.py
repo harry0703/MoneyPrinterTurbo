@@ -1326,13 +1326,22 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         # 画布高度仍必须按现有行数计算，否则第二行及后续行会被裁掉。
         return text, (text.count("\n") + 1) * line_height
 
+    def attached_text_units(token):
+        units = []
+        for char in token:
+            if units and unicodedata.category(char).startswith("M"):
+                units[-1] += char
+            else:
+                units.append(char)
+        return units
+
     def split_long_token(token):
         # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
         # 退化为字符级拆分。关键点是：检测到 candidate 超宽时，先提交上一个
         # 仍然合法的 current，再把当前字符放入下一行，不能把超宽字符塞回上一行。
         lines = []
         current = ""
-        for char in token:
+        for char in attached_text_units(token):
             candidate = f"{current}{char}"
             candidate_width, _ = get_text_size(candidate)
             if candidate_width <= max_width or not current:
@@ -1378,11 +1387,15 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if len(lines[index - 1]) <= 1:
             continue
 
-        candidate = f"{lines[index - 1][-1]}{lines[index]}"
+        previous_units = attached_text_units(lines[index - 1])
+        if len(previous_units) <= 1:
+            continue
+        last_unit = previous_units[-1]
+        candidate = f"{last_unit}{lines[index]}"
         candidate_width, _ = get_text_size(candidate)
         if candidate_width <= max_width:
             lines[index] = candidate
-            lines[index - 1] = lines[index - 1][:-1]
+            lines[index - 1] = lines[index - 1][:-len(last_unit)]
 
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
     # 高度以最终结果为准。原文本中的显式换行可能保留在某个 token 内，
