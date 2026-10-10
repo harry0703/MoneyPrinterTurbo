@@ -2,6 +2,8 @@
 
 Run ``python -m app.services.video_project --help``. Prepared footage and audio
 can come from an existing MoneyPrinter task; this module does not regenerate them.
+Prepared PNG, JPEG, BMP and WebP photos can also serve as footage; the native
+renderer holds the photo for the scene/audio duration and caches the export.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from typing import Callable, Iterator
 from uuid import uuid4
 
 PREPARED_FORMATS = "mov,matroska,avi,mpegts,mpegvideo,ogg,flv,wav,mp3,flac,aac"
+PREPARED_FOOTAGE_FORMATS = PREPARED_FORMATS + ",image2,png_pipe,jpeg_pipe,bmp_pipe,webp_pipe"
 SCHEMA_VERSION = 1
 RENDERER_VERSION = "local-ffmpeg-v1"
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -732,7 +735,7 @@ class VideoProject:
                         "-stream_loop",
                         "-1",
                         "-format_whitelist",
-                        PREPARED_FORMATS,
+                        PREPARED_FOOTAGE_FORMATS,
                         "-i",
                         str(self._asset_path(scene["footage"])),
                         "-i",
