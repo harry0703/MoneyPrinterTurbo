@@ -3035,7 +3035,12 @@ def _iter_voxcpm_sse_events(response):
 
     event_data = []
     event_bytes = 0
+    first_line = True
     for line in lines():
+        if first_line:
+            # SSE UTF-8 decoding ignores one BOM at the start of the stream.
+            line = line.removeprefix("\ufeff")
+            first_line = False
         if not line:
             if event_data:
                 yield parse_event(event_data)
