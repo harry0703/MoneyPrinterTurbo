@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from loguru import logger
 from starlette.background import BackgroundTask
 
@@ -501,6 +501,7 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     return utils.get_response(200, response)
 
 @router.get("/stream/{file_path:path}")
+@router.head("/stream/{file_path:path}", summary="Inspect video stream metadata")
 async def stream_video(request: Request, file_path: str):
     request_id = base.get_task_id(request)
     tasks_dir = utils.task_dir()
@@ -519,6 +520,14 @@ async def stream_video(request: Request, file_path: str):
         ) from exc
     try:
         video_size = os.fstat(video_file.fileno()).st_size
+        if request.method == "HEAD":
+            # Range applies to GET only. Close before returning metadata; no
+            # generator or deferred background cleanup is needed for HEAD.
+            video_file.close()
+            return Response(
+                media_type="video/mp4",
+                headers={"Accept-Ranges": "bytes", "Content-Length": str(video_size)},
+            )
         start, end = _parse_byte_range(range_header, video_size, request_id)
     except Exception:
         video_file.close()
@@ -553,6 +562,7 @@ async def stream_video(request: Request, file_path: str):
 
 
 @router.get("/download/{file_path:path}")
+@router.head("/download/{file_path:path}", summary="Inspect artifact download metadata")
 async def download_video(request: Request, file_path: str):
     """
     download video
@@ -566,8 +576,14 @@ async def download_video(request: Request, file_path: str):
     file_path = pathlib.Path(video_path)
     filename = file_path.name
     media_type, _ = mimetypes.guess_type(filename)
-    return FileResponse(
+    response = FileResponse(
         path=video_path,
         filename=filename,
         media_type=media_type or "application/octet-stream",
+        stat_result=os.stat(video_path) if request.method == "HEAD" else None,
     )
+    if request.method == "HEAD":
+        # Reuse FileResponse's metadata without reading its body or applying
+        # GET-only Range processing to this HEAD request.
+        return Response(headers=response.headers)
+    return response
