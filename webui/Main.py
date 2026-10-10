@@ -2675,6 +2675,18 @@ def get_groq_model_ids(api_key: str, base_url: str) -> list[str]:
         return []
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def get_opencode_model_ids(cli_path: str) -> tuple[list[str], str]:
+    """
+    OpenCode 的模型目录由本机 CLI 动态发现（`opencode models`）。
+
+    每次发现都会启动外部进程，因此进程内缓存 5 分钟，避免 Streamlit 每次
+    重渲染都执行 CLI；「刷新」按钮手动清除缓存。返回 (模型列表, 错误信息)，
+    失败时列表为空但错误可见，模型输入框仍可手动填写。
+    """
+    return llm.discover_opencode_models(cli_path=cli_path)
+
+
 def _get_material_api_keys(config_key):
     """将配置中的素材 API Key 统一转换为 WebUI 可编辑字符串。"""
     api_keys = config.app.get(config_key, [])
@@ -3538,6 +3550,50 @@ def _render_settings_dialog():
                         llm_form_panel.caption(
                             tr("Groq API Key Required for Model List")
                         )
+            elif llm_provider == "opencode":
+                # 模型名是 `opencode models` 发现的 provider/model 引用；
+                # 发现失败时退回手动输入，用户仍能填写已知引用，具体原因
+                # 通过 caption 展示，而不是静默吞掉 CLI 的报错。
+                opencode_cli_path = str(
+                    config.app.get("opencode_cli_path", "") or ""
+                ).strip()
+                opencode_models, opencode_model_error = get_opencode_model_ids(
+                    cli_path=opencode_cli_path
+                )
+
+                # 刷新对成功与失败都可用：失败后立即重试，成功后同步在
+                # OpenCode 侧新增或登录的 Provider 模型。
+                if llm_form_panel.button(
+                    tr("Refresh OpenCode Models"),
+                    key="opencode_refresh_models_button",
+                    icon=":material/refresh:",
+                ):
+                    get_opencode_model_ids.clear()
+                    st.rerun()
+
+                if opencode_models:
+                    selected_index = 0
+                    if llm_model_name in opencode_models:
+                        selected_index = opencode_models.index(llm_model_name)
+
+                    st_llm_model_name = llm_form_panel.selectbox(
+                        tr("Model Name"),
+                        options=opencode_models,
+                        index=selected_index,
+                        key="opencode_model_name_select",
+                    )
+                else:
+                    st_llm_model_name = llm_form_panel.text_input(
+                        tr("Model Name"),
+                        value=llm_model_name,
+                        key="opencode_model_name_input",
+                    )
+                    error_detail = (
+                        f": {opencode_model_error}" if opencode_model_error else ""
+                    )
+                    llm_form_panel.caption(
+                        f"{tr('OpenCode Model List Load Failed')}{error_detail}"
+                    )
             else:
                 st_llm_model_name = llm_form_panel.text_input(
                     tr("Model Name"),

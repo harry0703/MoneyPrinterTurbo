@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import tempfile
 import tomllib
@@ -498,6 +499,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "opper",
                 "ollama",
                 "claude_code",
+                "opencode",
                 "oneapi",
                 "litellm",
                 "groq",
@@ -2268,6 +2270,617 @@ class TestClaudeCodeProvider(unittest.TestCase):
             response = llm._generate_response("write something")
         self.assertIn("upgrade", response.lower())
         self.assertIn(llm.CLAUDE_CODE_MIN_CLI_VERSION, response)
+
+
+class TestOpenCodeCliProvider(unittest.TestCase):
+    """opencode Provider 通过本机 OpenCode CLI 复用已配置账号，不走 HTTP API。"""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        config.app["llm_provider"] = "opencode"
+        config.app["opencode_model_name"] = ""
+        config.app["opencode_cli_path"] = ""
+        config.app["opencode_timeout"] = ""
+        llm._opencode_cli_major_version.cache_clear()
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        llm._opencode_cli_major_version.cache_clear()
+
+    @staticmethod
+    def _completed(stdout="", stderr="", returncode=0):
+        return types.SimpleNamespace(
+            stdout=stdout, stderr=stderr, returncode=returncode
+        )
+
+    @staticmethod
+    def _text_events(*texts):
+        """模拟 `opencode run --format json` 的行分隔事件流。"""
+        lines = [
+            json.dumps({"type": "step_start", "part": {"type": "step-start"}})
+        ]
+        lines.extend(
+            json.dumps({"type": "text", "part": {"type": "text", "text": text}})
+            for text in texts
+        )
+        lines.append(
+            json.dumps(
+                {"type": "step_finish", "part": {"type": "step-finish", "reason": "stop"}}
+            )
+        )
+        return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _error_event(message, name="UnknownError"):
+        return (
+            json.dumps(
+                {
+                    "type": "error",
+                    "error": {"name": name, "data": {"message": message}},
+                }
+            )
+            + "\n"
+        )
+
+    # ------------------------------------------------------------- success
+    def test_successful_generation_parses_text_events(self):
+        """正文只来自 type=text 事件，事件流的其余部分不应泄漏进脚本。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("Hello", " world")),
+            ) as run,
+        ):
+            self.assertEqual(llm._generate_response("write something"), "Hello world")
+
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "/usr/local/bin/opencode")
+        self.assertEqual(command[1], "run")
+        self.assertEqual(command[command.index("--format") + 1], "json")
+        self.assertIn("--pure", command)
+        self.assertEqual(
+            run.call_args.kwargs["timeout"], llm.OPENCODE_DEFAULT_TIMEOUT
+        )
+
+    def test_prompt_is_sent_through_stdin_with_copywriter_prelude(self):
+        """stdin 输入让 Windows 的 .cmd shim 不会截断多行 prompt；固定的写作
+        提示需要压过 OpenCode 编码 agent 的系统提示对文案生成的干扰。"""
+        prompt = "# Role: Generator\n\n## Goals:\nwrite something"
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response(prompt)
+
+        stdin_payload = run.call_args.kwargs["input"]
+        self.assertTrue(stdin_payload.startswith(llm.OPENCODE_SYSTEM_PROMPT))
+        self.assertTrue(stdin_payload.endswith(prompt))
+        command = run.call_args.args[0]
+        self.assertNotIn(prompt, command)
+        # prompt 不在 argv 上，多行内容不会被命令行截断。
+        self.assertFalse(any("\n" in arg for arg in command))
+
+    def test_model_reference_is_only_passed_when_configured(self):
+        """模型引用留空时沿用 OpenCode 默认模型；填写后按原样传递。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+            self.assertNotIn("--model", run.call_args.args[0])
+
+            config.app["opencode_model_name"] = "opencode/mimo-v2.6-flash-free"
+            llm._generate_response("write something")
+            command = run.call_args.args[0]
+            self.assertEqual(
+                command[command.index("--model") + 1], "opencode/mimo-v2.6-flash-free"
+            )
+
+    def test_tools_and_plugins_are_disabled_for_generation(self):
+        """纯文本生成必须禁用全部工具权限和外部插件，避免读写文件或执行命令。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        self.assertIn("--pure", run.call_args.args[0])
+        self.assertEqual(
+            run.call_args.kwargs["env"].get("OPENCODE_PERMISSION"),
+            llm.OPENCODE_PERMISSION_CONFIG,
+        )
+
+    def test_v2_cli_drops_pure_and_injects_permissions_via_config_content(self):
+        """OpenCode 2.x 移除了 --pure 与 OPENCODE_PERMISSION（2.0.24 实测：
+        传 --pure 以 "Unrecognized flag" 退出）：改经 OPENCODE_CONFIG_CONTENT
+        注入同样的 deny-all 权限，命令行不再携带 --pure。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        command = run.call_args.args[0]
+        self.assertNotIn("--pure", command)
+        env = run.call_args.kwargs["env"]
+        self.assertNotIn("OPENCODE_PERMISSION", env)
+        self.assertEqual(
+            env.get("OPENCODE_CONFIG_CONTENT"), llm.OPENCODE_PERMISSION_CONFIG
+        )
+
+    def test_v2_merges_permissions_into_existing_config_content(self):
+        """用户已设置 OPENCODE_CONFIG_CONTENT 时按 JSON 对象合并：其余键
+        保留，权限键以 deny-all 为准。"""
+        existing = json.dumps({"provider": {"openai": {"options": {}}}})
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": existing}),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        merged = json.loads(run.call_args.kwargs["env"]["OPENCODE_CONFIG_CONTENT"])
+        self.assertIn("provider", merged)
+        self.assertEqual(merged["permission"], {"*": "deny"})
+
+    def test_v2_keeps_unparseable_config_content(self):
+        """用户的 OPENCODE_CONFIG_CONTENT 解析不成 JSON 对象时保持原样，
+        不覆盖用户显式提供的配置（deny-all 注入被跳过并记录告警）。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": "not json"}),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        env = run.call_args.kwargs["env"]
+        self.assertEqual(env.get("OPENCODE_CONFIG_CONTENT"), "not json")
+
+    def test_version_detection_failure_falls_back_to_v1_invocation(self):
+        """版本无法识别时按 1.x 的已验证行为处理（--pure + OPENCODE_PERMISSION）；
+        若 CLI 实际是 2.x，会以 Unrecognized flag 退出并由错误处理转成提示。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=None),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        command = run.call_args.args[0]
+        self.assertIn("--pure", command)
+        self.assertEqual(
+            run.call_args.kwargs["env"].get("OPENCODE_PERMISSION"),
+            llm.OPENCODE_PERMISSION_CONFIG,
+        )
+
+    def test_major_version_is_parsed_from_version_output(self):
+        """1.18.x 输出 "1.18.34"，2.x 输出 "opencode v2.0.24"；无法执行或
+        超时时返回 None。"""
+        for version_output, expected in [
+            ("1.18.34", 1),
+            ("opencode v2.0.24", 2),
+            ("opencode 1.18.35", 1),
+        ]:
+            with self.subTest(version_output=version_output):
+                llm._opencode_cli_major_version.cache_clear()
+                with patch.object(
+                    llm.subprocess,
+                    "run",
+                    return_value=self._completed(stdout=version_output),
+                ):
+                    self.assertEqual(
+                        llm._opencode_cli_major_version("opencode"), expected
+                    )
+        llm._opencode_cli_major_version.cache_clear()
+        with patch.object(
+            llm.subprocess,
+            "run",
+            side_effect=llm.subprocess.TimeoutExpired(cmd="opencode", timeout=30),
+        ):
+            self.assertIsNone(llm._opencode_cli_major_version("opencode"))
+
+    def test_provider_spec_requires_no_key_or_base_url(self):
+        """Registry 声明：无 Key、无 Base URL，凭证始终留在 OpenCode 一侧。"""
+        provider = get_llm_provider("opencode")
+        self.assertIsNotNone(provider)
+        self.assertEqual(provider.adapter, "opencode")
+        self.assertFalse(provider.requires_api_key)
+        self.assertFalse(provider.show_api_key)
+        self.assertFalse(provider.requires_base_url)
+        self.assertFalse(provider.requires_model_name)
+        self.assertEqual(
+            [field.config_suffix for field in provider.extra_fields],
+            ["cli_path", "timeout"],
+        )
+
+    # -------------------------------------------------------- failure modes
+    def test_missing_cli_reports_actionable_error(self):
+        with (
+            patch.object(llm.shutil, "which", return_value=None),
+            patch.object(llm.os.path, "isfile", return_value=False),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("opencode CLI not found", response)
+        self.assertIn("opencode_cli_path", response)
+
+    def test_error_event_surfaces_opencode_message(self):
+        """error 事件（模型不可用、鉴权失败等）比退出码更具体，应优先透出。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(
+                    stdout=self._error_event("Model not found"), returncode=1
+                ),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("returned an error response", response)
+        self.assertIn("Model not found", response)
+
+    def test_timeout_is_reported_with_configured_seconds(self):
+        config.app["opencode_timeout"] = 12
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                side_effect=llm.subprocess.TimeoutExpired(cmd="opencode", timeout=12),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("timed out after 12s", response)
+        # 未登录时 opencode run 会静默挂起，超时提示必须给出可操作的排查方向。
+        self.assertIn("auth list", response)
+
+    def test_invalid_timeout_reports_configuration_error(self):
+        config.app["opencode_timeout"] = "soon"
+        with patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"):
+            response = llm._generate_response("write something")
+        self.assertIn("opencode_timeout", response)
+        self.assertTrue(response.startswith("Error:"), response)
+
+    def test_unknown_flag_reports_upgrade_hint(self):
+        """旧版 CLI 缺少 --format/--pure 时应提示升级，而不是丢出裸 stderr。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(
+                    stderr="error: unknown argument '--pure'", returncode=2
+                ),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("upgrade", response.lower())
+        self.assertIn(llm.OPENCODE_MIN_CLI_VERSION, response)
+
+    def test_unrecognized_flag_reports_upgrade_hint(self):
+        """OpenCode 2.x 对未识别 flag 输出 "Unrecognized flag"，应转成
+        可操作的升级提示而不是丢出裸 stderr。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=None),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(
+                    stderr="ERROR\n  Unrecognized flag: --pure in command opencode run",
+                    returncode=1,
+                ),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("upgrade", response.lower())
+        self.assertIn(llm.OPENCODE_MIN_CLI_VERSION, response)
+
+    def test_unrecognized_flag_on_zero_exit_with_usage_is_caught(self):
+        """2.x 把 usage 与 ERROR 文本写在一起、可能以退出码 0 结束：无事件
+        输出时同样要匹配升级提示，而不是丢出 invalid response。"""
+        stdout = (
+            "DESCRIPTION\n  Run OpenCode with a message\n"
+            "ERROR\n  Unrecognized flag: --pure in command opencode run\n"
+        )
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=None),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=stdout, returncode=0),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("upgrade", response.lower())
+        self.assertIn("Unrecognized flag", response)
+
+    def test_nonzero_exit_reports_exit_code_and_stderr(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stderr="provider exploded", returncode=2),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("exited with code 2", response)
+        self.assertIn("provider exploded", response)
+
+    def test_unparseable_output_is_reported_instead_of_crashing(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout="not json at all"),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("invalid response", response)
+
+    def test_empty_text_events_report_empty_content(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events()),
+            ),
+        ):
+            response = llm._generate_response("write something")
+        self.assertTrue(response.startswith("Error:"), response)
+        self.assertIn("empty text content", response)
+
+    # -------------------------------------------------------- model discovery
+    def test_discovery_parses_sorts_and_deduplicates_models(self):
+        stdout = (
+            "zeta/m2\n"
+            "alpha/m1\n"
+            "alpha/m1\n"
+            "\n"
+            "Available models:\n"  # 标题行含空白，应被忽略
+            "error: refresh failed\n"
+        )
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=stdout),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, ["alpha/m1", "zeta/m2"])
+        self.assertEqual(error, "")
+
+    def test_discovery_keeps_model_ids_containing_slashes(self):
+        """openrouter 等聚合商的模型 ID 内部含斜杠，不能按第二个斜杠截断。"""
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout="openrouter/qwen/qwen-2.5\n"),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, ["openrouter/qwen/qwen-2.5"])
+        self.assertEqual(error, "")
+
+    def test_discovery_passes_refresh_flag_only_when_requested(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout="a/b\n"),
+            ) as run,
+        ):
+            llm.discover_opencode_models(cli_path="/opt/homebrew/bin/opencode")
+            self.assertEqual(run.call_args.args[0], [
+                "/usr/local/bin/opencode", "models"
+            ])
+            llm.discover_opencode_models(refresh=True)
+            self.assertEqual(
+                run.call_args.args[0],
+                ["/usr/local/bin/opencode", "models", "--refresh"],
+            )
+        # stdin 关闭：模型发现不允许任何交互提示阻塞渲染。
+        self.assertEqual(run.call_args.kwargs["stdin"], llm.subprocess.DEVNULL)
+
+    def test_discovery_reports_missing_cli(self):
+        with (
+            patch.object(llm.shutil, "which", return_value=None),
+            patch.object(llm.os.path, "isfile", return_value=False),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, [])
+        self.assertIn("opencode CLI not found", error)
+        self.assertIn("opencode_cli_path", error)
+
+    def test_discovery_reports_failure_exit_code(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stderr="broken", returncode=3),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, [])
+        self.assertIn("exited with code 3", error)
+        self.assertIn("broken", error)
+
+    def test_discovery_reports_empty_catalog(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=""),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, [])
+        self.assertIn("returned no models", error)
+
+    def test_discovery_reports_timeout(self):
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(
+                llm.subprocess,
+                "run",
+                side_effect=llm.subprocess.TimeoutExpired(cmd="opencode", timeout=30),
+            ),
+        ):
+            models, error = llm.discover_opencode_models()
+        self.assertEqual(models, [])
+        self.assertIn("timed out after 30s", error)
+
+    # ------------------------------------------------- -- 真实 CLI 回归
+    # 上面的用例都 mock 了 subprocess，因此上游 CLI 改变 flag 或错误措辞时它们
+    # 仍然通过。下面这组用例针对真实安装的 OpenCode CLI 运行：把版本判断、隔离
+    # 参数的选择和错误措辞都钉在真实二进制上。没装 OpenCode 的环境（CI）整体
+    # 跳过，也不需要网络或登录——2.x 在参数解析阶段就会拒绝 --pure。
+
+    def _installed_opencode_or_skip(self):
+        cli = llm.resolve_opencode_cli_path("")
+        if not cli:
+            self.skipTest("no opencode CLI installed")
+        return cli
+
+    def test_real_cli_version_detection_matches_installed_cli(self):
+        """`opencode --version` 的真实输出必须被解析成真实主版本号：版本判断
+        是 2.x 路径的唯一开关，解析错了就会退化成传 --pure 的失败调用。"""
+        cli = self._installed_opencode_or_skip()
+        completed = llm.subprocess.run(
+            [cli, "--version"],
+            stdin=llm.subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        output = (completed.stdout or "") + (completed.stderr or "")
+        match = re.search(r"v?(\d+)\.", output)
+        self.assertIsNotNone(match, f"unparseable --version output: {output!r}")
+        self.assertEqual(
+            llm._opencode_cli_major_version(cli), int(match.group(1))
+        )
+
+    def test_real_cli_isolation_flags_follow_installed_major_version(self):
+        """隔离参数按真实 CLI 的主版本选择：2.x 不传 --pure 并改用
+        OPENCODE_CONFIG_CONTENT 注入 deny-all 权限；1.x 继续用
+        --pure + OPENCODE_PERMISSION。
+
+        这里不 mock 版本探测，因此断言的是“这台机器上真实安装的版本”对应
+        的正确调用方式。"""
+        cli = self._installed_opencode_or_skip()
+        major_version = llm._opencode_cli_major_version(cli)
+        self.assertIsNotNone(
+            major_version, f"could not read a version from {cli}"
+        )
+
+        original_cli_path = config.app.get("opencode_cli_path")
+        config.app["opencode_cli_path"] = cli
+        try:
+            with patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run:
+                self.assertEqual(llm._generate_response("write something"), "ok")
+        finally:
+            config.app["opencode_cli_path"] = original_cli_path
+
+        command = run.call_args.args[0]
+        cli_env = run.call_args.kwargs["env"]
+        self.assertEqual(command[0], cli)
+        if major_version >= 2:
+            self.assertNotIn("--pure", command)
+            self.assertEqual(
+                cli_env.get("OPENCODE_CONFIG_CONTENT"),
+                llm.OPENCODE_PERMISSION_CONFIG,
+            )
+        else:
+            self.assertIn("--pure", command)
+            self.assertEqual(
+                cli_env.get("OPENCODE_PERMISSION"), llm.OPENCODE_PERMISSION_CONFIG
+            )
+        if "OPENCODE_PERMISSION" not in os.environ and major_version >= 2:
+            # 2.x 已移除该变量，继续设置它会让隔离看起来生效而其实没有。
+            self.assertNotIn("OPENCODE_PERMISSION", cli_env)
+
+    def test_real_cli_unrecognized_pure_wording_maps_to_upgrade_hint(self):
+        """把真实 CLI 拒绝 `--pure` 时的原始输出交给错误处理，升级提示必须
+        命中。用例直接消费真实 stderr，所以上游改写措辞时它会失败，而不是像
+        手写字符串那样继续匹配一个已经不再出现的消息。"""
+        cli = self._installed_opencode_or_skip()
+        if llm._opencode_cli_major_version(cli) != 2:
+            self.skipTest("the installed opencode CLI still accepts --pure")
+
+        completed = llm.subprocess.run(
+            [cli, "run", "--format", "json", "--pure", "ping"],
+            input="",
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+        # flag 解析先于任何网络访问失败，因此这个用例不需要登录或模型。
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("Unrecognized flag", completed.stderr)
+
+        with (
+            patch.object(llm.shutil, "which", return_value=cli),
+            # 模拟版本探测失败：此时仍会走 1.x 的调用方式并真的被拒绝。
+            patch.object(llm, "_opencode_cli_major_version", return_value=None),
+            patch.object(llm.subprocess, "run", return_value=completed),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("upgrade", response.lower())
+        self.assertIn(llm.OPENCODE_MIN_CLI_VERSION, response)
+        self.assertIn("Unrecognized flag", response)
 
 
 class TestRuntimeEnvironmentDetection(unittest.TestCase):
