@@ -588,7 +588,7 @@
     "llm_provider_label.kimi_code": "Kimi Code（Kimi 订阅）",
     "llm_provider_tips.kimi_code": "##### Kimi Code 配置说明\n- **API Key**：不需要；点击「使用 Kimi 登录」，在浏览器中确认一次即可，后续调用使用你的 Kimi 订阅（Plus 及以上档位的 Kimi Code 权益）\n- **Base Url**：由上方 API Platform 选项决定（中国站 `api.kimi.com`；Global `api.kimi.ai`）\n- **Model Name**：可选；默认 `kimi-for-coding`\n- 还没有订阅？前往 [Kimi Code 站点]({api_key_url})了解套餐；模型列表见[模型文档]({model_docs_url})\n- 调用消耗 Kimi Code 订阅额度，与按量付费 API 余额相互独立。登录后访问令牌会自动续期",
     "kimi_code.oauth.login": "使用 Kimi 登录",
-    "kimi_code.oauth.pending": "请在浏览器中打开授权页并确认本设备。授权码：",
+    "kimi_code.oauth.pending": "请在 Kimi 授权页面确认登录，完成后这里会自动更新。",
     "kimi_code.oauth.open_page": "打开 Kimi 授权页面",
     "kimi_code.oauth.success": "Kimi 登录成功",
     "kimi_code.oauth.authorized": "已使用 Kimi 登录（区域：{region}），调用将消耗你的 Kimi Code 订阅额度。",
@@ -598,6 +598,7 @@
     "kimi_code.oauth.reauth": "按所选区域重新登录 Kimi",
     "kimi_code.oauth.region_mismatch": "当前凭证属于「{authorized}」区域，但所选 API Platform 为「{selected}」。请求将按凭证区域「{authorized}」发出；如需切换区域，请重新登录。",
     "kimi_code.oauth.network_error": "无法连接 Kimi 授权服务（网络错误）。请检查网络连接后重新发起登录。",
+    "kimi_code.oauth.changed": "登录状态已在其他页面变更，本次授权已停止。请按需重新登录。",
     "kimi_code.oauth.poll_retry": "检查授权状态时网络异常，正在自动重试……"
   }
 }

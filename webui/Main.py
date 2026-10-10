@@ -3587,151 +3587,15 @@ def _render_settings_dialog():
                     ),
                 )
 
-            if llm_provider == "kimi_code":
-                # OAuth 设备授权：用户点一次按钮拿到授权链接和 code，在浏览器
-                # 里确认后这里自动轮询换 token。授权状态保存在 config 中，
-                # 后续脚本调用由服务层用 refresh token 自动续期。
+            if llm_provider == "kimi_code" and middle_config_panel.open:
                 from app.services import kimi_code_oauth
+                from webui.kimi_login import render_kimi_login
 
-                oauth_region = kimi_code_oauth.resolve_region(st_llm_base_url)
-                oauth_state_key = "kimi_code_oauth_flow"
-
-                def _start_device_flow():
-                    try:
-                        device_payload = kimi_code_oauth.request_device_code(
-                            oauth_region
-                        )
-                    except requests.RequestException as network_error:
-                        # 网络超时/连接失败不炸页面：提示后登录按钮仍在，
-                        # 用户可直接重试。
-                        logger.warning(
-                            "kimi_code: device authorization request failed: "
-                            f"{network_error}"
-                        )
-                        llm_form_panel.error(tr("kimi_code.oauth.network_error"))
-                        return False
-                    except ValueError as request_error:
-                        llm_form_panel.error(str(request_error))
-                        return False
-                    st.session_state[oauth_state_key] = {
-                        "region": oauth_region,
-                        "device_code": device_payload["device_code"],
-                        "user_code": device_payload["user_code"],
-                        "verification_uri_complete": device_payload[
-                            "verification_uri_complete"
-                        ],
-                        "interval": device_payload.get("interval", 5),
-                    }
-                    return True
-
-                flow = st.session_state.get(oauth_state_key)
-                if flow:
-                    try:
-                        token_payload = kimi_code_oauth.poll_token(
-                            flow["region"], flow["device_code"]
-                        )
-                    except requests.RequestException as network_error:
-                        # 轮询遇到网络错误不清除流程：按当前间隔自动重试；
-                        # 连续多次失败则结束流程，回到可重新登录的状态。
-                        flow["network_errors"] = int(flow.get("network_errors", 0)) + 1
-                        logger.warning(
-                            "kimi_code: token poll failed "
-                            f"({flow['network_errors']}): {network_error}"
-                        )
-                        if flow["network_errors"] >= 5:
-                            llm_form_panel.error(tr("kimi_code.oauth.network_error"))
-                            del st.session_state[oauth_state_key]
-                            flow = None
-                        else:
-                            st.session_state[oauth_state_key] = flow
-                            llm_form_panel.warning(tr("kimi_code.oauth.poll_retry"))
-                            time.sleep(max(int(flow.get("interval", 5)), 2))
-                            st.rerun()
-                    except ValueError as flow_error:
-                        llm_form_panel.error(str(flow_error))
-                        del st.session_state[oauth_state_key]
-                        flow = None
-                    else:
-                        flow["network_errors"] = 0
-                        if token_payload.get("expired"):
-                            # 授权码过期（用户长时间未确认）：清掉流程，
-                            # 回到可重新发起的状态。
-                            llm_form_panel.warning(tr("kimi_code.oauth.expired"))
-                            del st.session_state[oauth_state_key]
-                            flow = None
-                        elif token_payload.get("denied"):
-                            llm_form_panel.warning(tr("kimi_code.oauth.denied"))
-                            del st.session_state[oauth_state_key]
-                            flow = None
-                        elif token_payload.get("pending"):
-                            if token_payload.get("slow_down"):
-                                # RFC 8628 §3.5：服务端要求降低轮询频率时
-                                # 加大间隔继续等，而不是中断流程。
-                                flow["interval"] = int(flow.get("interval", 5)) + 5
-                                st.session_state[oauth_state_key] = flow
-                            with llm_form_panel:
-                                st.info(
-                                    tr("kimi_code.oauth.pending").format(
-                                        user_code=flow["user_code"],
-                                    )
-                                )
-                                st.link_button(
-                                    tr("kimi_code.oauth.open_page"),
-                                    flow["verification_uri_complete"],
-                                )
-                                st.code(flow["user_code"], language=None)
-                            time.sleep(max(int(flow.get("interval", 5)), 2))
-                            st.rerun()
-                        else:
-                            kimi_code_oauth.store_token_bundle(
-                                flow["region"], token_payload
-                            )
-                            del st.session_state[oauth_state_key]
-                            llm_form_panel.success(tr("kimi_code.oauth.success"))
-                            st.rerun()
-
-                if kimi_code_oauth.is_authorized():
-                    auth_region = (
-                        kimi_code_oauth.authorized_region() or oauth_region
+                # 给嵌套 fragment 独立的容器，轮询重绘不占用后续控件的位置。
+                with llm_form_panel.container():
+                    render_kimi_login(
+                        kimi_code_oauth.resolve_region(st_llm_base_url), tr
                     )
-                    region_mismatch = auth_region != oauth_region
-                    if region_mismatch:
-                        # 界面区域与凭证区域不一致：服务层按凭证签发区域发
-                        # 请求，这里明确告知并提供按界面区域重新授权的入口。
-                        llm_form_panel.warning(
-                            tr("kimi_code.oauth.region_mismatch").format(
-                                authorized=auth_region, selected=oauth_region
-                            )
-                        )
-                    else:
-                        llm_form_panel.success(
-                            tr("kimi_code.oauth.authorized").format(
-                                region=auth_region
-                            )
-                        )
-                    if llm_form_panel.button(
-                        tr("kimi_code.oauth.disconnect"),
-                        key="kimi_code_disconnect_button",
-                    ):
-                        kimi_code_oauth.clear_credentials()
-                        st.rerun()
-                    if region_mismatch and llm_form_panel.button(
-                        tr("kimi_code.oauth.reauth"),
-                        key="kimi_code_reauth_button",
-                        type="primary",
-                        icon=":material/login:",
-                    ):
-                        if _start_device_flow():
-                            st.rerun()
-                elif not flow:
-                    if llm_form_panel.button(
-                        tr("kimi_code.oauth.login"),
-                        key="kimi_code_login_button",
-                        type="primary",
-                        icon=":material/login:",
-                    ):
-                        if _start_device_flow():
-                            st.rerun()
 
             if llm_form_panel.button(
                 tr("Test LLM Connection"),

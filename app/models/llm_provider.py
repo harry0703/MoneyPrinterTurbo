@@ -233,6 +233,42 @@ LLM_PROVIDER_REGISTRY = (
         default_service_endpoint_id="china",
         international_service_endpoint_id="global",
     ),
+    # Kimi 订阅（Plus 及以上档位的 Kimi Code 权益）采用 OAuth 设备授权：
+    # 用户在浏览器里一键确认后，服务层直接携带 Bearer token 调用官方
+    # OpenAI 兼容端点，不需要申请按量 API Key。中国站和 Global 使用各自
+    # 独立的账号与授权体系，endpoint 同步授权页、API 地址与订阅链接。
+    LLMProviderSpec(
+        "kimi_code",
+        "Kimi Code (Kimi subscription)",
+        adapter="kimi_code",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        requires_model_name=False,
+        default_model="kimi-for-coding",
+        extra_fields=(
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
+        ),
+        service_endpoints=(
+            LLMProviderEndpoint(
+                endpoint_id="china",
+                default_label="China",
+                base_url="https://api.kimi.com/coding/v1",
+                api_key_url="https://www.kimi.com/code?aff=moneyprinterturbo",
+                model_docs_url="https://platform.kimi.com/docs/models?aff=moneyprinterturbo",
+            ),
+            LLMProviderEndpoint(
+                endpoint_id="global",
+                default_label="Global",
+                base_url="https://api.kimi.ai/coding/v1",
+                api_key_url="https://www.kimi.ai/code?aff=moneyprinterturbo",
+                model_docs_url="https://platform.kimi.ai/docs/models?aff=moneyprinterturbo",
+            ),
+        ),
+        default_service_endpoint_id="china",
+        international_service_endpoint_id="global",
+    ),
     # 主流模型原厂与云厂商
     LLMProviderSpec(
         "openai",
@@ -486,42 +522,6 @@ LLM_PROVIDER_REGISTRY = (
             LLMProviderField("cli_path", "Claude CLI Path"),
             LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
         ),
-    ),
-    # Kimi 订阅（Plus 及以上档位的 Kimi Code 权益）采用 OAuth 设备授权：
-    # 用户在浏览器里一键确认后，服务层直接携带 Bearer token 调用官方
-    # OpenAI 兼容端点，不需要申请按量 API Key。中国站和 Global 使用各自
-    # 独立的账号与授权体系，endpoint 同步授权页、API 地址与订阅链接。
-    LLMProviderSpec(
-        "kimi_code",
-        "Kimi Code (Kimi subscription)",
-        adapter="kimi_code",
-        requires_api_key=False,
-        show_api_key=False,
-        requires_base_url=False,
-        show_base_url=False,
-        requires_model_name=False,
-        default_model="kimi-for-coding",
-        extra_fields=(
-            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
-        ),
-        service_endpoints=(
-            LLMProviderEndpoint(
-                endpoint_id="china",
-                default_label="China",
-                base_url="https://api.kimi.com/coding/v1",
-                api_key_url="https://www.kimi.com/code?aff=moneyprinterturbo",
-                model_docs_url="https://platform.kimi.com/docs/models?aff=moneyprinterturbo",
-            ),
-            LLMProviderEndpoint(
-                endpoint_id="global",
-                default_label="Global",
-                base_url="https://api.kimi.ai/coding/v1",
-                api_key_url="https://www.kimi.ai/code?aff=moneyprinterturbo",
-                model_docs_url="https://platform.kimi.ai/docs/models?aff=moneyprinterturbo",
-            ),
-        ),
-        default_service_endpoint_id="china",
-        international_service_endpoint_id="global",
     ),
     LLMProviderSpec(
         "oneapi",

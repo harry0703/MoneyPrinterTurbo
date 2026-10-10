@@ -68,6 +68,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "kimi_code.oauth.region_mismatch",
         "kimi_code.oauth.network_error",
         "kimi_code.oauth.poll_retry",
+        "kimi_code.oauth.changed",
         "LoomLoom Poll Retry Pending",
         "LoomLoom Poll Retry Warning",
         "Resume LoomLoom Status Check",

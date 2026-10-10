@@ -71,6 +71,15 @@ _EXPIRY_MARGIN_SECONDS = 60.0
 # Kimi 会轮换 refresh token，同一个旧 token 只能成功续期一次。并发请求必须
 # 串行续期，否则第二个线程会拿着已轮换的旧 token 得到 invalid_grant。
 _refresh_lock = threading.Lock()
+# 网络请求不持有凭据锁；验证响应归属和写回必须在同一个临界区完成。
+_credentials_lock = threading.RLock()
+_authorization_generation = 0
+
+
+def authorization_generation() -> int:
+    """返回登录／断开版本，供在途授权响应检查是否仍属于当前账号状态。"""
+    with _credentials_lock:
+        return _authorization_generation
 
 
 def _cfg(key, default=""):
@@ -239,78 +248,91 @@ def _refresh(region: str, refresh_token: str) -> dict:
     return data
 
 
-def store_token_bundle(region: str, payload: dict) -> None:
-    """Persist a fresh token payload (from poll_token or refresh)."""
-    expires_in = payload.get("expires_in") or 900
-    _set(_K_REGION, region)
-    _set(_K_ACCESS, payload["access_token"])
-    if payload.get("refresh_token"):
-        # Kimi rotates refresh tokens; only overwrite when a new one is issued.
-        _set(_K_REFRESH, payload["refresh_token"])
-    _set(_K_EXPIRES_AT, time.time() + float(expires_in))
-    # 必须落盘：纯 API 调用路径没有后续 WebUI 保存，若 refresh token 已轮换而
-    # 配置文件里仍是旧值，重启后将无法续期。非阻塞保存；长任务持锁时由后台
-    # 线程在任务结束后写入。
-    config.try_save_config()
+def store_token_bundle(
+    region: str,
+    payload: dict,
+    *,
+    expected_generation: int | None = None,
+    expected_refresh_token: str | None = None,
+) -> None:
+    """原子检查响应归属并保存凭据，避免旧响应恢复断开或覆盖新登录。"""
+    global _authorization_generation
+    access = payload["access_token"]
+    expires_at = time.time() + float(payload.get("expires_in") or 900)
+    with _credentials_lock:
+        if (
+            expected_generation is not None
+            and expected_generation != _authorization_generation
+        ) or (
+            expected_refresh_token is not None
+            and str(_cfg(_K_REFRESH, "")).strip() != expected_refresh_token
+        ):
+            raise ValueError(
+                "kimi_code: credentials changed while authorizing or refreshing; "
+                "please sign in again if needed."
+            )
+        _set(_K_REGION, region)
+        _set(_K_ACCESS, access)
+        if payload.get("refresh_token"):
+            _set(_K_REFRESH, payload["refresh_token"])
+        _set(_K_EXPIRES_AT, expires_at)
+        if expected_refresh_token is None:
+            _authorization_generation += 1
+        # 保存不等待视频任务的配置锁，队列中的凭据仍可立即读取。
+        config.try_save_config()
 
 
 def clear_credentials() -> None:
-    for key in (_K_ACCESS, _K_REFRESH, _K_EXPIRES_AT, _K_USER_CODE):
-        _set(key, "")
-    config.try_save_config()
+    global _authorization_generation
+    with _credentials_lock:
+        _authorization_generation += 1
+        for key in (_K_ACCESS, _K_REFRESH, _K_EXPIRES_AT, _K_USER_CODE):
+            _set(key, "")
+        config.try_save_config()
 
 
 def is_authorized() -> bool:
-    return bool(str(_cfg(_K_REFRESH, "")).strip() or str(_cfg(_K_ACCESS, "")).strip())
+    with _credentials_lock:
+        return bool(
+            str(_cfg(_K_REFRESH, "")).strip() or str(_cfg(_K_ACCESS, "")).strip()
+        )
 
 
 def authorized_region() -> str:
-    return str(_cfg(_K_REGION, "") or "")
+    with _credentials_lock:
+        return str(_cfg(_K_REGION, "") or "")
 
 
 def get_valid_access_token() -> str:
-    """
-    Return an access token valid for at least the next minute, refreshing with
-    the stored refresh token when needed. Raises ValueError when the user has
-    not completed the device authorization.
-    """
-    access = str(_cfg(_K_ACCESS, "")).strip()
-    expires_at = float(_cfg(_K_EXPIRES_AT, 0) or 0)
-    if access and time.time() < expires_at - _EXPIRY_MARGIN_SECONDS:
-        return access
-    if not str(_cfg(_K_REFRESH, "")).strip():
-        raise ValueError(
-            "kimi_code: not authorized yet, please complete the Kimi sign-in "
-            "in Settings first."
-        )
-    with _refresh_lock:
-        # 拿到锁后重新检查：排队期间另一个线程可能已经完成续期并写回配置，
-        # 直接用它的结果，不要再用同一个旧 refresh token 续第二次。
+    """返回有效 token；串行续期，并拒绝在登录／断开之后返回的旧响应。"""
+    with _credentials_lock:
         access = str(_cfg(_K_ACCESS, "")).strip()
         expires_at = float(_cfg(_K_EXPIRES_AT, 0) or 0)
         if access and time.time() < expires_at - _EXPIRY_MARGIN_SECONDS:
             return access
-        refresh = str(_cfg(_K_REFRESH, "")).strip()
-        if not refresh:
-            raise ValueError(
-                "kimi_code: not authorized yet, please complete the Kimi "
-                "sign-in in Settings first."
-            )
-        region = str(_cfg(_K_REGION, "") or "china")
+    with _refresh_lock:
+        # 排队期间可能已有请求续期，因此重新读取完整凭据状态。
+        with _credentials_lock:
+            access = str(_cfg(_K_ACCESS, "")).strip()
+            expires_at = float(_cfg(_K_EXPIRES_AT, 0) or 0)
+            if access and time.time() < expires_at - _EXPIRY_MARGIN_SECONDS:
+                return access
+            refresh = str(_cfg(_K_REFRESH, "")).strip()
+            if not refresh:
+                raise ValueError(
+                    "kimi_code: not authorized yet, please complete the Kimi "
+                    "sign-in in Settings first."
+                )
+            region = str(_cfg(_K_REGION, "") or "china")
+            generation = _authorization_generation
         logger.info("kimi_code: refreshing access token")
         payload = _refresh(region, refresh)
-        if str(_cfg(_K_REFRESH, "")).strip() != refresh:
-            # 等待响应期间用户断开了连接或重新登录：凭证已失效，丢弃这次
-            # 在途 refresh 的结果，不能让它把授权状态“复活”。
-            logger.info(
-                "kimi_code: credentials changed while refreshing; "
-                "discarding the in-flight refresh result"
-            )
-            raise ValueError(
-                "kimi_code: credentials changed while refreshing; "
-                "please sign in again if needed."
-            )
-        store_token_bundle(region, payload)
+        store_token_bundle(
+            region,
+            payload,
+            expected_generation=generation,
+            expected_refresh_token=refresh,
+        )
         return payload["access_token"]
 
 
