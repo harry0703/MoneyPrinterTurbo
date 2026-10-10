@@ -506,6 +506,11 @@ async def stream_video(request: Request, file_path: str):
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     range_header = request.headers.get("Range")
+    if range_header and request.headers.get("If-Range") is not None:
+        # This stream does not publish strong ETag/Last-Modified validators.
+        # An unverifiable If-Range must fall back to the full representation,
+        # so a client cannot combine old cached bytes with a new video tail.
+        range_header = None
     # The body is produced after this handler returns. Open now so a task
     # deletion or replacement between headers and iteration cannot make the
     # stream fail or mismatch the size used for Content-Range.
