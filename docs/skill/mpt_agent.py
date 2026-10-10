@@ -200,7 +200,9 @@ def _plain_config_value(text: str, key: str) -> str:
 
 def _replace_config_value(text: str, key: str, value: object) -> str:
     """Replace one active field while preserving the configuration layout."""
-    pattern = re.compile(rf"(?m)^({re.escape(key)}\s*=\s*).*$")
+    escaped_key = re.escape(key)
+    key_pattern = rf"""(?:{escaped_key}|"{escaped_key}"|'{escaped_key}')"""
+    pattern = re.compile(rf"(?m)^([ \t]*{key_pattern}\s*=\s*).*$")
     if not pattern.search(text):
         raise SkillError(f"configuration field not found in config.toml: {key}")
     encoded = json.dumps(value, ensure_ascii=False)
