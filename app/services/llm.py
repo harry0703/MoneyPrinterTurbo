@@ -839,6 +839,14 @@ def generate_script(
         response = response.replace("*", "")
         response = response.replace("#", "")
 
+        # Link labels are narration; discard destinations before stripping
+        # bracketed stage directions. Common parenthesized URL components fit.
+        response = re.sub(
+            r"\[([^\]\n]+)\]\((?:[^()\n]|\([^()\n]*\))*\)",
+            lambda match: match.group(1),
+            response,
+        )
+
         # Remove markdown syntax.  Use non-greedy .*? so each bracket/paren
         # group is removed independently; the greedy form would eat all text
         # between the first opener and the last closer on the same line.
