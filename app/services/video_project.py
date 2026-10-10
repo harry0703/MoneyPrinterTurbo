@@ -205,7 +205,7 @@ def stage_graph(spec: dict) -> list[Stage]:
         ]
         # Preserve cover fingerprints for existing revisions and cached exports.
         if scene.get("fit_mode", "cover") != "cover":
-            render_inputs.append(scene["fit_mode"])
+            render_inputs.append([scene["fit_mode"], "contain-dar-v2"])
         render = _fingerprint(render_inputs)
         stages.extend(
             [
@@ -735,8 +735,11 @@ class VideoProject:
                 vf = f"scale={settings.width}:{settings.height}:force_original_aspect_ratio=increase,crop={settings.width}:{settings.height},setsar=1,fps={settings.fps}"
                 if scene.get("fit_mode", "cover") == "contain":
                     vf = (
-                        f"scale={settings.width}:{settings.height}:"
-                        "force_original_aspect_ratio=decrease:force_divisible_by=2,"
+                        # Size square pixels from display aspect ratio, including
+                        # non-square source SAR. Bound both dimensions to an even
+                        # minimum so extreme source ratios cannot round to zero.
+                        f"scale=w='max(2,trunc(min({settings.width},{settings.height}*dar)/2)*2)':"
+                        f"h='max(2,trunc(min({settings.height},{settings.width}/dar)/2)*2)',"
                         f"pad={settings.width}:{settings.height}:(ow-iw)/2:(oh-ih)/2:color=black,"
                         f"setsar=1,fps={settings.fps}"
                     )

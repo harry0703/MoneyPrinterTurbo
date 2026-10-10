@@ -169,3 +169,8 @@ Only that scene's render, assembly and export rebuild when its mode changes;
 its prepared audio and the other scene renders remain reusable. Explicit
 `cover` and omitted modes share the existing cache fingerprint. Framing modes
 do not alter narration timing, output dimensions or frame rate.
+
+Contain framing preserves display aspect ratio, including non-square source
+pixels (anamorphic footage). Its versioned framing contract rebuilds older
+contain artifacts after geometry changes; default cover fingerprints remain
+unchanged.
