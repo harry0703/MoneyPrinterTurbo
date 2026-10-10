@@ -865,7 +865,7 @@ def generate_script(
                 # that text through would make the task treat it as narration.
                 raise ValueError(response)
             if response:
-                candidate = format_response(response)
+                candidate = format_response(response).strip()
             else:
                 logging.error("gpt returned an empty response")
                 candidate = ""
