@@ -727,3 +727,39 @@ def test_subtitle_background_retains_color_and_explicit_opacity(color, expected)
         assert clip.mask.get_frame(0)[0, 0] == 0
     finally:
         video.close_clip(clip)
+
+
+def test_footage_start_selects_source_segment_and_reuses_audio(native):
+    project, request, first, folder = native
+    _media([
+        "-f", "lavfi", "-i", "color=c=red:s=64x64:r=10:d=1",
+        "-f", "lavfi", "-i", "color=c=blue:s=64x64:r=10:d=1",
+        "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+        "-map", "[v]", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        str(folder / "segments.mp4"),
+    ])
+    request["scenes"][0]["footage"] = "segments.mp4"
+    untrimmed = project.create_revision(request, relative_to=folder)
+    untrimmed_result = project.render()
+    assert _pixel(untrimmed_result["export"]["path"], 0.2)[0] > 200
+    request["scenes"][0]["footage_start"] = 1.0
+    trimmed = project.create_revision(request, relative_to=folder)
+    assert trimmed["scenes"][0]["footage_start"] == 1.0
+    changes = {r["stage"]: r["change"] for r in project.compare(
+        untrimmed["revision_id"], trimmed["revision_id"]
+    )}
+    assert changes["opening:audio"] == changes["opening:timing"] == "unchanged"
+    assert changes["opening:scene"] == "changed"
+    result = project.render()
+    pixel = _pixel(result["export"]["path"], 0.2)
+    assert pixel[2] > 200 and pixel[0] < 30
+    assert result["stages"]["opening:audio"]["reused"]
+    assert result["stages"]["closing:scene"]["reused"]
+
+
+@pytest.mark.parametrize("value", [-1, True, "1", float("nan"), float("inf"), 10**1000])
+def test_invalid_footage_start_reports_field(native, value):
+    project, request, _, folder = native
+    request["scenes"][0]["footage_start"] = value
+    with pytest.raises(ProjectError, match="footage_start"):
+        project.create_revision(request, relative_to=folder)
