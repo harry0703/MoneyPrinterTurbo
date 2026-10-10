@@ -749,6 +749,7 @@ def _sanitize_image_file(image_path: str) -> str:
 def _open_image_clip_with_fallback(image_path: str):
     # MoviePy does not apply camera EXIF orientation while decoding an image.
     # CMYK JPEG channels also must become RGB rather than an apparent alpha mask.
+    # Bilevel pixels must become byte-range RGB rather than bool values0/1.
     # Ordinary RGB inputs retain the direct path.
     try:
         with Image.open(image_path) as image:
@@ -757,7 +758,7 @@ def _open_image_clip_with_fallback(image_path: str):
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode == "CMYK":
+    if orientation in range(2, 9) or image_mode in {"CMYK", "1"}:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
