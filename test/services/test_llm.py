@@ -3,13 +3,7 @@ import os
 import re
 import sys
 import tempfile
-
-try:
-    import tomllib as _tomllib_mod
-except ImportError:
-    import tomli as _tomllib_mod
-sys.modules.setdefault("tomllib", _tomllib_mod)
-
+import tomllib
 import types
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -797,7 +791,7 @@ class TestLiteLLMProvider(unittest.TestCase):
     def test_example_config_does_not_duplicate_registry_defaults(self):
         """示例配置只保存用户覆盖值，默认模型和地址由 Registry 唯一维护。"""
         config_path = Path(__file__).parent.parent.parent / "config.example.toml"
-        app_config = _tomllib_mod.loads(config_path.read_text(encoding="utf-8"))["app"]
+        app_config = tomllib.loads(config_path.read_text(encoding="utf-8"))["app"]
 
         for provider in LLM_PROVIDER_REGISTRY:
             if provider.default_model:
