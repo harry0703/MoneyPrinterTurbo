@@ -463,6 +463,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.opper.ai/v3/compat",
         model_docs_url="https://opper.ai/models",
     ),
+    LLMProviderSpec(
+        "onomeo",
+        "onomeo",
+        api_key_url="https://onomeo.com/dashboard",
+        default_model="auto",
+        default_base_url="https://onomeo.com/v1",
+        model_docs_url="https://onomeo.com/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
