@@ -365,19 +365,38 @@ def has_cli_option(cli_args: list[str], option: str) -> bool:
     return any(item == option or item.startswith(f"{option}=") for item in cli_args)
 
 
+def _last_cli_value(cli_args: list[str], option: str) -> str:
+    value = ""
+    for index, item in enumerate(cli_args):
+        if item == option and index + 1 < len(cli_args):
+            value = cli_args[index + 1]
+        elif item.startswith(f"{option}="):
+            value = item.split("=", 1)[1]
+    return value.strip()
+
+
+def _requires_llm(cli_args: list[str]) -> bool:
+    # Match task.generate_script and the local-material terms bypass.
+    return not _last_cli_value(cli_args, "--video-script") or (
+        selected_video_source(cli_args) != "local"
+        and not _last_cli_value(cli_args, "--video-terms")
+    )
+
+
 def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[str]]:
     """Return the active provider and only the fields required by this run."""
     text = config_path.read_text(encoding="utf-8")
     provider = _plain_config_value(text, "llm_provider") or "moonshot"
     missing: list[str] = []
-    if provider not in KEYLESS_LLM_PROVIDERS and not _has_configured_value(
+    needs_llm = _requires_llm(cli_args)
+    if needs_llm and provider not in KEYLESS_LLM_PROVIDERS and not _has_configured_value(
         _plain_config_value(text, f"{provider}_api_key")
     ):
         missing.append(f"{provider}_api_key")
-    if provider == "kimi_code" and not _provider_is_ready(text, provider):
+    if needs_llm and provider == "kimi_code" and not _provider_is_ready(text, provider):
         # 无 Key 可填，缺失的是 WebUI 登录动作而不是配置字段。
         missing.append("kimi_code_sign_in")
-    if provider == CUSTOM_OPENAI_PROVIDER:
+    if needs_llm and provider == CUSTOM_OPENAI_PROVIDER:
         for suffix in ("base_url", "model_name"):
             field = f"{provider}_{suffix}"
             if not _has_configured_value(_plain_config_value(text, field)):
