@@ -623,6 +623,8 @@ model_id = "speech-2.8-hd"
 voice_id = "English_expressive_narrator"
 sample_rate = 32000
 bitrate = 128000
+# Container formats supported by local validation: mp3, wav, flac.
+# Headerless PCM is rejected before synthesis.
 audio_format = "mp3"
 channel = 1
 pitch = 0
