@@ -1,10 +1,17 @@
 """Native provider-payload decoding; no paid synthesis requests."""
 import json
+import shutil
 import subprocess
 
 import pytest
 
 from app.services.voice import _write_validated_minimax_audio
+
+
+pytestmark = pytest.mark.skipif(
+    not shutil.which("ffmpeg") or not shutil.which("ffprobe"),
+    reason="native FFmpeg/FFprobe required; exercised in the post-install CI pass",
+)
 
 
 @pytest.mark.parametrize("source_format,output_format,codec", [
