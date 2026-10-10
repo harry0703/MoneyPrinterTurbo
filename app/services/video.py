@@ -748,7 +748,8 @@ def _sanitize_image_file(image_path: str) -> str:
 
 def _open_image_clip_with_fallback(image_path: str):
     # MoviePy does not apply camera EXIF orientation while decoding an image.
-    # CMYK JPEG channels also must become RGB rather than an apparent alpha mask.
+    # CMYK JPEG channels must become RGB; LA must become RGBA so MoviePy
+    # creates a proper opacity mask rather than treating alpha as a color band.
     # Ordinary RGB inputs retain the direct path.
     try:
         with Image.open(image_path) as image:
@@ -757,7 +758,7 @@ def _open_image_clip_with_fallback(image_path: str):
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode == "CMYK":
+    if orientation in range(2, 9) or image_mode in {"CMYK", "LA"}:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
@@ -1884,7 +1885,7 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
 
         # Optionally, create a composite video clip containing the zoomed clip.
         # This is useful if you want to add other elements to the video.
-        final_clip = CompositeVideoClip([zoom_clip])
+        final_clip = CompositeVideoClip([zoom_clip], bg_color=(0, 0, 0))
         try:
             # The duration changes the rendered content, so it must be part of
             # the output identity. Different tasks may render the same image

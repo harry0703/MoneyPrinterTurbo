@@ -572,7 +572,7 @@ class TestVideoService(unittest.TestCase):
                 return self
 
         class FakeCompositeClip:
-            def __init__(self, clips):
+            def __init__(self, clips, bg_color=None):
                 self.duration = clips[0].duration
 
             def write_videofile(self, output, **_kwargs):
@@ -612,7 +612,7 @@ class TestVideoService(unittest.TestCase):
         writes = 0
 
         class FakeCompositeClip:
-            def __init__(self, _clips):
+            def __init__(self, _clips, bg_color=None):
                 pass
 
             def write_videofile(self, output, **_kwargs):
