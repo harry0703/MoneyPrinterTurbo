@@ -711,6 +711,28 @@ def concat_video_clips_with_ffmpeg(
         delete_files([concat_list_file, staged_output])
 
 
+def _normalize_embedded_rgb_profile(image):
+    """Convert tagged RGB pixels to sRGB before discarding their profile."""
+    profile = image.info.get("icc_profile")
+    if image.mode not in {"RGB", "RGBA"} or not profile:
+        return image
+    try:
+        from PIL import ImageCms
+    except ImportError:
+        logger.warning("Pillow color management is unavailable; retaining image pixels")
+        return image
+    try:
+        return ImageCms.profileToProfile(
+            image,
+            ImageCms.ImageCmsProfile(io.BytesIO(profile)),
+            ImageCms.createProfile("sRGB"),
+            outputMode=image.mode,
+        )
+    except (ImageCms.PyCMSError, OSError, ValueError):
+        logger.warning("invalid or unsupported RGB image profile; retaining image pixels")
+        return image
+
+
 def _sanitize_image_file(image_path: str) -> str:
     # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
     # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
@@ -729,6 +751,11 @@ def _sanitize_image_file(image_path: str) -> str:
                 # Palette transparency belongs to pixels, not removable metadata.
                 mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
                 cleaned_image = upright.convert(mode)
+                if upright.mode in {"RGB", "RGBA"}:
+                    color_managed = _normalize_embedded_rgb_profile(cleaned_image)
+                    if color_managed is not cleaned_image:
+                        cleaned_image.close()
+                        cleaned_image = color_managed
                 cleaned_image.info.clear()
                 descriptor, temp_path = tempfile.mkstemp(
                     prefix=".image-sanitize-", suffix=".png",
@@ -754,10 +781,12 @@ def _open_image_clip_with_fallback(image_path: str):
         with Image.open(image_path) as image:
             orientation = image.getexif().get(274, 1)
             image_mode = image.mode
+            has_rgb_profile = image_mode in {"RGB", "RGBA"} and bool(image.info.get("icc_profile"))
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode == "CMYK":
+        has_rgb_profile = False
+    if orientation in range(2, 9) or image_mode == "CMYK" or has_rgb_profile:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
