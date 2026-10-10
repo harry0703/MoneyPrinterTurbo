@@ -172,11 +172,16 @@ def _parse_byte_range(
     try:
         # 视频播放器这里只需要单段 bytes range。拒绝多段请求可以避免返回体
         # 与 Content-Range 不一致，也避免异常字符串落入 int() 产生 500。
-        if not range_header.startswith("bytes=") or "," in range_header:
+        unit, separator, positions = range_header.strip(" \t").partition("=")
+        if unit.lower() != "bytes" or not separator or "," in positions:
             raise ValueError("unsupported range format")
-        start_text, end_text = range_header[6:].split("-", 1)
+        start_text, end_text = positions.split("-", 1)
         if not start_text and not end_text:
             raise ValueError("empty range")
+        # HTTP positions use ASCII DIGIT, not Python's broader int syntax.
+        if any(value and not (value.isascii() and value.isdigit())
+               for value in (start_text, end_text)):
+            raise ValueError("invalid byte position")
 
         if not start_text:
             suffix_length = int(end_text)
