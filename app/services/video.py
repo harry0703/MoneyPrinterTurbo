@@ -1278,6 +1278,23 @@ def combine_videos(
     return combined_video_path
 
 
+def shape_arabic_text(text: str) -> str:
+    # Pillow here is built without Raqm, so Arabic letters are drawn isolated and
+    # left-to-right. Join the letters and reorder to visual order before drawing.
+    if not any("؀" <= ch <= "ۿ" for ch in text):
+        return text
+    try:
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+
+        return "\n".join(
+            get_display(arabic_reshaper.reshape(line)) for line in text.split("\n")
+        )
+    except Exception as e:
+        logger.warning(f"failed to shape arabic subtitle: {e}")
+        return text
+
+
 def wrap_text(text, max_width, font="Arial", fontsize=60):
     # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
     # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
@@ -1612,6 +1629,7 @@ def generate_video(
             font=font_path,
             fontsize=params.font_size,
         )
+        wrapped_txt = shape_arabic_text(wrapped_txt)
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
         vertical_padding = int(params.font_size * 0.35)
