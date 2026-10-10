@@ -421,6 +421,13 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(opper.requires_api_key)
         self.assertEqual(opper.api_key_url, "https://platform.opper.ai")
         self.assertEqual(opper.model_docs_url, "https://opper.ai/models")
+        onomeo = get_llm_provider("onomeo")
+        self.assertEqual(onomeo.default_model, "auto")
+        self.assertEqual(onomeo.default_base_url, "https://onomeo.com/v1")
+        self.assertEqual(onomeo.adapter, "openai_compatible")
+        self.assertTrue(onomeo.requires_api_key)
+        self.assertEqual(onomeo.api_key_url, "https://onomeo.com/dashboard")
+        self.assertEqual(onomeo.model_docs_url, "https://onomeo.com/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -495,6 +502,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "futureinfra",
                 "yapi",
                 "opper",
+                "onomeo",
                 "ollama",
                 "claude_code",
                 "oneapi",
