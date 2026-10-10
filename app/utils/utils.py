@@ -281,11 +281,18 @@ def format_arabic_text(text: str) -> str:
         if not arabic_pattern.search(text):
             return text
 
+        reshaper = arabic_reshaper.ArabicReshaper(
+            configuration={
+                "delete_harakat": False,
+                "support_ligatures": True,
+            }
+        )
+
         lines = text.split("\n")
         formatted_lines = []
         for line in lines:
             if arabic_pattern.search(line):
-                reshaped = arabic_reshaper.reshape(line)
+                reshaped = reshaper.reshape(line)
                 formatted_lines.append(get_display(reshaped))
             else:
                 formatted_lines.append(line)

@@ -2078,6 +2078,70 @@ class TestVideoService(unittest.TestCase):
         finally:
             clip.close()
 
+    def test_arabic_subtitle_rendering_and_vowel_marks(self):
+        """
+        验证阿拉伯语字幕（含带变音符号/Tashkeel的文本）能被正确塑形与绘制，
+        且内置的 Amiri Quran 字体能完整渲染而不出现缺失字形方块（tofu）。
+        """
+        font_path = os.path.join(utils.font_dir(), "Amiri Quran.ttf")
+        self.assertTrue(os.path.exists(font_path), "Amiri Quran font must exist")
+
+        cases = (
+            ("plain_arabic", "مرحبا بكم في عالم الذكاء الاصطناعي وصناعة المحتوى"),
+            ("vocalized_arabic", "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"),
+        )
+
+        font_size = 40
+        max_width = 360
+        interline = int(font_size * 0.25)
+        vertical_padding = int(font_size * 0.35)
+        stroke_width = 2
+
+        for label, text in cases:
+            with self.subTest(case=label):
+                self.assertTrue(vd.subtitle_font_supports_text(font_path, text))
+                wrapped_text, text_height = vd.wrap_text(
+                    text=text,
+                    max_width=max_width,
+                    font=font_path,
+                    fontsize=font_size,
+                )
+                formatted_text = utils.format_arabic_text(wrapped_text)
+                self.assertNotEqual(formatted_text, wrapped_text)
+
+                # 确保变音符号（Tashkeel）未被剔除
+                if label == "vocalized_arabic":
+                    for mark in ("\u0650", "\u0652", "\u064E"):
+                        self.assertIn(mark, formatted_text)
+
+                line_count = formatted_text.count("\n") + 1
+                stroke_padding = stroke_width * 2 * line_count
+                clip_height = int(
+                    text_height
+                    + vertical_padding
+                    + interline * line_count
+                    + stroke_padding
+                )
+
+                text_clip = vd.TextClip(
+                    text=formatted_text,
+                    font=font_path,
+                    font_size=font_size,
+                    color="#FFFFFF",
+                    stroke_color="#000000",
+                    stroke_width=stroke_width,
+                    interline=interline,
+                    size=(max_width, clip_height),
+                    text_align="center",
+                )
+                try:
+                    mask = text_clip.mask.get_frame(0)
+                    visible_rows, _ = vd.np.where(mask > 0.01)
+                    self.assertGreater(len(visible_rows), 0)
+                    self.assertLess(int(visible_rows.max()), clip_height)
+                finally:
+                    text_clip.close()
+
     def test_get_temp_audio_dir_returns_system_temp_on_windows(self):
         with patch("sys.platform", "win32"):
             result = vd._get_temp_audio_dir("/some/output/dir")
