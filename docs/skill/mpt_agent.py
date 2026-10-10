@@ -198,13 +198,37 @@ def _plain_config_value(text: str, key: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _config_settings_span(text: str) -> tuple[int, int]:
+    """Locate the app table (or legacy root settings), excluding other tables."""
+    document = tomllib.loads(text)
+    use_app = "app" in document
+    start = None if use_app else 0
+    for header in re.finditer(r"(?m)^\s*(\[[^\r\n]+\])[^\r\n]*$", text):
+        try:
+            table = tomllib.loads(header.group(0))
+            # A table-looking line inside a multiline value is not a header.
+            tomllib.loads(text[:header.end()])
+        except tomllib.TOMLDecodeError:
+            continue
+        if start is not None:
+            return start, header.start()
+        if table == {"app": {}}:
+            start = header.end()
+    if start is None:
+        raise SkillError("configuration app settings must use a TOML table")
+    return start, len(text)
+
+
 def _replace_config_value(text: str, key: str, value: object) -> str:
     """Replace one active field while preserving the configuration layout."""
     pattern = re.compile(rf"(?m)^({re.escape(key)}\s*=\s*).*$")
-    if not pattern.search(text):
+    start, end = _config_settings_span(text)
+    settings = text[start:end]
+    if not pattern.search(settings):
         raise SkillError(f"configuration field not found in config.toml: {key}")
     encoded = json.dumps(value, ensure_ascii=False)
-    return pattern.sub(lambda match: f"{match.group(1)}{encoded}", text, count=1)
+    updated = pattern.sub(lambda match: f"{match.group(1)}{encoded}", settings, count=1)
+    return text[:start] + updated + text[end:]
 
 
 def _has_configured_value(value: str) -> bool:
