@@ -835,9 +835,14 @@ def generate_script(
 
     def format_response(response):
         # Clean the script
-        # Remove asterisks, hashes
+        # Remove emphasis and heading markers without changing inline names
+        # or musical notes such as C#, F# and G#.
         response = response.replace("*", "")
-        response = response.replace("#", "")
+        response = re.sub(
+            r"(?m)^[ \t]{0,3}#{1,6}[ \t]+(.*?)[ \t]*$",
+            lambda match: re.sub(r"[ \t]+#+[ \t]*$", "", match.group(1)),
+            response,
+        )
 
         # Link labels are narration; discard destinations before stripping
         # bracketed stage directions. Common parenthesized URL components fit.
