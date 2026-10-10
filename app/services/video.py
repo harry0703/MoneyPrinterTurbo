@@ -717,8 +717,7 @@ def _sanitize_image_file(image_path: str) -> str:
     # Bound the intermediate basename while retaining complete source identity.
     # Different extensions must not overwrite pixels, and valid long filenames
     # must not exceed the filesystem's component limit after adding a suffix.
-    source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
-    sanitized_path = os.path.join(os.path.dirname(image_path), f"{source_identity}.sanitized.png")
+    source_digest = hashlib.sha256(os.fsencode(os.path.abspath(image_path)))
 
     temp_path = ""
     try:
@@ -730,6 +729,13 @@ def _sanitize_image_file(image_path: str) -> str:
                 mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
                 cleaned_image = upright.convert(mode)
                 cleaned_image.info.clear()
+                source_digest.update(str(cleaned_image.size).encode())
+                source_digest.update(cleaned_image.mode.encode())
+                source_digest.update(cleaned_image.tobytes())
+                sanitized_path = os.path.join(
+                    os.path.dirname(image_path),
+                    f"{source_digest.hexdigest()}.sanitized.png",
+                )
                 descriptor, temp_path = tempfile.mkstemp(
                     prefix=".image-sanitize-", suffix=".png",
                     dir=os.path.dirname(os.path.abspath(sanitized_path)),
