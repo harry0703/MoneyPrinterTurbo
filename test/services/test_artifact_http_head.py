@@ -68,3 +68,18 @@ def test_head_retains_path_boundary(client, endpoint):
     response = client.head(f"/api/v1/{endpoint}/%2E%2E%2Foutside.mp4")
     assert response.status_code == 403
     assert response.content == b""
+
+
+def test_download_head_reports_task_deleted_after_resolution(client):
+    resolve = controller._resolve_path_within_directory
+
+    def deleting_resolver(*args):
+        path = resolve(*args)
+        controller.os.unlink(path)
+        return path
+
+    client.raise_server_exceptions = False
+    with patch.object(controller, "_resolve_path_within_directory", deleting_resolver):
+        response = client.head("/api/v1/download/task/final.mp4")
+    assert response.status_code == 404
+    assert response.content == b""

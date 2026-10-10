@@ -576,11 +576,21 @@ async def download_video(request: Request, file_path: str):
     file_path = pathlib.Path(video_path)
     filename = file_path.name
     media_type, _ = mimetypes.guess_type(filename)
+    stat_result = None
+    if request.method == "HEAD":
+        try:
+            stat_result = os.stat(video_path)
+        except FileNotFoundError as exc:
+            raise HttpException(
+                task_id=request_id,
+                status_code=404,
+                message=f"{request_id}: file no longer exists",
+            ) from exc
     response = FileResponse(
         path=video_path,
         filename=filename,
         media_type=media_type or "application/octet-stream",
-        stat_result=os.stat(video_path) if request.method == "HEAD" else None,
+        stat_result=stat_result,
     )
     if request.method == "HEAD":
         # Reuse FileResponse's metadata without reading its body or applying
