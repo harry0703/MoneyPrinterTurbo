@@ -64,6 +64,7 @@ tls_verify = true
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
 # "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "loomloom",
+# "tensorscale",
 # "openai_image", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
@@ -182,6 +183,17 @@ metaso_minimax_base_url = "https://metaso.cn/api/minimax"
 metaso_minimax_resolution = "2K" # "768P" or "2K"
 metaso_minimax_poll_interval = 10
 metaso_minimax_run_timeout = 1800
+
+# TensorScale serves MiniMax H3 Fast through an asynchronous OpenRouter-style
+# /v1/videos API. When empty, TENSORSCALE_API_KEY is used. Each submitted clip
+# is billable, so the WebUI and CLI require explicit charge confirmation.
+tensorscale_api_key = ""
+tensorscale_base_url = "https://api.tensorscale.io/v1"
+# Supported values are "360p", "480p", and "768p". Square output is unavailable
+# at 360p and is rejected locally before a paid job is submitted.
+tensorscale_resolution = "768p"
+tensorscale_poll_interval = 5
+tensorscale_run_timeout = 1800
 
 # OpenAI-compatible text-to-image material source ("openai_image"). Point the
 # base URL at any endpoint that speaks the OpenAI /images/generations protocol:
