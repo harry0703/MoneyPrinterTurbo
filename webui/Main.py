@@ -839,7 +839,7 @@ def _find_final_task_video(task_path: str) -> str:
     candidates = []
     for file_name in files:
         match = _FINAL_VIDEO_PATTERN.fullmatch(file_name)
-        if match:
+        if match and os.path.isfile(os.path.join(task_path, file_name)):
             candidates.append((int(match.group("index")), file_name))
 
     if not candidates:
