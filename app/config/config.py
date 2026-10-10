@@ -383,12 +383,16 @@ def get_container_default_gateway_ip(route_path: str = "/proc/net/route") -> str
 
     for line in route_lines[1:]:
         fields = line.strip().split()
-        if len(fields) < 3:
+        if len(fields) < 8:
             continue
 
         destination = fields[1]
         gateway = fields[2]
-        if destination != "00000000" or gateway == "00000000":
+        if (
+            destination != "00000000"
+            or fields[7] != "00000000"
+            or gateway == "00000000"
+        ):
             continue
 
         try:
