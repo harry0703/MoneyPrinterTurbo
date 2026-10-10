@@ -542,8 +542,8 @@ def _validate_pexels_key(api_key: str) -> str:
     """
     Return ``valid``, ``rejected``, or ``unknown`` for a Pexels key.
 
-    HTTP 401, 403, and rate-limited 429 responses make a key unusable for this
-    run. Network and server errors return unknown so the configuration is kept.
+    HTTP 401 and 403 responses reject credentials. Rate limits, network and
+    server errors return unknown so temporary failures cannot remove a key.
     """
     # Curated and popular search requests may hit a public cache and return 200
     # without valid authorization. My Collections is account-specific, requires
@@ -559,7 +559,7 @@ def _validate_pexels_key(api_key: str) -> str:
         with urllib.request.urlopen(request, timeout=15) as response:
             return "valid" if 200 <= response.status < 300 else "unknown"
     except urllib.error.HTTPError as exc:
-        if exc.code in {401, 403, 429}:
+        if exc.code in {401, 403}:
             return "rejected"
         return "unknown"
     except (TimeoutError, urllib.error.URLError):
@@ -572,7 +572,7 @@ def validate_pexels_config(config_path: Path, cli_args: list[str]) -> bool:
 
     Downstream code selects configured keys randomly. Keeping rejected keys can
     cause intermittent 401 responses and missing material results. If at least
-    one key is verified, retain only verified keys. If validation is impossible
+    one key is verified, remove only explicitly rejected keys. If validation is impossible
     because of a transient network failure, keep the original configuration.
     """
     if selected_video_source(cli_args) != "pexels":
@@ -584,20 +584,23 @@ def validate_pexels_config(config_path: Path, cli_args: list[str]) -> bool:
         return False
 
     valid_keys: list[str] = []
+    retained_keys: list[str] = []
     rejected_count = 0
     unknown_count = 0
     for api_key in keys:
         status = _validate_pexels_key(api_key)
         if status == "valid":
             valid_keys.append(api_key)
+            retained_keys.append(api_key)
         elif status == "rejected":
             rejected_count += 1
         else:
             unknown_count += 1
+            retained_keys.append(api_key)
 
     if valid_keys:
-        if valid_keys != keys:
-            text = _replace_config_value(text, "pexels_api_keys", valid_keys)
+        if retained_keys != keys:
+            text = _replace_config_value(text, "pexels_api_keys", retained_keys)
             config_path.write_text(text, encoding="utf-8")
         log(
             "Pexels key validation completed: "
