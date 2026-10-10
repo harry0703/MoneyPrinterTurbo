@@ -763,3 +763,17 @@ def test_invalid_footage_start_reports_field(native, value):
     request["scenes"][0]["footage_start"] = value
     with pytest.raises(ProjectError, match="footage_start"):
         project.create_revision(request, relative_to=folder)
+
+
+def test_default_footage_start_preserves_pre_feature_scene_cache():
+    # Fingerprint produced by pinned pre-offset renderer 4204d0f for this spec.
+    spec = {"settings": {}, "toolchain": {"ffmpeg": "fixture-v1", "ffprobe": "fixture-v1"},
+            "scenes": [{"id": "one", "narration": "", "audio": None, "duration": 0.5,
+                        "footage": {"sha256": "a" * 64, "path": "assets/" + "a" * 64}}],
+            "bgm": None}
+    expected = "012d726bb2b0e2def4e649cbdce55dd685334cc36299bbbf3b83b70e165f8734"
+    assert next(s.fingerprint for s in stage_graph(spec) if s.key == "one:scene") == expected
+    spec["scenes"][0]["footage_start"] = 0.0
+    assert next(s.fingerprint for s in stage_graph(spec) if s.key == "one:scene") == expected
+    spec["scenes"][0]["footage_start"] = 0.2
+    assert next(s.fingerprint for s in stage_graph(spec) if s.key == "one:scene") != expected

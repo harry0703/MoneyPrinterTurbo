@@ -194,18 +194,14 @@ def stage_graph(spec: dict) -> list[Stage]:
                 scene["duration"] if not scene["audio"] else None,
             ]
         )
-        render = _fingerprint(
-            [
-                transform,
-                "scene",
-                timing,
-                scene["footage"],
-                scene.get("footage_start", 0.0),
-                settings.width,
-                settings.height,
-                settings.fps,
-            ]
-        )
+        render_inputs = [
+            transform, "scene", timing, scene["footage"],
+            settings.width, settings.height, settings.fps,
+        ]
+        # Default-zero offsets retain fingerprints of existing revisions.
+        if scene.get("footage_start", 0.0):
+            render_inputs.append(["footage_start", scene["footage_start"]])
+        render = _fingerprint(render_inputs)
         stages.extend(
             [
                 Stage(f"{scene_id}:audio", "audio", audio, (), scene_id),
