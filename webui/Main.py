@@ -204,16 +204,7 @@ DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_background_color": "#000000",
     "rounded_subtitle_background": False,
 }
-LOCAL_MATERIAL_EXTENSIONS = {
-    ".mp4",
-    ".mov",
-    ".avi",
-    ".flv",
-    ".mkv",
-    ".jpg",
-    ".jpeg",
-    ".png",
-}
+LOCAL_MATERIAL_EXTENSIONS = set(material_upload_service.SUPPORTED_MATERIAL_EXTENSIONS)
 CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 _FINAL_VIDEO_PATTERN = re.compile(
     r"^final-(?P<index>\d+)\.(?P<extension>mp4|mov|mkv|webm)$",
