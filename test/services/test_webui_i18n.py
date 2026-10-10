@@ -203,6 +203,39 @@ def _markdown_urls(value):
 
 
 class TestWebuiI18n(unittest.TestCase):
+    def test_arabic_locale_covers_static_webui_labels(self):
+        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+        visitor = _TrKeyVisitor()
+        visitor.visit(tree)
+
+        en_translations = _load_translation("en")
+        arabic_translations = _load_translation("ar")
+        missing_keys = visitor.keys - set(arabic_translations) - ENGLISH_FALLBACK_KEYS
+        self.assertEqual(sorted(missing_keys), [])
+
+        for key in visitor.keys - ENGLISH_FALLBACK_KEYS:
+            with self.subTest(key=key):
+                self.assertEqual(
+                    _format_placeholders(arabic_translations[key]),
+                    _format_placeholders(en_translations[key]),
+                )
+                self.assertEqual(
+                    _markdown_urls(arabic_translations[key]),
+                    _markdown_urls(en_translations[key]),
+                )
+
+    def test_arabic_locale_is_discovered_and_matches_browser_variants(self):
+        locales = utils.load_locales(str(I18N_DIR))
+        arabic = locales["ar"]
+        self.assertEqual(arabic["Language"], "العربية")
+        self.assertEqual(arabic["Translation"]["Video Subject"], "موضوع الفيديو")
+        self.assertIn("Generate Video", arabic["Translation"])
+        for browser_locale in ("ar", "ar-EG", "ar_SA", "AR-eg"):
+            with self.subTest(browser_locale=browser_locale):
+                self.assertEqual(
+                    utils.resolve_ui_language("", browser_locale, locales), "ar"
+                )
+
     def test_catalan_locale_is_discovered_and_matches_browser_variants(self):
         """语言文件自动注册；区域变体回退到 ca，但不覆盖用户已保存的选择。"""
         locales = utils.load_locales(str(I18N_DIR))
@@ -367,6 +400,7 @@ class TestWebuiI18n(unittest.TestCase):
                 break
 
         self.assertIsNotNone(support_locales)
+        self.assertIn("ar-EG", support_locales)
         self.assertIn("ru-RU", support_locales)
         self.assertIn("ca-ES", support_locales)
 
