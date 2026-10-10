@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -2779,6 +2780,113 @@ class TestOpenCodeCliProvider(unittest.TestCase):
             models, error = llm.discover_opencode_models()
         self.assertEqual(models, [])
         self.assertIn("timed out after 30s", error)
+
+    # ------------------------------------------------- -- 真实 CLI 回归
+    # 上面的用例都 mock 了 subprocess，因此上游 CLI 改变 flag 或错误措辞时它们
+    # 仍然通过。下面这组用例针对真实安装的 OpenCode CLI 运行：把版本判断、隔离
+    # 参数的选择和错误措辞都钉在真实二进制上。没装 OpenCode 的环境（CI）整体
+    # 跳过，也不需要网络或登录——2.x 在参数解析阶段就会拒绝 --pure。
+
+    def _installed_opencode_or_skip(self):
+        cli = llm.resolve_opencode_cli_path("")
+        if not cli:
+            self.skipTest("no opencode CLI installed")
+        return cli
+
+    def test_real_cli_version_detection_matches_installed_cli(self):
+        """`opencode --version` 的真实输出必须被解析成真实主版本号：版本判断
+        是 2.x 路径的唯一开关，解析错了就会退化成传 --pure 的失败调用。"""
+        cli = self._installed_opencode_or_skip()
+        completed = llm.subprocess.run(
+            [cli, "--version"],
+            stdin=llm.subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        output = (completed.stdout or "") + (completed.stderr or "")
+        match = re.search(r"v?(\d+)\.", output)
+        self.assertIsNotNone(match, f"unparseable --version output: {output!r}")
+        self.assertEqual(
+            llm._opencode_cli_major_version(cli), int(match.group(1))
+        )
+
+    def test_real_cli_isolation_flags_follow_installed_major_version(self):
+        """隔离参数按真实 CLI 的主版本选择：2.x 不传 --pure 并改用
+        OPENCODE_CONFIG_CONTENT 注入 deny-all 权限；1.x 继续用
+        --pure + OPENCODE_PERMISSION。
+
+        这里不 mock 版本探测，因此断言的是“这台机器上真实安装的版本”对应
+        的正确调用方式。"""
+        cli = self._installed_opencode_or_skip()
+        major_version = llm._opencode_cli_major_version(cli)
+        self.assertIsNotNone(
+            major_version, f"could not read a version from {cli}"
+        )
+
+        original_cli_path = config.app.get("opencode_cli_path")
+        config.app["opencode_cli_path"] = cli
+        try:
+            with patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run:
+                self.assertEqual(llm._generate_response("write something"), "ok")
+        finally:
+            config.app["opencode_cli_path"] = original_cli_path
+
+        command = run.call_args.args[0]
+        cli_env = run.call_args.kwargs["env"]
+        self.assertEqual(command[0], cli)
+        if major_version >= 2:
+            self.assertNotIn("--pure", command)
+            self.assertEqual(
+                cli_env.get("OPENCODE_CONFIG_CONTENT"),
+                llm.OPENCODE_PERMISSION_CONFIG,
+            )
+        else:
+            self.assertIn("--pure", command)
+            self.assertEqual(
+                cli_env.get("OPENCODE_PERMISSION"), llm.OPENCODE_PERMISSION_CONFIG
+            )
+        if "OPENCODE_PERMISSION" not in os.environ and major_version >= 2:
+            # 2.x 已移除该变量，继续设置它会让隔离看起来生效而其实没有。
+            self.assertNotIn("OPENCODE_PERMISSION", cli_env)
+
+    def test_real_cli_unrecognized_pure_wording_maps_to_upgrade_hint(self):
+        """把真实 CLI 拒绝 `--pure` 时的原始输出交给错误处理，升级提示必须
+        命中。用例直接消费真实 stderr，所以上游改写措辞时它会失败，而不是像
+        手写字符串那样继续匹配一个已经不再出现的消息。"""
+        cli = self._installed_opencode_or_skip()
+        if llm._opencode_cli_major_version(cli) != 2:
+            self.skipTest("the installed opencode CLI still accepts --pure")
+
+        completed = llm.subprocess.run(
+            [cli, "run", "--format", "json", "--pure", "ping"],
+            input="",
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+        # flag 解析先于任何网络访问失败，因此这个用例不需要登录或模型。
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("Unrecognized flag", completed.stderr)
+
+        with (
+            patch.object(llm.shutil, "which", return_value=cli),
+            # 模拟版本探测失败：此时仍会走 1.x 的调用方式并真的被拒绝。
+            patch.object(llm, "_opencode_cli_major_version", return_value=None),
+            patch.object(llm.subprocess, "run", return_value=completed),
+        ):
+            response = llm._generate_response("write something")
+        self.assertIn("upgrade", response.lower())
+        self.assertIn(llm.OPENCODE_MIN_CLI_VERSION, response)
+        self.assertIn("Unrecognized flag", response)
 
 
 class TestRuntimeEnvironmentDetection(unittest.TestCase):
