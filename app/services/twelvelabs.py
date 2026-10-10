@@ -135,8 +135,10 @@ def rerank_terms_by_subject(
     scored = []
     for term in search_terms:
         vec = embed_text(term, model)
-        if vec is None:
-            # If any term can't be embedded, don't risk a partial reorder.
+        if vec is None or len(vec) != len(subject_vec):
+            # Cosine requires vectors from the same dimensional space. zip()
+            # would silently truncate a malformed response and produce a
+            # misleading score, so retain the all-or-nothing fallback.
             return search_terms
         scored.append((term, _cosine(subject_vec, vec)))
 
