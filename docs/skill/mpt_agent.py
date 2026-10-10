@@ -727,15 +727,31 @@ def generate_video(
     ]
     log(f"starting video generation, task ID: {task_id}")
     log(f"full generation log: {log_path}")
-    with log_path.open("w", encoding="utf-8") as log_file:
-        result = subprocess.run(
-            command,
-            cwd=root,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
+    try:
+        with log_path.open("w", encoding="utf-8") as log_file:
+            result = subprocess.run(
+                command,
+                cwd=root,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+    except OSError as exc:
+        error = f"video generation could not start: {exc}; log: {log_path}"
+        write_result_manifest(
+            root,
+            {
+                "status": "failed",
+                "subject": subject,
+                "task_id": task_id,
+                "task_dir": str(task_dir.resolve()),
+                "log_file": str(log_path.resolve()),
+                "video_files": [],
+                "error": error,
+            },
         )
+        raise SkillError(error) from exc
     if result.returncode != 0:
         tail = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-30:]
         if tail:
