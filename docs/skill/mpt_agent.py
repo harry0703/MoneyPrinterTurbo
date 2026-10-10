@@ -395,9 +395,9 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         # 与运行时 Provider 保持完全一致的凭据优先级，避免 Skill 预检通过后
         # 主程序却读取了另一把 Key。ARK_API_KEY 语义过于宽泛，明确不再兼容。
         value = (
-            _plain_config_value(text, "volcengine_seedance_api_key")
+            _plain_config_value(text, "volcengine_seedance_api_key").strip()
             or os.environ.get("VOLCENGINE_ARK_API_KEY", "").strip()
-            or _plain_config_value(text, "volcengine_api_key")
+            or _plain_config_value(text, "volcengine_api_key").strip()
         )
         if not _has_configured_value(value):
             missing.append("volcengine_seedance_api_key")
@@ -416,7 +416,7 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         # 与运行时 Provider 保持完全一致的凭据优先级：配置键优先，其次是
         # 语义明确的 OFOX_API_KEY 环境变量。
         value = (
-            _plain_config_value(text, "ofox_api_key")
+            _plain_config_value(text, "ofox_api_key").strip()
             or os.environ.get("OFOX_API_KEY", "").strip()
         )
         if not _has_configured_value(value):
@@ -427,7 +427,7 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         # 秘塔 Key 与 MiniMax 官方 LLM Key 不互通，Skill 必须沿用运行时的
         # 独立配置优先级，不能因为已经配置 minimax_api_key 就误判为可用。
         value = (
-            _plain_config_value(text, "metaso_minimax_api_key")
+            _plain_config_value(text, "metaso_minimax_api_key").strip()
             or os.environ.get("METASO_MINIMAX_API_KEY", "").strip()
         )
         if not _has_configured_value(value):
@@ -436,7 +436,7 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("confirm_metaso_minimax_charge")
     elif source == "muapi":
         value = (
-            _plain_config_value(text, "muapi_api_key")
+            _plain_config_value(text, "muapi_api_key").strip()
             or os.environ.get("MUAPI_API_KEY", "").strip()
         )
         if not _has_configured_value(value):
