@@ -194,17 +194,19 @@ def stage_graph(spec: dict) -> list[Stage]:
                 scene["duration"] if not scene["audio"] else None,
             ]
         )
-        render = _fingerprint(
-            [
-                transform,
-                "scene",
-                timing,
-                scene["footage"],
-                settings.width,
-                settings.height,
-                settings.fps,
-            ]
-        )
+        render_inputs = [
+            transform,
+            "scene",
+            timing,
+            scene["footage"],
+            settings.width,
+            settings.height,
+            settings.fps,
+        ]
+        # Preserve cover fingerprints for existing revisions and cached exports.
+        if scene.get("fit_mode", "cover") != "cover":
+            render_inputs.append(scene["fit_mode"])
+        render = _fingerprint(render_inputs)
         stages.extend(
             [
                 Stage(f"{scene_id}:audio", "audio", audio, (), scene_id),
@@ -313,9 +315,13 @@ class VideoProject:
                 "audio",
                 "narration",
                 "duration",
+                "fit_mode",
             }:
                 raise ProjectError("unknown scene fields")
             scene_id = _identifier(raw["id"])
+            fit_mode = raw.get("fit_mode", "cover")
+            if fit_mode not in ("cover", "contain"):
+                raise ProjectError("scene fit_mode must be cover or contain")
             narration = raw.get("narration", "")
             if not isinstance(narration, str) or len(narration) > 100000:
                 raise ProjectError("narration must be text under 100000 characters")
@@ -338,6 +344,7 @@ class VideoProject:
                     "id": scene_id,
                     "narration": narration,
                     "duration": duration,
+                    "fit_mode": fit_mode,
                     "footage": self._asset(raw["footage"], Path(relative_to)),
                     "audio": self._asset(raw["audio"], Path(relative_to))
                     if raw.get("audio")
@@ -726,6 +733,13 @@ class VideoProject:
                     "duration"
                 ]
                 vf = f"scale={settings.width}:{settings.height}:force_original_aspect_ratio=increase,crop={settings.width}:{settings.height},setsar=1,fps={settings.fps}"
+                if scene.get("fit_mode", "cover") == "contain":
+                    vf = (
+                        f"scale={settings.width}:{settings.height}:"
+                        "force_original_aspect_ratio=decrease:force_divisible_by=2,"
+                        f"pad={settings.width}:{settings.height}:(ow-iw)/2:(oh-ih)/2:color=black,"
+                        f"setsar=1,fps={settings.fps}"
+                    )
                 self._run(
                     base
                     + [
