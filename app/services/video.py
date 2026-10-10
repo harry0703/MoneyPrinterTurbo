@@ -1889,7 +1889,13 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
             # The duration changes the rendered content, so it must be part of
             # the output identity. Different tasks may render the same image
             # concurrently; only publish a complete MP4 after MoviePy closes it.
-            source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
+            source_digest = hashlib.sha256(os.fsencode(os.path.abspath(image_path)))
+            source_frame = clip.get_frame(0)
+            source_digest.update(str(source_frame.shape).encode())
+            source_digest.update(source_frame.tobytes())
+            if clip.mask is not None:
+                source_digest.update(clip.mask.get_frame(0).tobytes())
+            source_identity = source_digest.hexdigest()
             duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
             video_file = os.path.join(
                 os.path.dirname(image_path), f"{source_identity}.zoom-{duration_identity}.mp4"
