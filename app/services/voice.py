@@ -2365,8 +2365,8 @@ def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, vo
         logger.error(f"Invalid MiniMax TTS audio setting: {str(exc)}")
         return None
     audio_format = str(settings.get("audio_format", "mp3") or "mp3").strip()
-    if audio_format not in {"mp3", "wav", "flac", "pcm"}:
-        logger.error(f"Unsupported MiniMax TTS audio format: {audio_format}")
+    if audio_format not in {"mp3", "wav", "flac"}:
+        logger.error(f"Unsupported MiniMax TTS audio format: {audio_format}; choose mp3, wav, or flac")
         return None
     payload = {
         "model": model, "text": text, "stream": False, "language_boost": "auto", "output_format": "hex",
