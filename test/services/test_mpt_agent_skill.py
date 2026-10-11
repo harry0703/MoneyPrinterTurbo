@@ -687,6 +687,61 @@ class TestMptAgentSkill(unittest.TestCase):
                 config_path.read_text(encoding="utf-8"),
             )
 
+    def test_kimi_code_signed_in_provider_needs_no_api_key(self):
+        """
+        Kimi Code 走 OAuth 订阅凭证，已登录时辅助脚本不能要求 API Key，
+        也不能把订阅用户切到别的 Provider。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "kimi_code"'
+                ).replace(
+                    'deepseek_api_key = ""',
+                    'deepseek_api_key = "already-configured-key"',
+                ).replace(
+                    "pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]'
+                )
+                + 'kimi_code_refresh_token = "rt-1"\n',
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                provider = mpt_agent.reuse_existing_llm_provider(config_path)
+            active_provider, missing = mpt_agent.missing_config(config_path, [])
+
+            self.assertEqual(provider, "kimi_code")
+            self.assertEqual(active_provider, "kimi_code")
+            self.assertEqual(missing, [])
+
+    def test_kimi_code_without_sign_in_reports_sign_in_not_api_key(self):
+        """未登录的 Kimi Code 缺的是登录动作；脚本应报告 sign-in 而非 API Key。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "kimi_code"'
+                ).replace(
+                    'deepseek_api_key = ""',
+                    'deepseek_api_key = "already-configured-key"',
+                ).replace(
+                    "pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]'
+                ),
+                encoding="utf-8",
+            )
+
+            active_provider, missing = mpt_agent.missing_config(config_path, [])
+            output = io.StringIO()
+            with redirect_stdout(output):
+                mpt_agent.report_missing_config(active_provider, missing)
+
+            self.assertEqual(active_provider, "kimi_code")
+            self.assertEqual(missing, ["kimi_code_sign_in"])
+            self.assertNotIn("kimi_code_api_key", output.getvalue())
+            self.assertIn("KIMI_CODE_SIGN_IN_REQUIRED", output.getvalue())
+
     def test_only_missing_pexels_key_does_not_ask_for_llm_again(self):
         output = io.StringIO()
 

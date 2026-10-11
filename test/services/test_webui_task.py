@@ -244,8 +244,16 @@ def test_task_summary_tolerates_directory_removed_during_scan():
         ({"open_task_folder_on_completion": False}, 0),
     ],
 )
-def test_completed_task_renders_subject_named_video_download(
-    tmp_path, ui_config, expected_open_count
+@pytest.mark.parametrize(
+    ("task_state", "has_video"),
+    [
+        (const.TASK_STATE_COMPLETE, True),
+        (const.TASK_STATE_FAILED, True),
+        (const.TASK_STATE_FAILED, False),
+    ],
+)
+def test_terminal_task_renders_subject_named_video_download(
+    tmp_path, ui_config, expected_open_count, task_state, has_video
 ):
     """完成任务应提供成片下载，并按 WebUI 配置决定是否自动打开目录。"""
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
@@ -279,6 +287,8 @@ def test_completed_task_renders_subject_named_video_download(
             self.downloads = []
             self.videos = []
             self.warnings = []
+            self.errors = []
+            self.successes = []
 
         def columns(self, count):
             return [FakeColumn() for _ in range(count)]
@@ -289,14 +299,14 @@ def test_completed_task_renders_subject_named_video_download(
         def download_button(self, label, data, **kwargs):
             self.downloads.append((label, data.read(), kwargs))
 
-        def success(self, _message):
-            pass
+        def success(self, message):
+            self.successes.append(message)
 
         def warning(self, message):
             self.warnings.append(message)
 
-        def error(self, _message):
-            pass
+        def error(self, message):
+            self.errors.append(message)
 
     video_path = tmp_path / "final-1.mp4"
     video_path.write_bytes(b"video-content")
@@ -324,9 +334,10 @@ def test_completed_task_renders_subject_named_video_download(
     namespace["_render_generation_task_snapshot"](
         "download-test",
         {
-            "state": const.TASK_STATE_COMPLETE,
+            "state": task_state,
             "progress": 100,
-            "videos": [str(video_path)],
+            "videos": [str(video_path)] if has_video else [],
+            "error": "OSError: second encoder failed",
             "warnings": [
                 {"code": "batch_materials_reused", "video_index": 2, "count": 3}
             ],
@@ -334,6 +345,18 @@ def test_completed_task_renders_subject_named_video_download(
         },
     )
 
+    if task_state == const.TASK_STATE_FAILED:
+        expected_open_count = 0
+        assert fake_st.errors == ["Video Generation Failed: OSError: second encoder failed"]
+        assert fake_st.successes == []
+    else:
+        assert fake_st.errors == []
+        assert fake_st.successes == ["Video Generation Completed"]
+    if not has_video:
+        assert fake_st.downloads == []
+        assert fake_st.videos == []
+        open_task_folder.assert_not_called()
+        return
     assert fake_st.videos == [str(video_path)]
     assert fake_st.warnings == ["Video 2 reused 3 source clips."]
     assert fake_st.downloads == [

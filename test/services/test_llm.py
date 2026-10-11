@@ -469,6 +469,7 @@ class TestLiteLLMProvider(unittest.TestCase):
             [provider.provider_id for provider in LLM_PROVIDER_REGISTRY],
             [
                 "moonshot",
+                "kimi_code",
                 "openai",
                 "anthropic",
                 "gemini",

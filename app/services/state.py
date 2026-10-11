@@ -28,6 +28,18 @@ return 1
 """
 
 
+_DELETE_OWNED_TASK_SCRIPT = """
+if redis.call("TYPE", KEYS[1]).ok ~= "hash" then
+    return 0
+end
+if redis.call("HGET", KEYS[1], "task_id") ~= KEYS[1] then
+    return 0
+end
+
+return redis.call("DEL", KEYS[1])
+"""
+
+
 # Base class for state management
 class BaseState(ABC):
     @abstractmethod
@@ -258,7 +270,9 @@ class RedisState(BaseState):
         return bool(updated)
 
     def delete_task(self, task_id: str):
-        self._redis.delete(task_id)
+        # 调用方读取任务后还会清理目录，同名键可能在这段时间被其它服务复用。
+        # 在一次 Lua 操作内检查类型、任务标记并删除，避免检查与删除之间的竞态。
+        self._redis.eval(_DELETE_OWNED_TASK_SCRIPT, 1, task_id)
 
     @staticmethod
     def _serialize_field(field, value):
