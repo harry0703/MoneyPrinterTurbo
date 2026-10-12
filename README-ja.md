@@ -279,6 +279,8 @@ GitHub Releases から最新の Windows 用ワンクリックパッケージを�
 
 ## インストールとデプロイ 📥
 
+> MoneyPrinterTurbo はこのリポジトリから実行するアプリケーションです。`pip install MoneyPrinterTurbo` は本プロジェクトのインストール方法ではありません。リポジトリをクローンし、以下の Docker または手動デプロイの手順に従ってください。手動セットアップでは、`uv sync --frozen` または `pip install -r requirements.txt` でアプリケーションの依存関係をインストールします。
+
 ### 前提条件
 
 - ローカル環境へのデプロイには Python 3.11 以降が必要です
