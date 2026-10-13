@@ -301,6 +301,13 @@ class TestScriptPromptOptions(unittest.TestCase):
 
 
 class TestLLMConnection(unittest.TestCase):
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
     def test_connection_sends_one_minimal_request(self):
         """连接测试只发送一次固定最小请求，不触发脚本生成重试。"""
         with (
@@ -309,8 +316,59 @@ class TestLLMConnection(unittest.TestCase):
         ):
             result = llm.test_connection()
 
-        generate.assert_called_once_with(prompt="Reply with exactly: OK")
+        generate.assert_called_once_with(
+            prompt="Reply with exactly: OK",
+            request_timeout=llm.LLM_CONNECTION_TEST_TIMEOUT_SECONDS,
+            max_retries=llm.LLM_CONNECTION_TEST_MAX_RETRIES,
+        )
         self.assertEqual(result, (True, "", 0.25))
+
+    def test_connection_applies_bounded_timeout_and_disables_sdk_retries(self):
+        """连接测试的短超时与禁用重试必须作用到实际 SDK 客户端（issue #1642）。"""
+        config.app.update(
+            {
+                "llm_provider": "openai",
+                "openai_api_key": "test-key",
+                "openai_model_name": "test-model",
+                "openai_base_url": "https://example.test/v1",
+            }
+        )
+        captured = {}
+
+        def create(**kwargs):
+            captured.update(kwargs)
+            return types.SimpleNamespace(
+                chat=types.SimpleNamespace(
+                    completions=types.SimpleNamespace(create=lambda **kw: None)
+                )
+            )
+
+        with patch.object(llm, "OpenAI", side_effect=create):
+            llm.test_connection()
+
+        self.assertEqual(
+            captured.get("timeout"), llm.LLM_CONNECTION_TEST_TIMEOUT_SECONDS
+        )
+        self.assertEqual(
+            captured.get("max_retries"), llm.LLM_CONNECTION_TEST_MAX_RETRIES
+        )
+
+    def test_connection_failure_hint_for_timeout_errors(self):
+        """超时/连接失败要附上排查方向，而不是只显示 SDK 原始文案。"""
+        with (
+            patch.object(
+                llm, "_generate_response", return_value="Error: Request timed out."
+            ),
+            patch.object(llm, "perf_counter", side_effect=[0.0, 5.0]),
+        ):
+            ok, error, elapsed = llm.test_connection()
+
+        self.assertFalse(ok)
+        self.assertEqual(elapsed, 5.0)
+        self.assertIn("Request timed out.", error)
+        self.assertIn(f"{llm.LLM_CONNECTION_TEST_TIMEOUT_SECONDS:.0f}s", error)
+        self.assertIn("reachable", error)
+        self.assertIn("proxy", error)
 
     def test_connection_returns_provider_error(self):
         """Provider 返回错误时应保留可诊断信息，并报告本次请求耗时。"""
@@ -335,6 +393,106 @@ class TestLLMConnection(unittest.TestCase):
             result = llm.test_connection()
 
         self.assertEqual(result, (False, "LLM returned an empty response", 1.0))
+
+
+class TestGenerateResponseTransportLimits(unittest.TestCase):
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    @staticmethod
+    def _fake_client():
+        """返回一个最小可用客户端，让 `_generate_response` 走完请求分支。"""
+        message = types.SimpleNamespace(content="ok")
+        choice = types.SimpleNamespace(message=message)
+        completion = types.SimpleNamespace(choices=[choice])
+        return types.SimpleNamespace(
+            chat=types.SimpleNamespace(
+                completions=types.SimpleNamespace(create=lambda **kwargs: completion)
+            )
+        )
+
+    def test_transport_limits_forwarded_to_openai_compatible_clients(self):
+        """显式传入的超时/重试约束必须作用到全部 OpenAI 兼容客户端。"""
+        cases = [
+            (
+                "openai",
+                "OpenAI",
+                {
+                    "openai_api_key": "test-key",
+                    "openai_model_name": "test-model",
+                    "openai_base_url": "https://example.test/v1",
+                },
+            ),
+            (
+                "azure",
+                "AzureOpenAI",
+                {
+                    "azure_api_key": "test-key",
+                    "azure_model_name": "test-model",
+                    "azure_base_url": "https://example.test",
+                    "azure_api_version": "2024-02-15-preview",
+                },
+            ),
+            (
+                "cloudflare",
+                "OpenAI",
+                {
+                    "cloudflare_api_key": "test-key",
+                    "cloudflare_model_name": "test-model",
+                    "cloudflare_account_id": "test-account",
+                    "cloudflare_gateway_id": "test-gateway",
+                },
+            ),
+        ]
+        for provider, constructor, settings in cases:
+            with self.subTest(provider=provider):
+                config.app.update({"llm_provider": provider, **settings})
+                with (
+                    patch.object(
+                        llm,
+                        constructor,
+                        return_value=self._fake_client(),
+                    ) as client_constructor,
+                    patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+                ):
+                    result = llm._generate_response(
+                        "hello",
+                        request_timeout=12.5,
+                        max_retries=0,
+                    )
+
+                self.assertEqual(result, "ok", result)
+                kwargs = client_constructor.call_args.kwargs
+                self.assertEqual(kwargs.get("timeout"), 12.5)
+                self.assertEqual(kwargs.get("max_retries"), 0)
+
+    def test_default_generation_keeps_sdk_defaults(self):
+        """不传约束时客户端构造参数保持原样，生成链路行为不变。"""
+        config.app.update(
+            {
+                "llm_provider": "openai",
+                "openai_api_key": "test-key",
+                "openai_model_name": "test-model",
+                "openai_base_url": "https://example.test/v1",
+            }
+        )
+        with (
+            patch.object(
+                llm, "OpenAI", return_value=self._fake_client()
+            ) as client_constructor,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("hello")
+
+        self.assertEqual(result, "ok", result)
+        client_constructor.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://example.test/v1",
+        )
 
 
 class TestLiteLLMProvider(unittest.TestCase):
