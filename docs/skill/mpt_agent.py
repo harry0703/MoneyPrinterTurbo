@@ -35,6 +35,7 @@ SUPPORTED_SOURCES = {
     "volcengine_seedance",
     "ofox",
     "metaso_minimax",
+    "vgenv",
     "muapi",
     # Keep this list aligned with ``_CLI_VIDEO_SOURCES`` in cli.py. A source that
     # the CLI accepts must not be rejected here as unsupported.
@@ -434,6 +435,15 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("metaso_minimax_api_key")
         if not has_cli_option(cli_args, "--confirm-metaso-minimax-charge"):
             missing.append("confirm_metaso_minimax_charge")
+    elif source == "vgenv":
+        value = (
+            _plain_config_value(text, "vgenv_api_key")
+            or os.environ.get("VGENV_API_KEY", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("vgenv_api_key")
+        if not has_cli_option(cli_args, "--confirm-vgenv-charge"):
+            missing.append("confirm_vgenv_charge")
     elif source == "muapi":
         value = (
             _plain_config_value(text, "muapi_api_key")
@@ -469,6 +479,7 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
             "volcengine_seedance_api_key",
             "ofox_api_key",
             "metaso_minimax_api_key",
+            "vgenv_api_key",
             "muapi_api_key",
         }
         for field in missing
@@ -519,12 +530,17 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
             "METASO_MINIMAX_CHARGE_CONFIRMATION_REQUIRED="
             "--confirm-metaso-minimax-charge"
         )
+    if "vgenv_api_key" in missing:
+        print("VGENV_API_KEY_URL=https://vgenv.com/en/minimax-h3-api")
+        print("VGENV_API_KEY_ENV=VGENV_API_KEY")
+    if "confirm_vgenv_charge" in missing:
+        print("VGENV_CHARGE_CONFIRMATION_REQUIRED=--confirm-vgenv-charge")
     if "muapi_api_key" in missing:
         print(f"MUAPI_API_KEY_URL={MUAPI_API_KEY_URL}")
         print("MUAPI_API_KEY_ENV=MPT_MUAPI_API_KEY")
     if "confirm_muapi_charge" in missing:
         print("MUAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-muapi-charge")
-    print("Request only the listed values, set the environment variables, and rerun the same command.")
+    print("Set the listed environment variables locally and rerun the same command; do not paste vgenv keys into chat.")
     return NEEDS_INPUT_EXIT_CODE
 
 

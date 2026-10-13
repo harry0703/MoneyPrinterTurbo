@@ -24,6 +24,7 @@ from app.services import (
     material_cache,
     material_upload,
     metaso_minimax,
+    vgenv,
     muapi,
     ofox,
     task_artifacts,
@@ -1063,7 +1064,14 @@ def _save_generated_video_with_retry(
     """
     for attempt in range(WAVESPEED_MAX_DOWNLOAD_RETRIES + 1):
         try:
-            saved_video_path = save_video(video_url=video_url, save_dir=save_dir)
+            if provider == "vgenv":
+                saved_video_path = save_video(
+                    video_url=video_url, save_dir=save_dir, safe_download=True
+                )
+            else:
+                saved_video_path = save_video(
+                    video_url=video_url, save_dir=save_dir
+                )
             if saved_video_path:
                 return saved_video_path
             failure_detail = "empty result"
@@ -1139,7 +1147,9 @@ def _describe_download_progress(
     return f"{downloaded_mb:.1f} MB, {speed:.2f} MB/s"
 
 
-def save_video(video_url: str, save_dir: str = "") -> str:
+def save_video(video_url: str, save_dir: str = "", *, safe_download: bool = False) -> str:
+    if safe_download:
+        vgenv._safe_output_url(video_url)
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
 
@@ -1182,6 +1192,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
                 verify=_get_tls_verify(),
                 timeout=(60, 240),
                 stream=True,
+                allow_redirects=not safe_download,
             ) as response:
                 response.raise_for_status()
                 headers = getattr(response, "headers", {}) or {}
@@ -1241,7 +1252,17 @@ def save_video(video_url: str, save_dir: str = "") -> str:
                         f"failed to close video clip: {temp_path}, error: {str(close_error)}"
                     )
 
-        os.replace(temp_path, video_path)
+        if safe_download:
+            # A second task may have published this signed result while we
+            # downloaded. Never replace a complete file from another worker.
+            try:
+                os.link(temp_path, video_path)
+            except FileExistsError:
+                if not os.path.getsize(video_path):
+                    raise
+            os.remove(temp_path)
+        else:
+            os.replace(temp_path, video_path)
         temp_path = ""
         return video_path
     finally:
@@ -2236,6 +2257,15 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
+    if source == "vgenv":
+        return _download_videos_vgenv_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
     if source == "openai_image":
         # 与 WaveSpeed 相同的按需付费语义：文生图按张计费，逐段生成、凑够
         # 所需时长立即停止。生成结果是一次性的本地图片文件，也不参与 24
@@ -2902,6 +2932,129 @@ def _download_videos_metaso_minimax_on_demand(
             break
 
     logger.success(f"generated and downloaded {len(video_paths)} Metaso MiniMax videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+def _download_videos_vgenv_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """顺序生成vgenv 素材，覆盖配音时长后立即停止付费下单。"""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+
+    # 远端最短生成 4 秒，但本地仍按用户片段时长裁剪和累计。提前验证循环
+    # 控制参数，避免 NaN、Infinity 或非正数让停止条件永远无法满足，进而把
+    # 所有关键词都提交为付费任务。
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError) as exc:
+        raise vgenv.VgenvError(
+            "vgenv audio duration must be a finite number"
+        ) from exc
+    if not math.isfinite(required_duration):
+        raise vgenv.VgenvError(
+            "vgenv audio duration must be a finite number"
+        )
+    if required_duration <= 0:
+        logger.warning(
+            "skip vgenv paid generation because required audio duration "
+            f"is not positive: duration={required_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    try:
+        clip_duration = int(max_clip_duration)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise vgenv.VgenvError(
+            "vgenv clip duration must be a positive integer"
+        ) from exc
+    if clip_duration <= 0:
+        raise vgenv.VgenvError(
+            "vgenv clip duration must be a positive integer"
+        )
+
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = vgenv.generate_videos(
+                search_term=search_term,
+                minimum_duration=clip_duration,
+                video_aspect=video_aspect,
+            )
+        except vgenv.VgenvUnconfirmedTaskError as exc:
+            # 请求或轮询状态不明时，远端任务仍可能成功并计费。立即停止整个
+            # 生成循环，防止后续关键词继续下单，并把任务 ID 交给任务服务保存。
+            logger.error(
+                "stop submitting new vgenv tasks because the last paid "
+                f"task is unconfirmed: task_id={exc.task_id or 'unknown'}, "
+                f"detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except vgenv.VgenvError as exc:
+            logger.error(f"vgenv generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        for item in video_items:
+            source_info = item.source_info if isinstance(item.source_info, dict) else {}
+            remote_task_id = str(source_info.get("asset_id") or "").strip()
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "vgenv"
+            )
+            if not saved_video_path:
+                # 生成成功已产生费用，下载失败时不能继续创建新任务来替代。
+                # 抛出携带远端 ID 的专用错误，供任务状态和人工恢复使用。
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise vgenv.VgenvDownloadError(
+                    "vgenv generated a paid video but the result could "
+                    f"not be downloaded: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                )
+            try:
+                actual_duration = _get_downloaded_video_duration(saved_video_path)
+            except ValueError as exc:
+                _persist_material_sources(task_id, material_sources)
+                raise vgenv.VgenvDownloadError(
+                    "vgenv output duration could not be measured", task_id=remote_task_id
+                ) from exc
+            item.duration = max(1, int(actual_duration))
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=vgenv, error={type(source_error).__name__}, "
+                    f"detail={source_error}"
+                )
+
+            # 本地成片只使用用户选择的片段长度；即使 H3 因最短时长约束生成
+            # 了更长素材，也不能把未使用部分计入覆盖时长并少生成必要画面。
+            total_duration += min(clip_duration, actual_duration)
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated vgenv materials cover the required duration; "
+                f"stop submitting paid tasks: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(f"generated and downloaded {len(video_paths)} vgenv videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
 

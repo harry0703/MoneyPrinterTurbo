@@ -52,6 +52,7 @@ from app.services import (
     loomloom,
     material,
     metaso_minimax,
+    vgenv,
     muapi,
     ofox,
     subtitle,
@@ -129,6 +130,7 @@ VIDEO_SOURCE_GROUPS = {
     "stock_video": ("pexels", "pixabay", "coverr"),
     "ai_video": (
         "metaso_minimax",
+        "vgenv",
         "ofox",
         "loomloom",
         "volcengine_seedance",
@@ -762,6 +764,7 @@ def _initialize_session_state():
         "volcengine_seedance_confirm_charge": False,
         "ofox_confirm_charge": False,
         "metaso_minimax_confirm_charge": False,
+        "vgenv_confirm_charge": False,
         "muapi_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
@@ -3756,6 +3759,35 @@ def _render_settings_dialog():
                     )
 
                 st.divider()
+                st.markdown("**vgenv MiniMax H3**")
+                st.caption(tr("vgenv API Help"))
+                vgenv_api_key = st.text_input(
+                    tr("vgenv API Key"),
+                    value=str(config.app.get("vgenv_api_key", "") or ""),
+                    type="password",
+                    key="vgenv_api_key_input",
+                )
+                _set_runtime_config("app", "vgenv_api_key", vgenv_api_key.strip())
+                vgenv_resolution = st.selectbox(
+                    tr("vgenv Resolution"),
+                    options=["480p", "768p"],
+                    index=["480p", "768p"].index(
+                        str(config.app.get("vgenv_resolution", "768p"))
+                    ) if str(config.app.get("vgenv_resolution", "768p")) in {"480p", "768p"} else 1,
+                    key="vgenv_resolution_input",
+                )
+                _set_runtime_config("app", "vgenv_resolution", vgenv_resolution)
+                vgenv_tier = st.selectbox(
+                    tr("vgenv Tier"),
+                    options=["fast", "standard", "enhanced", "quality"],
+                    index=["fast", "standard", "enhanced", "quality"].index(
+                        str(config.app.get("vgenv_tier", "fast"))
+                    ) if str(config.app.get("vgenv_tier", "fast")) in {"fast", "standard", "enhanced", "quality"} else 0,
+                    key="vgenv_tier_input",
+                )
+                _set_runtime_config("app", "vgenv_tier", vgenv_tier)
+
+                st.divider()
                 st.markdown("**OfoxAI**")
                 st.caption(f"[OfoxAI]({OFOX_REFERRAL_URL}) · {tr('OFox AI Video Help')}")
                 ofox_api_key = st.text_input(
@@ -5197,6 +5229,7 @@ def _render_video_settings(panel, params):
                 "volcengine_seedance": tr("Volcano Engine Seedance"),
                 "ofox": tr("OFox AI Video"),
                 "metaso_minimax": tr("Metaso MiniMax H3"),
+                "vgenv": tr("vgenv MiniMax H3"),
                 "muapi": tr("MuAPI AI Video"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
@@ -5237,6 +5270,8 @@ def _render_video_settings(panel, params):
                 st.caption(f"[OfoxAI]({OFOX_REFERRAL_URL}) · {tr('OFox AI Video Help')}")
             if params.video_source == "metaso_minimax":
                 st.caption(tr("Metaso MiniMax H3 Help"))
+            if params.video_source == "vgenv":
+                st.caption(tr("vgenv API Help"))
             if params.video_source == "muapi":
                 st.caption(tr("MuAPI AI Video Help"))
             if params.video_source == "local":
@@ -5384,7 +5419,7 @@ def _render_video_settings(panel, params):
 
             # MiniMax H3 的远端时长范围是 4～15 秒。选择秘塔时使用完整能力
             # 范围，既避免 2/3 秒被按 4 秒计费，也让 WebUI 与 CLI、服务层一致。
-            if params.video_source == "metaso_minimax":
+            if params.video_source in {"metaso_minimax", "vgenv"}:
                 video_clip_durations = list(
                     range(
                         metaso_minimax.DEFAULT_MIN_DURATION_SECONDS,
@@ -5407,7 +5442,7 @@ def _render_video_settings(panel, params):
                     "video_clip_duration",
                     video_clip_durations,
                     5
-                    if params.video_source in {"metaso_minimax", "muapi"}
+                    if params.video_source in {"metaso_minimax", "vgenv", "muapi"}
                     else 3,
                 ),
                 key="video_clip_duration_select",
@@ -5519,6 +5554,8 @@ def _render_video_settings(panel, params):
                 _render_ofox_video_settings(params)
             if params.video_source == "metaso_minimax":
                 _render_metaso_minimax_video_settings(params)
+            if params.video_source == "vgenv":
+                _render_vgenv_video_settings(params)
             if params.video_source == "muapi":
                 _render_muapi_video_settings(params)
     return uploaded_files
@@ -5658,6 +5695,30 @@ def _render_metaso_minimax_video_settings(params):
         key="metaso_minimax_confirm_charge",
         help=tr("Confirm Metaso MiniMax Charge Help"),
     )
+
+
+def _render_vgenv_video_settings(params):
+    """Estimate billable clips and require an explicit confirmation."""
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    voice_mode = st.session_state.get(
+        localized_widget_key("voice_mode_control"), config.ui.get("voice_mode")
+    )
+    if voice_mode == VOICE_MODE_UPLOAD:
+        st.warning(
+            tr("vgenv Billing Notice Uploaded Audio").format(
+                duration=clip_duration, count=video_count
+            )
+        )
+    elif estimated_range := _estimate_voiceover_duration_range(
+        str(params.video_script or ""), params.voice_rate
+    ):
+        minimum = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        maximum = max(math.ceil(estimated_range[1] * video_count / clip_duration), minimum)
+        st.warning(tr("vgenv Billing Notice").format(min=minimum, max=maximum))
+    else:
+        st.warning(tr("vgenv Billing Notice Without Script"))
+    st.checkbox(tr("Confirm vgenv Charge"), key="vgenv_confirm_charge")
 
 
 def _render_muapi_video_settings(params):
@@ -8034,6 +8095,7 @@ def _render_generation_controls(
             "volcengine_seedance",
             "ofox",
             "metaso_minimax",
+            "vgenv",
             "muapi",
             "loomloom",
             "openai_image",
@@ -8122,6 +8184,20 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm Metaso MiniMax Charge Required"))
+            st.stop()
+
+        if params.video_source == "vgenv" and not vgenv.is_enabled(
+            config.snapshot_config_with_pending(config.app)
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the vgenv API Key"))
+            st.stop()
+
+        if params.video_source == "vgenv" and not st.session_state.get(
+            "vgenv_confirm_charge", False
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm vgenv Charge Required"))
             st.stop()
 
         if params.video_source == "muapi" and not (

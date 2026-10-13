@@ -45,6 +45,7 @@ _CLI_VIDEO_SOURCES = (
     "volcengine_seedance",
     "ofox",
     "metaso_minimax",
+    "vgenv",
     "muapi",
     "openai_image",
     "local",
@@ -393,6 +394,11 @@ Batch manifests:
             "confirm that Metaso MiniMax H3 creates paid video tasks; required "
             "with --video-source metaso_minimax for materials or video output"
         ),
+    )
+    material_group.add_argument(
+        "--confirm-vgenv-charge",
+        action="store_true",
+        help="confirm paid vgenv video generation; required with --video-source vgenv",
     )
     material_group.add_argument(
         "--confirm-muapi-charge",
@@ -765,6 +771,15 @@ Batch manifests:
         parser.error(
             "--confirm-metaso-minimax-charge is required with "
             "--video-source metaso_minimax"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "vgenv"
+        and stage_requires_materials
+        and not args.confirm_vgenv_charge
+    ):
+        parser.error(
+            "--confirm-vgenv-charge is required with --video-source vgenv"
         )
     if (
         not args.batch_file
@@ -1176,6 +1191,7 @@ def _validate_batch_task_params(
     seedance_charge_confirmed: bool,
     ofox_charge_confirmed: bool,
     metaso_minimax_charge_confirmed: bool,
+    vgenv_charge_confirmed: bool,
     muapi_charge_confirmed: bool,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
@@ -1239,6 +1255,12 @@ def _validate_batch_task_params(
         raise ValueError(
             "--confirm-metaso-minimax-charge is required for Metaso MiniMax H3"
         )
+    if (
+        params.video_source == "vgenv"
+        and stop_at in {"materials", "video"}
+        and not vgenv_charge_confirmed
+    ):
+        raise ValueError("--confirm-vgenv-charge is required for vgenv generation")
     if (
         params.video_source == "muapi"
         and stop_at in {"materials", "video"}
@@ -1358,6 +1380,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                 metaso_minimax_charge_confirmed=(
                     args.confirm_metaso_minimax_charge
                 ),
+                vgenv_charge_confirmed=args.confirm_vgenv_charge,
                 muapi_charge_confirmed=args.confirm_muapi_charge,
             )
         except (TypeError, ValueError) as exc:
