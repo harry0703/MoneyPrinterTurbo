@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-bookworm
 
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
@@ -19,11 +19,16 @@ ARG PIP_USE_OFFICIAL=0
 # 导致 git/ffmpeg 未安装时仍生成不可用镜像。这里把“写入软件源”“安装”
 # 和“三次重试”拆成边界清晰的 shell 函数，并用函数返回值决定是否继续。
 # 所有软件源统一使用 HTTPS，避免部分网络环境直接拦截明文 HTTP 请求。
+#
+# Debian 12 (bookworm) 的基础镜像改用 /etc/apt/sources.list.d/debian.sources
+# （deb822 格式），已不再提供 /etc/apt/sources.list。若只写后者，镜像中原有的
+# 官方源仍会生效、导致镜像切换失效，因此先删除该文件再写入 sources.list。
 RUN set -u; \
     write_debian_sources() { \
         main_url="$1"; \
         security_url="$2"; \
-        printf 'deb %s bullseye main\ndeb %s bullseye-updates main\ndeb %s bullseye-security main\n' \
+        rm -f /etc/apt/sources.list.d/debian.sources; \
+        printf 'deb %s bookworm main\ndeb %s bookworm-updates main\ndeb %s bookworm-security main\n' \
             "$main_url" "$main_url" "$security_url" > /etc/apt/sources.list; \
         rm -rf /var/lib/apt/lists/*; \
     }; \
