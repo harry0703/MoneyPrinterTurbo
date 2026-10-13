@@ -1,7 +1,8 @@
 """vgenv integration tests never make a paid or unauthenticated network call."""
 
+import socket
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -11,6 +12,10 @@ from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect
 from app.services import material, vgenv
 from app.utils import utils
+
+PUBLIC_ADDRESSES = [
+    (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("93.184.216.34", 443))
+]
 
 
 def response(body, status=200):
@@ -31,6 +36,7 @@ def test_v3_submit_poll_raw_and_isolated_idempotency_keys():
     with (
         patch.object(vgenv.requests, "post", return_value=response({"id": "video-1"}, 202)) as post,
         patch.object(vgenv.requests, "get", return_value=response(output)) as get,
+        patch.object(vgenv.socket, "getaddrinfo", return_value=PUBLIC_ADDRESSES),
     ):
         first = vgenv.generate_videos("A city at sunrise", 5, VideoAspect.landscape)
         vgenv.generate_videos("A city at sunrise", 5, VideoAspect.landscape)
@@ -95,10 +101,50 @@ def test_timeout_cancels_same_task_and_preserves_id():
 @pytest.mark.parametrize("url", [
     "http://cdn.example.com/video.mp4", "https://localhost/video.mp4",
     "https://127.0.0.1/video.mp4", "https://user:pass@cdn.example.com/video.mp4",
+    "https://2130706433/video.mp4", "https://127.1/video.mp4",
+    "https://cdn.example.com:8443/video.mp4",
 ])
 def test_reject_unsafe_download_url(url):
     with pytest.raises(vgenv.VgenvError):
         vgenv._safe_output_url(url)
+
+
+def test_internal_dns_and_mixed_public_private_answers_are_rejected():
+    for addresses in [
+        [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.2", 443))],
+        PUBLIC_ADDRESSES + [(socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 443, 0, 0))],
+    ]:
+        with patch.object(vgenv.socket, "getaddrinfo", return_value=addresses):
+            with pytest.raises(vgenv.VgenvError):
+                vgenv._safe_output_url("https://cdn.example.com/video.mp4")
+
+
+def test_dns_rebinding_is_blocked_at_connection_time():
+    private = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))]
+    with (
+        patch.object(vgenv.socket, "getaddrinfo", side_effect=[PUBLIC_ADDRESSES, private]) as resolve,
+        patch.object(vgenv.socket, "socket") as connect,
+    ):
+        vgenv._safe_output_url("https://cdn.example.com/video.mp4")
+        connection = vgenv._PinnedHTTPSConnection("cdn.example.com", port=443)
+        with pytest.raises(vgenv.VgenvError):
+            connection._new_conn()
+    assert resolve.call_count == 2
+    connect.assert_not_called()
+
+
+def test_normal_https_connection_pins_checked_ip_and_preserves_tls_hostname():
+    with (
+        patch.object(vgenv.socket, "getaddrinfo", return_value=PUBLIC_ADDRESSES),
+        patch.object(vgenv.socket, "socket") as create_socket,
+    ):
+        connection = vgenv._PinnedHTTPSConnection("cdn.example.com", port=443, timeout=2)
+        assert connection._new_conn() is create_socket.return_value
+    create_socket.return_value.connect.assert_called_once_with(("93.184.216.34", 443))
+    assert connection.host == "cdn.example.com"  # urllib3 uses this for TLS SNI and certificate verification.
+    with vgenv.safe_download_session() as session:
+        assert session.trust_env is False
+        assert session.adapters["https://"].poolmanager.pool_classes_by_scheme["https"] is vgenv._PinnedHTTPSConnectionPool
 
 
 def test_safe_download_does_not_follow_redirect_or_replace_concurrent_file(tmp_path):
@@ -106,6 +152,7 @@ def test_safe_download_does_not_follow_redirect_or_replace_concurrent_file(tmp_p
     target = tmp_path / f"vid-{utils.md5(url)}.mp4"
 
     class Download:
+        status_code = 200
         headers = {"Content-Length": "4"}
 
         def __enter__(self):
@@ -121,15 +168,39 @@ def test_safe_download_does_not_follow_redirect_or_replace_concurrent_file(tmp_p
         def iter_content(self, chunk_size):
             yield b"data"
 
+    # MagicMock supplies the context-manager protocol while preserving get calls.
+    session = MagicMock()
+    session.__enter__.return_value = session
+    session.get.return_value = Download()
     with (
-        patch.object(material.requests, "get", return_value=Download()) as get,
+        patch.object(vgenv.socket, "getaddrinfo", return_value=PUBLIC_ADDRESSES),
+        patch.object(vgenv, "safe_download_session", return_value=session),
         patch.object(material, "VideoFileClip", return_value=SimpleNamespace(duration=5, fps=24, close=lambda: None)),
         patch.object(material.material_upload, "_validate_video"),
     ):
         result = material.save_video(url, str(tmp_path), safe_download=True)
     assert result == str(target)
     assert target.read_bytes() == b"winner"
-    assert get.call_args.kwargs["allow_redirects"] is False
+    assert session.get.call_args.kwargs["allow_redirects"] is False
+    assert session.get.call_args.kwargs["verify"] is True
+    assert session.get.call_args.kwargs["proxies"] == {}
+    assert "Authorization" not in session.get.call_args.kwargs["headers"]
+
+
+def test_safe_download_rejects_redirect_response(tmp_path):
+    url = "https://cdn.example.com/video.mp4"
+    response = MagicMock(status_code=302)
+    session = MagicMock()
+    session.__enter__.return_value = session
+    session.get.return_value.__enter__.return_value = response
+    with (
+        patch.object(vgenv.socket, "getaddrinfo", return_value=PUBLIC_ADDRESSES),
+        patch.object(vgenv, "safe_download_session", return_value=session),
+    ):
+        with pytest.raises(ValueError, match="redirected"):
+            material.save_video(url, str(tmp_path), safe_download=True)
+    response.iter_content.assert_not_called()
+    assert session.get.call_args.kwargs["allow_redirects"] is False
 
 
 def test_invalid_input_never_submits_paid_job():

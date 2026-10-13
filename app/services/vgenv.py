@@ -9,6 +9,7 @@ from __future__ import annotations
 import ipaddress
 import math
 import os
+import socket
 import time
 from collections.abc import Mapping
 from typing import Any
@@ -16,6 +17,10 @@ from urllib.parse import quote, urlsplit
 from uuid import uuid4
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.connection import HTTPSConnection
+from urllib3.connectionpool import HTTPSConnectionPool
+from urllib3.exceptions import NewConnectionError
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect
@@ -96,12 +101,92 @@ def _safe_output_url(value: Any) -> str:
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         raise VgenvError("vgenv output URL must be HTTPS without embedded credentials")
     try:
-        if not ipaddress.ip_address(parsed.hostname).is_global:
-            raise VgenvError("vgenv output URL must not target a private address")
-    except ValueError:
-        if parsed.hostname == "localhost" or parsed.hostname.endswith(".localhost"):
-            raise VgenvError("vgenv output URL must not target localhost")
+        port = parsed.port or 443
+    except ValueError as exc:
+        raise VgenvError("vgenv output URL has an invalid port") from exc
+    if port != 443:
+        raise VgenvError("vgenv output URL must use the standard HTTPS port")
+    _resolve_global_addresses(parsed.hostname, port)
     return value
+
+
+def _resolve_global_addresses(host: str, port: int) -> list[tuple]:
+    """Reject the whole DNS set if any address could reach a local network.
+
+    getaddrinfo also normalizes legacy IPv4 forms such as 127.1 and 2130706433.
+    The connection repeats this check and connects directly to its vetted IP,
+    so a second DNS response cannot silently change the destination.
+    """
+    try:
+        addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except (OSError, ValueError) as exc:
+        raise VgenvError("vgenv output host could not be resolved") from exc
+    if not addresses:
+        raise VgenvError("vgenv output host has no addresses")
+    for family, _kind, _protocol, _canon, sockaddr in addresses:
+        if family not in (socket.AF_INET, socket.AF_INET6):
+            raise VgenvError("vgenv output host has an unsupported address")
+        try:
+            address = ipaddress.ip_address(sockaddr[0])
+        except ValueError as exc:
+            raise VgenvError("vgenv output host has an invalid address") from exc
+        if not address.is_global or (
+            isinstance(address, ipaddress.IPv6Address)
+            and address.ipv4_mapped is not None
+            and not address.ipv4_mapped.is_global
+        ):
+            raise VgenvError("vgenv output host resolves to a non-public address")
+    return addresses
+
+
+class _PinnedHTTPSConnection(HTTPSConnection):
+    def _new_conn(self) -> socket.socket:
+        # HTTPSConnection.connect() still uses self.host as the SNI and
+        # certificate hostname. Only the TCP destination is pinned to this
+        # connection's validated DNS answer.
+        addresses = _resolve_global_addresses(self._dns_host, self.port)
+        last_error: OSError | None = None
+        for family, kind, protocol, _canon, sockaddr in addresses:
+            sock = socket.socket(family, kind, protocol)
+            try:
+                if self.timeout is not None:
+                    sock.settimeout(self.timeout)
+                for option in self.socket_options or ():
+                    sock.setsockopt(*option)
+                if self.source_address:
+                    sock.bind(self.source_address)
+                sock.connect(sockaddr)
+                return sock
+            except OSError as exc:
+                last_error = exc
+                sock.close()
+        raise NewConnectionError(self, "vgenv output host could not be connected") from last_error
+
+
+class _PinnedHTTPSConnectionPool(HTTPSConnectionPool):
+    ConnectionCls = _PinnedHTTPSConnection
+
+
+class _PinnedHTTPSAdapter(HTTPAdapter):
+    def init_poolmanager(self, *args: Any, **kwargs: Any) -> None:
+        super().init_poolmanager(*args, **kwargs)
+        self.poolmanager.pool_classes_by_scheme = {
+            **self.poolmanager.pool_classes_by_scheme,
+            "https": _PinnedHTTPSConnectionPool,
+        }
+
+
+def safe_download_session() -> requests.Session:
+    """Return an isolated direct HTTPS session for untrusted signed URLs.
+
+    Proxy-side DNS cannot be pinned by this client, so this path deliberately
+    ignores configured and environment proxies. A proxy-only installation
+    fails closed instead of allowing a signed URL to reach an internal host.
+    """
+    session = requests.Session()
+    session.trust_env = False
+    session.mount("https://", _PinnedHTTPSAdapter())
+    return session
 
 
 def _cancel(base: str, task_id: str, headers: dict[str, str]) -> None:

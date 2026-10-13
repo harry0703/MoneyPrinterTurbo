@@ -1,4 +1,5 @@
 import base64
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 import io
 import math
@@ -1147,6 +1148,25 @@ def _describe_download_progress(
     return f"{downloaded_mb:.1f} MB, {speed:.2f} MB/s"
 
 
+@contextmanager
+def _open_video_download(url: str, headers: dict, safe_download: bool):
+    if safe_download:
+        # A fresh session forces connection-time DNS validation for each signed
+        # URL and prevents environment/configured proxies from resolving it.
+        with vgenv.safe_download_session() as session:
+            with session.get(
+                url, headers=headers, timeout=(60, 240), stream=True,
+                allow_redirects=False, verify=True, proxies={},
+            ) as response:
+                yield response
+    else:
+        with requests.get(
+            url, headers=headers, proxies=config.proxy, verify=_get_tls_verify(),
+            timeout=(60, 240), stream=True,
+        ) as response:
+            yield response
+
+
 def save_video(video_url: str, save_dir: str = "", *, safe_download: bool = False) -> str:
     if safe_download:
         vgenv._safe_output_url(video_url)
@@ -1185,15 +1205,9 @@ def save_video(video_url: str, save_dir: str = "", *, safe_download: bool = Fals
             delete=False,
         ) as temp_file:
             temp_path = temp_file.name
-            with requests.get(
-                video_url,
-                headers=headers,
-                proxies=config.proxy,
-                verify=_get_tls_verify(),
-                timeout=(60, 240),
-                stream=True,
-                allow_redirects=not safe_download,
-            ) as response:
+            with _open_video_download(video_url, headers, safe_download) as response:
+                if safe_download and 300 <= response.status_code < 400:
+                    raise ValueError("vgenv output download redirected")
                 response.raise_for_status()
                 headers = getattr(response, "headers", {}) or {}
                 try:

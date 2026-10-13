@@ -187,6 +187,8 @@ metaso_minimax_run_timeout = 1800
 # Select video_source="vgenv" explicitly and confirm each paid generation in UI/CLI.
 # VGENV_API_KEY is used when this setting is empty. v3 raw mode preserves prompts.
 # A successful video is downloaded before the next paid clip is submitted.
+# Signed output downloads use direct HTTPS with public-address validation;
+# proxy-only networks fail closed so proxy-side DNS cannot bypass the guard.
 vgenv_api_key = ""
 vgenv_base_url = "https://api.vgenv.com"
 vgenv_resolution = "768p" # "480p" or "768p"
