@@ -2322,6 +2322,29 @@ def _write_validated_minimax_audio(audio_bytes: bytes, voice_file: str) -> float
             output.write(audio_bytes)
 
         _validate_remote_tts_audio(temp_path)
+        # MiniMax's configured response container can differ from the caller's
+        # artifact extension (the task pipeline normally requests audio.mp3).
+        # Keep matching payloads byte-identical; transcode supported mismatches
+        # before publication so MIME/extension consumers see the promised codec.
+        source_format = (
+            "wav" if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE"
+            else "flac" if audio_bytes.startswith(b"fLaC")
+            else "mp3" if audio_bytes.startswith(b"ID3") or (
+                len(audio_bytes) >= 2 and audio_bytes[0] == 0xFF
+                and audio_bytes[1] & 0xE0 == 0xE0
+            )
+            else None
+        )
+        output_format = output_suffix.lstrip(".").lower()
+        if source_format and output_format in {"mp3", "wav", "flac"} and source_format != output_format:
+            from pydub import AudioSegment
+
+            _configure_pydub_ffmpeg(AudioSegment)
+            segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format=source_format)
+            exported = segment.export(temp_path, format=output_format)
+            if exported is not None:
+                exported.close()
+            _validate_remote_tts_audio(temp_path)
         audio_clip = AudioFileClip(temp_path)
         try:
             audio_duration = float(audio_clip.duration)
