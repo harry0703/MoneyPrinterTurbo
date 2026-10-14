@@ -201,10 +201,20 @@ def _plain_config_value(text: str, key: str) -> str:
 def _replace_config_value(text: str, key: str, value: object) -> str:
     """Replace one active field while preserving the configuration layout."""
     pattern = re.compile(rf"(?m)^({re.escape(key)}\s*=\s*).*$")
-    if not pattern.search(text):
+    match = None
+    for candidate in pattern.finditer(text):
+        try:
+            tomllib.loads(text[:candidate.start()])
+        except tomllib.TOMLDecodeError:
+            # A key-looking line inside a multiline value is configuration text.
+            continue
+        match = candidate
+        break
+    if match is None:
         raise SkillError(f"configuration field not found in config.toml: {key}")
     encoded = json.dumps(value, ensure_ascii=False)
-    return pattern.sub(lambda match: f"{match.group(1)}{encoded}", text, count=1)
+    replacement = f"{match.group(1)}{encoded}"
+    return text[:match.start()] + replacement + text[match.end():]
 
 
 def _has_configured_value(value: str) -> bool:
