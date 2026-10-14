@@ -265,6 +265,21 @@ class VideoProject:
         revision = revision or self.metadata()["current_revision"]
         return self._read(self._revision_path(revision) / "spec.json")
 
+    def checkout(self, revision: str) -> dict:
+        """Select an existing revision while retaining history and last export."""
+        revision = _identifier(revision)
+        with _lock(self.lock_path):
+            metadata = self.metadata()
+            selected = self._read(self._revision_path(revision) / "spec.json")
+            if (
+                selected.get("project_id") != metadata["project_id"]
+                or selected.get("revision_id") != revision
+            ):
+                raise ProjectError("revision does not belong to this project identity")
+            metadata["current_revision"] = revision
+            _atomic_json(self.directory / "project.json", metadata)
+        return selected
+
     def _asset(self, value: str, relative_to: Path) -> dict:
         path = Path(value)
         if not path.is_absolute():
@@ -900,6 +915,10 @@ def main(argv: list[str] | None = None) -> int:
     render.add_argument("--revision")
     render.add_argument("--retry", action="store_true")
     render.add_argument("--stage-timeout", type=float, default=600)
+    checkout = commands.add_parser(
+        "checkout", help="Select an existing revision without deleting history or exports"
+    )
+    checkout.add_argument("revision")
     compare = commands.add_parser("compare")
     compare.add_argument("before")
     compare.add_argument("after")
@@ -927,6 +946,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "compare":
             result = project.compare(args.before, args.after)
+        elif args.command == "checkout":
+            result = project.checkout(args.revision)
         elif args.command == "save-preset":
             result = project.revision()["settings"]
             _atomic_json(Path(args.output), result)
