@@ -158,3 +158,13 @@ completed narration/footage paths, retain scene IDs, and consume export/revision
 receipts without changing provider ownership. Existing creative-outcome records
 can reference a completed revision ID without introducing automated publishing
 or treating observational performance as causal evidence.
+
+## Choose a source start time
+
+Set a scene’s optional `footage_start` to a finite, nonnegative number of seconds
+to begin its prepared footage at that source position (default `0`). This changes
+the scene pixels and downstream assembly/export, while prepared narration and
+timing artifacts remain reusable. For example, `"footage_start": 12.5` skips the
+opening 12.5 seconds of a long source clip. The scene duration still follows its
+prepared audio, or `duration` when it has no audio. This does not trim narration
+or change the source snapshot. Footage retains the existing looping behavior.
