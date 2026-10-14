@@ -23,7 +23,7 @@ MATERIAL_VALIDATION_TIMEOUT_SECONDS = 120
 # render pipeline classifies (video.py reads const.FILE_TYPE_IMAGES). Accepting a
 # narrower set here rejects uploads the rest of the pipeline already supports.
 SUPPORTED_VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".flv", ".mkv", ".webm")
-SUPPORTED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp")
+SUPPORTED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 SUPPORTED_MATERIAL_EXTENSIONS = (
     *SUPPORTED_VIDEO_EXTENSIONS,
     *SUPPORTED_IMAGE_EXTENSIONS,
@@ -67,6 +67,7 @@ _IMAGE_FORMATS_BY_EXTENSION = {
     ".jpeg": frozenset({"JPEG"}),
     ".png": frozenset({"PNG"}),
     ".bmp": frozenset({"BMP"}),
+    ".webp": frozenset({"WEBP"}),
 }
 
 
@@ -147,6 +148,8 @@ def _validate_image(file_path: str, extension: str) -> None:
                     raise MaterialUploadError(
                         "uploaded image content does not match its file extension"
                     )
+                if extension == ".webp" and getattr(image, "is_animated", False):
+                    raise MaterialUploadError("WebP local images must be static")
                 image.verify()
             # verify() checks structure but may accept truncated JPEG pixel data.
             # Reopen after verify() (which invalidates the decoder) and decode
@@ -164,7 +167,7 @@ def _validate_image(file_path: str, extension: str) -> None:
         ValueError,
     ) as exc:
         raise MaterialUploadError(
-            "uploaded file must contain a valid JPEG, PNG, or BMP image"
+            "uploaded file must contain a valid JPEG, PNG, BMP, or static WebP image"
         ) from exc
 
 

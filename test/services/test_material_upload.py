@@ -191,7 +191,7 @@ class TestMaterialUploadService(unittest.TestCase):
                         "renamed.png", io.BytesIO(_image_bytes("JPEG"))
                     )
                 with self.assertRaisesRegex(
-                    material_upload.MaterialUploadError, "valid JPEG, PNG, or BMP"
+                    material_upload.MaterialUploadError, "valid JPEG, PNG, BMP, or static WebP"
                 ):
                     material_upload.save_material_upload(
                         "broken.jpg", io.BytesIO(b"not-an-image")

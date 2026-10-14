@@ -213,6 +213,7 @@ LOCAL_MATERIAL_EXTENSIONS = {
     ".jpg",
     ".jpeg",
     ".png",
+    ".webp",
 }
 CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 _FINAL_VIDEO_PATTERN = re.compile(

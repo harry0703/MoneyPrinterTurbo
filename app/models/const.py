@@ -32,4 +32,4 @@ CROSS_POST_STATE_COMPLETE = "complete"
 CROSS_POST_STATE_FAILED = "failed"
 
 FILE_TYPE_VIDEOS = ["mp4", "mov", "mkv", "webm"]
-FILE_TYPE_IMAGES = ["jpg", "jpeg", "png", "bmp"]
+FILE_TYPE_IMAGES = ["jpg", "jpeg", "png", "bmp", "webp"]
