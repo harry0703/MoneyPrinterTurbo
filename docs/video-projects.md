@@ -158,3 +158,19 @@ completed narration/footage paths, retain scene IDs, and consume export/revision
 receipts without changing provider ownership. Existing creative-outcome records
 can reference a completed revision ID without introducing automated publishing
 or treating observational performance as causal evidence.
+
+## Keep the whole frame in a scene
+
+Set a scene's `"fit_mode": "contain"` to keep its full aspect ratio and center
+it on a black canvas. The default `"cover"` continues to fill the canvas and
+center-crop excess content. For example, a landscape presentation in a portrait
+episode can use `contain` while the other scenes continue to fill the canvas.
+Only that scene's render, assembly and export rebuild when its mode changes;
+its prepared audio and the other scene renders remain reusable. Explicit
+`cover` and omitted modes share the existing cache fingerprint. Framing modes
+do not alter narration timing, output dimensions or frame rate.
+
+Contain framing preserves display aspect ratio, including non-square source
+pixels (anamorphic footage). Its versioned framing contract rebuilds older
+contain artifacts after geometry changes; default cover fingerprints remain
+unchanged.

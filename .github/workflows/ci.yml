@@ -72,6 +72,7 @@ jobs:
         run: >-
           uv run --no-sync python -X utf8 -m coverage run --append -m pytest -q
           test/services/test_video_project.py
+          test/services/test_video_project_fit_mode.py
 
       - name: Report test coverage
         run: uv run --no-sync python -m coverage report
