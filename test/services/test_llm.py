@@ -638,6 +638,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "openai",
                 "anthropic",
                 "gemini",
+                "muse_spark",
                 "deepseek",
                 "qwen",
                 "azure",
@@ -694,6 +695,14 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
         self.assertEqual(apimart.default_model, "gpt-5.6-terra")
         self.assertEqual(apimart.default_base_url, "https://api.apimart.ai/v1")
+        muse_spark = get_llm_provider("muse_spark")
+        self.assertEqual(
+            muse_spark.api_key_url,
+            "https://dev.meta.ai/docs/authentication",
+        )
+        self.assertEqual(muse_spark.default_model, "muse-spark-1.3")
+        self.assertEqual(muse_spark.default_base_url, "https://api.meta.ai/v1")
+        self.assertEqual(muse_spark.adapter, "openai_compatible")
         openrouter = get_llm_provider("openrouter")
         self.assertEqual(
             openrouter.api_key_url,
