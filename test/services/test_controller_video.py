@@ -35,7 +35,7 @@ class TestVideoControllerHelpers(unittest.TestCase):
         headers = {"x-task-id": "request-123"}
         if range_header is not None:
             headers["Range"] = range_header
-        return SimpleNamespace(headers=headers)
+        return SimpleNamespace(headers=headers, method="GET")
 
     def test_sanitize_upload_filename_removes_client_path(self):
         """Windows 和 POSIX 客户端路径都只能保留最后一段安全文件名。"""
@@ -181,7 +181,7 @@ class TestVideoControllerHelpers(unittest.TestCase):
 class TestVideoControllerTasks(unittest.TestCase):
     @staticmethod
     def _request():
-        return SimpleNamespace(headers={"x-task-id": "request-123"})
+        return SimpleNamespace(headers={"x-task-id": "request-123"}, method="GET")
 
     def test_video_task_rejects_font_outside_font_directory_before_queueing(self):
         """非法字体路径必须在任务入队前返回 400，不产生付费后台任务。"""
@@ -676,7 +676,7 @@ class TestVideoControllerFiles(unittest.TestCase):
         headers = {"x-task-id": "request-123"}
         if range_header is not None:
             headers["Range"] = range_header
-        return SimpleNamespace(headers=headers)
+        return SimpleNamespace(headers=headers, method="GET")
 
     def test_upload_video_material_validates_complete_extension(self):
         """大写合法扩展名应接受，无点号伪扩展名应拒绝。"""

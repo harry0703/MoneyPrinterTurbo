@@ -54,6 +54,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.futureinfra",
         "llm_provider_label.yapi",
         "llm_provider_label.opper",
+        "llm_provider_label.onomeo",
         "llm_provider_label.shengsuanyun",
         "llm_provider_label.kimi_code",
         "kimi_code.oauth.login",

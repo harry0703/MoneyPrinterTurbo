@@ -717,8 +717,7 @@ def _sanitize_image_file(image_path: str) -> str:
     # Bound the intermediate basename while retaining complete source identity.
     # Different extensions must not overwrite pixels, and valid long filenames
     # must not exceed the filesystem's component limit after adding a suffix.
-    source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
-    sanitized_path = os.path.join(os.path.dirname(image_path), f"{source_identity}.sanitized.png")
+    source_digest = hashlib.sha256(os.fsencode(os.path.abspath(image_path)))
 
     temp_path = ""
     try:
@@ -730,6 +729,13 @@ def _sanitize_image_file(image_path: str) -> str:
                 mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
                 cleaned_image = upright.convert(mode)
                 cleaned_image.info.clear()
+                source_digest.update(str(cleaned_image.size).encode())
+                source_digest.update(cleaned_image.mode.encode())
+                source_digest.update(cleaned_image.tobytes())
+                sanitized_path = os.path.join(
+                    os.path.dirname(image_path),
+                    f"{source_digest.hexdigest()}.sanitized.png",
+                )
                 descriptor, temp_path = tempfile.mkstemp(
                     prefix=".image-sanitize-", suffix=".png",
                     dir=os.path.dirname(os.path.abspath(sanitized_path)),
@@ -748,7 +754,8 @@ def _sanitize_image_file(image_path: str) -> str:
 
 def _open_image_clip_with_fallback(image_path: str):
     # MoviePy does not apply camera EXIF orientation while decoding an image.
-    # CMYK JPEG channels also must become RGB rather than an apparent alpha mask.
+    # CMYK JPEG channels must become RGB; LA must become RGBA so MoviePy
+    # creates a proper opacity mask rather than treating alpha as a color band.
     # Ordinary RGB inputs retain the direct path.
     try:
         with Image.open(image_path) as image:
@@ -757,7 +764,7 @@ def _open_image_clip_with_fallback(image_path: str):
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode == "CMYK":
+    if orientation in range(2, 9) or image_mode in {"CMYK", "LA"}:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
@@ -1326,13 +1333,22 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         # 画布高度仍必须按现有行数计算，否则第二行及后续行会被裁掉。
         return text, (text.count("\n") + 1) * line_height
 
+    def attached_text_units(token):
+        units = []
+        for char in token:
+            if units and unicodedata.category(char).startswith("M"):
+                units[-1] += char
+            else:
+                units.append(char)
+        return units
+
     def split_long_token(token):
         # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
         # 退化为字符级拆分。关键点是：检测到 candidate 超宽时，先提交上一个
         # 仍然合法的 current，再把当前字符放入下一行，不能把超宽字符塞回上一行。
         lines = []
         current = ""
-        for char in token:
+        for char in attached_text_units(token):
             candidate = f"{current}{char}"
             candidate_width, _ = get_text_size(candidate)
             if candidate_width <= max_width or not current:
@@ -1378,11 +1394,15 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if len(lines[index - 1]) <= 1:
             continue
 
-        candidate = f"{lines[index - 1][-1]}{lines[index]}"
+        previous_units = attached_text_units(lines[index - 1])
+        if len(previous_units) <= 1:
+            continue
+        last_unit = previous_units[-1]
+        candidate = f"{last_unit}{lines[index]}"
         candidate_width, _ = get_text_size(candidate)
         if candidate_width <= max_width:
             lines[index] = candidate
-            lines[index - 1] = lines[index - 1][:-1]
+            lines[index - 1] = lines[index - 1][:-len(last_unit)]
 
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
     # 高度以最终结果为准。原文本中的显式换行可能保留在某个 token 内，
@@ -1886,12 +1906,18 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
 
         # Optionally, create a composite video clip containing the zoomed clip.
         # This is useful if you want to add other elements to the video.
-        final_clip = CompositeVideoClip([zoom_clip])
+        final_clip = CompositeVideoClip([zoom_clip], bg_color=(0, 0, 0))
         try:
             # The duration changes the rendered content, so it must be part of
             # the output identity. Different tasks may render the same image
             # concurrently; only publish a complete MP4 after MoviePy closes it.
-            source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
+            source_digest = hashlib.sha256(os.fsencode(os.path.abspath(image_path)))
+            source_frame = clip.get_frame(0)
+            source_digest.update(str(source_frame.shape).encode())
+            source_digest.update(source_frame.tobytes())
+            if clip.mask is not None:
+                source_digest.update(clip.mask.get_frame(0).tobytes())
+            source_identity = source_digest.hexdigest()
             duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
             video_file = os.path.join(
                 os.path.dirname(image_path), f"{source_identity}.zoom-{duration_identity}.mp4"

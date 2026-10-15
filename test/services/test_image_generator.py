@@ -135,3 +135,33 @@ class TestImageGeneratorService(unittest.TestCase):
         saved = image_service.list_saved_images(save_dir=self.save_dir)
         self.assertEqual(len(saved), 2)
         self.assertTrue(os.path.isfile(saved[0]["path"]))
+
+    def test_empty_image_response_no_retry_billing_safety(self):
+        mock_resp = _image_response({"data": []})
+
+        with patch("app.services.image.requests.post", return_value=mock_resp) as mock_post:
+            with self.assertRaises(RuntimeError) as ctx:
+                image_service.generate_images("a skyline", save_dir=self.save_dir)
+
+        self.assertIn("empty image payload from provider", str(ctx.exception))
+        self.assertIn("data=[]", str(ctx.exception))
+        # Billing safety: Do NOT retry on successful HTTP 200 response with empty payload
+        self.assertEqual(mock_post.call_count, 1)
+
+    def test_empty_image_response_with_provider_error_message(self):
+        secret_key = "sk-test-key-123"
+        config.app["openai_image_api_keys"] = [secret_key]
+        mock_resp = _image_response({
+            "error": {"message": f"content policy rejection with key {secret_key}"}
+        })
+
+        with patch("app.services.image.requests.post", return_value=mock_resp) as mock_post:
+            with self.assertRaises(RuntimeError) as ctx:
+                image_service.generate_images("unsafe prompt", save_dir=self.save_dir)
+
+        err_msg = str(ctx.exception)
+        self.assertIn("content policy rejection", err_msg)
+        self.assertNotIn(secret_key, err_msg)
+        self.assertIn("***", err_msg)
+        # Billing safety: No retry on HTTP 200 policy rejection
+        self.assertEqual(mock_post.call_count, 1)

@@ -205,16 +205,7 @@ DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_background_color": "#000000",
     "rounded_subtitle_background": False,
 }
-LOCAL_MATERIAL_EXTENSIONS = {
-    ".mp4",
-    ".mov",
-    ".avi",
-    ".flv",
-    ".mkv",
-    ".jpg",
-    ".jpeg",
-    ".png",
-}
+LOCAL_MATERIAL_EXTENSIONS = set(material_upload_service.SUPPORTED_MATERIAL_EXTENSIONS)
 CUSTOM_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 _FINAL_VIDEO_PATTERN = re.compile(
     r"^final-(?P<index>\d+)\.(?P<extension>mp4|mov|mkv|webm)$",
@@ -840,7 +831,7 @@ def _find_final_task_video(task_path: str) -> str:
     candidates = []
     for file_name in files:
         match = _FINAL_VIDEO_PATTERN.fullmatch(file_name)
-        if match:
+        if match and os.path.isfile(os.path.join(task_path, file_name)):
             candidates.append((int(match.group("index")), file_name))
 
     if not candidates:
@@ -1235,10 +1226,12 @@ def _delete_task(task_id, task_path, task_state=None):
         return False
 
     try:
-        if hasattr(sm.state, "delete_task"):
-            sm.state.delete_task(task_id)
         if os.path.isdir(normalized_path):
             shutil.rmtree(normalized_path)
+        # Keep the persisted task available for retry when file removal fails
+        # (for example, a video is still locked by another process on Windows).
+        if hasattr(sm.state, "delete_task"):
+            sm.state.delete_task(task_id)
         logger.info(f"deleted task: {task_id}")
         return True
     except Exception as e:
@@ -8506,6 +8499,12 @@ def _render_image_generation_view():
                 key="standalone_img_custom_storage_input",
             )
 
+        active_base_url = img_base_url.strip() or cfg_base_url
+        active_model = img_model.strip() or cfg_model
+        active_api_key = img_api_key or cfg_api_keys
+        active_template = img_template.strip() or cfg_template
+        active_save_dir = custom_storage.strip() or default_storage_dir
+
         btn_c1, btn_c2 = st.columns([1.6, 1], vertical_alignment="center")
         gen_btn = btn_c1.button(
             tr("Generate Images"),
@@ -8523,9 +8522,6 @@ def _render_image_generation_view():
             _open_image_storage_path()
 
         if gen_btn:
-            active_base_url = img_base_url.strip() or cfg_base_url
-            active_model = img_model.strip() or cfg_model
-            active_api_key = img_api_key or cfg_api_keys
             ref_bytes = sample_image_file.getvalue() if sample_image_file is not None else None
 
             if not prompt.strip():
@@ -8544,8 +8540,8 @@ def _render_image_generation_view():
                             model=active_model,
                             base_url=active_base_url,
                             api_key=active_api_key,
-                            prompt_template=img_template.strip() or cfg_template,
-                            save_dir=custom_storage.strip() or default_storage_dir,
+                            prompt_template=active_template,
+                            save_dir=active_save_dir,
                             reference_image_bytes=ref_bytes,
                         )
                         st.session_state["standalone_last_generated_images"] = results
@@ -8579,23 +8575,29 @@ def _render_image_generation_view():
                     icon=":material/bolt:",
                     key="standalone_generate_batch_action_btn",
                 ):
-                    with st.spinner(tr("Generating Images...")):
-                        try:
-                            batch_res = image_service.generate_images(
-                                prompt="",
-                                size=final_size,
-                                n=int(batch_count),
-                                model=active_model,
-                                base_url=active_base_url,
-                                api_key=active_api_key,
-                                save_dir=custom_storage.strip() or default_storage_dir,
-                                cached_blueprint=active_bp,
-                            )
-                            st.session_state["standalone_last_generated_images"] = batch_res
-                            st.toast(tr("Batch Generation Succeeded"), icon="🚀")
-                            st.rerun()
-                        except Exception as exc:
-                            st.error(f"{tr('Image Generation Failed')}: {exc}")
+                    if not active_base_url:
+                        st.error(tr("OpenAI Image Base URL Override") + " is required.")
+                    elif not active_model:
+                        st.error(tr("OpenAI Image Model Override") + " is required.")
+                    else:
+                        with st.spinner(tr("Generating Images...")):
+                            try:
+                                batch_res = image_service.generate_images(
+                                    prompt="",
+                                    size=final_size,
+                                    n=int(batch_count),
+                                    model=active_model,
+                                    base_url=active_base_url,
+                                    api_key=active_api_key,
+                                    save_dir=active_save_dir,
+                                    cached_blueprint=active_bp,
+                                )
+                                st.session_state["standalone_last_generated_images"] = batch_res
+                                st.toast(tr("Batch Generation Succeeded"), icon="🚀")
+                                st.rerun()
+                            except Exception as exc:
+                                logger.error(f"Image generation failed: {exc}")
+                                st.error(f"{tr('Image Generation Failed')}: {exc}")
         if last_images:
             st.markdown(f"#### 🌟 {tr('Latest Generated Images')} ({len(last_images)})")
             grid_cols = st.columns(min(len(last_images), 2))

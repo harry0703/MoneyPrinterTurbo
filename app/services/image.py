@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import io
 import os
+import random
 import re
 import time
 import uuid
@@ -15,7 +16,6 @@ import requests
 
 from app.config import config
 from app.services.material import (
-    OPENAI_IMAGE_DEFAULT_SIZES,
     OPENAI_IMAGE_ENDPOINT_PATH,
     OPENAI_IMAGE_KEY_ERROR_STATUS_CODES,
     OPENAI_IMAGE_MAX_ATTEMPTS,
@@ -24,13 +24,14 @@ from app.services.material import (
     OPENAI_IMAGE_REQUEST_TIMEOUT,
     OPENAI_IMAGE_RETRY_BACKOFF_SECONDS,
     OPENAI_IMAGE_RETRYABLE_STATUS_CODES,
-    OpenAIImagePaidResultError,
     OpenAIImageUnconfirmedError,
     _OpenAIImageDecodeError,
     _get_tls_verify,
     _openai_image_download_bytes,
     _openai_image_http_failure,
+    _openai_image_response_message,
     _redact_request_error,
+    _redact_secret,
     _response_json_safely,
     get_api_key,
 )
@@ -73,8 +74,6 @@ def format_image_prompt(prompt: str, template: str | None = None) -> str:
         return template.replace("{term}", prompt)
     return prompt
 
-
-import random
 
 _FIRST_NAMES_MALE = ["Ahmed", "Omar", "Zaid", "Tariq", "Hassan", "Youssef", "Kareem", "Mustafa", "Ali", "Hamza", "Fahad", "Sultan", "Samir", "Rami", "Bilal", "Adel"]
 _FIRST_NAMES_FEMALE = ["Noor", "Sara", "Lina", "Maryam", "Zainab", "Fatima", "Aya", "Huda", "Salma", "Dina", "Rania", "Yasmin", "Reem", "Layla", "Mona", "Zahra"]
@@ -480,8 +479,9 @@ def request_openai_image_generation(
                 if collected_bytes:
                     return collected_bytes, ""
 
-                failure_detail = f"empty image payload from provider: {_openai_image_response_message(body) or 'data=[]'}"
-                retryable = True
+                detail_msg = _openai_image_response_message(body)
+                failure_detail = f"empty image payload from provider: {_redact_secret(detail_msg, api_key) or 'data=[]'}"
+                retryable = False
 
         if retryable and attempt < OPENAI_IMAGE_MAX_ATTEMPTS:
             backoff_seconds = OPENAI_IMAGE_RETRY_BACKOFF_SECONDS[

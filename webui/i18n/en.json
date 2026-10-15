@@ -245,6 +245,8 @@
     "llm_provider_tips.yapi": "##### Y-API Configuration\n- **API Key**: Create an API key in the [Y-API console]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs in `vendor/model` form\n\nY-API is an OpenAI-compatible gateway: one API key serves models from several labs, and it also exposes an Anthropic-compatible `/v1/messages` endpoint.",
     "llm_provider_label.opper": "Opper",
     "llm_provider_tips.opper": "##### Opper Configuration\n- **API Key**: Create an API key at [Opper]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs\n\nOpper is an EU-hosted, OpenAI-compatible gateway to 700+ models from 50+ providers.",
+    "llm_provider_label.onomeo": "onomeo",
+    "llm_provider_tips.onomeo": "##### onomeo Configuration\n- **API Key**: Sign in and create an API key at [onomeo]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`, which picks a working free model; see the [model list]({model_docs_url}) for other model IDs\n\nonomeo is an OpenAI-compatible gateway. Free models are rate limited; other models are charged from a prepaid balance.",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
