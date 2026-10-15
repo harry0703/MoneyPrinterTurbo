@@ -294,6 +294,20 @@ yapi_api_key = ""
 yapi_base_url = ""
 yapi_model_name = ""
 
+# Opper, an EU-hosted OpenAI-compatible multi-model gateway.
+# API key: https://platform.opper.ai
+# Model list: https://opper.ai/models
+opper_api_key = ""
+opper_base_url = ""
+opper_model_name = ""
+
+# onomeo, a small OpenAI-compatible LLM gateway with a free model tier.
+# API key: https://onomeo.com/dashboard
+# Model list: https://onomeo.com/models
+onomeo_api_key = ""
+onomeo_base_url = ""
+onomeo_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
@@ -428,6 +442,16 @@ ollama_model_name = ""
 claude_code_model_name = ""
 claude_code_cli_path = ""
 claude_code_timeout = ""
+
+# Kimi Code (Kimi subscription). No API key: sign in once in the browser from
+# Settings -> LLM Settings (OAuth device authorization, China or Global
+# platform) and requests run on your Kimi Code plan usage limits. Credentials
+# are stored here automatically after sign-in (kimi_code_access_token /
+# kimi_code_refresh_token / kimi_code_token_expires_at / kimi_code_region) and
+# refreshed transparently. Leave model_name empty to use "kimi-for-coding".
+# Leave timeout empty to use the 300s default.
+kimi_code_model_name = ""
+kimi_code_timeout = ""
 
 # OneAPI. Use the token, Base URL, and model ID from your OneAPI deployment.
 # Project: https://github.com/songquanpeng/one-api
@@ -606,6 +630,8 @@ model_id = "speech-2.8-hd"
 voice_id = "English_expressive_narrator"
 sample_rate = 32000
 bitrate = 128000
+# Container formats supported by local validation: mp3, wav, flac.
+# Headerless PCM is rejected before synthesis.
 audio_format = "mp3"
 channel = 1
 pitch = 0

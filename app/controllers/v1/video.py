@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 from fastapi import BackgroundTasks, Depends, Path, Query, Request, UploadFile
 from fastapi.params import File
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from loguru import logger
 from starlette.background import BackgroundTask
 
@@ -172,11 +172,16 @@ def _parse_byte_range(
     try:
         # 视频播放器这里只需要单段 bytes range。拒绝多段请求可以避免返回体
         # 与 Content-Range 不一致，也避免异常字符串落入 int() 产生 500。
-        if not range_header.startswith("bytes=") or "," in range_header:
+        unit, separator, positions = range_header.strip(" \t").partition("=")
+        if unit.lower() != "bytes" or not separator or "," in positions:
             raise ValueError("unsupported range format")
-        start_text, end_text = range_header[6:].split("-", 1)
+        start_text, end_text = positions.split("-", 1)
         if not start_text and not end_text:
             raise ValueError("empty range")
+        # HTTP positions use ASCII DIGIT, not Python's broader int syntax.
+        if any(value and not (value.isascii() and value.isdigit())
+               for value in (start_text, end_text)):
+            raise ValueError("invalid byte position")
 
         if not start_text:
             suffix_length = int(end_text)
@@ -501,11 +506,17 @@ def upload_video_material_file(request: Request, file: UploadFile = File(...)):
     return utils.get_response(200, response)
 
 @router.get("/stream/{file_path:path}")
+@router.head("/stream/{file_path:path}", summary="Inspect video stream metadata")
 async def stream_video(request: Request, file_path: str):
     request_id = base.get_task_id(request)
     tasks_dir = utils.task_dir()
     video_path = _resolve_path_within_directory(tasks_dir, file_path, request_id)
     range_header = request.headers.get("Range")
+    if range_header and request.headers.get("If-Range") is not None:
+        # This stream does not publish strong ETag/Last-Modified validators.
+        # An unverifiable If-Range must fall back to the full representation,
+        # so a client cannot combine old cached bytes with a new video tail.
+        range_header = None
     # The body is produced after this handler returns. Open now so a task
     # deletion or replacement between headers and iteration cannot make the
     # stream fail or mismatch the size used for Content-Range.
@@ -519,6 +530,14 @@ async def stream_video(request: Request, file_path: str):
         ) from exc
     try:
         video_size = os.fstat(video_file.fileno()).st_size
+        if request.method == "HEAD":
+            # Range applies to GET only. Close before returning metadata; no
+            # generator or deferred background cleanup is needed for HEAD.
+            video_file.close()
+            return Response(
+                media_type="video/mp4",
+                headers={"Accept-Ranges": "bytes", "Content-Length": str(video_size)},
+            )
         start, end = _parse_byte_range(range_header, video_size, request_id)
     except Exception:
         video_file.close()
@@ -553,6 +572,7 @@ async def stream_video(request: Request, file_path: str):
 
 
 @router.get("/download/{file_path:path}")
+@router.head("/download/{file_path:path}", summary="Inspect artifact download metadata")
 async def download_video(request: Request, file_path: str):
     """
     download video
@@ -566,8 +586,24 @@ async def download_video(request: Request, file_path: str):
     file_path = pathlib.Path(video_path)
     filename = file_path.name
     media_type, _ = mimetypes.guess_type(filename)
-    return FileResponse(
+    stat_result = None
+    if request.method == "HEAD":
+        try:
+            stat_result = os.stat(video_path)
+        except FileNotFoundError as exc:
+            raise HttpException(
+                task_id=request_id,
+                status_code=404,
+                message=f"{request_id}: file no longer exists",
+            ) from exc
+    response = FileResponse(
         path=video_path,
         filename=filename,
         media_type=media_type or "application/octet-stream",
+        stat_result=stat_result,
     )
+    if request.method == "HEAD":
+        # Reuse FileResponse's metadata without reading its body or applying
+        # GET-only Range processing to this HEAD request.
+        return Response(headers=response.headers)
+    return response

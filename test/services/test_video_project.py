@@ -582,3 +582,278 @@ def test_dash_external_segments_cannot_escape_source_snapshot(native):
         project.render()
     assert project.status()["failed_stage"] == "opening:scene"
     assert project.metadata()["last_successful_export"] is None
+
+
+@pytest.mark.parametrize("text", [
+    "Jump to the recording.",
+    "Jump to 00:01:23,456 in the recording.",
+    "Show 00:01:23,456 --> 00:01:25,456 in the log.",
+])
+def test_final_caption_render_keeps_body_timecodes_and_duration(tmp_path, text):
+    from moviepy import VideoFileClip
+
+    from app.config import config
+    from app.models.schema import VideoAspect, VideoParams
+    from app.services import video
+    from app.utils.subtitle_writer import write_subtitle_file
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("native FFmpeg executable is unavailable")
+    font = Path(config.root_dir) / "resource/fonts/Charm-Regular.ttf"
+    if not font.is_file():
+        pytest.skip("native caption font is unavailable")
+
+    base = [ffmpeg, "-nostdin", "-v", "error", "-y", "-threads", "1"]
+    media = tmp_path / "white.mp4"
+    audio = tmp_path / "narration.wav"
+    subprocess.run([
+        *base, "-f", "lavfi", "-i", "color=c=white:s=1080x1080:r=10:d=0.8",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(media),
+    ], check=True, timeout=30)
+    subprocess.run([
+        *base, "-f", "lavfi", "-i", "sine=frequency=220:duration=0.8",
+        "-ar", "44100", str(audio),
+    ], check=True, timeout=30)
+    artifact = tmp_path / "accepted.srt"
+    assert write_subtitle_file(
+        str(artifact), "1\n00:00:00,100 --> 00:00:00,700\n" + text + "\n\n"
+    )
+    output = tmp_path / "captioned.mp4"
+    params = VideoParams(
+        video_subject="owned-caption", video_aspect=VideoAspect.square,
+        subtitle_enabled=True, subtitle_position="center",
+        font_name="Charm-Regular.ttf", font_size=36,
+        text_fore_color="#000000", stroke_width=0, text_background_color=False,
+        bgm_type="", bgm_volume=0, voice_volume=1, n_threads=1,
+    )
+    previous = config.app.copy()
+    try:
+        config.app.update({"video_codec": "libx264", "video_clip_concurrency": 1})
+        assert video.generate_video(
+            str(media), str(audio), str(artifact), str(output), params
+        )
+        with VideoFileClip(str(output), audio=False) as rendered:
+            assert 0.7 <= rendered.duration <= 0.9
+            frame = rendered.get_frame(0.4)
+            assert int((frame.mean(axis=2) < 180).sum()) > 100
+    finally:
+        config.app.clear()
+        config.app.update(previous)
+
+
+@pytest.mark.parametrize("rounded", [False, True])
+@pytest.mark.parametrize("color", ["#ff0000", "red", "rgb(255,0,0)"])
+def test_final_subtitle_background_preserves_supported_color(tmp_path, rounded, color):
+    import numpy as np
+    from moviepy import VideoFileClip
+
+    from app.config import config
+    from app.models.schema import VideoAspect, VideoParams
+    from app.services import video
+    from app.utils.subtitle_writer import write_subtitle_file
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("native FFmpeg executable is unavailable")
+    font = Path(config.root_dir) / "resource/fonts/Charm-Regular.ttf"
+    if not font.is_file():
+        pytest.skip("native caption font is unavailable")
+
+    base = [ffmpeg, "-nostdin", "-v", "error", "-y", "-threads", "1"]
+    media = tmp_path / "white.mp4"
+    audio = tmp_path / "narration.wav"
+    subprocess.run([
+        *base, "-f", "lavfi", "-i", "color=c=white:s=1080x1080:r=10:d=0.4",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(media),
+    ], check=True, timeout=30)
+    subprocess.run([
+        *base, "-f", "lavfi", "-i", "sine=frequency=220:duration=0.4",
+        "-ar", "44100", str(audio),
+    ], check=True, timeout=30)
+    artifact = tmp_path / "accepted.srt"
+    assert write_subtitle_file(
+        str(artifact), "1\n00:00:00,000 --> 00:00:00,400\nOwned caption\n\n"
+    )
+    output = tmp_path / "captioned.mp4"
+    params = VideoParams(
+        video_subject="owned-color", video_aspect=VideoAspect.square,
+        subtitle_enabled=True, subtitle_position="center",
+        font_name="Charm-Regular.ttf", font_size=36,
+        text_fore_color="#ffffff", stroke_width=0,
+        text_background_color=color, rounded_subtitle_background=rounded,
+        bgm_type="", bgm_volume=0, voice_volume=1, n_threads=1,
+    )
+    previous = config.app.copy()
+    try:
+        config.app.update({"video_codec": "libx264", "video_clip_concurrency": 1})
+        video.validate_subtitle_colors(params)
+        assert video.generate_video(
+            str(media), str(audio), str(artifact), str(output), params
+        )
+        with VideoFileClip(str(output), audio=False) as rendered:
+            assert 0.3 <= rendered.duration <= 0.5
+            frame = rendered.get_frame(0.2).astype(np.int16)
+            red = (
+                (frame[:, :, 0] > 80)
+                & (frame[:, :, 0] > frame[:, :, 1] + 40)
+                & (frame[:, :, 0] > frame[:, :, 2] + 40)
+            )
+            assert int(red.sum()) > 1000
+    finally:
+        config.app.clear()
+        config.app.update(previous)
+
+
+@pytest.mark.parametrize("color,expected", [
+    ("red", (255, 0, 0)),
+    ("#f00", (255, 0, 0)),
+    ("rgb(255,0,0)", (255, 0, 0)),
+    ("hsl(0,100%,50%)", (255, 0, 0)),
+    ("#ff000080", (255, 0, 0)),
+    ("rgba(255,0,0,0)", (255, 0, 0)),
+    ("#abcd", (170, 187, 204)),
+    ("invalid-color", (0, 0, 0)),
+])
+def test_subtitle_background_retains_color_and_explicit_opacity(color, expected):
+    from app.services import video
+
+    clip = video._rounded_subtitle_background_clip(
+        width=32, height=32, color=color, alpha=140, radius=8
+    )
+    try:
+        assert tuple(clip.get_frame(0)[16, 16]) == expected
+        assert clip.mask.get_frame(0)[16, 16] == pytest.approx(140 / 255)
+        assert clip.mask.get_frame(0)[0, 0] == 0
+    finally:
+        video.close_clip(clip)
+
+
+@pytest.mark.skipif(
+    not shutil.which("ffmpeg") or not shutil.which("ffprobe"),
+    reason="native FFmpeg/FFprobe required; no mocked rendering claim",
+)
+@pytest.mark.parametrize("field", ["narration_volume", "bgm_volume", "duration"])
+@pytest.mark.parametrize("sign", [-1, 1])
+def test_project_cli_rejects_large_json_numbers_without_traceback(
+    tmp_path, field, sign
+):
+    import sys
+
+    media = tmp_path / "footage.mp4"
+    _media(
+        [
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=64x64:r=10:d=0.6",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(media),
+        ]
+    )
+    manifest = tmp_path / "manifest.json"
+    project = tmp_path / "project"
+    request = {
+        "project_id": "numbers",
+        "scenes": [{"id": "opening", "footage": str(media), "duration": 0.6}],
+    }
+    manifest.write_text(json.dumps(request), encoding="utf-8")
+    command = [
+        sys.executable,
+        "-m",
+        "app.services.video_project",
+        "--project",
+        str(project),
+        "revise",
+        str(manifest),
+    ]
+    accepted = subprocess.run(command, text=True, capture_output=True, timeout=20)
+    assert accepted.returncode == 0, accepted.stderr
+    previous = (project / "project.json").read_bytes()
+    if field == "duration":
+        request["scenes"][0][field] = sign * 10**399
+    else:
+        request["settings"] = {field: sign * 10**399}
+    manifest.write_text(json.dumps(request), encoding="utf-8")
+    rejected = subprocess.run(command, text=True, capture_output=True, timeout=20)
+    assert rejected.returncode == 1
+    assert (project / "project.json").read_bytes() == previous
+    assert rejected.stdout == ""
+    assert "Traceback" not in rejected.stderr
+    assert "video project:" in rejected.stderr
+    assert ("scene duration" if field == "duration" else field) in rejected.stderr
+
+
+@pytest.mark.skipif(
+    not shutil.which("ffmpeg") or not shutil.which("ffprobe"),
+    reason="native FFmpeg/FFprobe required; no mocked rendering claim",
+)
+@pytest.mark.parametrize(
+    "field,number",
+    [
+        ("narration_volume", 4),
+        ("bgm_volume", 4),
+        ("duration", 3600),
+        ("narration_volume", 5),
+        ("bgm_volume", 5),
+        ("duration", 3601),
+    ],
+)
+def test_project_cli_numeric_bounds_controls(tmp_path, field, number):
+    import sys
+
+    media = tmp_path / "footage.mp4"
+    _media(
+        [
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=64x64:r=10:d=0.6",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(media),
+        ]
+    )
+    manifest = tmp_path / "manifest.json"
+    project = tmp_path / "project"
+    request = {
+        "project_id": "numbers",
+        "scenes": [{"id": "opening", "footage": str(media), "duration": 0.6}],
+    }
+    if field == "duration":
+        request["scenes"][0][field] = number
+    else:
+        request["settings"] = {field: number}
+    manifest.write_text(json.dumps(request), encoding="utf-8")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "app.services.video_project",
+            "--project",
+            str(project),
+            "revise",
+            str(manifest),
+        ],
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+    if number in (4, 3600):
+        assert result.returncode == 0, result.stderr
+        spec = json.loads(result.stdout)
+        assert (
+            spec["scenes"][0][field] if field == "duration" else spec["settings"][field]
+        ) == number
+        assert project.joinpath("project.json").is_file()
+    else:
+        assert result.returncode == 1
+        assert "Traceback" not in result.stderr
+        assert "video project:" in result.stderr
+        assert ("scene duration" if field == "duration" else field) in result.stderr
+        assert not project.joinpath("project.json").exists()

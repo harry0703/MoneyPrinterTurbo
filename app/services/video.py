@@ -43,6 +43,7 @@ from app.models.schema import (
 from app.services import bgm as bgm_service
 from app.services.utils import video_effects
 from app.utils import file_security, logging_utils, utils
+from app.utils.subtitle_reader import moviepy_subtitles
 
 class SubClippedVideoClip:
     def __init__(
@@ -497,7 +498,9 @@ def _format_ffmpeg_concat_path(file_path: str) -> str:
     让 `C:\\Users\\...` 变成 `C:/Users/...`，再处理单引号，兼容 macOS/Linux。
     """
     absolute_path = os.path.abspath(file_path)
-    return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
+    # Normalize the native separator only. A backslash can be a literal
+    # component of a valid POSIX path and must still identify the same file.
+    return _escape_ffmpeg_concat_path(absolute_path.replace(os.sep, "/"))
 
 
 def _describe_concat_output_progress(output_file: str) -> str:
@@ -714,8 +717,7 @@ def _sanitize_image_file(image_path: str) -> str:
     # Bound the intermediate basename while retaining complete source identity.
     # Different extensions must not overwrite pixels, and valid long filenames
     # must not exceed the filesystem's component limit after adding a suffix.
-    source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
-    sanitized_path = os.path.join(os.path.dirname(image_path), f"{source_identity}.sanitized.png")
+    source_digest = hashlib.sha256(os.fsencode(os.path.abspath(image_path)))
 
     temp_path = ""
     try:
@@ -727,6 +729,13 @@ def _sanitize_image_file(image_path: str) -> str:
                 mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
                 cleaned_image = upright.convert(mode)
                 cleaned_image.info.clear()
+                source_digest.update(str(cleaned_image.size).encode())
+                source_digest.update(cleaned_image.mode.encode())
+                source_digest.update(cleaned_image.tobytes())
+                sanitized_path = os.path.join(
+                    os.path.dirname(image_path),
+                    f"{source_digest.hexdigest()}.sanitized.png",
+                )
                 descriptor, temp_path = tempfile.mkstemp(
                     prefix=".image-sanitize-", suffix=".png",
                     dir=os.path.dirname(os.path.abspath(sanitized_path)),
@@ -745,7 +754,8 @@ def _sanitize_image_file(image_path: str) -> str:
 
 def _open_image_clip_with_fallback(image_path: str):
     # MoviePy does not apply camera EXIF orientation while decoding an image.
-    # CMYK JPEG channels also must become RGB rather than an apparent alpha mask.
+    # CMYK JPEG channels must become RGB; LA must become RGBA so MoviePy
+    # creates a proper opacity mask rather than treating alpha as a color band.
     # Ordinary RGB inputs retain the direct path.
     try:
         with Image.open(image_path) as image:
@@ -754,7 +764,7 @@ def _open_image_clip_with_fallback(image_path: str):
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode == "CMYK":
+    if orientation in range(2, 9) or image_mode in {"CMYK", "LA"}:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
@@ -1106,24 +1116,27 @@ def combine_videos(
                 )
 
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
+            # Short footage and faster playback can leave less than one second.
+            # Keep the chosen transition inside the rendered clip's timeline.
+            transition_duration = min(1.0, clip.duration)
             if transition_value == VideoTransitionMode.fade_in.value:
-                clip = video_effects.fadein_transition(clip, 1)
+                clip = video_effects.fadein_transition(clip, transition_duration)
             elif transition_value == VideoTransitionMode.fade_out.value:
-                clip = video_effects.fadeout_transition(clip, 1)
+                clip = video_effects.fadeout_transition(clip, transition_duration)
             elif transition_value == VideoTransitionMode.slide_in.value:
-                clip = video_effects.slidein_transition(clip, 1, shuffle_side)
+                clip = video_effects.slidein_transition(clip, transition_duration, shuffle_side)
             elif transition_value == VideoTransitionMode.slide_out.value:
-                clip = video_effects.slideout_transition(clip, 1, shuffle_side)
+                clip = video_effects.slideout_transition(clip, transition_duration, shuffle_side)
             elif transition_value == VideoTransitionMode.zoom_in.value:
                 clip = video_effects.zoomin_transition(clip, 1)
             elif transition_value == VideoTransitionMode.zoom_out.value:
                 clip = video_effects.zoomout_transition(clip, 1)
             elif transition_value == VideoTransitionMode.shuffle.value:
                 transition_funcs = [
-                    lambda c: video_effects.fadein_transition(c, 1),
-                    lambda c: video_effects.fadeout_transition(c, 1),
-                    lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
-                    lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
+                    lambda c: video_effects.fadein_transition(c, transition_duration),
+                    lambda c: video_effects.fadeout_transition(c, transition_duration),
+                    lambda c: video_effects.slidein_transition(c, transition_duration, shuffle_side),
+                    lambda c: video_effects.slideout_transition(c, transition_duration, shuffle_side),
                     lambda c: video_effects.zoomin_transition(c, 1),
                     lambda c: video_effects.zoomout_transition(c, 1),
                 ]
@@ -1320,13 +1333,22 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         # 画布高度仍必须按现有行数计算，否则第二行及后续行会被裁掉。
         return text, (text.count("\n") + 1) * line_height
 
+    def attached_text_units(token):
+        units = []
+        for char in token:
+            if units and unicodedata.category(char).startswith("M"):
+                units[-1] += char
+            else:
+                units.append(char)
+        return units
+
     def split_long_token(token):
         # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
         # 退化为字符级拆分。关键点是：检测到 candidate 超宽时，先提交上一个
         # 仍然合法的 current，再把当前字符放入下一行，不能把超宽字符塞回上一行。
         lines = []
         current = ""
-        for char in token:
+        for char in attached_text_units(token):
             candidate = f"{current}{char}"
             candidate_width, _ = get_text_size(candidate)
             if candidate_width <= max_width or not current:
@@ -1372,11 +1394,15 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if len(lines[index - 1]) <= 1:
             continue
 
-        candidate = f"{lines[index - 1][-1]}{lines[index]}"
+        previous_units = attached_text_units(lines[index - 1])
+        if len(previous_units) <= 1:
+            continue
+        last_unit = previous_units[-1]
+        candidate = f"{last_unit}{lines[index]}"
         candidate_width, _ = get_text_size(candidate)
         if candidate_width <= max_width:
             lines[index] = candidate
-            lines[index - 1] = lines[index - 1][:-1]
+            lines[index - 1] = lines[index - 1][:-len(last_unit)]
 
     result = "\n".join(line.strip() for line in lines if line.strip()).strip()
     # 高度以最终结果为准。原文本中的显式换行可能保留在某个 token 内，
@@ -1386,12 +1412,12 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
 
 
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
-    # 字幕背景色来自 API/WebUI 参数，可能为空或格式不规范。这里统一只接受
-    # #RRGGBB 形式，非法值回退为黑色，避免 PIL 渲染阶段抛出异常中断任务。
-    if isinstance(color, str) and color.startswith("#") and len(color) == 7:
+    # Match the Pillow color syntax accepted by subtitle preflight.
+    # The background clip sets opacity separately from the color value.
+    if isinstance(color, str):
         try:
-            return (int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16))
-        except ValueError:
+            return ImageColor.getcolor(color, "RGB")
+        except (ValueError, TypeError):
             pass
     return (0, 0, 0)
 
@@ -1774,7 +1800,7 @@ def generate_video(
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
             sub = clip_stack.enter_context(
                 SubtitlesClip(
-                    subtitles=subtitle_path,
+                    subtitles=moviepy_subtitles(subtitle_path),
                     encoding="utf-8",
                     make_textclip=make_textclip,
                 )
@@ -1878,12 +1904,18 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
 
         # Optionally, create a composite video clip containing the zoomed clip.
         # This is useful if you want to add other elements to the video.
-        final_clip = CompositeVideoClip([zoom_clip])
+        final_clip = CompositeVideoClip([zoom_clip], bg_color=(0, 0, 0))
         try:
             # The duration changes the rendered content, so it must be part of
             # the output identity. Different tasks may render the same image
             # concurrently; only publish a complete MP4 after MoviePy closes it.
-            source_identity = hashlib.sha256(os.fsencode(os.path.abspath(image_path))).hexdigest()
+            source_digest = hashlib.sha256(os.fsencode(os.path.abspath(image_path)))
+            source_frame = clip.get_frame(0)
+            source_digest.update(str(source_frame.shape).encode())
+            source_digest.update(source_frame.tobytes())
+            if clip.mask is not None:
+                source_digest.update(clip.mask.get_frame(0).tobytes())
+            source_identity = source_digest.hexdigest()
             duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
             video_file = os.path.join(
                 os.path.dirname(image_path), f"{source_identity}.zoom-{duration_identity}.mp4"

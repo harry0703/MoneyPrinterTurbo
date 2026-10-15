@@ -107,19 +107,31 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
       <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money"><strong>AstraFlow</strong></a>
     </td>
     <td align="left">
-      Thanks to <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">AstraFlow</a> for sponsoring this project!<br>
+      Thanks to <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">AstraFlow</a> for sponsoring this project! <a href="https://f.howxm.com/xs/u/HVFW5X8EIYV1">Claim CNY 50 in compute credits</a>.<br>
       🎬 <strong>One platform for leading video models</strong>: access MiniMax-H3, Seedance-2.5, and more. Generate scripts and videos in one place, without separate accounts or integrations.<br>
       🚀 <strong>200+ AI models, with new models available on release day</strong>: access DeepSeek V4.1, Kimi K3, Qwen 3.8 Max, GLM 5.3, and more through a single platform.<br>
       💰 <strong>Built by publicly listed UCloud, with transparent billing and cost control</strong>: track costs by API key and view detailed usage records.<br>
-      🎁 <strong>Exclusive offer for MoneyPrinterTurbo users</strong>: register through <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">our referral link</a> to receive new-user credits and get started right away! <a href="https://f.howxm.com/xs/u/HVFW5X8EIYV1">Claim CNY 50 in compute credits</a>.
+      🎁 <strong>Exclusive offer for MoneyPrinterTurbo users</strong>: register through <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">our referral link</a> to receive new-user credits and get started right away!
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO"><img src="docs/sponsors/fluxionai-logo.png" alt="Fluxion AI" width="120"></a>
+      <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo"><img src="docs/sponsors/sidrune-logo.png" alt="Sidrune AI" width="120"></a>
     </td>
     <td align="left">
-      Thanks to <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">Fluxion AI</a> for sponsoring this project! <strong>One gateway to access and manage leading AI models worldwide.</strong> Built for individual developers, technical teams, and enterprises, Fluxion AI offers a unified API with dynamic routing across multiple providers to improve availability, plus transparent model performance, response times, and costs. Depending on the model and route, <strong>API costs can be 40%–98% lower than official or benchmark rates</strong>. Sign up through <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">our exclusive link</a> to receive <strong>&#36;3 in API credits</strong>.
+      Thanks to <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo">Sidrune AI</a> for sponsoring this project! <strong>One gateway to access and manage leading AI models worldwide.</strong> Built for individual developers, technical teams, and enterprises, Sidrune AI offers a unified API to access and manage leading models. It dynamically selects between multiple routes to improve availability, with transparent model performance, response times, and costs. Depending on the model and route, <strong>API costs can be 40%–98% lower than official or benchmark rates</strong>. Sign up through <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo">our exclusive link</a> to receive <strong>&#36;3 in API credits</strong>.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://www.runninghub.ai/call-api?source=github"><img src="docs/sponsors/runninghub-logo.png" alt="RunningHub" width="56"></a><br>
+      <a href="https://www.runninghub.ai/call-api?source=github">RunningHub API</a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.runninghub.ai/call-api?source=github">RunningHub API</a> for sponsoring this project!<br>
+      Access <strong>400+ leading AI models</strong> via API—including Seedance, Kling, MiniMax, Nano Banana, Veo, and more—at <strong>highly competitive prices</strong>.<br>
+      <strong>High-concurrency support</strong> · <strong>Free API testing</strong> · <strong>End-to-end encryption</strong><br>
+      For discounts and free testing, contact <a href="mailto:zhenyuedong@haima.me">zhenyuedong@haima.me</a>, or <a href="https://www.runninghub.ai/call-api?source=github">test the API for free</a>.
     </td>
   </tr>
   <tr>
@@ -460,6 +472,8 @@ The summary contains `total`, `succeeded`, `failed`, and `tasks`; each task entr
 ## Voiceover, Subtitles, and Background Music 🎙️
 
 ### Voice Synthesis
+
+ElevenLabs speech speed depends on the selected model. The default `eleven_multilingual_v2` accepts 0.7×–1.2×; select `eleven_v3` for the wider 0.25×–4.0× REST range. MoneyPrinterTurbo reports unsupported selections before sending a generation request and preserves the selected rate without clamping. Non-default speeds on `eleven_v4`/`eleven_v4_turbo` are unsupported. Other model IDs use a conservative 0.7×–1.2× validation range; this does not guarantee that every model supports the speed setting. If the provider returns `invalid_voice_settings`, generation stops without retrying and shows its explanation. The [live v2/v3 validation reported by the maintainer](https://github.com/harry0703/MoneyPrinterTurbo/pull/1578#issuecomment-6040107858) takes precedence over the broader range described in the [official voice-settings reference](https://github.com/elevenlabs/skills/blob/main/text-to-speech/references/voice-settings.md).
 
 **Azure TTS V1** in the WebUI is powered by **Edge TTS** and is free to use without an API key. MoneyPrinterTurbo also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **MiniMax TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, self-hosted **Kokoro TTS**, **Fish Audio TTS**, [ModelBest VoxCPM TTS](https://platform.modelbest.cn/console/docs/api/audio), and a no-voice mode.
 

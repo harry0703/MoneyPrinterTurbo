@@ -19,7 +19,7 @@ def get_response(status: int, data: Any = None, message: str = ""):
     obj = {
         "status": status,
     }
-    if data:
+    if data is not None:
         obj["data"] = data
     if message:
         obj["message"] = message

@@ -24,13 +24,13 @@ import requests
 from edge_tts import SubMaker
 from edge_tts.srt_composer import Subtitle
 from loguru import logger
-from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from openai import OpenAI
 
 from app.config import config
 from app.services import bgm
 from app.utils import utils
+from app.utils.subtitle_reader import moviepy_subtitles
 from app.utils.subtitle_writer import staged_subtitle_file
 
 _DEFAULT_EDGE_TTS_TIMEOUT_SECONDS = 30.0
@@ -2322,6 +2322,29 @@ def _write_validated_minimax_audio(audio_bytes: bytes, voice_file: str) -> float
             output.write(audio_bytes)
 
         _validate_remote_tts_audio(temp_path)
+        # MiniMax's configured response container can differ from the caller's
+        # artifact extension (the task pipeline normally requests audio.mp3).
+        # Keep matching payloads byte-identical; transcode supported mismatches
+        # before publication so MIME/extension consumers see the promised codec.
+        source_format = (
+            "wav" if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE"
+            else "flac" if audio_bytes.startswith(b"fLaC")
+            else "mp3" if audio_bytes.startswith(b"ID3") or (
+                len(audio_bytes) >= 2 and audio_bytes[0] == 0xFF
+                and audio_bytes[1] & 0xE0 == 0xE0
+            )
+            else None
+        )
+        output_format = output_suffix.lstrip(".").lower()
+        if source_format and output_format in {"mp3", "wav", "flac"} and source_format != output_format:
+            from pydub import AudioSegment
+
+            _configure_pydub_ffmpeg(AudioSegment)
+            segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format=source_format)
+            exported = segment.export(temp_path, format=output_format)
+            if exported is not None:
+                exported.close()
+            _validate_remote_tts_audio(temp_path)
         audio_clip = AudioFileClip(temp_path)
         try:
             audio_duration = float(audio_clip.duration)
@@ -2365,8 +2388,8 @@ def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, vo
         logger.error(f"Invalid MiniMax TTS audio setting: {str(exc)}")
         return None
     audio_format = str(settings.get("audio_format", "mp3") or "mp3").strip()
-    if audio_format not in {"mp3", "wav", "flac", "pcm"}:
-        logger.error(f"Unsupported MiniMax TTS audio format: {audio_format}")
+    if audio_format not in {"mp3", "wav", "flac"}:
+        logger.error(f"Unsupported MiniMax TTS audio format: {audio_format}; choose mp3, wav, or flac")
         return None
     payload = {
         "model": model, "text": text, "stream": False, "language_boost": "auto", "output_format": "hex",
@@ -2467,9 +2490,31 @@ def elevenlabs_tts(
         },
     }
 
+    # The live v2 endpoint rejects speeds outside 0.7–1.2; v3 supports
+    # the wider REST range. Never silently clamp a selected UI/API speed.
+    minimum_speed, maximum_speed = (0.25, 4.0) if model_id == "eleven_v3" else (0.7, 1.2)
+    speed_error = (
+        f"ElevenLabs model {model_id} speech speed must be a finite number "
+        f"from {minimum_speed} to {maximum_speed}; choose a supported speed "
+        "or use eleven_v3 for a wider range"
+    )
+    try:
+        speed = float(voice_rate) if voice_rate is not None else 1.0
+    except (TypeError, ValueError, OverflowError):
+        logger.error(speed_error)
+        return None
+    if speed != 1.0 and model_id in {"eleven_v4", "eleven_v4_turbo"}:
+        logger.error(f"ElevenLabs model {model_id} does not support speech speed; use 1.0 or a v2/v3 model")
+        return None
+    if not math.isfinite(speed) or not minimum_speed <= speed <= maximum_speed:
+        logger.error(speed_error)
+        return None
+    if speed != 1.0:
+        payload["voice_settings"]["speed"] = speed
+
     # Errors where retrying will never help (auth/access/validation failures).
     _NON_RETRYABLE_CODES = {401, 403, 422}
-    _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized"}
+    _NON_RETRYABLE_STATUSES = {"voice_disabled", "voice_access_denied", "unauthorized", "invalid_voice_settings"}
 
     for i in range(3):
         response = None
@@ -2512,7 +2557,9 @@ def elevenlabs_tts(
                     logger.error(
                         f"ElevenLabs TTS failed (non-retryable) — voice_id: {voice_id}, "
                         f"status: {response.status_code}, error: {error_status or error_text}. "
-                        "Please select a different ElevenLabs voice."
+                        + (f"Check the selected model and speech speed: {error_text}"
+                           if error_status == "invalid_voice_settings"
+                           else "Please select a different ElevenLabs voice.")
                     )
                     return None
 
@@ -3011,7 +3058,12 @@ def _iter_voxcpm_sse_events(response):
 
     event_data = []
     event_bytes = 0
+    first_line = True
     for line in lines():
+        if first_line:
+            # SSE UTF-8 decoding ignores one BOM at the start of the stream.
+            line = line.removeprefix("\ufeff")
+            first_line = False
         if not line:
             if event_data:
                 yield parse_event(event_data)
@@ -3409,18 +3461,20 @@ def _match_script_line(script_lines: list[str], current_text: str, sub_index: in
         return ""
 
     target_line = script_lines[sub_index]
-    if current_text == target_line:
+    comparison_target = unicodedata.normalize("NFC", target_line)
+    current_text = unicodedata.normalize("NFC", current_text)
+    if current_text == comparison_target:
         return target_line.strip()
 
     current_text_normalized = re.sub(r"[_\W]+", "", current_text)
-    target_line_normalized = re.sub(r"[_\W]+", "", target_line)
+    target_line_normalized = re.sub(r"[_\W]+", "", comparison_target)
     if current_text_normalized == target_line_normalized:
         return target_line.strip()
 
     # 最后一层阿拉伯语容错：edge-tts 返回的字母形态、变音符号或 Tatweel
     # 可能和脚本不同。只在常规匹配失败后归一化比较，非阿拉伯语文本不会受影响。
     current_ar = re.sub(r"[_\W]+", "", _normalize_arabic(current_text))
-    target_ar = re.sub(r"[_\W]+", "", _normalize_arabic(target_line))
+    target_ar = re.sub(r"[_\W]+", "", _normalize_arabic(comparison_target))
     if current_ar and current_ar == target_ar:
         return target_line.strip()
 
@@ -3434,7 +3488,7 @@ def _write_subtitle_items(sub_items: list[str], subtitle_file: str) -> bool:
         with staged_subtitle_file(subtitle_file) as staged:
             with open(staged, "w", encoding="utf-8") as file:
                 file.write("\n".join(sub_items) + "\n")
-            sbs = subtitles.file_to_subtitles(staged, encoding="utf-8")
+            sbs = moviepy_subtitles(staged)
             if not sbs:
                 raise ValueError("subtitle output contains no cues")
             duration = max(tb for ((ta, tb), txt) in sbs)
