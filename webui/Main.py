@@ -55,6 +55,7 @@ from app.services import (
     muapi,
     ofox,
     subtitle,
+    topic_studio,
     video,
     volcengine_seedance,
     voice,
@@ -762,6 +763,14 @@ def _initialize_session_state():
             loomloom.MAX_VIDEO_SCENES,
             int,
         ),
+        # 选题工坊：方案列表与选中下标只存在当前会话，不落盘。
+        "topic_studio_candidates": (),
+        "topic_studio_selected_index": 0,
+        # 选中方案后先写进这里，由 _apply_pending_topic_studio() 在下一轮
+        # 渲染表单控件之前消费，避免直接写入已实例化的控件状态。
+        "topic_studio_pending_params": None,
+        # 「一键填入并生成」需要跨一次 rerun 传递自动开始信号。
+        "topic_studio_autostart": False,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -1511,6 +1520,28 @@ def _apply_pending_task_restore():
     _apply_restored_params(payload["params"])
     st.session_state["task_restore_succeeded"] = True
     logger.info(f"restored task configuration: {payload['task_id']}")
+    return True
+
+
+def _apply_pending_topic_studio():
+    """
+    把选题工坊选中的方案写回表单控件。
+
+    与历史任务恢复共用同一份参数模型和同一个填充实现，因此必须和它一样在渲染
+    任何表单控件之前调用：Streamlit 只允许在控件实例化之前写入其 session_state。
+    选题工坊填的是全新配置，不会带上历史任务的上传依赖，因此这里顺手清掉恢复
+    流程留下的标记，避免刚填完表单就弹出与本次操作无关的上传提示。
+    """
+    payload = st.session_state.pop("topic_studio_pending_params", None)
+    if not payload:
+        return False
+
+    _apply_restored_params(payload)
+    st.session_state.pop("task_restore_upload_requirements", None)
+    logger.info(
+        "topic studio applied form params: "
+        f"subject={payload.get('video_subject', '')[:40]}"
+    )
     return True
 
 
@@ -4977,6 +5008,259 @@ def _render_loomloom_script_generation(params):
     _render_loomloom_candidates()
 
 
+def _topic_studio_preset_text(item, field, language):
+    """
+    读取预设文案：中文界面取中文，其它语言统一回退英文。
+
+    语言必须由调用方传入，而不是在这里读 session_state。这个函数会作为
+    selectbox 的 format_func 使用，而 format_func 可能在页面脚本之外被重新调用
+    （例如 Streamlit 测试框架重建控件状态时），此时读 session_state 会拿到与
+    渲染时不一致的语言，导致下拉框的选项标签与当前值对不上。
+    """
+    if str(language or "").startswith("zh"):
+        return item.get(field) or item.get(f"{field}_en") or ""
+    return item.get(f"{field}_en") or item.get(field) or ""
+
+
+def _topic_studio_missing_credential(style):
+    """
+    返回该画面形态当前缺少的配置项名，不缺则返回空串。
+
+    选题工坊允许「一键填入并开始生成」，因此必须在点击前就知道这个形态能不能
+    真的跑起来，而不是等任务提交后才失败。
+    """
+    config_key = style.get("requires_config_key")
+    if not config_key:
+        return ""
+    value = config.app.get(config_key, "")
+    if isinstance(value, (list, tuple)):
+        value = [item for item in value if str(item).strip()]
+    return "" if value else config_key
+
+
+def _topic_studio_current_voice():
+    """
+    读取当前页面上的音色选择，供选题工坊填充表单时原样保留。
+
+    选题工坊复用历史任务恢复的填充实现，而那段实现在缺少 voice_name 时会退回
+    「无配音」。选题工坊的目标是「画面 + 文字 + 配音」，因此必须显式把当前音色
+    带过去，否则一键生成会把用户配好的 TTS 静默关掉。
+    """
+    tts_server = (
+        st.session_state.get(localized_widget_key("tts_server_select"))
+        or config.ui.get("tts_server", "")
+    )
+    voice_name = st.session_state.get(
+        localized_widget_key(f"speech_synthesis_select_{tts_server}")
+    ) or config.ui.get("voice_name", "")
+    return str(voice_name or "")
+
+
+def _render_topic_studio():
+    """
+    渲染前置选题工坊：选画面形态与内容体裁 -> AI 出多套方案 -> 一键填表并生成。
+
+    这里只负责收集选择与展示方案。真正的表单写入由 _apply_pending_topic_studio()
+    在下一轮渲染控件之前完成，自动开始生成由 _render_generation_controls() 消费，
+    避免在本轮直接修改已经实例化的控件状态。
+    """
+    visual_style_ids = [item["id"] for item in topic_studio.list_visual_styles()]
+    genre_ids = [item["id"] for item in topic_studio.list_genres()]
+    # 界面语言在渲染时读一次并闭包捕获，让下面两个 format_func 成为纯粹的
+    # 值到标签的映射，不依赖调用时机。
+    ui_language = str(st.session_state.get("ui_language", "") or "")
+
+    def visual_style_label(value):
+        return _topic_studio_preset_text(
+            topic_studio.get_visual_style(value), "label", ui_language
+        )
+
+    def genre_label(value):
+        return _topic_studio_preset_text(
+            topic_studio.get_genre(value), "label", ui_language
+        )
+
+    with st.container(border=True):
+        st.write(tr("Topic Studio Title"))
+        st.caption(tr("Topic Studio Help"))
+
+        style_col, genre_col, count_col = st.columns([2, 2, 1])
+        with style_col:
+            style_id = stable_selectbox(
+                tr("Topic Studio Visual Style"),
+                options=visual_style_ids,
+                default_value=topic_studio.DEFAULT_VISUAL_STYLE_ID,
+                key="topic_studio_visual_style",
+                format_func=visual_style_label,
+            )
+        with genre_col:
+            genre_id = stable_selectbox(
+                tr("Topic Studio Genre"),
+                options=genre_ids,
+                default_value=topic_studio.DEFAULT_GENRE_ID,
+                key="topic_studio_genre",
+                format_func=genre_label,
+            )
+        with count_col:
+            candidate_count = st.slider(
+                tr("Topic Studio Count"),
+                min_value=topic_studio.MIN_CANDIDATE_COUNT,
+                max_value=topic_studio.MAX_CANDIDATE_COUNT,
+                value=topic_studio.DEFAULT_CANDIDATE_COUNT,
+                key="topic_studio_count",
+            )
+
+        style = topic_studio.get_visual_style(style_id)
+        genre = topic_studio.get_genre(genre_id)
+        st.caption(
+            f"{_topic_studio_preset_text(style, 'label', ui_language)}："
+            f"{_topic_studio_preset_text(style, 'description', ui_language)}  \n"
+            f"{_topic_studio_preset_text(genre, 'label', ui_language)}："
+            f"{_topic_studio_preset_text(genre, 'description', ui_language)}"
+        )
+
+        direction = st.text_input(
+            tr("Topic Studio Direction"),
+            key="topic_studio_direction",
+            max_chars=topic_studio.MAX_DIRECTION_LENGTH,
+            placeholder=tr("Topic Studio Direction Placeholder"),
+        ).strip()
+
+        generate_col, clear_col = st.columns([3, 1])
+        with generate_col:
+            generate_clicked = st.button(
+                tr("Topic Studio Generate").format(count=candidate_count),
+                key="topic_studio_generate",
+                type="secondary",
+                icon=":material/auto_awesome:",
+                use_container_width=True,
+            )
+        with clear_col:
+            clear_clicked = st.button(
+                tr("Topic Studio Clear"),
+                key="topic_studio_clear",
+                use_container_width=True,
+                disabled=not st.session_state.get("topic_studio_candidates"),
+            )
+        if clear_clicked:
+            st.session_state["topic_studio_candidates"] = ()
+            st.session_state["topic_studio_selected_index"] = 0
+            st.session_state["topic_studio_pending_params"] = None
+
+        if generate_clicked:
+            with st.spinner(tr("Topic Studio Generating")):
+                generated = _run_llm_read_operation(
+                    "generate_topic_candidates",
+                    lambda app_config_snapshot: topic_studio.generate_topic_candidates(
+                        visual_style_id=style_id,
+                        genre_id=genre_id,
+                        count=candidate_count,
+                        direction=direction,
+                        app_config=app_config_snapshot,
+                    ),
+                )
+            st.session_state["topic_studio_candidates"] = tuple(generated)
+            st.session_state["topic_studio_selected_index"] = 0
+            st.session_state["topic_studio_pending_params"] = None
+
+        candidates = tuple(st.session_state.get("topic_studio_candidates") or ())
+        if not candidates:
+            return
+
+        if all(topic_studio.is_fallback_candidate(item) for item in candidates):
+            # 模型不可用时服务层会返回占位方案。必须显式提示，否则用户可能
+            # 直接拿一条没有任何选题依据的占位内容去生成视频。
+            st.warning(tr("Topic Studio Fallback Warning"))
+
+        st.divider()
+        stored_index = st.session_state.get("topic_studio_selected_index", 0)
+        if not isinstance(stored_index, int) or not 0 <= stored_index < len(candidates):
+            # 重新生成后方案数量可能变少，先收敛下标再创建控件，避免 radio 收到
+            # 已不在选项内的旧值。
+            st.session_state["topic_studio_selected_index"] = 0
+
+        def plan_label(index):
+            # format_func 除了渲染时会被调用，也可能在控件状态重建时被再次调用，
+            # 那时下标可能已经超出当前方案数量。这里容错而不是抛异常，避免因为
+            # 一个陈旧的选中下标让整页渲染失败。
+            if isinstance(index, int) and 0 <= index < len(candidates):
+                return f"#{index + 1} {candidates[index]['title']}"
+            return str(index)
+
+        selected_index = st.radio(
+            tr("Topic Studio Choose Plan"),
+            options=list(range(len(candidates))),
+            key="topic_studio_selected_index",
+            format_func=plan_label,
+        )
+        selected = candidates[selected_index]
+
+        st.markdown(f"#### {selected['title']}")
+        st.markdown(f"> {selected['subject']}")
+        detail_columns = st.columns(3)
+        detail_columns[0].markdown(
+            f"**{tr('Topic Studio Hook')}**\n\n{selected['hook'] or '—'}"
+        )
+        detail_columns[1].markdown(
+            f"**{tr('Topic Studio Audience')}**\n\n{selected['audience'] or '—'}"
+        )
+        detail_columns[2].markdown(
+            f"**{tr('Topic Studio Why')}**\n\n{selected['why'] or '—'}"
+        )
+
+        if selected["outline"]:
+            st.markdown(f"**{tr('Topic Studio Outline')}**")
+            for step_index, step in enumerate(selected["outline"], start=1):
+                st.markdown(f"{step_index}. {step}")
+
+        st.caption(
+            f"{tr('Topic Studio Keywords')}：{'、'.join(selected['keywords']) or '—'}"
+            f"　|　{tr('Topic Studio Emotion')}：{selected['emotion']}"
+            f"　|　{tr('Topic Studio Voice Hint')}：{selected['voice_hint'] or '—'}"
+        )
+
+        missing_credential = _topic_studio_missing_credential(style)
+        needs_upload = style["video_source"] == "local"
+        if missing_credential:
+            st.warning(
+                tr("Topic Studio Missing Credential").format(
+                    style=_topic_studio_preset_text(style, "label", ui_language),
+                    key=missing_credential,
+                )
+            )
+        if needs_upload:
+            st.info(tr("Topic Studio Local Upload Required"))
+
+        fill_col, run_col = st.columns(2)
+        with fill_col:
+            fill_only = st.button(
+                tr("Topic Studio Fill Form"),
+                key="topic_studio_fill_only",
+                use_container_width=True,
+            )
+        with run_col:
+            fill_and_run = st.button(
+                tr("Topic Studio Fill And Generate"),
+                key="topic_studio_fill_and_run",
+                type="primary",
+                use_container_width=True,
+                disabled=bool(missing_credential) or needs_upload,
+            )
+
+        if fill_only or fill_and_run:
+            st.session_state["topic_studio_pending_params"] = (
+                topic_studio.build_form_params(
+                    selected,
+                    style_id,
+                    genre_id,
+                    direction,
+                    voice_name=_topic_studio_current_voice(),
+                )
+            )
+            st.session_state["topic_studio_autostart"] = bool(fill_and_run)
+            st.rerun()
+
+
 def _render_script_settings(panel, params):
     """渲染文案设置并更新生成参数。"""
     with panel:
@@ -7971,12 +8255,21 @@ def _render_generation_controls(
 
     _render_settings_transfer(params)
 
-    start_button = st.button(
-        tr("Generate Video"),
-        use_container_width=True,
-        type="primary",
-        key="generate_video_button",
-        on_click=_prepare_generation_task,
+    # 选题工坊的「一键填入并生成」不经过按钮回调，这里补上同样的任务登记，
+    # 让自动开始与手动点击共用完全一致的校验和提交流程。
+    topic_studio_autostart = bool(st.session_state.pop("topic_studio_autostart", False))
+    if topic_studio_autostart:
+        _prepare_generation_task()
+
+    start_button = (
+        st.button(
+            tr("Generate Video"),
+            use_container_width=True,
+            type="primary",
+            key="generate_video_button",
+            on_click=_prepare_generation_task,
+        )
+        or topic_studio_autostart
     )
     render_onboarding_tour()
     if start_button:
@@ -8384,6 +8677,13 @@ def _render_application():
     restore_succeeded = st.session_state.pop("task_restore_succeeded", False)
     if restore_applied or restore_succeeded:
         st.success(tr("Task Configuration Loaded"))
+
+    # 选题工坊的填充必须早于任何表单控件创建，因此和历史任务恢复并列放在
+    # 顶部。两者写入的是同一批控件 key，不会同时触发。
+    if _apply_pending_topic_studio():
+        st.success(tr("Topic Studio Form Filled"))
+
+    _render_topic_studio()
 
     with st.container(key="main_settings_grid"):
         panel = st.columns(4)
