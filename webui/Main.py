@@ -54,6 +54,7 @@ from app.services import (
     metaso_minimax,
     muapi,
     ofox,
+    publish_board,
     subtitle,
     topic_studio,
     video,
@@ -8660,6 +8661,453 @@ def _render_generation_controls(
     return start_button
 
 
+# -----------------------------------------------------------------------------
+# 发布台账：全局导航、视频记录与账号管理
+# -----------------------------------------------------------------------------
+
+
+def _publish_board_platform_labels(ui_language):
+    """预计算平台展示名，供控件的 format_func 使用。
+
+    format_func 会在控件状态重建时被再次调用，那一刻可能已经不在脚本上下文
+    里，读取 st.session_state 会直接抛错。这里先把翻译结果算成普通字典，
+    format_func 只做一次纯查表。
+    """
+    return {
+        item["id"]: publish_board.platform_label(item["id"], ui_language)
+        for item in publish_board.PLATFORMS
+    }
+
+
+def _publish_board_seed(key, value):
+    """仅在控件首次创建时写入默认值，之后完全交给 Streamlit 管理状态。
+
+    每次 rerun 都无条件赋值会让用户的输入被数据库里的旧值反复覆盖，
+    因此这里必须保留 ``setdefault`` 语义。
+    """
+    if key not in st.session_state:
+        st.session_state[key] = value
+    return st.session_state[key]
+
+
+def _publish_board_confirm_delete(key, on_confirm, label, confirm_label):
+    """两段式删除：先点删除，再确认，避免误触清掉台账记录。"""
+    if st.session_state.get(key):
+        st.warning(tr("Board Confirm Delete Hint"))
+        confirm_col, cancel_col = st.columns([1, 1])
+        if confirm_col.button(
+            confirm_label, key=f"{key}_confirm", type="primary", width="stretch"
+        ):
+            on_confirm()
+            st.session_state.pop(key, None)
+            st.rerun()
+        if cancel_col.button(tr("Cancel"), key=f"{key}_cancel", width="stretch"):
+            st.session_state.pop(key, None)
+            st.rerun()
+        return
+
+    if st.button(label, key=key, width="stretch"):
+        st.session_state[key] = True
+        st.rerun()
+
+
+def _render_video_record(video, accounts, platform_labels, ui_language):
+    """渲染单条视频记录：平台标记、账号绑定、备注与删除。"""
+    video_id = video["id"]
+    platforms = list(video["platforms"])
+    bindings = video["bindings"]
+
+    platforms_key = f"pb_platforms_{video_id}"
+    _publish_board_seed(platforms_key, platforms)
+    # 标题先于多选框创建，因此这里读取待生效值，让标记变化立刻反映在标题上。
+    pending_platforms = list(st.session_state.get(platforms_key, platforms))
+    tag_text = " · ".join(
+        platform_labels.get(item, item) for item in pending_platforms
+    ) or tr("Board No Platform Tag")
+
+    with st.expander(f"{video['subject']}　|　{tag_text}", expanded=False):
+        meta_parts = [
+            tr("Board Origin Auto")
+            if video["origin"] == publish_board.ORIGIN_AUTO
+            else tr("Board Origin Manual")
+        ]
+        if video.get("generated_at"):
+            meta_parts.append(video["generated_at"].replace("T", " "))
+        if video.get("video_size"):
+            meta_parts.append(f"{video['video_size'] / 1024 / 1024:.1f} MB")
+        if video.get("task_id"):
+            meta_parts.append(video["task_id"])
+        st.caption("　·　".join(meta_parts))
+
+        subject_key = f"pb_subject_{video_id}"
+        _publish_board_seed(subject_key, video["subject"])
+        subject = st.text_input(
+            tr("Board Video Subject"), key=subject_key, max_chars=publish_board.MAX_SUBJECT_LENGTH
+        )
+
+        selected_platforms = st.multiselect(
+            tr("Board Platform Tags"),
+            options=list(publish_board.PLATFORM_IDS),
+            format_func=lambda platform_id: platform_labels.get(platform_id, platform_id),
+            key=platforms_key,
+            help=tr("Board Platform Tags Help"),
+        )
+        # 平台标记变化时立即落库；取消标记会由数据层级联撤销对应绑定，
+        # 不需要在这里额外维护一致性。
+        if list(selected_platforms) != platforms:
+            publish_board.set_video_platforms(video_id, selected_platforms)
+            bindings = {
+                key: value
+                for key, value in bindings.items()
+                if key in selected_platforms
+            }
+
+        for platform_id in selected_platforms:
+            platform_accounts = [item for item in accounts if item["platform"] == platform_id]
+            current_binding = bindings.get(platform_id) or {}
+            label_col, account_col, url_col = st.columns([1.0, 2.2, 2.4])
+            label_col.markdown(f"**{platform_labels.get(platform_id, platform_id)}**")
+
+            if not platform_accounts:
+                account_col.caption(tr("Board No Account For Platform"))
+                continue
+
+            account_options = [0] + [item["id"] for item in platform_accounts]
+            account_labels = {0: tr("Board Unbound")}
+            account_labels.update(
+                {item["id"]: item["account_name"] for item in platform_accounts}
+            )
+            current_account = int(current_binding.get("account_id") or 0)
+            if current_account not in account_options:
+                # 账号被删除、或账号改了平台之后，历史绑定可能指向一个不属于
+                # 当前平台列表的 ID。此时必须回落到「未绑定」，否则控件会拿到
+                # 一个非法选项，界面上显示成空值。
+                current_account = 0
+            selected_account = stable_selectbox(
+                tr("Board Bound Account"),
+                options=account_options,
+                default_value=current_account,
+                key=f"pb_account_{video_id}_{platform_id}",
+                # 闭包必须把 labels 绑成默认参数。format_func 会被 Streamlit 在
+                # 控件状态重建时再次调用，而循环里的 account_labels 每轮都会重新
+                # 赋值，按引用捕获会让所有下拉框最终共用最后一次迭代的字典。
+                format_func=lambda account_id, labels=account_labels: labels.get(
+                    account_id, str(account_id)
+                ),
+                label_visibility="collapsed",
+            )
+            url_key = f"pb_url_{video_id}_{platform_id}"
+            _publish_board_seed(url_key, current_binding.get("video_url", ""))
+            work_url = url_col.text_input(
+                tr("Board Work Url"),
+                key=url_key,
+                label_visibility="collapsed",
+                placeholder=tr("Board Work Url Placeholder"),
+                max_chars=publish_board.MAX_URL_LENGTH,
+            )
+
+            if selected_account != current_account:
+                if selected_account:
+                    publish_board.bind_account(
+                        video_id, platform_id, selected_account, work_url
+                    )
+                else:
+                    publish_board.unbind_account(video_id, platform_id)
+                bindings[platform_id] = {
+                    "account_id": selected_account,
+                    "video_url": work_url,
+                }
+            elif work_url != (current_binding.get("video_url") or ""):
+                if current_account:
+                    publish_board.bind_account(
+                        video_id, platform_id, current_account, work_url
+                    )
+
+        remark_key = f"pb_remark_{video_id}"
+        _publish_board_seed(remark_key, video["remark"])
+        remark = st.text_area(
+            tr("Board Remark"),
+            key=remark_key,
+            max_chars=publish_board.MAX_REMARK_LENGTH,
+            height=70,
+        )
+
+        # 文本类字段统一在值变化时落库，省掉「改完忘了点保存」的经典问题。
+        updates = {}
+        if subject.strip() and subject.strip() != video["subject"]:
+            updates["subject"] = subject
+        if remark != video["remark"]:
+            updates["remark"] = remark
+        if updates:
+            publish_board.update_video(video_id, **updates)
+
+        if video.get("video_path") and os.path.isfile(video["video_path"]):
+            if st.button(tr("Board Preview Video"), key=f"pb_preview_{video_id}"):
+                preview_key = "pb_preview_target"
+                st.session_state[preview_key] = (
+                    "" if st.session_state.get(preview_key) else video["video_path"]
+                )
+                st.rerun()
+            if st.session_state.get("pb_preview_target") == video["video_path"]:
+                st.video(video["video_path"])
+
+        _publish_board_confirm_delete(
+            f"pb_delete_video_{video_id}",
+            lambda: publish_board.delete_video(video_id),
+            tr("Board Delete Video"),
+            tr("Board Confirm Delete Video"),
+        )
+
+
+def _render_publish_board_page():
+    """发布管理页：列出生成过的视频，维护平台标记与账号绑定。"""
+    _render_top_bar()
+
+    ui_language = st.session_state.get("ui_language", config.ui.get("language", "zh"))
+    platform_labels = _publish_board_platform_labels(ui_language)
+
+    st.subheader(tr("Publish Board Title"))
+    st.caption(tr("Publish Board Help"))
+
+    # 每次进入页面都把 storage/tasks 下新产出的成片补进台账，让列表始终跟得上
+    # 实际产物；同步只新增不覆盖，不会冲掉手工维护的标记和备注。
+    sync_stats = publish_board.sync_from_tasks()
+    stats = publish_board.summary()
+
+    metric_cols = st.columns(4)
+    metric_cols[0].metric(tr("Board Stat Videos"), stats["videos"])
+    metric_cols[1].metric(tr("Board Stat Accounts"), stats["accounts"])
+    metric_cols[2].metric(tr("Board Stat Bindings"), stats["bindings"])
+    metric_cols[3].metric(tr("Board Stat New Synced"), sync_stats["added"])
+
+    accounts = publish_board.list_accounts()
+
+    with st.expander(tr("Board Add Video"), expanded=False):
+        with st.form("pb_add_video_form", clear_on_submit=True):
+            manual_subject = st.text_input(
+                tr("Board Video Subject"), max_chars=publish_board.MAX_SUBJECT_LENGTH
+            )
+            manual_path = st.text_input(
+                tr("Board Video Path"),
+                placeholder=tr("Board Video Path Placeholder"),
+                max_chars=publish_board.MAX_URL_LENGTH,
+            )
+            manual_remark = st.text_area(
+                tr("Board Remark"), height=70, max_chars=publish_board.MAX_REMARK_LENGTH
+            )
+            if st.form_submit_button(tr("Board Add Video Submit"), type="primary"):
+                if not manual_subject.strip():
+                    st.error(tr("Board Subject Required"))
+                else:
+                    publish_board.create_video(
+                        subject=manual_subject,
+                        video_path=manual_path,
+                        remark=manual_remark,
+                    )
+                    st.success(tr("Board Video Added"))
+                    st.rerun()
+
+    filter_cols = st.columns([2.2, 1.0, 1.0])
+    keyword = filter_cols[0].text_input(
+        tr("Board Search"),
+        key="pb_filter_keyword",
+        placeholder=tr("Board Search Placeholder"),
+    )
+    # 翻译文案必须在创建控件之前算好：format_func 会在控件状态重建时被再次
+    # 调用，那一刻不在脚本上下文里，读 st.session_state 会直接抛错，最终
+    # 表现为下拉框显示空白。
+    all_filter_label = tr("Board Filter All")
+    origin_labels = {
+        "": all_filter_label,
+        publish_board.ORIGIN_AUTO: tr("Board Origin Auto"),
+        publish_board.ORIGIN_MANUAL: tr("Board Origin Manual"),
+    }
+    platform_filter = filter_cols[1].selectbox(
+        tr("Board Filter Platform"),
+        options=[""] + list(publish_board.PLATFORM_IDS),
+        format_func=lambda platform_id, labels=platform_labels, fallback=all_filter_label: (
+            labels.get(platform_id, platform_id) if platform_id else fallback
+        ),
+        key=localized_widget_key("pb_filter_platform"),
+    )
+    origin_filter = filter_cols[2].selectbox(
+        tr("Board Filter Origin"),
+        options=["", publish_board.ORIGIN_AUTO, publish_board.ORIGIN_MANUAL],
+        format_func=lambda origin, labels=origin_labels: labels.get(origin, origin),
+        key=localized_widget_key("pb_filter_origin"),
+    )
+
+    videos = publish_board.list_videos(
+        keyword=keyword, platform=platform_filter, origin=origin_filter
+    )
+    if not videos:
+        st.info(tr("Board No Videos"))
+        return
+
+    st.caption(tr("Board Video Count").format(count=len(videos)))
+    for video in videos:
+        _render_video_record(video, accounts, platform_labels, ui_language)
+
+
+def _render_accounts_page():
+    """账号管理页：维护平台、账号名、账号 ID、主页链接与备注。"""
+    _render_top_bar()
+
+    ui_language = st.session_state.get("ui_language", config.ui.get("language", "zh"))
+    platform_labels = _publish_board_platform_labels(ui_language)
+
+    st.subheader(tr("Accounts Title"))
+    st.caption(tr("Accounts Help"))
+
+    with st.expander(tr("Account Add"), expanded=False):
+        with st.form("pb_add_account_form", clear_on_submit=True):
+            new_platform = st.selectbox(
+                tr("Account Platform"),
+                options=list(publish_board.PLATFORM_IDS),
+                format_func=lambda platform_id: platform_labels.get(platform_id, platform_id),
+            )
+            new_name = st.text_input(
+                tr("Account Name"), max_chars=publish_board.MAX_ACCOUNT_NAME_LENGTH
+            )
+            new_uid = st.text_input(
+                tr("Account ID"), max_chars=publish_board.MAX_ACCOUNT_ID_LENGTH
+            )
+            new_url = st.text_input(
+                tr("Account Profile Url"), max_chars=publish_board.MAX_URL_LENGTH
+            )
+            new_remark = st.text_area(
+                tr("Account Remark"), height=70, max_chars=publish_board.MAX_REMARK_LENGTH
+            )
+            if st.form_submit_button(tr("Account Add Submit"), type="primary"):
+                try:
+                    publish_board.create_account(
+                        platform=new_platform,
+                        account_name=new_name,
+                        account_id=new_uid,
+                        profile_url=new_url,
+                        remark=new_remark,
+                    )
+                except ValueError as error:
+                    st.error(tr("Account Name Required") if "name" in str(error) else str(error))
+                else:
+                    st.success(tr("Account Added"))
+                    st.rerun()
+
+    accounts = publish_board.list_accounts()
+    if not accounts:
+        st.info(tr("Account No Accounts"))
+        return
+
+    for account in accounts:
+        account_id = account["id"]
+        bound_count = publish_board.count_account_bindings(account_id)
+        title = (
+            f"{platform_labels.get(account['platform'], account['platform'])}"
+            f"　|　{account['account_name']}"
+        )
+        with st.expander(title, expanded=False):
+            if bound_count:
+                st.caption(tr("Account Published Count").format(count=bound_count))
+
+            edit_cols = st.columns([1.0, 1.6, 1.4])
+            platform_key = f"pb_acc_platform_{account_id}"
+            _publish_board_seed(platform_key, account["platform"])
+            platform_value = edit_cols[0].selectbox(
+                tr("Account Platform"),
+                options=list(publish_board.PLATFORM_IDS),
+                format_func=lambda platform_id: platform_labels.get(platform_id, platform_id),
+                key=platform_key,
+            )
+            name_key = f"pb_acc_name_{account_id}"
+            _publish_board_seed(name_key, account["account_name"])
+            name_value = edit_cols[1].text_input(
+                tr("Account Name"), key=name_key, max_chars=publish_board.MAX_ACCOUNT_NAME_LENGTH
+            )
+            uid_key = f"pb_acc_uid_{account_id}"
+            _publish_board_seed(uid_key, account["account_id"])
+            uid_value = edit_cols[2].text_input(
+                tr("Account ID"), key=uid_key, max_chars=publish_board.MAX_ACCOUNT_ID_LENGTH
+            )
+
+            url_key = f"pb_acc_url_{account_id}"
+            _publish_board_seed(url_key, account["profile_url"])
+            url_value = st.text_input(
+                tr("Account Profile Url"), key=url_key, max_chars=publish_board.MAX_URL_LENGTH
+            )
+            remark_key = f"pb_acc_remark_{account_id}"
+            _publish_board_seed(remark_key, account["remark"])
+            remark_value = st.text_area(
+                tr("Account Remark"),
+                key=remark_key,
+                height=70,
+                max_chars=publish_board.MAX_REMARK_LENGTH,
+            )
+
+            changes = {}
+            if platform_value != account["platform"]:
+                changes["platform"] = platform_value
+            if name_value.strip() and name_value.strip() != account["account_name"]:
+                changes["account_name"] = name_value
+            if uid_value != account["account_id"]:
+                changes["account_id"] = uid_value
+            if url_value != account["profile_url"]:
+                changes["profile_url"] = url_value
+            if remark_value != account["remark"]:
+                changes["remark"] = remark_value
+
+            if changes:
+                # 换平台后原有的绑定会与新平台冲突，数据层按平台校验，这里先
+                # 给出明确提示而不是静默失败。
+                if "platform" in changes and bound_count:
+                    st.warning(tr("Account Platform Change Warning").format(count=bound_count))
+                try:
+                    publish_board.update_account(account_id, **changes)
+                except ValueError as error:
+                    st.error(str(error))
+                else:
+                    st.success(tr("Account Updated"))
+
+            if bound_count:
+                st.caption(tr("Account Bound Warning").format(count=bound_count))
+            _publish_board_confirm_delete(
+                f"pb_delete_account_{account_id}",
+                lambda account_id=account_id: publish_board.delete_account(account_id),
+                tr("Account Delete"),
+                tr("Account Confirm Delete"),
+            )
+
+
+def _render_navigation():
+    """全局侧边导航栏：视频生成 / 发布管理 / 账号管理。
+
+    导航放在侧边栏而不是顶部：Streamlit 的顶部导航会与页面自身的品牌栏争抢
+    头部空间，窄屏下会把条目折叠进溢出菜单，三个页面只剩一个「更多」。侧边栏
+    是 Streamlit 多页应用的标准位置，条目、图标和选中态都有稳定表现。
+    """
+    pages = [
+        st.Page(
+            _render_application,
+            title=tr("Nav Generate"),
+            icon=":material/movie:",
+            url_path="generate",
+            default=True,
+        ),
+        st.Page(
+            _render_publish_board_page,
+            title=tr("Nav Publish Board"),
+            icon=":material/campaign:",
+            url_path="publish-board",
+        ),
+        st.Page(
+            _render_accounts_page,
+            title=tr("Nav Accounts"),
+            icon=":material/group:",
+            url_path="accounts",
+        ),
+    ]
+    st.navigation(pages, position="sidebar").run()
+
+
 def _render_application():
     """按固定顺序渲染顶部栏、弹窗、生成表单和任务结果。"""
     _render_top_bar()
@@ -8719,4 +9167,4 @@ def _render_application():
         _save_runtime_config()
 
 
-_render_application()
+_render_navigation()
