@@ -536,7 +536,7 @@ def load_locales(i18n_dir):
         for file in files:
             if file.endswith(".json"):
                 lang = file.split(".")[0]
-                with open(os.path.join(root, file), "r", encoding="utf-8") as f:
+                with open(os.path.join(root, file), "r", encoding="utf-8-sig") as f:
                     _locales[lang] = json.loads(f.read())
     return _locales
 
