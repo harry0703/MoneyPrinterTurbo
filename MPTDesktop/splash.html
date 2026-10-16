@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>MoneyPrinterTurbo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    .card {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(160deg, #3d30c7 0%, #9333ea 100%);
+      border-radius: 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      color: #ffffff;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+    .logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .logo svg { width: 56px; height: 56px; }
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .status {
+      font-size: 13px;
+      opacity: 0.85;
+      min-height: 18px;
+    }
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid rgba(255, 255, 255, 0.25);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="#ffffff">
+        <path d="M8 5v14l11-7z" />
+      </svg>
+    </div>
+    <h1>MoneyPrinterTurbo</h1>
+    <div class="spinner"></div>
+    <div class="status" id="status">Iniciando...</div>
+  </div>
+  <script>
+    const { ipcRenderer } = require("electron");
+    const el = document.getElementById("status");
+    ipcRenderer.on("backend-status", (_event, message) => {
+      el.textContent = message;
+    });
+  </script>
+</body>
+</html>
