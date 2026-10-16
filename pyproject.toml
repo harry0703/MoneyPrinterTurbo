@@ -36,6 +36,8 @@ dependencies = [
     "google-genai==2.11.0",
     "arabic-reshaper>=3.0.0",
     "python-bidi>=0.4.2",
+    "uharfbuzz>=0.56.3",
+    "freetype-py>=2.5.1",
 ]
 
 [project.optional-dependencies]

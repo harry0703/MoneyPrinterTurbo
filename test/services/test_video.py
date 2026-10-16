@@ -2093,7 +2093,11 @@ class TestVideoService(unittest.TestCase):
         """
         验证阿拉伯语字幕（含带变音符号/Tashkeel的文本）能被正确塑形与绘制，
         确保变音符号（Harakat）正确附着于所属字母，而不是浮动或错位到相邻字符。
+        同时验证在 Pillow 未启用 RAQM 时，HarfBuzz/FreeType 塑形管线能准确
+        计算字形附着位置（Mark-to-Base），防止元音超出文字边界。
         """
+        from PIL import Image, ImageDraw, ImageFont
+
         font_path = os.path.join(utils.font_dir(), "Amiri Quran.ttf")
         self.assertTrue(os.path.exists(font_path), "Amiri Quran font must exist")
 
@@ -2105,6 +2109,37 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(formatted_short[1], "\u064E")  # Fatha belongs to Teh
         self.assertEqual(formatted_short[2], "\uFE91")  # Beh initial
         self.assertEqual(formatted_short[3], "\u0650")  # Kasra belongs to Beh
+
+        # 2. 真实光栅化渲染测试：验证变音符号在实际字体内精确附着于所属字母
+        # 且带变音文本不会像无 GPOS 基础排版那样向右漂移到 145px 以外
+        test_font = ImageFont.truetype(font_path, 100)
+        img_marked = Image.new("RGB", (260, 240), "white")
+        ImageDraw.Draw(img_marked).text((30, 15), formatted_short, font=test_font, fill="black")
+
+        img_unmarked = Image.new("RGB", (260, 240), "white")
+        ImageDraw.Draw(img_unmarked).text((30, 15), utils.format_arabic_text("بت"), font=test_font, fill="black")
+
+        arr_u = vd.np.array(img_unmarked.convert("L"))
+        yu, xu = vd.np.where(arr_u < 128)
+        unmarked_right_edge = int(xu.max())
+
+        arr_m = vd.np.array(img_marked.convert("L"))
+        ym, xm = vd.np.where(arr_m < 128)
+        marked_right_edge = int(xm.max())
+
+        # 带变音文本右边界不能超出无变音文本底字右边界（无 GPOS 时会漂移至 145）
+        self.assertLessEqual(marked_right_edge, unmarked_right_edge + 5)
+
+        # 顶部变音符号 Fatha (y < 100) 位于左侧的 Teh，底部变音符号 Kasra (y > 140) 位于右侧的 Beh
+        fatha_xs = xm[ym < 100]
+        kasra_xs = xm[ym > 140]
+        self.assertGreater(len(fatha_xs), 0, "Fatha ink must be rendered")
+        self.assertGreater(len(kasra_xs), 0, "Kasra ink must be rendered")
+        self.assertLess(
+            float(fatha_xs.mean()),
+            float(kasra_xs.mean()),
+            "Fatha must be horizontally attached to Teh (left) and Kasra to Beh (right)",
+        )
 
         cases = (
             ("plain_arabic", "مرحبا بكم في عالم الذكاء الاصطناعي وصناعة المحتوى"),
