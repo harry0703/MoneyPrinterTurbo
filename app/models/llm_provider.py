@@ -295,6 +295,14 @@ LLM_PROVIDER_REGISTRY = (
         deprecated_models=("gemini-pro", "gemini-1.0-pro"),
     ),
     LLMProviderSpec(
+        "muse_spark",
+        "Muse Spark",
+        api_key_url="https://dev.meta.ai/docs/authentication",
+        default_model="muse-spark-1.3",
+        default_base_url="https://api.meta.ai/v1",
+        model_docs_url="https://dev.meta.ai/docs/models",
+    ),
+    LLMProviderSpec(
         "deepseek",
         "DeepSeek",
         api_key_url="https://platform.deepseek.com/api_keys",
@@ -498,6 +506,14 @@ LLM_PROVIDER_REGISTRY = (
         default_model="gpt-5.4-mini",
         default_base_url="https://api.opper.ai/v3/compat",
         model_docs_url="https://opper.ai/models",
+    ),
+    LLMProviderSpec(
+        "onomeo",
+        "onomeo",
+        api_key_url="https://onomeo.com/dashboard",
+        default_model="auto",
+        default_base_url="https://onomeo.com/v1",
+        model_docs_url="https://onomeo.com/models",
     ),
     # 本地部署与通用网关
     LLMProviderSpec(

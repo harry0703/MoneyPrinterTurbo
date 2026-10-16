@@ -12,6 +12,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 from loguru import logger
 from moviepy import (
     ImageClip,
@@ -558,6 +559,11 @@ class TestVideoService(unittest.TestCase):
     def test_image_zoom_renders_keep_distinct_clip_durations(self):
         """Two tasks must not overwrite one image render with another duration."""
         class FakeImageClip:
+            mask = None
+
+            def get_frame(self, _time):
+                return np.zeros((2, 2, 3), dtype=np.uint8)
+
             def __init__(self, _path):
                 self.duration = 0
 
@@ -572,7 +578,7 @@ class TestVideoService(unittest.TestCase):
                 return self
 
         class FakeCompositeClip:
-            def __init__(self, clips):
+            def __init__(self, clips, bg_color=None):
                 self.duration = clips[0].duration
 
             def write_videofile(self, output, **_kwargs):
@@ -594,6 +600,11 @@ class TestVideoService(unittest.TestCase):
     def test_failed_image_zoom_render_preserves_previous_complete_clip(self):
         """A failed rerender must leave the last verified MP4 available."""
         class FakeImageClip:
+            mask = None
+
+            def get_frame(self, _time):
+                return np.zeros((2, 2, 3), dtype=np.uint8)
+
             duration = 0
 
             def __init__(self, _path):
@@ -612,7 +623,7 @@ class TestVideoService(unittest.TestCase):
         writes = 0
 
         class FakeCompositeClip:
-            def __init__(self, _clips):
+            def __init__(self, _clips, bg_color=None):
                 pass
 
             def write_videofile(self, output, **_kwargs):

@@ -140,6 +140,43 @@ def test_webui_runtime_config_updates_do_not_use_blocking_writes():
     assert direct_writes == []
 
 
+def test_webui_delete_keeps_task_state_when_file_removal_fails(tmp_path):
+    """A failed directory removal must leave the task available for retry."""
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_delete_task"
+    )
+    task_path = tmp_path / "tasks" / "completed-task"
+    task_path.mkdir(parents=True)
+    state = SimpleNamespace(
+        get_task=MagicMock(
+            return_value={"task_id": "completed-task", "state": const.TASK_STATE_COMPLETE}
+        ),
+        delete_task=MagicMock(),
+    )
+    remove_directory = MagicMock(side_effect=OSError("video file is locked"))
+    namespace = {
+        "_active_generation_tasks": lambda: {},
+        "sm": SimpleNamespace(state=state),
+        "tm": SimpleNamespace(is_task_busy=lambda _task: False),
+        "utils": SimpleNamespace(task_dir=lambda: str(tmp_path / "tasks")),
+        "shutil": SimpleNamespace(rmtree=remove_directory),
+        "logger": MagicMock(),
+        "os": os,
+        "const": const,
+    }
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+
+    assert namespace["_delete_task"](
+        "completed-task", str(task_path), const.TASK_STATE_COMPLETE
+    ) is False
+    remove_directory.assert_called_once_with(str(task_path))
+    state.delete_task.assert_not_called()
+
+
 def test_active_task_uses_terminal_state_when_outside_runtime_page(tmp_path):
     """An active session marker must not hide a finished task past page one."""
     tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))

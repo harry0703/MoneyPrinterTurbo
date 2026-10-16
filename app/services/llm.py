@@ -22,6 +22,24 @@ MIN_SCRIPT_PARAGRAPH_NUMBER = 1
 MAX_SCRIPT_PARAGRAPH_NUMBER = 10
 MAX_SCRIPT_PROMPT_LENGTH = 2000
 MAX_SCRIPT_SYSTEM_PROMPT_LENGTH = 8000
+# “测试模型链接”只发送一条极小请求。OpenAI SDK 默认 600 秒超时并自动重试
+# 2 次，端点不可达（代理、防火墙或 DNS 故障）时，测试按钮会先长时间挂起，
+# 最后只留下一句 "Request timed out."（见 issue #1642）。这里给连接测试一个
+# 有界的短超时并禁用 SDK 重试，让失败快速、可诊断；正式的脚本生成链路保持
+# SDK 默认行为不变，避免误伤慢速推理模型和本地 Ollama 冷启动。
+LLM_CONNECTION_TEST_TIMEOUT_SECONDS = 30.0
+LLM_CONNECTION_TEST_MAX_RETRIES = 0
+# 这些片段来自 OpenAI SDK 的 APITimeoutError / APIConnectionError 以及
+# httpx 的底层连接异常文案；命中任意一个即按“端点不可达”处理。
+_CONNECTION_FAILURE_MARKERS = (
+    "timed out",
+    "timeout",
+    "connection error",
+    "connection refused",
+    "connection reset",
+    "connection aborted",
+    "failed to connect",
+)
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
 _URL_USERINFO_RE = re.compile(
@@ -228,6 +246,39 @@ def _get_response_field(value, key: str):
         return getattr(value, key, None)
 
 
+def _sdk_transport_options(request_timeout, max_retries) -> dict:
+    """把可选的超时/重试约束转换为 OpenAI SDK 客户端构造参数。
+
+    两个参数传 None 时返回空字典，客户端继续使用 SDK 默认值（600 秒超时、
+    2 次自动重试），因此脚本生成等常规链路行为保持不变；只有连接测试这类
+    需要快速失败的调用方显式传入有界值时，请求预算才会被收紧。
+    """
+    options = {}
+    if request_timeout is not None:
+        options["timeout"] = request_timeout
+    if max_retries is not None:
+        options["max_retries"] = max_retries
+    return options
+
+
+def _explain_connection_test_failure(error_message: str) -> str:
+    """为超时/连接类失败补充排查方向，而不是只显示一句 SDK 原始文案。
+
+    issue #1642 中用户的 API 本身可用，失败原因是本机到端点的链路问题
+    （代理、防火墙或 DNS），但 "Request timed out." 没有指向任何可能原因。
+    其它错误（鉴权、配额等）保持原文返回。
+    """
+    normalized = (error_message or "").lower()
+    if not any(marker in normalized for marker in _CONNECTION_FAILURE_MARKERS):
+        return error_message
+    return (
+        f"{error_message} (the request did not complete within "
+        f"{LLM_CONNECTION_TEST_TIMEOUT_SECONDS:.0f}s). Please check that the "
+        "configured base URL is reachable from this machine, and that no proxy "
+        "or firewall is blocking the request."
+    )
+
+
 def _extract_qwen_generation_text(response) -> str:
     """
     从 DashScope Generation 响应中提取文本。
@@ -254,7 +305,12 @@ def _extract_qwen_generation_text(response) -> str:
     return _normalize_text_response(text, "qwen")
 
 
-def _generate_response(prompt: str, app_config=None) -> str:
+def _generate_response(
+    prompt: str,
+    app_config=None,
+    request_timeout: float | None = None,
+    max_retries: int | None = None,
+) -> str:
     sdk_client = None
     sdk_stream = None
     try:
@@ -418,6 +474,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
                     f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1"
                 ),
                 default_headers={"cf-aig-gateway-id": gateway_id},
+                **_sdk_transport_options(request_timeout, max_retries),
             )
             response = client.chat.completions.create(
                 model=model_name,
@@ -456,6 +513,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
                 api_key=api_key,
                 api_version=api_version,
                 azure_endpoint=base_url,
+                **_sdk_transport_options(request_timeout, max_retries),
             )
             response = client.chat.completions.create(
                 model=model_name, messages=[{"role": "user", "content": prompt}]
@@ -631,12 +689,17 @@ def _generate_response(prompt: str, app_config=None) -> str:
             # 避免硬编码的通用模型 id 随权益变化而失效。
             request_model = model_name or "kimi-for-coding"
             logger.info(f"requesting kimi code chat completion, model: {request_model}")
+            # Provider 自身的宽松超时在连接测试场景下要收紧到测试预算以内。
+            effective_timeout = timeout_seconds
+            if request_timeout is not None:
+                effective_timeout = min(effective_timeout, request_timeout)
             client = sdk_client = OpenAI(
                 api_key=access_token,
                 base_url=request_base_url,
-                timeout=timeout_seconds,
+                timeout=effective_timeout,
                 # 服务端反爬管线要求与 CLI 一致的设备身份头。
                 default_headers=kimi_code_oauth.api_headers(),
+                **_sdk_transport_options(None, max_retries),
             )
             response = client.chat.completions.create(
                 model=request_model, messages=[{"role": "user", "content": prompt}]
@@ -652,6 +715,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
             client = sdk_client = OpenAI(
                 api_key=api_key,
                 base_url=base_url,
+                **_sdk_transport_options(request_timeout, max_retries),
             )
             response = sdk_stream = client.chat.completions.create(
                 model=model_name,
@@ -677,6 +741,7 @@ def _generate_response(prompt: str, app_config=None) -> str:
         client = sdk_client = OpenAI(
             api_key=api_key,
             base_url=base_url,
+            **_sdk_transport_options(request_timeout, max_retries),
         )
 
         response = client.chat.completions.create(
@@ -716,10 +781,17 @@ def test_connection() -> tuple[bool, str, float]:
 
     连接测试直接复用 `_generate_response()`，因此会覆盖 API Key、Base URL、
     模型名称和 Provider 专用字段，但不会进入脚本生成的重试逻辑，也不会发送
-    用户的视频主题或文案。返回值依次为成功状态、错误信息和请求耗时。
+    用户的视频主题或文案。请求使用有界的短超时并禁用 SDK 自动重试：端点
+    不可达（代理、防火墙或 DNS 故障）时快速失败，并附上排查方向，而不是
+    挂起数分钟后只留下 "Request timed out."（issue #1642）。返回值依次为
+    成功状态、错误信息和请求耗时。
     """
     started_at = perf_counter()
-    response = _generate_response(prompt="Reply with exactly: OK")
+    response = _generate_response(
+        prompt="Reply with exactly: OK",
+        request_timeout=LLM_CONNECTION_TEST_TIMEOUT_SECONDS,
+        max_retries=LLM_CONNECTION_TEST_MAX_RETRIES,
+    )
     elapsed = perf_counter() - started_at
 
     if not response:
@@ -728,7 +800,9 @@ def test_connection() -> tuple[bool, str, float]:
         return False, error_message, elapsed
 
     if response.startswith("Error:"):
-        error_message = response.removeprefix("Error:").strip()
+        error_message = _explain_connection_test_failure(
+            response.removeprefix("Error:").strip()
+        )
         logger.warning(f"llm connection test failed: {error_message}")
         return False, error_message, elapsed
 
@@ -835,9 +909,22 @@ def generate_script(
 
     def format_response(response):
         # Clean the script
-        # Remove asterisks, hashes
+        # Remove emphasis and heading markers without changing inline names
+        # or musical notes such as C#, F# and G#.
         response = response.replace("*", "")
-        response = response.replace("#", "")
+        response = re.sub(
+            r"(?m)^[ \t]{0,3}#{1,6}[ \t]+(.*?)[ \t]*$",
+            lambda match: re.sub(r"[ \t]+#+[ \t]*$", "", match.group(1)),
+            response,
+        )
+
+        # Link labels are narration; discard destinations before stripping
+        # bracketed stage directions. Common parenthesized URL components fit.
+        response = re.sub(
+            r"\[([^\]\n]+)\]\((?:[^()\n]|\([^()\n]*\))*\)",
+            lambda match: match.group(1),
+            response,
+        )
 
         # Remove markdown syntax.  Use non-greedy .*? so each bracket/paren
         # group is removed independently; the greedy form would eat all text
@@ -865,7 +952,7 @@ def generate_script(
                 # that text through would make the task treat it as narration.
                 raise ValueError(response)
             if response:
-                candidate = format_response(response)
+                candidate = format_response(response).strip()
             else:
                 logging.error("gpt returned an empty response")
                 candidate = ""
@@ -903,6 +990,20 @@ def _strip_code_fence(text: str) -> str:
         t = re.sub(r"^```[a-zA-Z0-9]*\s*", "", t)
         t = re.sub(r"\s*```$", "", t)
     return t.strip()
+
+
+def _extract_embedded_json(text: str, opening: str):
+    """Decode one complete JSON value without absorbing later prose/examples."""
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(text or ""):
+        if character != opening:
+            continue
+        try:
+            value, _end = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        return value
+    raise ValueError("response contains no complete JSON value")
 
 
 def generate_terms(
@@ -990,15 +1091,10 @@ Please note that you must use English for generating video search terms; Chinese
         except Exception as e:
             logger.warning(f"failed to generate video terms: {str(e)}")
             if response:
-                match = re.search(r"\[.*]", response, re.DOTALL)
-                if match:
-                    try:
-                        search_terms = json.loads(match.group())
-                    except Exception as e:
-                        # 这里保留重试流程，但必须记录 LLM 返回的非标准 JSON，
-                        # 否则后续排查搜索词为空时无法定位
-                        # 是模型格式问题还是解析逻辑问题。
-                        logger.warning(f"failed to generate video terms: {str(e)}")
+                try:
+                    search_terms = _extract_embedded_json(response, "[")
+                except ValueError as e:
+                    logger.warning(f"failed to generate video terms: {str(e)}")
 
         # Apply the same contract to direct JSON and prose-wrapped recovery.
         # Otherwise a nonempty array of numbers or objects reaches material search.
@@ -1196,9 +1292,7 @@ def _parse_social_metadata(response: str, platform: str) -> dict:
     except Exception:
         # 部分模型会在 JSON 外层包一段说明文字或 markdown fence。
         # API 调用方只需要稳定结构，所以这里尝试提取第一个 JSON object。
-        match = re.search(r"\{.*\}", response or "", re.DOTALL)
-        if match:
-            data = json.loads(match.group())
+        data = _extract_embedded_json(response, "{")
 
     if not isinstance(data, dict):
         raise ValueError("social metadata response is not a JSON object")

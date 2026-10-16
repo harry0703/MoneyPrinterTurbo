@@ -10,9 +10,9 @@ from contextlib import contextmanager
 import toml
 from loguru import logger
 
-from app import __version__
+from app import __version__, paths
 
-root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+root_dir = str(paths.runtime_root())
 config_file = f"{root_dir}/config.toml"
 _CONTAINER_CGROUP_MARKERS = ("docker", "containerd", "kubepods", "libpod", "podman")
 _DOCKER_HOST_GATEWAY_NAME = "host.docker.internal"
@@ -383,12 +383,16 @@ def get_container_default_gateway_ip(route_path: str = "/proc/net/route") -> str
 
     for line in route_lines[1:]:
         fields = line.strip().split()
-        if len(fields) < 3:
+        if len(fields) < 8:
             continue
 
         destination = fields[1]
         gateway = fields[2]
-        if destination != "00000000" or gateway == "00000000":
+        if (
+            destination != "00000000"
+            or fields[7] != "00000000"
+            or gateway == "00000000"
+        ):
             continue
 
         try:
@@ -503,6 +507,7 @@ def _initialize_config_from_example(example_file):
 
 
 def load_config():
+    os.makedirs(root_dir, mode=0o700, exist_ok=True)
     # Docker may create an empty directory when a missing config.toml is bind-mounted.
     # Only remove that empty placeholder; a nonempty directory may contain user data.
     if os.path.isdir(config_file):
@@ -525,6 +530,8 @@ def load_config():
 
     if not os.path.isfile(config_file):
         example_file = f"{root_dir}/config.example.toml"
+        if not os.path.isfile(example_file):
+            example_file = str(paths.config_template())
         if os.path.isfile(example_file):
             if _initialize_config_from_example(example_file):
                 logger.info("copy config.example.toml to config.toml")

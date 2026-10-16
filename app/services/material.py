@@ -546,7 +546,7 @@ def search_videos_pixabay(
                 orientation_matches = aspect == VideoAspect.square or (
                     _matches_video_aspect(w, h, aspect)
                 )
-                if orientation_matches and w >= video_width:
+                if orientation_matches and w >= video_width and h >= video_height:
                     item = MaterialInfo()
                     item.provider = "pixabay"
                     item.url = video_url
