@@ -312,6 +312,8 @@
 
 ## 安装部署 📥
 
+> MoneyPrinterTurbo 是从本仓库运行的应用程序，请勿使用 `pip install MoneyPrinterTurbo` 安装本项目。请克隆仓库，然后按照下方 Docker 或手动部署步骤操作；手动部署通过 `uv sync --frozen` 或 `pip install -r requirements.txt` 安装应用依赖。
+
 ### 前提条件
 
 - 本地部署需要 Python 3.11 或更高版本

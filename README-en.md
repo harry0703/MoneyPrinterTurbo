@@ -313,6 +313,8 @@ Use the local setup or Docker instructions below.
 
 ## Installation & Deployment 📥
 
+> MoneyPrinterTurbo is an application run from this repository, not a package installed with `pip install MoneyPrinterTurbo`. Clone the repository and follow the Docker or manual deployment instructions below; the manual setup installs the application’s dependencies with `uv sync --frozen` or `pip install -r requirements.txt`.
+
 ### Prerequisites
 
 - Local deployment requires Python 3.11 or later
