@@ -6,21 +6,27 @@ requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "moneyprinterturbo"
+name = "mpt"
 version = "1.3.8"
-description = "Generate short videos from prompts, local assets, subtitles, and TTS."
-readme = "README-en.md"
+description = "Official MoneyPrinterTurbo package with WebUI and CLI, maintained by harry0703."
+readme = "docs/pypi-description.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "moviepy==2.2.1",
     "streamlit==1.59.1",
+    # Streamlit 1.59.1 的 gzip 适配依赖旧响应协议，新版本会使媒体响应失败。
+    "starlette==1.2.1",
     "streamlit-tour==1.1.0",
     "edge-tts==7.3.1",
     "fastapi==0.136.3",
     "uvicorn==0.32.1",
     "openai==2.24.0",
     "faster-whisper==1.1.0",
+    # 与 requirements.txt 保持一致：PyAV 19 移除了 Whisper 使用的参数。
+    "av<19",
+    "toml==0.10.2",
+    "imageio-ffmpeg==0.6.0",
     "loguru==0.7.3",
     "dashscope==1.20.14",
     "azure-cognitiveservices-speech==1.41.1",
@@ -35,6 +41,13 @@ dependencies = [
     "litellm==1.86.2",
     "google-genai==2.11.0",
 ]
+
+[project.scripts]
+mpt = "app.launcher:main"
+
+[project.urls]
+Homepage = "https://github.com/harry0703/MoneyPrinterTurbo"
+Issues = "https://github.com/harry0703/MoneyPrinterTurbo/issues"
 
 [project.optional-dependencies]
 # Optional TwelveLabs (https://twelvelabs.io) video-understanding/embedding
@@ -72,8 +85,37 @@ show_missing = true
 skip_covered = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["app"]
+packages = ["app", "webui"]
+
+# 字体保留中英文默认字体和越南语字体。两个大体积备用字重不进入安装包，
+# 避免 wheel 超过 PyPI 默认文件大小限制；源码版的字体文件保持原样。
+[tool.hatch.build.targets.wheel.force-include]
+"cli.py" = "app/cli.py"
+"config.example.toml" = "app/_assets/config.example.toml"
+"resource/fonts/STHeitiMedium.ttc" = "app/_assets/resource/fonts/STHeitiMedium.ttc"
+"resource/fonts/MicrosoftYaHeiBold.ttc" = "app/_assets/resource/fonts/MicrosoftYaHeiBold.ttc"
+"resource/fonts/BeVietnamPro-Bold.ttf" = "app/_assets/resource/fonts/BeVietnamPro-Bold.ttf"
+"resource/fonts/BeVietnamPro-Medium.ttf" = "app/_assets/resource/fonts/BeVietnamPro-Medium.ttf"
+"resource/fonts/Charm-Bold.ttf" = "app/_assets/resource/fonts/Charm-Bold.ttf"
+"resource/fonts/Charm-Regular.ttf" = "app/_assets/resource/fonts/Charm-Regular.ttf"
+"resource/fonts/UTM Kabel KT.ttf" = "app/_assets/resource/fonts/UTM Kabel KT.ttf"
+"resource/songs" = "app/_assets/resource/songs"
+"resource/public" = "app/_assets/resource/public"
+
+[tool.hatch.build]
+exclude = ["**/.DS_Store", "**/__pycache__", "**/*.pyc", "**/.streamlit"]
+
+[tool.hatch.build.targets.sdist]
+# 使用白名单，禁止本机配置、凭据、storage、AGENTS.md 等混入源码发行包。
+include = [
+    "/app", "/cli.py", "/webui", "/config.example.toml", "/pyproject.toml",
+    "/uv.lock", "/LICENSE", "/docs/pypi-description.md", "/docs/packaging.md",
+    "/test/services/test_packaging.py", "/resource/songs", "/resource/public",
+    "/resource/fonts/STHeitiMedium.ttc", "/resource/fonts/MicrosoftYaHeiBold.ttc",
+    "/resource/fonts/BeVietnamPro-Bold.ttf", "/resource/fonts/BeVietnamPro-Medium.ttf",
+    "/resource/fonts/Charm-Bold.ttf", "/resource/fonts/Charm-Regular.ttf",
+    "/resource/fonts/UTM Kabel KT.ttf",
+]
 
 [tool.uv]
-# 当前项目以应用运行形态为主，不作为可发布的 Python 包安装。
-package = false
+package = true

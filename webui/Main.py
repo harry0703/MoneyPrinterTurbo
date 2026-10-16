@@ -91,8 +91,8 @@ style_file = Path(__file__).with_name("styles.css")
 streamlit_style = f"<style>{style_file.read_text(encoding='utf-8')}</style>"
 st.markdown(streamlit_style, unsafe_allow_html=True)
 # 定义资源目录
-font_dir = os.path.join(root_dir, "resource", "fonts")
-song_dir = os.path.join(root_dir, "resource", "songs")
+font_dir = utils.font_dir()
+song_dir = utils.song_dir()
 i18n_dir = os.path.join(root_dir, "webui", "i18n")
 config_file = os.path.join(root_dir, "webui", ".streamlit", "webui.toml")
 # 语言列表必须在会话状态初始化前可用，首次访问时才能把浏览器 locale 映射到
@@ -1894,7 +1894,7 @@ def open_task_folder(task_id):
         # 通过路径拼接访问任务目录之外的位置，也避免后续打开目录时触发
         # 平台 shell 对特殊字符的解释。
         normalized_task_id = str(UUID(str(task_id)))
-        tasks_root = os.path.abspath(os.path.join(root_dir, "storage", "tasks"))
+        tasks_root = os.path.abspath(utils.task_dir())
         path = os.path.abspath(os.path.join(tasks_root, normalized_task_id))
 
         # 即使 UUID 校验通过，也再次确认最终路径仍在任务根目录内，避免
