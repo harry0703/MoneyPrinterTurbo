@@ -45,3 +45,10 @@ htmlcov/
 
 # Claude Code 订阅令牌（docker compose 自动读取），禁止提交
 .env
+
+# Exclusiones para el cliente de escritorio en Electron
+MPTDesktop/node_modules/
+MPTDesktop/dist/
+MPTDesktop/release/
+MPTDesktop/build/
+MPTDesktop/out/
