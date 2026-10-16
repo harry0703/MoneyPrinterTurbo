@@ -1520,12 +1520,40 @@ wheels = [
 ]
 
 [[package]]
-name = "moneyprinterturbo"
+name = "moviepy"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "decorator" },
+    { name = "imageio" },
+    { name = "imageio-ffmpeg" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "proglog" },
+    { name = "python-dotenv" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/de/61/15f9476e270f64c78a834e7459ca045d669f869cec24eed26807b8cd479d/moviepy-2.2.1.tar.gz", hash = "sha256:c80cb56815ece94e5e3e2d361aa40070eeb30a09d23a24c4e684d03e16deacb1", size = 58431438 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/73/7d3b2010baa0b5eb1e4dfa9e4385e89b6716be76f2fa21a6c0fe34b68e5a/moviepy-2.2.1-py3-none-any.whl", hash = "sha256:6b56803fec2ac54b557404126ac1160e65448e03798fa282bd23e8fab3795060", size = 129871 },
+]
+
+[[package]]
+name = "mpmath"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/47/dd32fa426cc72114383ac549964eecb20ecfd886d1e5ccf5340b55b02f57/mpmath-1.3.0.tar.gz", hash = "sha256:7a28eb2a9774d00c7bc92411c19a89209d5da7c4c9a9e227be8330a23a25b91f", size = 508106 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/e3/7d92a15f894aa0c9c4b49b8ee9ac9850d6e63b03c9c32c0367a13ae62209/mpmath-1.3.0-py3-none-any.whl", hash = "sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c", size = 536198 },
+]
+
+[[package]]
+name = "mpt"
 version = "1.3.8"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "arabic-reshaper" },
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
+    { name = "av" },
     { name = "azure-cognitiveservices-speech" },
     { name = "dashscope" },
     { name = "edge-tts" },
@@ -1533,6 +1561,7 @@ dependencies = [
     { name = "faster-whisper" },
     { name = "freetype-py" },
     { name = "google-genai" },
+    { name = "imageio-ffmpeg" },
     { name = "litellm" },
     { name = "loguru" },
     { name = "moviepy" },
@@ -1545,9 +1574,10 @@ dependencies = [
     { name = "redis" },
     { name = "requests" },
     { name = "socksio" },
+    { name = "starlette" },
     { name = "streamlit" },
     { name = "streamlit-tour" },
-    { name = "uharfbuzz" },
+    { name = "toml" },
     { name = "uvicorn" },
 ]
 
@@ -1567,6 +1597,7 @@ dev = [
 requires-dist = [
     { name = "arabic-reshaper", specifier = ">=3.0.0" },
     { name = "audioop-lts", marker = "python_full_version >= '3.13'", specifier = "==0.2.2" },
+    { name = "av", specifier = "<19" },
     { name = "azure-cognitiveservices-speech", specifier = "==1.41.1" },
     { name = "dashscope", specifier = "==1.20.14" },
     { name = "edge-tts", specifier = "==7.3.1" },
@@ -1574,6 +1605,7 @@ requires-dist = [
     { name = "faster-whisper", specifier = "==1.1.0" },
     { name = "freetype-py", specifier = ">=2.5.1" },
     { name = "google-genai", specifier = "==2.11.0" },
+    { name = "imageio-ffmpeg", specifier = "==0.6.0" },
     { name = "litellm", specifier = "==1.86.2" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "moviepy", specifier = "==2.2.1" },
@@ -1586,8 +1618,10 @@ requires-dist = [
     { name = "redis", specifier = "==5.2.0" },
     { name = "requests", specifier = "==2.33.1" },
     { name = "socksio", specifier = "==1.0.0" },
+    { name = "starlette", specifier = "==1.2.1" },
     { name = "streamlit", specifier = "==1.59.1" },
     { name = "streamlit-tour", specifier = "==1.1.0" },
+    { name = "toml", specifier = "==0.10.2" },
     { name = "twelvelabs", marker = "extra == 'twelvelabs'", specifier = ">=1.2.8" },
     { name = "uharfbuzz", specifier = ">=0.56.3" },
     { name = "uvicorn", specifier = "==0.32.1" },
@@ -1599,33 +1633,6 @@ dev = [
     { name = "coverage", specifier = "==7.15.1" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "ruff", specifier = "==0.15.21" },
-]
-
-[[package]]
-name = "moviepy"
-version = "2.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "decorator" },
-    { name = "imageio" },
-    { name = "imageio-ffmpeg" },
-    { name = "numpy" },
-    { name = "pillow" },
-    { name = "proglog" },
-    { name = "python-dotenv" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/de/61/15f9476e270f64c78a834e7459ca045d669f869cec24eed26807b8cd479d/moviepy-2.2.1.tar.gz", hash = "sha256:c80cb56815ece94e5e3e2d361aa40070eeb30a09d23a24c4e684d03e16deacb1", size = 58431438, upload-time = "2025-05-21T19:31:52.601Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9a/73/7d3b2010baa0b5eb1e4dfa9e4385e89b6716be76f2fa21a6c0fe34b68e5a/moviepy-2.2.1-py3-none-any.whl", hash = "sha256:6b56803fec2ac54b557404126ac1160e65448e03798fa282bd23e8fab3795060", size = 129871, upload-time = "2025-05-21T19:31:50.11Z" },
-]
-
-[[package]]
-name = "mpmath"
-version = "1.3.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e0/47/dd32fa426cc72114383ac549964eecb20ecfd886d1e5ccf5340b55b02f57/mpmath-1.3.0.tar.gz", hash = "sha256:7a28eb2a9774d00c7bc92411c19a89209d5da7c4c9a9e227be8330a23a25b91f", size = 508106, upload-time = "2023-03-07T16:47:11.061Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/e3/7d92a15f894aa0c9c4b49b8ee9ac9850d6e63b03c9c32c0367a13ae62209/mpmath-1.3.0-py3-none-any.whl", hash = "sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c", size = 536198, upload-time = "2023-03-07T16:47:09.197Z" },
 ]
 
 [[package]]

@@ -277,8 +277,9 @@
 ### 推荐使用方式
 
 - 不想手动安装和配置：直接使用 AI Agent 生成视频
+- 已有 Python 环境，想直接安装使用：[通过 pip 安装官方包](#通过-pip-安装官方包)
 - Windows 用户：优先使用一键启动包，适合快速体验
-- macOS / Linux 用户：优先使用 `uv` 进行本地部署
+- 需要源码部署或二次开发：使用 `uv` 管理环境和依赖
 - 想要隔离运行环境：优先使用 Docker 部署
 
 ### 使用 AI Agent 生成视频
@@ -312,7 +313,54 @@
 
 ## 安装部署 📥
 
-### 前提条件
+### 通过 pip 安装官方包
+
+官方 PyPI 包名为 **[mpt](https://pypi.org/project/mpt/)**，由 `harry0703` 维护。
+PyPI 上名为 `MoneyPrinterTurbo` 的包由第三方维护。
+
+无需克隆仓库，需要 Python 3.11 或更高版本，推荐使用 Python 3.11。
+
+**① 创建并激活虚拟环境**
+
+macOS / Linux：
+
+```shell
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows PowerShell：
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**② 安装并启动**
+
+```shell
+python -m pip install mpt
+mpt webui
+```
+
+WebUI 会自动打开浏览器。指定端口且不自动打开浏览器时，运行
+`mpt webui --port 8503 --headless`；使用 CLI 生成视频前，可查看 `mpt cli --help`。
+
+**③ 配置服务与管理文件**
+
+首次启动会自动创建 `config.toml`。使用在线模型、素材或语音服务前，请在 WebUI
+基础设置中填写相应的 API Key。安装版默认将配置和生成文件保存在：
+
+| 系统 | 数据目录 |
+| --- | --- |
+| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
+| Linux | `~/.local/share/MoneyPrinterTurbo`，或 `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+
+可在启动前设置 `MPT_HOME` 更改目录，生成的视频位于其中的 `storage/tasks` 下。
+后续升级时，在已激活的虚拟环境中运行 `python -m pip install --upgrade mpt`。
+
+### 源码部署前提条件
 
 - 本地部署需要 Python 3.11 或更高版本
 - Windows 用户建议避免使用包含中文、特殊字符或空格的项目路径

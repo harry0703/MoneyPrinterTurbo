@@ -240,8 +240,9 @@
 ### おすすめの手順
 
 - 手動でのインストールや設定をしたくない場合: AI エージェントで動画を生成する
+- Python がインストール済みで、すぐに使いたい場合: [pip で公式パッケージをインストール](#pip-で公式パッケージをインストール)
 - Windows ユーザー: まずはワンクリックパッケージを使うのが最短で試せます
-- macOS / Linux ユーザー: ローカル環境の主要な手順として `uv` を使用します
+- ソースコードからのデプロイや開発: `uv` で環境と依存関係を管理します
 - より独立した実行環境が欲しい場合: Docker でデプロイします
 
 ### AI エージェントで動画を生成する
@@ -279,7 +280,57 @@ GitHub Releases から最新の Windows 用ワンクリックパッケージを�
 
 ## インストールとデプロイ 📥
 
-### 前提条件
+### pip で公式パッケージをインストール
+
+公式の PyPI パッケージ名は **[mpt](https://pypi.org/project/mpt/)** で、`harry0703` が管理しています。
+PyPI 上の `MoneyPrinterTurbo` という名前のパッケージは第三者が管理しています。
+
+リポジトリのクローンは不要です。Python 3.11 以降が必要で、Python 3.11 を推奨します。
+
+**① 仮想環境を作成して有効化する**
+
+macOS / Linux:
+
+```shell
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**② インストールして起動する**
+
+```shell
+python -m pip install mpt
+mpt webui
+```
+
+WebUI がブラウザーで自動的に開きます。
+ポートを指定し、ブラウザーを開かずに実行する場合は `mpt webui --port 8503 --headless` を使用してください。
+CLI での動画生成については `mpt cli --help` を参照してください。
+
+**③ サービスを設定し、保存先を確認する**
+
+初回起動時に `config.toml` が自動作成されます。
+オンラインのモデル、素材、音声サービスを利用する前に、WebUI の基本設定で必要な API キーを入力してください。
+インストール版の設定と生成ファイルは、既定では以下の場所に保存されます:
+
+| OS | データディレクトリ |
+| --- | --- |
+| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
+| Linux | `~/.local/share/MoneyPrinterTurbo` または `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+
+起動前に `MPT_HOME` を設定すると、保存先を変更できます。
+生成された動画は、そのディレクトリ内の `storage/tasks` に保存されます。
+更新するには仮想環境を有効化して `python -m pip install --upgrade mpt` を実行してください。
+
+### ソースコードからデプロイする場合の前提条件
 
 - ローカル環境へのデプロイには Python 3.11 以降が必要です
 - Windows では、プロジェクトのパスに非 ASCII 文字、特殊文字、スペースを含めないでください
