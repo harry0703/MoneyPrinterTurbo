@@ -98,14 +98,27 @@ OPENCODE_MIN_CLI_VERSION = "1.18.34"
 # 只做 prompt→text：权限全部 deny（bash/edit/read/task/...），保证普通脚本
 # 生成不会读写文件、执行命令或加载 MCP。
 OPENCODE_PERMISSION_CONFIG = '{"*": "deny"}'
+# 2.x 的配置归一化只读取 input.permission / input.permissions，未知顶层键
+# 按 onExcessProperty: "ignore" 丢弃，所以 `{"*": "deny"}` 作为整份配置时
+# 不会装上任何规则；deny-all 必须放在 `permission` 键下。
+OPENCODE_V2_CONFIG_CONTENT = '{"permission": {"*": "deny"}}'
+# 2.x 的判定是 findLast（packages/core/src/permission.ts evaluate），后出现的
+# 规则优先；normalize 的拼接顺序为 tools → permission → permissions，因此用户
+# 原生的 permissions 列表会盖过 legacy 的 permission 键。deny-all 只有成为
+# 最后一条匹配规则才能建立边界，所以除 `permission` 外还要追加到原生列表末尾。
+OPENCODE_DENY_ALL_RULE = {"action": "*", "resource": "*", "effect": "deny"}
+# 同一条规则在 legacy 的 `permission` 键里的 v1 形状（动作 → 效果）。
+OPENCODE_DENY_ALL_RULE_ENTRY = {"*": "deny"}
 # OpenCode 2.x 移除了 `--pure` 与 OPENCODE_PERMISSION 环境变量（已用 2.0.24
 # 实测：传 `--pure` 会以 "Unrecognized flag: --pure" 退出）。2.x 仍迁移 v1
 # 形状的 `permission` 配置键，且 OPENCODE_CONFIG_CONTENT 在两个版本的配置
 # 合并中都最后生效，因此对 2.x 改由它注入同样的 deny-all 权限；1.x 继续
 # 使用 `--pure` + OPENCODE_PERMISSION，保持已验证的行为不变。
-# 2.x 没有等效的“跳过外部插件”机制：临时工作目录已隔离项目级插件，用户级
-# 插件仍会加载（v1 式单文件插件 2.x 本身也不再加载），但工具执行已被全部
-# 拒绝，插件无法借工具产生副作用。
+# 2.x 没有等效的“跳过外部插件”机制：临时工作目录已隔离项目级插件，但用户级
+# 插件仍会加载，而且插件能挂钩权限判定（PluginHooks 的 permission.evaluate
+# 可以改写结果），所以“工具全部被拒绝”在 2.x 上不再是可信边界。凡是能检测到
+# 的情形一律失败即拒绝：OPENCODE_CONFIG_CONTENT 声明了插件时直接报错；配置
+# 解析不了时也报错（上游会把无法解析的文档整份丢弃，注入随之失效）。
 
 
 def _is_conflicting_claude_code_env(name: str) -> bool:
@@ -221,40 +234,172 @@ def _opencode_cli_major_version(cli_path: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _strip_opencode_jsonc(text: str) -> str:
+    """
+    去掉 JSONC 的注释与尾逗号，使其可以被 `json.loads` 读取。
+
+    OpenCode 2.x 用 jsonc-parser 解析配置文件（allowTrailingComma: true），
+    注释和尾逗号都是合法输入；Python 的 json 解析器不接受这些写法，之前
+    遇到这类配置会原样放过，等于带着未经验证的权限继续生成。
+    """
+    without_comments = []
+    index = 0
+    length = len(text)
+    in_string = False
+    while index < length:
+        char = text[index]
+        if in_string:
+            without_comments.append(char)
+            if char == "\\" and index + 1 < length:
+                without_comments.append(text[index + 1])
+                index += 2
+                continue
+            if char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == '"':
+            in_string = True
+            without_comments.append(char)
+            index += 1
+            continue
+        if char == "/" and text.startswith("//", index):
+            newline = text.find("\n", index)
+            index = length if newline == -1 else newline
+            continue
+        if char == "/" and text.startswith("/*", index):
+            end = text.find("*/", index + 2)
+            if end == -1:
+                raise ValueError("unterminated block comment")
+            index = end + 2
+            continue
+        without_comments.append(char)
+        index += 1
+    stripped = "".join(without_comments)
+
+    # 尾逗号：只在字符串之外删除，避免 "a, }" 这类正文被改写。
+    rebuilt = []
+    index = 0
+    in_string = False
+    stripped_length = len(stripped)
+    while index < stripped_length:
+        char = stripped[index]
+        if in_string:
+            rebuilt.append(char)
+            if char == "\\" and index + 1 < stripped_length:
+                rebuilt.append(stripped[index + 1])
+                index += 2
+                continue
+            if char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == '"':
+            in_string = True
+            rebuilt.append(char)
+            index += 1
+            continue
+        if char == ",":
+            lookahead = index + 1
+            while lookahead < stripped_length and stripped[lookahead].isspace():
+                lookahead += 1
+            if lookahead < stripped_length and stripped[lookahead] in "}]":
+                index += 1
+                continue
+        rebuilt.append(char)
+        index += 1
+    return "".join(rebuilt)
+
+
+def _load_opencode_config_document(existing: str) -> dict:
+    """
+    解析 OPENCODE_CONFIG_CONTENT，支持 2.x 接受的 JSONC 写法。
+
+    解析失败时抛 ValueError：OpenCode 会直接丢弃整份无法解析的文档，此时
+    适配器注入的 deny-all 根本不会生效，只能失败即拒绝，而不是带着无法验证
+    的权限继续生成。
+    """
+    try:
+        document = json.loads(_strip_opencode_jsonc(existing))
+    except ValueError as exc:
+        raise ValueError(f"OPENCODE_CONFIG_CONTENT is not valid JSON/JSONC ({exc})")
+    if not isinstance(document, dict):
+        raise ValueError("OPENCODE_CONFIG_CONTENT must be a JSON object")
+    return document
+
+
+def _apply_opencode_deny_all(document: dict) -> None:
+    """
+    在配置文档里把 deny-all 装成“最后一条匹配规则”，原地修改 document。
+
+    2.x 的规则优先级是 findLast，因此覆盖范围由规则在列表里的位置决定：
+
+    - `permission`（v1 形状，被 2.x 迁移）会排在 `tools` 之后、原生
+      `permissions` 之前，单靠它挡不住同一条目里的原生规则；
+    - 原生 `permissions` 与本条目里的每个 agent 级 `permissions` 都追加
+      同一条 deny-all，使其成为各自列表的最后一条；
+    - legacy 的 `agent` / `mode` 条目用 `permission` 键表达权限，同样写成
+      deny-all（迁移时位于该 agent 规则列表末尾）。
+    """
+    document["permission"] = dict(OPENCODE_DENY_ALL_RULE_ENTRY)
+    permissions = document.get("permissions")
+    if isinstance(permissions, list):
+        permissions.append(dict(OPENCODE_DENY_ALL_RULE))
+    for native_key in ("agents",):
+        entries = document.get(native_key)
+        if not isinstance(entries, dict):
+            continue
+        for entry in entries.values():
+            if not isinstance(entry, dict):
+                continue
+            entry_permissions = entry.get("permissions")
+            if isinstance(entry_permissions, list):
+                entry_permissions.append(dict(OPENCODE_DENY_ALL_RULE))
+    for legacy_key in ("agent", "mode"):
+        entries = document.get(legacy_key)
+        if not isinstance(entries, dict):
+            continue
+        for entry in entries.values():
+            if isinstance(entry, dict):
+                entry["permission"] = dict(OPENCODE_DENY_ALL_RULE_ENTRY)
+
+
+def _assert_opencode_plugin_isolation(document: dict) -> None:
+    """
+    文档里声明了插件时拒绝生成：插件能挂钩权限判定（PluginHooks 的
+    permission.evaluate 可以改写判定结果），此时 deny-all 不再是可信边界，
+    只能失败即拒绝。
+    """
+    for plugin_key in ("plugin", "plugins"):
+        declared = document.get(plugin_key)
+        if declared:
+            raise ValueError(
+                f"{plugin_key} is declared in OPENCODE_CONFIG_CONTENT, so the "
+                "deny-all tool boundary cannot be guaranteed on OpenCode 2.x"
+            )
+
+
 def _opencode_permission_env(cli_env: dict, major_version: int | None) -> None:
     """
     按已安装 CLI 的主版本选择 deny-all 权限的注入方式，原地修改 cli_env。
 
     2.x 移除了 OPENCODE_PERMISSION 环境变量，同样的权限改经
-    OPENCODE_CONFIG_CONTENT 注入；用户已设置该变量时按 JSON 对象合并，
-    其余键保留、权限键以这里的 deny 为准。用户自定义值解析不成 JSON
-    对象时保持原样并告警——不覆盖用户显式提供的配置。
+    OPENCODE_CONFIG_CONTENT 注入；用户已设置该变量时按 JSONC 解析后合并，
+    其余键保留、权限键以这里的 deny 为准（并追加到原生权限列表末尾，因为
+    2.x 取最后一条匹配规则）。无法解析或无法建立边界时抛 ValueError，由
+    调用处转成可操作的提示——不带着未经验证的权限继续生成。
     """
     if major_version is not None and major_version >= 2:
         existing = cli_env.get("OPENCODE_CONFIG_CONTENT")
         if existing and existing.strip():
-            try:
-                merged = json.loads(existing)
-            except ValueError:
-                logger.warning(
-                    "OPENCODE_CONFIG_CONTENT is set but is not valid JSON; "
-                    "leaving it untouched and skipping the deny-all "
-                    "permissions injection."
-                )
-                return
-            if not isinstance(merged, dict):
-                logger.warning(
-                    "OPENCODE_CONFIG_CONTENT is set but is not a JSON object; "
-                    "leaving it untouched and skipping the deny-all "
-                    "permissions injection."
-                )
-                return
-            merged["permission"] = json.loads(OPENCODE_PERMISSION_CONFIG)
+            document = _load_opencode_config_document(existing)
+            _assert_opencode_plugin_isolation(document)
+            _apply_opencode_deny_all(document)
             cli_env["OPENCODE_CONFIG_CONTENT"] = json.dumps(
-                merged, ensure_ascii=False
+                document, ensure_ascii=False
             )
         else:
-            cli_env["OPENCODE_CONFIG_CONTENT"] = OPENCODE_PERMISSION_CONFIG
+            cli_env["OPENCODE_CONFIG_CONTENT"] = OPENCODE_V2_CONFIG_CONTENT
     else:
         cli_env["OPENCODE_PERMISSION"] = OPENCODE_PERMISSION_CONFIG
 
@@ -879,7 +1024,16 @@ def _generate_response(prompt: str, app_config=None) -> str:
             # 提示拼在最前面，抵消 OpenCode 编码 agent 系统提示对文案生成的干扰。
             prompt_input = f"{OPENCODE_SYSTEM_PROMPT}\n\n{prompt}"
             cli_env = {**os.environ}
-            _opencode_permission_env(cli_env, major_version)
+            try:
+                _opencode_permission_env(cli_env, major_version)
+            except ValueError as boundary_error:
+                # 建立不了 deny-all 边界就失败即拒绝：OpenCode 只会忽略
+                # 它读不懂的配置，此时继续生成等于用未知权限跑工具。
+                raise ValueError(
+                    f"{llm_provider}: cannot establish the deny-all tool "
+                    f"boundary ({boundary_error}); fix or unset "
+                    f"OPENCODE_CONFIG_CONTENT and retry"
+                ) from None
 
             logger.info(
                 f"invoking opencode cli, model: {model_name or 'opencode default'}"

@@ -2272,6 +2272,203 @@ class TestClaudeCodeProvider(unittest.TestCase):
         self.assertIn(llm.CLAUDE_CODE_MIN_CLI_VERSION, response)
 
 
+OPENCODE_CLI_STUB = '''#!/usr/bin/env python3
+"""Stand-in for a real `opencode` CLI running the 2.0.24 semantics.
+
+Only the parts that decide whether a tool call is allowed are reproduced:
+
+- configuration: jsonc-parser reading (comments and trailing commas allowed),
+  then `packages/core/src/config/normalize.ts`, which collects rules as
+  tools -> permission -> permissions and appends a document's native rules
+  last;
+- evaluation: `packages/core/src/permission.ts` `evaluate()` uses `findLast`,
+  so the last matching rule wins and an unmatched action defaults to "ask";
+- composition: the agent plugin pushes the configuration's rules onto an agent
+  and then that agent's own `permissions`, so both lists matter.
+
+The tests drive this through the adapter; when a probe action is not denied the
+stub records the leak and answers ALLOWED:... instead of text.
+"""
+
+import json
+import os
+import re
+import sys
+
+PROBES = [
+    ("shell", "echo harmless"),
+    ("read", "/etc/passwd"),
+    ("edit", "/tmp/opencode-stub-probe.txt"),
+    ("webfetch", "https://example.com"),
+]
+
+
+def strip_jsonc(text):
+    out = []
+    index = 0
+    in_string = False
+    while index < len(text):
+        char = text[index]
+        if in_string:
+            out.append(char)
+            if char == "\\\\" and index + 1 < len(text):
+                out.append(text[index + 1])
+                index += 2
+                continue
+            if char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == '"':
+            in_string = True
+            out.append(char)
+            index += 1
+            continue
+        if text.startswith("//", index):
+            newline = text.find("\\n", index)
+            index = len(text) if newline == -1 else newline
+            continue
+        if text.startswith("/*", index):
+            end = text.find("*/", index + 2)
+            if end == -1:
+                raise ValueError("unterminated block comment")
+            index = end + 2
+            continue
+        out.append(char)
+        index += 1
+    return re.sub(r",\\s*([}\\]])", r"\\1", "".join(out))
+
+
+def normalize_action(action):
+    if action in ("write", "patch"):
+        return "edit"
+    if action == "task":
+        return "subagent"
+    if action == "bash":
+        return "shell"
+    return action
+
+
+def as_rule(value):
+    if not isinstance(value, dict) or not {"action", "resource", "effect"} <= set(value):
+        return None
+    return {
+        "action": value["action"],
+        "resource": value["resource"],
+        "effect": value["effect"],
+    }
+
+
+def normalize(document):
+    rules = []
+    tools = document.get("tools")
+    if isinstance(tools, dict):
+        for action, enabled in tools.items():
+            if isinstance(enabled, bool):
+                rules.append(
+                    {
+                        "action": normalize_action(action),
+                        "resource": "*",
+                        "effect": "allow" if enabled else "deny",
+                    }
+                )
+    permission = document.get("permission")
+    if isinstance(permission, str):
+        rules.append({"action": "*", "resource": "*", "effect": permission})
+    elif isinstance(permission, dict):
+        for action, raw in permission.items():
+            if isinstance(raw, str):
+                rules.append(
+                    {
+                        "action": normalize_action(action),
+                        "resource": "*",
+                        "effect": raw,
+                    }
+                )
+            elif isinstance(raw, dict):
+                for resource, effect in raw.items():
+                    if isinstance(effect, str):
+                        rules.append(
+                            {
+                                "action": normalize_action(action),
+                                "resource": resource,
+                                "effect": effect,
+                            }
+                        )
+    native = document.get("permissions")
+    if isinstance(native, list):
+        rules.extend(rule for rule in (as_rule(item) for item in native) if rule)
+    agents = document.get("agents")
+    build = agents.get("build") if isinstance(agents, dict) else None
+    if isinstance(build, dict):
+        own = build.get("permissions")
+        if isinstance(own, list):
+            rules.extend(rule for rule in (as_rule(item) for item in own) if rule)
+    return rules
+
+
+def matches(value, pattern):
+    regex = "".join(".*" if char == "*" else re.escape(char) for char in pattern)
+    return re.fullmatch(regex, value, re.S) is not None
+
+
+def evaluate(action, resource, rules):
+    hit = None
+    for rule in rules:
+        if matches(action, rule["action"]) and matches(resource, rule["resource"]):
+            hit = rule
+    return hit["effect"] if hit else "ask"
+
+
+def emit(payload):
+    sys.stdout.write(json.dumps(payload) + "\\n")
+
+
+def fail(message):
+    emit({"type": "error", "error": {"name": "ConfigError", "data": {"message": message}}})
+    return 0
+
+
+def main(argv):
+    if "--version" in argv:
+        print("opencode v2.0.24")
+        return 0
+    if "run" not in argv:
+        print("usage: opencode run", file=sys.stderr)
+        return 1
+    content = os.environ.get("OPENCODE_CONFIG_CONTENT")
+    if not content:
+        return fail("OPENCODE_CONFIG_CONTENT is not set")
+    try:
+        document = json.loads(strip_jsonc(content))
+    except ValueError as error:
+        return fail("rejected malformed JSON or JSONC document: %s" % error)
+    if not isinstance(document, dict):
+        return fail("configuration root is not an object")
+    rules = normalize(document)
+    leaked = [
+        "%s:%s" % (action, resource)
+        for action, resource in PROBES
+        if evaluate(action, resource, rules) != "deny"
+    ]
+    if leaked:
+        sentinel = os.environ.get("OPENCODE_STUB_SENTINEL")
+        if sentinel:
+            with open(sentinel, "w", encoding="utf-8") as handle:
+                handle.write("\\n".join(leaked))
+        emit({"type": "text", "part": {"type": "text", "text": "ALLOWED:" + ",".join(leaked)}})
+        return 0
+    emit({"type": "step_start", "part": {"type": "step-start"}})
+    emit({"type": "text", "part": {"type": "text", "text": "ok"}})
+    emit({"type": "step_finish", "part": {"type": "step-finish", "reason": "stop"}})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
+'''
+
+
 class TestOpenCodeCliProvider(unittest.TestCase):
     """opencode Provider 通过本机 OpenCode CLI 复用已配置账号，不走 HTTP API。"""
 
@@ -2424,9 +2621,12 @@ class TestOpenCodeCliProvider(unittest.TestCase):
         self.assertNotIn("--pure", command)
         env = run.call_args.kwargs["env"]
         self.assertNotIn("OPENCODE_PERMISSION", env)
-        self.assertEqual(
-            env.get("OPENCODE_CONFIG_CONTENT"), llm.OPENCODE_PERMISSION_CONFIG
-        )
+        # 2.x 只识别 input.permission / input.permissions，整份配置就是
+        # {"*": "deny"} 时上游会当作未知顶层键丢弃，规则一条都装不上。
+        content = env.get("OPENCODE_CONFIG_CONTENT")
+        self.assertEqual(content, llm.OPENCODE_V2_CONFIG_CONTENT)
+        self.assertEqual(json.loads(content)["permission"], {"*": "deny"})
+        self.assertNotEqual(content, llm.OPENCODE_PERMISSION_CONFIG)
 
     def test_v2_merges_permissions_into_existing_config_content(self):
         """用户已设置 OPENCODE_CONFIG_CONTENT 时按 JSON 对象合并：其余键
@@ -2448,13 +2648,44 @@ class TestOpenCodeCliProvider(unittest.TestCase):
         self.assertIn("provider", merged)
         self.assertEqual(merged["permission"], {"*": "deny"})
 
-    def test_v2_keeps_unparseable_config_content(self):
-        """用户的 OPENCODE_CONFIG_CONTENT 解析不成 JSON 对象时保持原样，
-        不覆盖用户显式提供的配置（deny-all 注入被跳过并记录告警）。"""
+    def test_v2_rejects_config_content_that_cannot_be_parsed(self):
+        """解析不了就失败即拒绝：OpenCode 会整份丢弃无法解析的文档，此时
+        deny-all 根本不生效，继续生成等于带着未知权限跑工具——旧实现原样
+        放过并只记告警，等于默认放行。"""
+        broken = '{"permission": {"*": "allow"}'
         with (
             patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
             patch.object(llm, "_opencode_cli_major_version", return_value=2),
-            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": "not json"}),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": broken}),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            response = llm._generate_response("write something")
+
+        self.assertTrue(response.startswith("Error: "))
+        self.assertIn("cannot establish the deny-all tool boundary", response)
+        self.assertIn("OPENCODE_CONFIG_CONTENT", response)
+        # 失败即拒绝：子进程根本不会被启动。
+        run.assert_not_called()
+
+    def test_v2_accepts_jsonc_config_content_with_comments_and_trailing_comma(self):
+        """2.x 用 jsonc-parser（allowTrailingComma）解析该变量，注释与尾逗号
+        都是合法输入；Python 的 json 解析器拒绝这些写法，旧实现因此会把一份
+        OpenCode 实际上会接受的许可配置原样放过。"""
+        existing = (
+            "{\n"
+            "  // 用户自己的 provider 设置\n"
+            '  "provider": {"openai": {"options": {}}}, /* 行内注释 */\n'
+            '  "permission": {"*": "allow"},\n'
+            "}\n"
+        )
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": existing}),
             patch.object(
                 llm.subprocess,
                 "run",
@@ -2463,8 +2694,175 @@ class TestOpenCodeCliProvider(unittest.TestCase):
         ):
             llm._generate_response("write something")
 
-        env = run.call_args.kwargs["env"]
-        self.assertEqual(env.get("OPENCODE_CONFIG_CONTENT"), "not json")
+        document = json.loads(run.call_args.kwargs["env"]["OPENCODE_CONFIG_CONTENT"])
+        self.assertIn("provider", document)
+        self.assertEqual(document["permission"], {"*": "deny"})
+
+    def test_v2_deny_all_rule_goes_last_in_every_rule_list(self):
+        """上游判定是 findLast，规则位置直接决定权限：normalize 按
+        tools → permission → permissions 拼接，agent 插件又把 agent 级
+        permissions 追在配置级之后，所以原生列表与 agent 级列表都要把
+        deny-all 追加到末尾，否则用户的 allow 规则会盖过 deny。"""
+        existing = json.dumps(
+            {
+                "tools": {"shell": True},
+                "permissions": [
+                    {"action": "shell", "resource": "*", "effect": "allow"}
+                ],
+                "agents": {
+                    "build": {
+                        "permissions": [
+                            {"action": "read", "resource": "*", "effect": "allow"}
+                        ]
+                    }
+                },
+            }
+        )
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": existing}),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        document = json.loads(run.call_args.kwargs["env"]["OPENCODE_CONFIG_CONTENT"])
+        self.assertEqual(document["permission"], {"*": "deny"})
+        self.assertEqual(document["permissions"][-1], llm.OPENCODE_DENY_ALL_RULE)
+        self.assertEqual(
+            document["agents"]["build"]["permissions"][-1], llm.OPENCODE_DENY_ALL_RULE
+        )
+
+    def test_v2_legacy_agent_and_mode_blocks_get_deny_all_permission(self):
+        """legacy 的 `agent` / `mode` 条目用 `permission` 键表达工具权限，
+        迁移后成为该 agent 的规则；同样写成 deny-all，使其落在列表末尾。"""
+        existing = json.dumps(
+            {
+                "agent": {"build": {"tools": {"bash": True}}},
+                "mode": {"plan": {"permission": {"edit": "allow"}}},
+            }
+        )
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": existing}),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            llm._generate_response("write something")
+
+        document = json.loads(run.call_args.kwargs["env"]["OPENCODE_CONFIG_CONTENT"])
+        self.assertEqual(document["agent"]["build"]["permission"], {"*": "deny"})
+        self.assertEqual(document["mode"]["plan"]["permission"], {"*": "deny"})
+
+    def test_v2_declared_plugins_fail_closed(self):
+        """插件可以挂钩权限判定（PluginHooks 的 permission.evaluate 能改写
+        结果），因此配置里声明插件时 deny-all 不再是可信边界，必须失败即拒绝。"""
+        existing = json.dumps({"plugins": ["./enforce.js"]})
+        with (
+            patch.object(llm.shutil, "which", return_value="/usr/local/bin/opencode"),
+            patch.object(llm, "_opencode_cli_major_version", return_value=2),
+            patch.dict(os.environ, {"OPENCODE_CONFIG_CONTENT": existing}),
+            patch.object(
+                llm.subprocess,
+                "run",
+                return_value=self._completed(stdout=self._text_events("ok")),
+            ) as run,
+        ):
+            response = llm._generate_response("write something")
+
+        self.assertIn("cannot establish the deny-all tool boundary", response)
+        self.assertIn("plugins", response)
+        run.assert_not_called()
+
+    # ------------------------------------- 2.x 权限边界（真实 CLI 进程验证）
+    def _write_opencode_cli_stub(self):
+        """写入一个可执行的真实 CLI 桩，复现 2.x 的配置归一化与 findLast 判定。"""
+        if os.name == "nt":
+            self.skipTest("the stub CLI needs a POSIX shebang")
+        directory = tempfile.TemporaryDirectory(prefix="opencode-stub-")
+        self.addCleanup(directory.cleanup)
+        stub = os.path.join(directory.name, "opencode")
+        with open(stub, "w", encoding="utf-8") as handle:
+            handle.write(OPENCODE_CLI_STUB)
+        os.chmod(stub, 0o755)
+        return stub, os.path.join(directory.name, "leak.txt")
+
+    def test_v2_cli_process_denies_every_probe_action_end_to_end(self):
+        """端到端：让一个真实 CLI 进程按上游语义判定探针动作。用户配置本身
+        允许 shell / webfetch / read，注入后的文档必须让每个无害探针都判定为
+        deny；桩进程一旦发现未拒绝的动作就写出泄漏哨兵并回传 ALLOWED:...，
+        因此这个用例断言的是有效拒绝，而不只是环境变量的字符串。"""
+        stub, sentinel = self._write_opencode_cli_stub()
+        permissive = (
+            "{\n"
+            "  // 用户已有配置：默认允许工具\n"
+            '  "tools": {"webfetch": true},\n'
+            '  "permissions": [{"action": "shell", "resource": "*", "effect": "allow"}],\n'
+            '  "agents": {"build": {"permissions": '
+            '[{"action": "read", "resource": "*", "effect": "allow"}]}},\n'
+            "}\n"
+        )
+        with (
+            patch.dict(
+                os.environ,
+                {"OPENCODE_CONFIG_CONTENT": permissive, "OPENCODE_STUB_SENTINEL": sentinel},
+            ),
+            patch.dict(config.app, {"opencode_cli_path": stub}),
+        ):
+            response = llm._generate_response("write something")
+
+        self.assertEqual(response, "ok")
+        self.assertFalse(os.path.exists(sentinel))
+
+    def test_v2_stub_cli_reports_allow_for_the_old_top_level_shape(self):
+        """反向用例，保证上面那条端到端断言不是自证：旧实现把整份配置设成
+        `{"*": "deny"}`，而上游只读 permission / permissions，那个形状装不上
+        任何规则，桩进程必须报告放行。"""
+        stub, sentinel = self._write_opencode_cli_stub()
+        with patch.dict(
+            os.environ,
+            {
+                "OPENCODE_CONFIG_CONTENT": llm.OPENCODE_PERMISSION_CONFIG,
+                "OPENCODE_STUB_SENTINEL": sentinel,
+            },
+        ):
+            completed = llm.subprocess.run(
+                [stub, "run", "--format", "json"],
+                input="",
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=60,
+                env={**os.environ},
+            )
+
+        self.assertIn("ALLOWED:", completed.stdout)
+        self.assertTrue(os.path.exists(sentinel))
+
+    def test_v2_default_injection_shape_is_what_makes_the_boundary_hold(self):
+        """默认路径（未设置 OPENCODE_CONFIG_CONTENT）注入的必须是
+        {"permission": {"*": "deny"}}：把常量换回旧的顶层形状后，同一个桩
+        进程立即报告放行——这正是被复现的那个缺陷。"""
+        stub, sentinel = self._write_opencode_cli_stub()
+        with (
+            patch.object(llm, "OPENCODE_V2_CONFIG_CONTENT", '{"*": "deny"}'),
+            patch.dict(os.environ, {"OPENCODE_STUB_SENTINEL": sentinel}),
+            patch.dict(config.app, {"opencode_cli_path": stub}),
+        ):
+            os.environ.pop("OPENCODE_CONFIG_CONTENT", None)
+            response = llm._generate_response("write something")
+
+        self.assertIn("ALLOWED:", response)
+        self.assertTrue(os.path.exists(sentinel))
 
     def test_version_detection_failure_falls_back_to_v1_invocation(self):
         """版本无法识别时按 1.x 的已验证行为处理（--pure + OPENCODE_PERMISSION）；
@@ -2837,10 +3235,8 @@ class TestOpenCodeCliProvider(unittest.TestCase):
         self.assertEqual(command[0], cli)
         if major_version >= 2:
             self.assertNotIn("--pure", command)
-            self.assertEqual(
-                cli_env.get("OPENCODE_CONFIG_CONTENT"),
-                llm.OPENCODE_PERMISSION_CONFIG,
-            )
+            injected = json.loads(cli_env.get("OPENCODE_CONFIG_CONTENT"))
+            self.assertEqual(injected["permission"], {"*": "deny"})
         else:
             self.assertIn("--pure", command)
             self.assertEqual(

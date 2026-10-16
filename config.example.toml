@@ -452,8 +452,12 @@ kimi_code_timeout = ""
 # Model name is a `provider/model` reference listed by `opencode models`, or
 # empty to use the OpenCode default. Leave cli_path empty to resolve `opencode`
 # from PATH. Leave timeout empty to use the 300s default.
-# Every request runs `opencode run` as one-shot text generation with all tools
-# and plugins disabled, in a temporary directory.
+# Every request runs `opencode run` in a temporary directory with all tools
+# denied: 1.x passes `--pure` and sets OPENCODE_PERMISSION, while 2.x injects the
+# same deny-all permission rule through OPENCODE_CONFIG_CONTENT. 2.x removed
+# `--pure` and still loads user-level plugins, and a plugin can rewrite a
+# permission verdict, so generation fails closed when OPENCODE_CONFIG_CONTENT
+# declares plugins or cannot be parsed instead of running with unverified tools.
 opencode_model_name = ""
 opencode_cli_path = ""
 opencode_timeout = ""
