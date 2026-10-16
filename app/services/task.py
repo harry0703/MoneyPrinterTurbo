@@ -123,7 +123,13 @@ def is_task_busy(task: dict | None) -> bool:
     try:
         state = int(state)
     except (TypeError, ValueError):
-        pass
+        # The function's own docstring promises to treat unparseable
+        # states as busy, so the delete API keeps a task that we
+        # cannot reason about. Returning False here would let
+        # delete_video() cancel a task that is still running or
+        # cross-posting whenever an older Redis snapshot or a
+        # legacy call site stored the state as a string.
+        return True
 
     # 视频生成和跨平台发布都可能继续读取任务目录。统一视为忙碌状态，
     # 可以避免 API 与 WebUI 分别维护规则后出现一个允许删除、另一个禁止
