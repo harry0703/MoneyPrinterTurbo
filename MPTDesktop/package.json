@@ -1,69 +1,12 @@
 {
-  "name": "moneyprinterturbo-desktop",
+  "name": "mpt-desktop",
   "version": "1.3.8",
-  "description": "MoneyPrinterTurbo - Generador de videos cortos con IA. Aplicación de escritorio nativa para Windows.",
-  "main": "main.js",
-  "author": "MufLabs",
-  "license": "MIT",
+  "description": "MoneyPrinterTurbo Desktop - Tauri v2 native shell",
   "scripts": {
-    "start": "electron .",
-    "dist": "electron-builder --win"
+    "tauri": "tauri",
+    "build": "tauri build"
   },
   "devDependencies": {
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
-  },
-  "build": {
-    "appId": "com.muflabs.moneyprinterturbo",
-    "productName": "MoneyPrinterTurbo",
-    "directories": {
-      "output": "release",
-      "buildResources": "assets"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "splash.html",
-      "assets/icon.ico",
-      "assets/icon.png"
-    ],
-    "extraResources": [
-      {
-        "from": "resources/backend/MoneyPrinterTurboServer",
-        "to": "mpt-backend"
-      },
-      {
-        "from": "resources/ffmpeg",
-        "to": "ffmpeg"
-      }
-    ],
-    "win": {
-      "icon": "assets/icon.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "shortcutName": "MoneyPrinterTurbo"
-    },
-    "portable": {
-      "artifactName": "${productName}-${version}-portable.${ext}"
-    }
+    "@tauri-apps/cli": "^2.5.0"
   }
 }

@@ -9,21 +9,18 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: transparent;
+      background: linear-gradient(160deg, #3d30c7 0%, #9333ea 100%);
       font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: #ffffff;
     }
-    .card {
+    .wrap {
       width: 100%;
       height: 100%;
-      background: linear-gradient(160deg, #3d30c7 0%, #9333ea 100%);
-      border-radius: 18px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 22px;
-      color: #ffffff;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
     }
     .logo {
       width: 96px;
@@ -36,16 +33,8 @@
       justify-content: center;
     }
     .logo svg { width: 56px; height: 56px; }
-    h1 {
-      font-size: 22px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-    }
-    .status {
-      font-size: 13px;
-      opacity: 0.85;
-      min-height: 18px;
-    }
+    h1 { font-size: 22px; font-weight: 600; letter-spacing: 0.5px; }
+    .status { font-size: 13px; opacity: 0.85; min-height: 18px; }
     .spinner {
       width: 34px;
       height: 34px;
@@ -58,7 +47,7 @@
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="wrap">
     <div class="logo">
       <svg viewBox="0 0 24 24" fill="#ffffff">
         <path d="M8 5v14l11-7z" />
@@ -66,14 +55,13 @@
     </div>
     <h1>MoneyPrinterTurbo</h1>
     <div class="spinner"></div>
-    <div class="status" id="status">Iniciando...</div>
+    <div class="status" id="status">Reservando puerto local...</div>
   </div>
   <script>
-    const { ipcRenderer } = require("electron");
-    const el = document.getElementById("status");
-    ipcRenderer.on("backend-status", (_event, message) => {
-      el.textContent = message;
-    });
+    window.MPT_setStatus = function (text) {
+      var el = document.getElementById("status");
+      if (el) { el.textContent = text; }
+    };
   </script>
 </body>
 </html>
