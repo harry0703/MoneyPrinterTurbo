@@ -267,6 +267,58 @@ def text_to_srt(idx: int, msg: str, start_time: float, end_time: float) -> str:
     return srt
 
 
+def format_arabic_text(text: str) -> str:
+    if not text:
+        return text
+    try:
+        import re
+        import unicodedata
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+
+        arabic_pattern = re.compile(
+            r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]"
+        )
+        if not arabic_pattern.search(text):
+            return text
+
+        reshaper = arabic_reshaper.ArabicReshaper(
+            configuration={
+                "delete_harakat": False,
+                "support_ligatures": True,
+                "shift_harakat_position": True,
+                "arabic ligature allah": False,
+            }
+        )
+
+        lines = text.split("\n")
+        formatted_lines = []
+        for line in lines:
+            if arabic_pattern.search(line):
+                reshaped = reshaper.reshape(line)
+                bidi_line = get_display(reshaped)
+                # If a line mistakenly starts with combining marks (harakat),
+                # attach them to the immediately following base character
+                chars = list(bidi_line)
+                n = len(chars)
+                if chars and unicodedata.category(chars[0]) in ("Mn", "Me"):
+                    i = 0
+                    marks = []
+                    while i < n and unicodedata.category(chars[i]) in ("Mn", "Me"):
+                        marks.append(chars[i])
+                        i += 1
+                    if i < n:
+                        base = chars[i]
+                        chars = [base] + marks + chars[i + 1 :]
+                        bidi_line = "".join(chars)
+                formatted_lines.append(bidi_line)
+            else:
+                formatted_lines.append(line)
+        return "\n".join(formatted_lines)
+    except Exception:
+        return text
+
+
 def str_contains_punctuation(word):
     for p in const.PUNCTUATIONS:
         if p in word:
