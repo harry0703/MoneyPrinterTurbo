@@ -374,7 +374,7 @@ docker compose -f docker-compose.release.yml up
 
 > API はデフォルトで同一オリジンのブラウザーアクセスのみを許可します。別のブラウザーフロントエンドから API を直接呼び出す場合に限り、環境変数 `CORS_ALLOWED_ORIGINS` へ信頼するオリジンを設定してください（例: `http://localhost:3000,https://frontend.example.com`）。curl、Postman、n8n、その他のサーバー側クライアントは CORS の影響を受けません。
 
-> オプションのレート制限と攻撃パターンのブロック: [fastapi-guard](https://github.com/Guard-Core/fastapi-guard) はアプリに同梱されています（Docker イメージを含む）。`config.toml` の `[guard]` で `enabled = true` に設定します。デフォルトは無効で、無効のときは何も読み込まれません。有効にするとクライアント IP ごとに制限し（`rate_limit_window` 秒あたり `rate_limit` 件）、URL パス、クエリ文字列、ヘッダー内の攻撃パターンをブロックします。台本やプロンプトなどのリクエストボディは `scan_body = true` を設定した場合のみスキャンされます。`X-Forwarded-For` は `trusted_proxies`（デフォルトはループバックのみ）のピアからのものだけが信頼されます。リバースプロキシや Docker の背後ではプロキシのアドレスを追加してください。追加しないと全クライアントが 1 つのレート制限枠を共有します。ガードによる拒否レスポンスにも CORS ヘッダーが付きます。
+> オプションのレート制限と攻撃パターンのブロック: [fastapi-guard](https://github.com/Guard-Core/fastapi-guard) はアプリに同梱されています（Docker イメージを含む）。`config.toml` の `[guard]` で `enabled = true` に設定します。デフォルトは無効で、無効のときは何も読み込まれません。有効にするとクライアント IP ごとに制限し（`rate_limit_window` 秒あたり `rate_limit` 件）、URL パス、クエリ文字列、ヘッダー内の攻撃パターンをブロックします（`ssrf` を除くすべての検出カテゴリ。ブラウザはページのアドレスを `Referer` として送り、guard-core 4.4.0 はその中の localhost や LAN アドレスを ssrf と判定するためです）。台本やプロンプトなどのリクエストボディは `scan_body = true` を設定した場合のみスキャンされます。`X-Forwarded-For` は `trusted_proxies`（デフォルトはループバックのみ）のピアからのものだけが信頼されます。リバースプロキシや Docker の背後ではプロキシのアドレスを追加してください。追加しないと全クライアントが 1 つのレート制限枠を共有します。ガードによる拒否レスポンスにも CORS ヘッダーが付きます。
 
 ### 手動でデプロイ 📦
 

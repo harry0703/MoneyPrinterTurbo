@@ -264,6 +264,7 @@ def configure_security_guard(instance: FastAPI, guard_config: dict) -> None:
 
     try:
         from guard import PureASGISecurityMiddleware, SecurityConfig
+        from guard_core.handlers.suspatterns_handler import ALL_DETECTION_CATEGORIES
     except ImportError as exc:
         raise RuntimeError(
             "[guard] enabled = true requires fastapi-guard; "
@@ -282,6 +283,8 @@ def configure_security_guard(instance: FastAPI, guard_config: dict) -> None:
             trusted_proxies=guard_config.get("trusted_proxies", ["127.0.0.1", "::1"]),
             # Scripts and prompts are free text; scanning them yields false positives.
             detection_scan_body=guard_config.get("scan_body", False),
+            # Browsers send the page address as Referer, and guard-core 4.4.0 flags localhost and LAN addresses in it as ssrf.
+            enabled_detection_categories=frozenset(ALL_DETECTION_CATEGORIES) - {"ssrf"},
         ),
     )
     logger.info("fastapi-guard security middleware is enabled")

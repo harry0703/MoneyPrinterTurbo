@@ -97,6 +97,29 @@ class TestASGISecurityGuard(unittest.TestCase):
         self.assertEqual(body.status_code, 200)
         self.assertEqual(query.status_code, 400)
 
+    def test_localhost_and_lan_referers_are_not_blocked(self):
+        application = self._create_app({"enabled": True, "rate_limit": 100})
+
+        for referer in (
+            "http://localhost:8501/",
+            "http://127.0.0.1:8501/",
+            "http://192.168.1.20:8501/",
+        ):
+            with self.subTest(referer=referer):
+                client = TestClient(application, client=(_fresh_ip(), 50000))
+                response = client.get("/probe", headers={"Referer": referer})
+                self.assertEqual(response.status_code, 200)
+
+    def test_attack_in_referer_is_still_blocked(self):
+        application = self._create_app({"enabled": True, "rate_limit": 100})
+        client = TestClient(application, client=(_fresh_ip(), 50000))
+
+        response = client.get(
+            "/probe", headers={"Referer": "<script>alert(1)</script>"}
+        )
+
+        self.assertEqual(response.status_code, 400)
+
     def test_body_scan_is_an_explicit_opt_in(self):
         application = self._create_app(
             {"enabled": True, "rate_limit": 100, "scan_body": True}
