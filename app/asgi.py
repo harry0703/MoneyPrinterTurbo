@@ -251,6 +251,55 @@ def configure_browser_access(instance: FastAPI, allowed_origins: list[str]) -> N
     configure_cors(instance, allowed_origins)
 
 
+def configure_security_guard(instance: FastAPI, guard_config: dict) -> None:
+    """Opt-in fastapi-guard screening: rate limiting and attack-pattern detection.
+
+    Disabled by default; when off nothing is imported or added. The pure ASGI
+    variant is used so generated videos still stream and long requests are not
+    cancelled on client disconnect.
+    """
+
+    if not guard_config.get("enabled", False):
+        return
+
+    try:
+        from guard import PureASGISecurityMiddleware, SecurityConfig
+    except ImportError as exc:
+        raise RuntimeError(
+            "[guard] enabled = true requires fastapi-guard; "
+            "reinstall the dependencies (uv sync or pip install -r requirements.txt)"
+        ) from exc
+
+    instance.add_middleware(
+        PureASGISecurityMiddleware,
+        config=SecurityConfig(
+            enable_redis=False,
+            enable_ip_banning=False,
+            rate_limit=guard_config.get("rate_limit", 100),
+            rate_limit_window=guard_config.get("rate_limit_window", 60),
+            # X-Forwarded-For is honored only from these peers (default: loopback),
+            # so a spoofed header from any other client cannot dodge the limits.
+            trusted_proxies=guard_config.get("trusted_proxies", ["127.0.0.1", "::1"]),
+            # Scripts and prompts are free text; scanning them yields false positives.
+            detection_scan_body=guard_config.get("scan_body", False),
+        ),
+    )
+    logger.info("fastapi-guard security middleware is enabled")
+
+
+def configure_middleware(
+    instance: FastAPI, allowed_origins: list[str], guard_config: dict
+) -> None:
+    """Register the guard before the browser-access layers.
+
+    Starlette runs the last registered middleware first, so CORS stays the
+    outermost layer and 429/403 guard rejections still carry CORS headers.
+    """
+
+    configure_security_guard(instance, guard_config)
+    configure_browser_access(instance, allowed_origins)
+
+
 def get_application() -> FastAPI:
     """Initialize FastAPI application.
 
@@ -298,7 +347,7 @@ async def protect_generated_task_files(request: Request, call_next):
 cors_allowed_origins = parse_cors_allowed_origins(
     os.getenv("CORS_ALLOWED_ORIGINS", "")
 )
-configure_browser_access(app, cors_allowed_origins)
+configure_middleware(app, cors_allowed_origins, config.guard)
 
 task_dir = utils.task_dir()
 app.mount("/tasks", StaticFiles(directory=task_dir, html=True), name="")

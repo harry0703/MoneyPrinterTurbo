@@ -407,6 +407,8 @@ Open your browser and visit http://127.0.0.1:8080/docs or http://127.0.0.1:8080/
 
 > The API allows same-origin browser access by default. Set the `CORS_ALLOWED_ORIGINS` environment variable only when a separate browser frontend must call the API directly from another origin, for example `http://localhost:3000,https://frontend.example.com`. CORS does not affect curl, Postman, n8n, or other server-side clients.
 
+> Optional rate limiting and attack-pattern blocking: [fastapi-guard](https://github.com/Guard-Core/fastapi-guard) ships with the app (including the Docker images); just set `enabled = true` under `[guard]` in `config.toml`. It is off by default and adds nothing when off. It limits requests per client IP (`rate_limit` per `rate_limit_window` seconds) and blocks attack patterns in the URL path, query string and headers; request bodies such as scripts and prompts are scanned only if you set `scan_body = true`. `X-Forwarded-For` is trusted only from `trusted_proxies` (loopback by default). Behind a reverse proxy or Docker, add the proxy address there, or all clients share one rate-limit bucket. Guard rejections still carry CORS headers.
+
 ### Manual Deployment 📦
 
 #### ① Create a Python Virtual Environment
