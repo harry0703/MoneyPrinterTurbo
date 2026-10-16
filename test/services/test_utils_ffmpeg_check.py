@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import unittest
@@ -62,6 +63,36 @@ class TestCheckFfmpegReady(unittest.TestCase):
         warning.assert_called_once()
         self.assertIn("failed to probe ffmpeg", warning.call_args.args[0])
 
+
+
+class TestGetFfmpegBinaryEnvExpansion(unittest.TestCase):
+    """Verify get_ffmpeg_binary() expands the IMAGEIO_FFMPEG_EXE value."""
+
+    def test_expands_user_home(self):
+        with patch.dict(os.environ, {"IMAGEIO_FFMPEG_EXE": "~/bin/ffmpeg"}):
+            self.assertEqual(
+                utils.get_ffmpeg_binary(),
+                os.path.expanduser("~/bin/ffmpeg"),
+            )
+
+    def test_expands_environment_variable(self):
+        with patch.dict(
+            os.environ,
+            {"IMAGEIO_FFMPEG_EXE": "${FFMPEG_BIN}/ffmpeg", "FFMPEG_BIN": "/opt/ffmpeg"},
+        ):
+            self.assertEqual(
+                utils.get_ffmpeg_binary(),
+                "/opt/ffmpeg/ffmpeg",
+            )
+
+    def test_absolute_path_is_unchanged(self):
+        with patch.dict(
+            os.environ, {"IMAGEIO_FFMPEG_EXE": "/usr/local/bin/ffmpeg"}
+        ):
+            self.assertEqual(
+                utils.get_ffmpeg_binary(),
+                "/usr/local/bin/ffmpeg",
+            )
 
 if __name__ == "__main__":
     unittest.main()
