@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from loguru import logger
 
+from app import paths
 from app.models import const
 
 
@@ -87,7 +88,7 @@ def normalize_clip_speed(value, default: float = 1.0) -> float:
 
 
 def root_dir():
-    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+    return str(paths.runtime_root())
 
 
 def storage_dir(sub_dir: str = "", create: bool = False):
@@ -101,10 +102,7 @@ def storage_dir(sub_dir: str = "", create: bool = False):
 
 
 def resource_dir(sub_dir: str = ""):
-    d = os.path.join(root_dir(), "resource")
-    if sub_dir:
-        d = os.path.join(d, sub_dir)
-    return d
+    return str(paths.resource_directory(sub_dir))
 
 
 def task_dir(sub_dir: str = ""):
@@ -536,7 +534,7 @@ def load_locales(i18n_dir):
         for file in files:
             if file.endswith(".json"):
                 lang = file.split(".")[0]
-                with open(os.path.join(root, file), "r", encoding="utf-8") as f:
+                with open(os.path.join(root, file), "r", encoding="utf-8-sig") as f:
                     _locales[lang] = json.loads(f.read())
     return _locales
 

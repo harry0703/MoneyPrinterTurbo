@@ -273,8 +273,9 @@ All examples below were generated with MoneyPrinterTurbo.
 ### Recommended Paths
 
 - If you do not want to install or configure the project manually: generate videos with an AI Agent
+- If you already have Python and want a direct installation: [install the official package with pip](#install-the-official-package-with-pip)
 - Windows users: use the one-click package first for the fastest local trial
-- macOS / Linux users: use `uv` for the primary local setup path
+- For source deployment or development: use `uv` to manage the environment and dependencies
 - If you want a more isolated runtime: use Docker deployment
 
 ### Generate Videos with an AI Agent
@@ -313,7 +314,56 @@ Use the local setup or Docker instructions below.
 
 ## Installation & Deployment 📥
 
-### Prerequisites
+### Install the Official Package with pip
+
+The official PyPI package is **[mpt](https://pypi.org/project/mpt/)**,
+maintained by `harry0703`. The `MoneyPrinterTurbo` package on PyPI is maintained by a third party.
+
+No repository clone is needed. Requires Python 3.11 or later; Python 3.11 is recommended.
+
+**① Create and activate a virtual environment**
+
+macOS / Linux:
+
+```shell
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**② Install and start**
+
+```shell
+python -m pip install mpt
+mpt webui
+```
+
+The WebUI opens in your browser automatically. Use `mpt webui --port 8503 --headless`
+to select a port without opening a browser. For CLI video generation, see `mpt cli --help`.
+
+**③ Configure services and find your files**
+
+The application creates `config.toml` on first launch. Add the required API keys
+for online models, footage, or speech services in the WebUI basic settings.
+The installed application stores configuration and generated files here by default:
+
+| System | Data directory |
+| --- | --- |
+| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
+| Linux | `~/.local/share/MoneyPrinterTurbo`, or `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+
+Set `MPT_HOME` before launch to choose another directory. Generated videos are under
+`storage/tasks` in that directory. To upgrade, activate your virtual environment and
+run `python -m pip install --upgrade mpt`.
+
+### Source Deployment Prerequisites
 
 - Local deployment requires Python 3.11 or later
 - On Windows, avoid project paths containing non-ASCII characters, special characters, or spaces

@@ -325,6 +325,12 @@ anthropic_model_name = ""
 gemini_api_key = ""
 gemini_model_name = ""
 
+# Muse Spark (Meta Model API, OpenAI Chat Completions-compatible).
+# API key: https://dev.meta.ai/docs/authentication
+muse_spark_api_key = ""
+muse_spark_base_url = ""
+muse_spark_model_name = ""
+
 # DeepSeek
 # API key: https://platform.deepseek.com/api_keys
 deepseek_api_key = ""
