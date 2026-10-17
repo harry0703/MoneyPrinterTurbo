@@ -155,7 +155,13 @@ def get_ffmpeg_binary() -> str:
     """
     configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
     if configured_ffmpeg:
-        return configured_ffmpeg
+        # Expand the home-directory shorthand ("~") and any
+        # environment-variable references ("$VAR" / "${VAR}") before
+        # handing the value to subprocess. The check_ffmpeg_ready
+        # probe and every FFmpeg call would otherwise fail on the
+        # first run for any user who set the variable to a path
+        # under their home directory. Absolute paths are unaffected.
+        return os.path.expanduser(os.path.expandvars(configured_ffmpeg))
 
     system_ffmpeg = shutil.which("ffmpeg")
     if system_ffmpeg:
