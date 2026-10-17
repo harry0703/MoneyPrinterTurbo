@@ -629,6 +629,9 @@ rate_limit_window = 60
 # otherwise every client shares the proxy's IP and one rate-limit bucket.
 # 只有这些对端可以设置 X-Forwarded-For，默认仅信任本机回环地址。
 # 位于反向代理或 Docker 之后时，请填写代理地址。
+# main.py starts Uvicorn with the same trust: an empty list turns proxy headers off, a
+# list is passed as forwarded_allow_ips. If you run `uvicorn` yourself, pass
+# --no-proxy-headers or a matching --forwarded-allow-ips; FORWARDED_ALLOW_IPS must not widen it.
 trusted_proxies = ["127.0.0.1", "::1"]
 # Also scan request bodies (video scripts, prompts) for attack patterns. Off by
 # default because free text produces false positives; the URL path, query

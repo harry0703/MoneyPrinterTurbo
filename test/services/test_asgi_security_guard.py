@@ -1,14 +1,29 @@
+import asyncio
 import itertools
+import json
+import runpy
+import socket
+import threading
+import time
+from pathlib import Path
 import unittest
+from http.client import HTTPConnection
 from unittest.mock import patch
 
+import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from guard_core.handlers import ratelimit_handler
+from guard.adapters import StarletteGuardResponse
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import Response
 
 from app import asgi
+from app.config import config
+from app.router import root_api_router
 
 ORIGIN = "https://frontend.example"
+ROOT_DIR = Path(__file__).resolve().parents[2]
 # guard-core keeps rate-limit counters process-wide, so every test uses fresh IPs.
 _ips = itertools.count(1)
 
@@ -164,6 +179,168 @@ class TestASGISecurityGuard(unittest.TestCase):
         self.assertEqual(
             names[1:], ["BaseHTTPMiddleware", "PureASGISecurityMiddleware"]
         )
+
+
+class TestGuardRejectionsUseProjectJsonFormat(unittest.TestCase):
+    """Guard rejections use the same JSON shape as the project's API errors."""
+
+    @staticmethod
+    def _api(guard_config: dict) -> TestClient:
+        application = FastAPI()
+        application.include_router(root_api_router)
+        asgi.configure_middleware(application, [], guard_config)
+        return TestClient(application, client=(_fresh_ip(), 50000))
+
+    def test_rate_limit_on_tasks_endpoint_is_json(self):
+        client = self._api({"enabled": True, "rate_limit": 1})
+
+        client.get("/api/v1/tasks")
+        limited = client.get("/api/v1/tasks")
+
+        self.assertEqual(limited.status_code, 429)
+        self.assertTrue(limited.headers["content-type"].startswith("application/json"))
+        self.assertEqual(limited.json(), {"status": 429, "message": "Too many requests"})
+
+    def test_attack_payload_is_json_400(self):
+        client = self._api({"enabled": True})
+
+        blocked = client.get("/api/v1/tasks", params={"q": "<script>alert(1)</script>"})
+
+        self.assertEqual(blocked.status_code, 400)
+        self.assertTrue(blocked.headers["content-type"].startswith("application/json"))
+        self.assertEqual(blocked.json()["status"], 400)
+        self.assertTrue(blocked.json()["message"])
+
+    def test_every_guard_status_is_converted_and_keeps_its_headers(self):
+        for status in (400, 401, 403, 413, 415, 429, 503):
+            with self.subTest(status=status):
+                original = StarletteGuardResponse(
+                    Response("Denied", status, {"Retry-After": "5"}, "text/plain")
+                )
+                converted = asyncio.run(asgi.json_error_response(original))
+                self.assertEqual(converted.status_code, status)
+                self.assertEqual(
+                    converted.headers["content-type"], "application/json"
+                )
+                self.assertEqual(converted.headers["retry-after"], "5")
+                self.assertEqual(
+                    json.loads(converted.body),
+                    {"status": status, "message": "Denied"},
+                )
+
+    def test_application_responses_are_left_alone(self):
+        for response in (
+            Response("ok", 200, media_type="text/plain"),
+            Response('{"a": 1}', 404, media_type="application/json"),
+        ):
+            wrapped = StarletteGuardResponse(response)
+            self.assertIs(asyncio.run(asgi.json_error_response(wrapped)), wrapped)
+
+
+class TestUvicornProxyOptions(unittest.TestCase):
+    def test_disabled_guard_leaves_uvicorn_defaults(self):
+        self.assertEqual(config.uvicorn_proxy_options({}), {})
+        self.assertEqual(
+            config.uvicorn_proxy_options({"enabled": False, "trusted_proxies": []}), {}
+        )
+
+    def test_no_trusted_proxies_turns_proxy_headers_off(self):
+        self.assertEqual(
+            config.uvicorn_proxy_options({"enabled": True, "trusted_proxies": []}),
+            {"proxy_headers": False},
+        )
+
+    def test_trusted_proxies_are_passed_to_uvicorn(self):
+        self.assertEqual(
+            config.uvicorn_proxy_options({"enabled": True}),
+            {"forwarded_allow_ips": "127.0.0.1,::1"},
+        )
+        self.assertEqual(
+            config.uvicorn_proxy_options(
+                {"enabled": True, "trusted_proxies": ["10.0.0.0/8", "192.0.2.7"]}
+            ),
+            {"forwarded_allow_ips": "10.0.0.0/8,192.0.2.7"},
+        )
+
+    def test_wildcard_proxy_logs_a_warning(self):
+        for wildcard in ("*", "0.0.0.0/0", "::/0"):
+            with self.subTest(wildcard=wildcard), patch.object(config.logger, "warning") as warn:
+                options = config.uvicorn_proxy_options(
+                    {"enabled": True, "trusted_proxies": [wildcard]}
+                )
+                warn.assert_called_once()
+                self.assertEqual(options, {"forwarded_allow_ips": wildcard})
+
+    def test_main_passes_the_options_to_uvicorn(self):
+        options = {"proxy_headers": False}
+        with (
+            patch.object(config, "uvicorn_proxy_options", return_value=options),
+            patch("uvicorn.run") as run_server,
+        ):
+            runpy.run_path(str(ROOT_DIR / "main.py"), run_name="__main__")
+
+        self.assertIs(run_server.call_args.kwargs["proxy_headers"], False)
+
+
+class TestRealUvicornProxyHeaders(unittest.TestCase):
+    """TestClient skips Uvicorn, which rewrites the client from X-Forwarded-For."""
+
+    def _serve(self, guard_config: dict) -> int:
+        # Earlier tests leave counters for 127.0.0.1 in guard-core's process-wide state.
+        ratelimit_handler._by_ip_request_timestamps.clear()
+        ratelimit_handler.RateLimitManager._instance = None
+        application = FastAPI()
+
+        @application.get("/probe")
+        def probe():
+            return {"status": "ok"}
+
+        asgi.configure_middleware(application, [], guard_config)
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        server = uvicorn.Server(
+            uvicorn.Config(
+                application,
+                log_level="error",
+                **config.uvicorn_proxy_options(guard_config),
+            )
+        )
+        thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]})
+        thread.start()
+        self.addCleanup(sock.close)
+        self.addCleanup(thread.join, 10)
+        self.addCleanup(setattr, server, "should_exit", True)
+        deadline = time.time() + 10
+        while not server.started and time.time() < deadline:
+            time.sleep(0.01)
+        self.assertTrue(server.started)
+        return sock.getsockname()[1]
+
+    @staticmethod
+    def _get(port: int, forwarded_for: str) -> int:
+        connection = HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            connection.request("GET", "/probe", headers={"X-Forwarded-For": forwarded_for})
+            return connection.getresponse().status
+        finally:
+            connection.close()
+
+    def test_rotating_forwarded_for_cannot_dodge_the_limit_without_trusted_proxies(self):
+        port = self._serve({"enabled": True, "rate_limit": 2, "trusted_proxies": []})
+
+        codes = [self._get(port, _fresh_ip()) for _ in range(3)]
+
+        self.assertEqual(codes, [200, 200, 429])
+
+    def test_forwarded_for_is_honored_from_a_trusted_proxy(self):
+        port = self._serve(
+            {"enabled": True, "rate_limit": 2, "trusted_proxies": ["127.0.0.1"]}
+        )
+        first, second = _fresh_ip(), _fresh_ip()
+
+        codes = [self._get(port, ip) for ip in (first, first, first, second)]
+
+        self.assertEqual(codes, [200, 200, 429, 200])
 
 
 if __name__ == "__main__":

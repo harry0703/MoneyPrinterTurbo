@@ -251,6 +251,26 @@ def configure_browser_access(instance: FastAPI, allowed_origins: list[str]) -> N
     configure_cors(instance, allowed_origins)
 
 
+async def json_error_response(response):
+    """Give guard rejections (429, 400, 403, ...) the project's JSON error format."""
+
+    from guard.adapters import StarletteGuardResponse
+
+    content_type = response.headers.get("content-type", "")
+    if response.status_code < 400 or not content_type.startswith("text/plain"):
+        return response
+    rejection = JSONResponse(
+        status_code=response.status_code,
+        content=utils.get_response(
+            response.status_code, message=bytes(response.body or b"").decode()
+        ),
+    )
+    for name, value in response.headers.items():
+        if name.lower() not in ("content-type", "content-length"):
+            rejection.headers[name] = value
+    return StarletteGuardResponse(rejection)
+
+
 def configure_security_guard(instance: FastAPI, guard_config: dict) -> None:
     """Opt-in fastapi-guard screening: rate limiting and attack-pattern detection.
 
@@ -280,11 +300,12 @@ def configure_security_guard(instance: FastAPI, guard_config: dict) -> None:
             rate_limit_window=guard_config.get("rate_limit_window", 60),
             # X-Forwarded-For is honored only from these peers (default: loopback),
             # so a spoofed header from any other client cannot dodge the limits.
-            trusted_proxies=guard_config.get("trusted_proxies", ["127.0.0.1", "::1"]),
+            trusted_proxies=config.guard_trusted_proxies(guard_config),
             # Scripts and prompts are free text; scanning them yields false positives.
             detection_scan_body=guard_config.get("scan_body", False),
             # Browsers send the page address as Referer, and guard-core 4.4.0 flags localhost and LAN addresses in it as ssrf.
             enabled_detection_categories=frozenset(ALL_DETECTION_CATEGORIES) - {"ssrf"},
+            custom_response_modifier=json_error_response,
         ),
     )
     logger.info("fastapi-guard security middleware is enabled")
