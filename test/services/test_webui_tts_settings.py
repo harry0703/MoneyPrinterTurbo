@@ -101,6 +101,59 @@ def test_tts_provider_inputs_render_the_standardized_labels():
     assert [str(item.value) for item in app.exception] == []
 
 
+def test_azure_voice_auto_matches_arabic_script_and_respects_manual_override():
+    test_ui = dict(
+        config.ui,
+        voice_mode="tts",
+        tts_server="azure-tts-v1",
+        voice_name="fr-BE-CharlineNeural-Female",
+        video_language="",
+    )
+    azure_voices = [
+        "ar-EG-SalmaNeural-Female",
+        "fr-BE-CharlineNeural-Female",
+    ]
+
+    with (
+        patch.object(config, "ui", test_ui),
+        patch.object(config, "try_save_config", return_value=True),
+        patch.object(voice, "get_all_azure_voices", return_value=azure_voices),
+        patch.object(voice, "get_siliconflow_voices", return_value=[]),
+        patch.object(voice, "get_gemini_voices", return_value=[]),
+        patch.object(voice, "get_mimo_voices", return_value=[]),
+        patch.object(voice, "get_elevenlabs_voices", return_value=[]),
+        patch.object(voice, "get_chatterbox_voices", return_value=[]),
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=30)
+        app.session_state["ui_language"] = "en"
+        app.session_state["video_script"] = "يوم دراسي في تونس"
+        app.run()
+
+        voice_select = _widget_by_key(
+            app.selectbox, "speech_synthesis_select_azure-tts-v1"
+        )
+        assert voice_select.value == "ar-EG-SalmaNeural-Female"
+
+        voice_select.set_value("fr-BE-CharlineNeural-Female").run()
+        voice_select = _widget_by_key(
+            app.selectbox, "speech_synthesis_select_azure-tts-v1"
+        )
+        assert voice_select.value == "fr-BE-CharlineNeural-Female"
+
+        app.session_state["video_script"] = ""
+        app.session_state["video_subject"] = "يوم دراسي في تونس"
+        app.session_state["auto_voice_language_azure-tts-v1_en"] = ""
+        app.session_state[
+            "speech_synthesis_select_azure-tts-v1_en"
+        ] = "fr-BE-CharlineNeural-Female"
+        app.run()
+        voice_select = _widget_by_key(
+            app.selectbox, "speech_synthesis_select_azure-tts-v1"
+        )
+        assert voice_select.value == "ar-EG-SalmaNeural-Female"
+        assert [str(item.value) for item in app.exception] == []
+
+
 def test_voxcpm_settings_render_model_and_endpoint_fields():
     test_config = dict(
         config.voxcpm,

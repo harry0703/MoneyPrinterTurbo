@@ -69,6 +69,32 @@ class TestVoiceService(unittest.TestCase):
             all(v.startswith(("zh-CN", "en-US")) for v in filtered)
         )
 
+    def test_detect_text_language_recognizes_arabic_when_language_is_auto(self):
+        self.assertEqual(vs.detect_text_language("يوم دراسي في تونس"), "ar")
+        self.assertEqual(vs.detect_text_language(text_en), "")
+
+    def test_find_azure_voice_for_language_matches_locale_and_preserves_choice(self):
+        voices = [
+            "ar-AE-FatimaNeural-Female",
+            "ar-EG-SalmaNeural-Female",
+            "fr-BE-CharlineNeural-Female",
+        ]
+        self.assertEqual(
+            vs.find_azure_voice_for_language(
+                voices,
+                "fr-BE-CharlineNeural-Female",
+                "ar-EG",
+            ),
+            "ar-EG-SalmaNeural-Female",
+        )
+        self.assertIsNone(
+            vs.find_azure_voice_for_language(
+                voices,
+                "ar-AE-FatimaNeural-Female",
+                "ar",
+            )
+        )
+
     def test_get_gemini_voices_matches_documented_catalog(self):
         voices = vs.get_gemini_voices()
 
@@ -584,7 +610,7 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(sub_maker.offset[0][0], 0)
         self.assertLess(sub_maker.offset[0][1], sub_maker.offset[1][1])
         self.assertEqual(captured["client_kwargs"], {"api_key": "test-key"})
-        self.assertEqual(captured["model"], "gemini-2.5-flash-preview-tts")
+        self.assertEqual(captured["model"], "gemini-3.8-flash-tts")
         self.assertEqual(captured["contents"], text)
         self.assertEqual(captured["config"].response_modalities, ["AUDIO"])
         voice_config = captured["config"].speech_config.voice_config
