@@ -63,7 +63,7 @@ tls_verify = true
 # -----------------------------------------------------------------------------
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
-# "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "loomloom",
+# "volcengine_seedance", "ofox", "metaso_minimax", "vgenv", "muapi", "loomloom",
 # "openai_image", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
@@ -182,6 +182,19 @@ metaso_minimax_base_url = "https://metaso.cn/api/minimax"
 metaso_minimax_resolution = "2K" # "768P" or "2K"
 metaso_minimax_poll_interval = 10
 metaso_minimax_run_timeout = 1800
+
+# vgenv is an independent MiniMax H3 API service, not MiniMax's official API.
+# Select video_source="vgenv" explicitly and confirm each paid generation in UI/CLI.
+# VGENV_API_KEY is used when this setting is empty. v3 raw mode preserves prompts.
+# A successful video is downloaded before the next paid clip is submitted.
+# Signed output downloads use direct HTTPS with public-address validation;
+# proxy-only networks fail closed so proxy-side DNS cannot bypass the guard.
+vgenv_api_key = ""
+vgenv_base_url = "https://api.vgenv.com"
+vgenv_resolution = "768p" # "480p" or "768p"
+vgenv_tier = "fast" # fast, standard, enhanced, quality
+vgenv_poll_interval = 5
+vgenv_run_timeout = 1800
 
 # OpenAI-compatible text-to-image material source ("openai_image"). Point the
 # base URL at any endpoint that speaks the OpenAI /images/generations protocol:
