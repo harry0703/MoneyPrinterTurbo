@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 import threading
 
 from loguru import logger
@@ -8,6 +9,7 @@ from loguru import logger
 PROJECT_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 )
+_PROJECT_ROOT_IN_MESSAGE_RE = re.compile(re.escape(PROJECT_ROOT) + r"(?![\w.\-])")
 LOG_RECORD_FORMAT = (
     "<green>{time:%Y-%m-%d %H:%M:%S}</> | "
     "<level>{level}</> | "
@@ -132,7 +134,9 @@ def format_log_record(record):
 
     # 日志消息有时会包含任务文件的绝对路径。统一缩短为项目相对路径，可以
     # 避免 WebUI 和终端因初始化入口不同而展示两套内容。
-    record["message"] = record["message"].replace(PROJECT_ROOT, ".")
+    # 只替换完整的项目根路径；`<root>-backup`、`<root>2` 这类同级目录只是
+    # 前缀相同，按子串替换会把它们改成 `.-backup`、`.2` 这样错误的路径。
+    record["message"] = _PROJECT_ROOT_IN_MESSAGE_RE.sub(".", record["message"])
     return LOG_RECORD_FORMAT
 
 

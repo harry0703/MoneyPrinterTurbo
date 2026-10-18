@@ -677,6 +677,30 @@ def test_log_paths_stay_posix_style_on_every_platform():
     assert record["file"].path == "./app/services/task.py"
 
 
+def test_log_messages_shorten_only_the_complete_project_root():
+    """
+    同级目录（如 ``<root>-backup``、``<root>2``）只是与项目根路径前缀相同，
+    不能被改写成 ``.-backup`` 这类错误路径；项目内路径仍应缩短。
+    """
+    root = logging_utils.PROJECT_ROOT
+    record = _log_record(
+        os.path.join(root, "app", "services", "task.py"),
+        message=(
+            f"saved {root}{os.sep}storage{os.sep}a.mp4, "
+            f"backup {root}-backup{os.sep}final.mp4, copy {root}2{os.sep}b.mp4, "
+            f"root {root}"
+        ),
+    )
+
+    logging_utils.format_log_record(record)
+
+    assert record["message"] == (
+        f"saved .{os.sep}storage{os.sep}a.mp4, "
+        f"backup {root}-backup{os.sep}final.mp4, copy {root}2{os.sep}b.mp4, "
+        "root ."
+    )
+
+
 def test_log_paths_on_another_mount_do_not_discard_the_record():
     """
     映射盘或 ``subst`` 盘启动时不能让整条日志消失。
