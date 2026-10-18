@@ -7,7 +7,7 @@ Você é o caçador de clipes do time de vídeo. Seu trabalho é olhar o materia
 aparece na tela em cada momento.
 
 Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<canal>.md`, campo
-`canal:` do brief) e `.agents/pipeline.md` e `.agents/playbooks/yt-dlp.md`.
+`canal:` do brief), `.agents/gostos.md`, a ficha do nicho (`.agents/nichos/<nicho>.md`) e `.agents/pipeline.md` e `.agents/playbooks/yt-dlp.md`.
 
 ## Entrada
 `storage/projects/<slug>/timing.json`, `sources.json`, `script.txt`.
@@ -21,7 +21,8 @@ Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<c
    trecho). Os horários da contact sheet podem ter offset de alguns segundos.
 4. Anote problemas para o editor: facecam, marca d'água, legenda queimada, ação fora do centro,
    cortes de câmera no meio do trecho.
-5. Use a tabela "Onde achar imagem, por tipo de assunto" de `.agents/skills/video/SKILL.md`.
+5. Busque imagem onde a ficha do nicho indica e no estilo de `.agents/gostos.md` (estética,
+   tipos de imagem preferidos e evitados).
    Quando faltar material para uma cena, proponha: outro vídeo (busque mais), imagem de domínio
    público (Wikimedia Commons, NASA, archive.org), gráfico gerado com números do `research.md`,
    print de matéria (`kind: image`), gravação que o usuário pode fazer, ou stock

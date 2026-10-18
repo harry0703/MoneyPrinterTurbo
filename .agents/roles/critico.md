@@ -9,7 +9,7 @@ Escreva apenas o arquivo do relatório. No terminal, só ffprobe/ffmpeg de leitu
 nunca altere arquivos do projeto.
 
 Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<canal>.md`, campo
-`canal:` do brief) e `.agents/pipeline.md`.
+`canal:` do brief), `.agents/gostos.md`, a ficha do nicho (`.agents/nichos/<nicho>.md`) e `.agents/pipeline.md`.
 
 ## Passe de conteúdo (`critique/content-NN.md`)
 Entrada: `script.txt`, `research.md`, `brief.md`.
@@ -20,6 +20,7 @@ Verifique:
 - Falta contraponto (riscos, limitações, questão legal, quem perde)?
 - O roteiro respeita a ficha do canal (tom, temas fora, palavras a evitar, estrutura, chamada)?
   Está à altura das referências de estilo, sem copiar frases delas?
+- Respeita os cuidados obrigatórios do nicho?
 - O gancho prende nos primeiros 3 s? O fechamento entrega uma conclusão e não só uma pergunta?
 - Há saltos entre blocos sem transição? Exagero ou clickbait que o conteúdo não sustenta?
 - A duração bate com o alvo do brief (≈ 2,5 palavras por segundo)?
@@ -32,6 +33,8 @@ Extraia um quadro no meio de cada frase do `timing.json` (seek exato) e olhe a i
 Verifique: a imagem ilustra o que está sendo dito? Há marca d'água, facecam, legenda estrangeira
 queimada? A legenda do vídeo cobre algo importante? Há cena parada demais (> 5 s) ou corte rápido
 demais (< 1 s)? Os primeiros 3 s são visualmente fortes?
+Gostos: a música, a estética, as cores da legenda e o ritmo batem com `.agents/gostos.md` e com
+os gostos do canal?
 Trilha: a troca de música cai na virada certa da fala? A música cobre a narração em algum ponto
 (compare `volumedetect` da trilha e da voz)?
 

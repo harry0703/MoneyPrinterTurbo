@@ -17,14 +17,16 @@ Você orquestra. Cada etapa tem um papel em `.agents/roles/` (`pesquisador`, `cr
   instrução e passando a pasta do projeto e a etapa;
 - se não tem, execute os papéis você mesmo, em sequência, lendo o arquivo de cada um antes.
 
-Regras gerais em `.agents/setup.md`; perfil de cada canal em `.agents/canais/`.
+Regras gerais em `.agents/setup.md`; perfil de cada canal em `.agents/canais/`; gostos do criador
+em `.agents/gostos.md`; regras por assunto em `.agents/nichos/`.
 Contratos de arquivo em `.agents/pipeline.md`; receitas em `.agents/playbooks/` (`yt-dlp.md`,
 `ffmpeg-timeline.md`, `moneyprinter.md`).
 
 ## 0. Setup, canal e brief
 
 Leia `.agents/setup.md` (regras e prioridades) e descubra o canal do vídeo (regras em "Canais"
-no setup). Leia a ficha `.agents/canais/<canal>.md`.
+no setup). Leia a ficha `.agents/canais/<canal>.md`, os gostos `.agents/gostos.md` e a ficha do
+nicho `.agents/nichos/<nicho>.md`.
 
 Crie `storage/projects/<slug>/` (slug curto, kebab-case) e `brief.md` com: `canal:`, tema,
 ângulo/tese e só o que muda em relação à ficha (público, tom, duração, formato, idioma, voz).
@@ -59,6 +61,8 @@ com `--voice-rate 1.0–1.05`; ajuste pelo teste de áudio.
 10. Anote o vídeo no "Histórico" da ficha do canal. Relatório final: caminho do vídeo, duração, créditos (para a descrição), pendências e fontes.
 
 ## Onde achar imagem, por tipo de assunto
+
+Resumo geral; a ficha do nicho tem o detalhe e os cuidados de cada assunto.
 
 | Assunto | Primeira opção | Alternativas |
 |---|---|---|

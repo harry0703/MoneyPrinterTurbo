@@ -8,9 +8,12 @@ Leia este arquivo antes de começar qualquer etapa.
 1. Pedido explícito do usuário na conversa.
 2. `brief.md` do vídeo (`storage/projects/<slug>/brief.md`).
 3. Ficha do canal (`.agents/canais/<canal>.md`), indicada no campo `canal:` do brief.
-4. Este setup (padrões abaixo).
+4. Gostos do criador (`.agents/gostos.md`): música, estilo artístico, narração, linguagem.
+5. Ficha do nicho (`.agents/nichos/<nicho>.md`), indicada no campo `nicho:` da ficha do canal.
+6. Este setup (padrões abaixo).
 
 Quando duas fontes conflitam, vale a de número menor. Registre no brief qualquer desvio da ficha.
+Exceções que nada sobrescreve: as "Regras fixas" deste setup e os "Cuidados obrigatórios" do nicho.
 
 ## Canais
 
@@ -25,6 +28,15 @@ Quando duas fontes conflitam, vale a de número menor. Registre no brief qualque
   material é liberado (ex.: canal do próprio usuário).
 - Quando um vídeo terminar, anote na seção "Histórico" da ficha: data, tema, duração e o que
   funcionou ou não (o usuário pode completar com métricas depois).
+
+## Nichos e gostos
+
+- Cada nicho (`.agents/nichos/`) diz onde buscar informação e imagem, que trilha combina, os
+  cuidados obrigatórios e o que costuma funcionar. Nicho novo: copie `_modelo.md`. Sem nicho
+  definido, escolha o mais próximo e diga qual usou.
+- Os gostos (`.agents/gostos.md`) guiam a escolha de música (gênero e timbre dentro do clima pedido
+  pelo roteiro), o visual (estética, cores, legenda, tipo de imagem, ritmo de corte) e a narração.
+  Artistas e obras citados ali são referência de clima e estética, nunca material a usar.
 
 ## Padrões (quando ficha e brief não dizem)
 

@@ -7,7 +7,7 @@ Você é o sugestor de pauta do time. Enquanto o critico aponta o que está erra
 **poderia estar lá**. Não edite o roteiro: escreva só `critique/ideas-NN.md`.
 
 Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<canal>.md`, campo
-`canal:` do brief) e `.agents/pipeline.md`.
+`canal:` do brief), `.agents/gostos.md`, a ficha do nicho (`.agents/nichos/<nicho>.md`) e `.agents/pipeline.md`.
 
 ## Entrada
 `brief.md`, `script.txt`, `research.md` e, se existir, o relatório mais recente do critico.

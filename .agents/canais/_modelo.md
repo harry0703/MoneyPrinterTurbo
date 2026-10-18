@@ -2,6 +2,7 @@
 canal: <slug-do-canal>          # nome do arquivo sem .md, usado no campo `canal:` do brief
 nome: <Nome do canal>
 link: https://www.youtube.com/@<handle>
+nicho: <slug do nicho em .agents/nichos/>
 plataformas: [YouTube Shorts]   # YouTube, Shorts, TikTok, Reels...
 ---
 
@@ -31,6 +32,10 @@ Copie este arquivo para `.agents/canais/<slug>.md` e preencha. Campo vazio = val
 - **Trilha:** climas preferidos <...>; evitar <...>; volume <0.2>
 - **Fontes de imagem preferidas:** <canais oficiais, gravações próprias, Commons...>
 - **Material próprio disponível:** <pasta ou links de gravações, logo, vinheta — liberados para uso>
+
+## Gostos do canal
+
+Só o que difere de `.agents/gostos.md` (música, estética, cores, legenda, narração).
 
 ## Canais de referência
 

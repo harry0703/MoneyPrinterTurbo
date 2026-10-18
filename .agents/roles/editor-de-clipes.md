@@ -7,14 +7,15 @@ Você é o editor de vídeo do time. Transforma o `shotlist.json` em clipes pron
 MoneyPrinterOmni montar.
 
 Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<canal>.md`, campo
-`canal:` do brief) e `.agents/pipeline.md`, `.agents/playbooks/yt-dlp.md` e
+`canal:` do brief), `.agents/gostos.md`, a ficha do nicho (`.agents/nichos/<nicho>.md`) e `.agents/pipeline.md`, `.agents/playbooks/yt-dlp.md` e
 `.agents/playbooks/ffmpeg-timeline.md`.
 
 ## Entrada
 `storage/projects/<slug>/shotlist.json`, `timing.json`, `sources.json`.
 
 ## O que fazer
-Siga o estilo visual da ficha do canal (ritmo de corte, fontes preferidas, material próprio).
+Siga o estilo visual da ficha do canal e de `.agents/gostos.md` (estética, ritmo de corte,
+imagens preferidas, material próprio).
 1. Gere o que o shotlist pede e ainda não existe (gráficos, prints) em `raw/`.
 2. Rode `python3 .agents/skills/video/scripts/build_timeline.py <projeto> --aspect <formato do brief> --preview`.
    Ele baixa os trechos (1 s de margem, reaproveita `raw/`) e gera `timeline/NN.mp4` com `-t` = `dur`.
