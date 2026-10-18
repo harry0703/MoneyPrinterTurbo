@@ -104,6 +104,24 @@ class TestAPIAuthenticationHTTP(unittest.TestCase):
         self.assertEqual(correct_first.status_code, 401)
         self.assertEqual(wrong_first.status_code, 401)
 
+    def test_unicode_key_authenticates_from_utf8_header_bytes(self):
+        """TOML 支持 Unicode Key；客户端按 UTF-8 发送同一 Key 时必须通过。"""
+
+        config.app["api_key"] = "密钥-é"
+        raw_key = "密钥-é".encode("utf-8")
+
+        accepted = self.client.get("/api/v1/tasks", headers=[(b"x-api-key", raw_key)])
+        wrong = self.client.get(
+            "/api/v1/tasks", headers=[(b"x-api-key", "错误-é".encode("utf-8"))]
+        )
+        task_file = self.client.get(
+            "/tasks/missing/final-1.mp4", headers=[(b"x-api-key", raw_key)]
+        )
+
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(wrong.status_code, 401)
+        self.assertNotEqual(task_file.status_code, 401)
+
 
 if __name__ == "__main__":
     unittest.main()
