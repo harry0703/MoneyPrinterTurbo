@@ -123,7 +123,9 @@ def _duration_bounds() -> tuple[int, int]:
     def read(key: str, default: int) -> int:
         try:
             value = int(config.app.get(key, default))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            # TOML accepts `inf`; int(inf) raises OverflowError, which is not
+            # a provider error and would abort the task with a traceback.
             return default
         return value if value >= 1 else default
 
