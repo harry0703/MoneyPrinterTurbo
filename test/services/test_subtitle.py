@@ -353,6 +353,37 @@ class TestSubtitleService(unittest.TestCase):
         self.assertEqual(items[0][1], "00:00:00,100 --> 00:00:02,000")
         self.assertEqual(items[0][2], "Hello world")
 
+    def test_correct_keeps_next_sentence_cue_when_transcription_drops_words(self):
+        """
+        Whisper 漏掉几个词时，当前句子仍应使用已有时间块，但不能把下一句
+        完全匹配的字幕也合并进来，否则下一句只剩零时长占位。
+        """
+        original_srt = (
+            "1\n00:00:00,000 --> 00:00:02,000\nHello everyone welcome\n\n"
+            "2\n00:00:02,500 --> 00:00:04,000\ntoday we talk\n\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+
+            subtitle.correct(
+                str(subtitle_file),
+                "Hello everyone welcome to the channel, today we talk",
+            )
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+
+        self.assertEqual(
+            [(item[1], item[2]) for item in items],
+            [
+                (
+                    "00:00:00,000 --> 00:00:02,000",
+                    "Hello everyone welcome to the channel",
+                ),
+                ("00:00:02,500 --> 00:00:04,000", "today we talk"),
+            ],
+        )
+
     def test_correct_removes_transcription_after_script_ends(self):
         """Whisper's trailing hallucinations must not appear as final captions."""
         original_srt = (

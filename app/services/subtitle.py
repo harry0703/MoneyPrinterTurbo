@@ -253,6 +253,14 @@ def correct(subtitle_file, video_script):
 
             while next_subtitle_index < len(subtitle_items):
                 next_subtitle = subtitle_items[next_subtitle_index][2].strip()
+                # 下一条字幕与下一句脚本完全一致时，它属于下一句。编辑距离
+                # 偏向长度接近的文本，转写漏词时仍可能“提高”当前相似度，
+                # 继续合并会让下一句只剩零时长占位。
+                if (
+                    script_index + 1 < len(script_lines)
+                    and next_subtitle == script_lines[script_index + 1].strip()
+                ):
+                    break
                 if similarity(
                     script_line, combined_subtitle + " " + next_subtitle
                 ) > similarity(script_line, combined_subtitle):
