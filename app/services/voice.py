@@ -115,10 +115,13 @@ def mktimestamp(time_unit: float) -> str:
     还需要这个格式化函数来兼容 Azure v2、Gemini、SiliconFlow 这些
     手工构造的字幕时间轴，因此这里内置一个等价实现。
     """
-    hour = math.floor(time_unit / 10**7 / 3600)
-    minute = math.floor((time_unit / 10**7 / 60) % 60)
-    seconds = (time_unit / 10**7) % 60
-    return f"{hour:02d}:{minute:02d}:{seconds:06.3f}"
+    # 先统一取整到毫秒再拆分时分秒。直接用 `:06.3f` 格式化取模后的秒数，
+    # 59.9996 秒会显示成 `00:00:60.000`，严格的 SRT 解析器会拒绝该时间戳。
+    total_milliseconds = int(round(time_unit / 10**4))
+    hour, remainder = divmod(total_milliseconds, 3_600_000)
+    minute, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1000)
+    return f"{hour:02d}:{minute:02d}:{seconds:02d}.{milliseconds:03d}"
 
 
 def get_siliconflow_voices() -> list[str]:
