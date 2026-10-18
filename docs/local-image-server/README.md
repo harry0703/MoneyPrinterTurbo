@@ -6,8 +6,8 @@ It exposes the OpenAI `/v1/images/generations` API and runs [RealVisXL V5.0 Ligh
 
 Tested on an RTX 5070 Ti (16 GB):
 
-- about 2.3 s per 832x1216 image
-- about 7 minutes for a 50 s video with 8 scenes, including voice, Whisper subtitles and rendering
+- about 3.9 s per 832x1216 image over HTTP once warm (about 2 s of that is the model itself)
+- 5 to 7 minutes for a 50 s video with 8 scenes, including voice, Whisper subtitles and rendering; the online voiceover accounts for most of the variation
 
 ## Setup
 
@@ -19,9 +19,11 @@ python -m venv .venv
 .venv/Scripts/python server.py
 ```
 
-To run the policy tests from the repo root: `python -m pytest test/services/test_local_image_policy.py` (stdlib only, no GPU needed).
+`uvicorn server:app --port 7861` works the same way: the idle worker starts with the app either way.
 
-The first request downloads the fp16 weights, about 6.6 GB. The server listens on `http://127.0.0.1:7861`.
+The first request downloads the fp16 weights, about 6.6 GB. The server listens on `http://127.0.0.1:7861`. A `size` that isn't `WIDTHxHEIGHT` with positive numbers gets a 422 response.
+
+Tests, from the repo root, with no GPU needed: `python -m pytest test/services/test_local_image_policy.py test/services/test_local_image_server.py`. The server tests run the real HTTP app with a stand-in pipeline and a fake Ollama.
 
 ## config.toml
 
@@ -38,7 +40,13 @@ video_clip_duration = 6
 
 ## Sharing the GPU with Ollama
 
-SDXL needs about 8 GB of VRAM, so a 14B Ollama model and SDXL don't fit on a 16 GB card together. Before generating, the server unloads any running Ollama model. After `IMAGE_IDLE_SECONDS` (90 by default) without a request, it moves SDXL back to the CPU. Ollama then loads normally for the next script.
+Measured on the RTX 5070 Ti: SDXL's weights take 6.7 GB, and painting one 832x1216 image peaks at 10.6 GB allocated. qwen3:14b in Ollama takes 9.0 GB. They don't fit on a 16 GB card together, so the server keeps one of them on the GPU at a time:
+
+- Before every image, it asks Ollama which models are loaded, unloads them, and waits until Ollama reports them gone. This runs on every request, not just the first, because MPT may load the LLM again between images or between back-to-back videos.
+- After each request it releases PyTorch's cached buffers. Without that, the process keeps about 14 GB reserved between images.
+- After `IMAGE_IDLE_SECONDS` (90 by default) without a request, a background worker moves SDXL to the CPU, so Ollama gets the whole GPU for the next script.
+
+The server can't stop Ollama from loading while an image is painting. Running LLM and image work at the same moment isn't supported: the next image request reclaims the GPU, but in the meantime both models share it. On Windows the driver spills the overflow into system memory, which is slow but didn't crash in testing. We haven't tested this case on Linux.
 
 ## Options
 
@@ -47,9 +55,11 @@ SDXL needs about 8 GB of VRAM, so a 14B Ollama model and SDXL don't fit on a 16 
 | `IMAGE_MODEL` | `SG161222/RealVisXL_V5.0_Lightning` | any SDXL repo with fp16 weights |
 | `IMAGE_STEPS` | `6` | |
 | `IMAGE_GUIDANCE` | `1.5` | |
-| `IMAGE_IDLE_SECONDS` | `90` | |
-| `IMAGE_PORT` | `7861` | |
+| `IMAGE_IDLE_SECONDS` | `90` | idle time before SDXL moves to the CPU |
+| `IMAGE_IDLE_CHECK_SECONDS` | `10` | how often the idle worker checks |
+| `IMAGE_PORT` | `7861` | used by `python server.py` |
 | `OLLAMA_URL` | `http://localhost:11434` | |
+| `OLLAMA_UNLOAD_TIMEOUT` | `30` | how long to wait for Ollama to release the GPU |
 | `CONTENT_POLICY` | `policy.toml` | path to a policy file, or `off` |
 
 ## Content policy
