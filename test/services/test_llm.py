@@ -73,6 +73,21 @@ class TestScriptPromptOptions(unittest.TestCase):
         with self.assertRaises(ValueError):
             llm._normalize_text_response("<think>hidden reasoning", "minimax")
 
+    def test_normalize_text_response_removes_reasoning_before_unopened_close(self):
+        """
+        起始 `<think>` 位于对话模板中时，模型输出只包含推理和闭合标签。
+        闭合标签之前的推理不能进入脚本；只有推理时同样按空响应处理。
+        """
+        result = llm._normalize_text_response(
+            "The user wants a sea script. Let me plan.\n</think>\n\n"
+            "The ocean is vast.\n\nIt covers our planet.",
+            "deepseek",
+        )
+
+        self.assertEqual(result, "The ocean is vast.\n\nIt covers our planet.")
+        with self.assertRaises(ValueError):
+            llm._normalize_text_response("hidden reasoning\n</THINK>\n", "ollama")
+
     def test_build_script_prompt_appends_advanced_requirements(self):
         """
         高级文案要求只作为附加约束，不替换默认系统提示词。
