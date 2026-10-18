@@ -3,7 +3,7 @@
 O caminho normal é o script, que aplica os filtros abaixo para 9:16, 16:9 ou 1:1:
 
 ```sh
-python3 .claude/skills/video/scripts/build_timeline.py storage/projects/<slug> --aspect 9:16 --preview
+python3 .agents/skills/video/scripts/build_timeline.py storage/projects/<slug> --aspect 9:16 --preview
 ```
 
 Os filtros manuais abaixo (para 1080x1920) servem para casos que o script não cobre.
@@ -49,7 +49,7 @@ ffmpeg -v error -y -ss <ini> -i <fonte> -t <dur> -an <filtro> \
 ```sh
 for f in timeline/*.mp4; do ffprobe -v error -show_entries format=duration:stream=width,height -of csv=p=0 "$f"; done
 ```
-Some as durações e compare com o áudio. Gere um quadro do meio de cada clipe e olhe com Read.
+Some as durações e compare com o áudio. Gere um quadro do meio de cada clipe e olhe a imagem.
 
 ## Gráficos para temas com dados
 

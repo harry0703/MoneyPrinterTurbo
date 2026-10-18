@@ -38,7 +38,7 @@ um trecho, confirme com seek exato, um quadro por horário:
 ffmpeg -v error -y -ss <seg> -i raw/low_ID.mp4 -frames:v 1 -vf scale=320:180 raw/check_<seg>.png
 ```
 
-Depois abra os PNGs com a ferramenta Read para ver o conteúdo.
+Depois abra os PNGs para ver o conteúdo (requer uma IA que enxergue imagens).
 
 ## Baixar só o trecho em 1080p
 

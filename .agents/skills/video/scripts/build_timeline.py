@@ -17,7 +17,7 @@ kind:
   image   imagem estática (foto, print, gráfico gerado) com zoom lento.
 Aliases antigos: game/vert → fill, gta → window, app → fit com zoom 0.62.
 
---preview monta raw/timeline_preview.png com um quadro de cada clipe para conferir com Read.
+--preview monta raw/timeline_preview.png com um quadro de cada clipe para conferir visualmente.
 """
 
 import argparse

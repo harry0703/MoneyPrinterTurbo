@@ -1,7 +1,8 @@
 # Pipeline de vídeo com time de agentes
 
-Fluxo usado pela skill `/video` (`.claude/skills/video/SKILL.md`), para qualquer assunto. Cada agente lê este arquivo
-e os playbooks em `.agents/playbooks/` antes de começar.
+Fluxo usado pela skill `video` (`.agents/skills/video/SKILL.md`), para qualquer assunto e qualquer
+assistente de IA. Cada papel (`.agents/roles/`) lê este arquivo e os playbooks em
+`.agents/playbooks/` antes de começar — seja executado por um subagente ou pela própria IA, em sequência.
 
 ## Pasta do projeto
 
@@ -24,7 +25,7 @@ storage/projects/<slug>/
 
 ## Etapas
 
-| # | Agente | Entrada | Saída |
+| # | Papel | Entrada | Saída |
 |---|---|---|---|
 | 1 | `pesquisador` | brief.md | research.md, sources.json, rascunho de script.txt |
 | 2 | `critico` | script.txt, research.md | critique/content-NN.md |
@@ -62,7 +63,7 @@ Origem: `url` + `start` (qualquer site do yt-dlp; baixa só o trecho) ou `file` 
 `kind`: `fill` (preenche o quadro cortando; `x`/`y` posicionam), `window` (gravação de janela, tira a
 barra de título), `fit` (conteúdo inteiro sobre fundo desfocado; `zoom` 0–1 amplia o centro — telas,
 slides, documentos, vídeo de orientação diferente), `image` (foto, print ou gráfico com zoom lento).
-Quem gera os clipes é `.claude/skills/video/scripts/build_timeline.py`.
+Quem gera os clipes é `.agents/skills/video/scripts/build_timeline.py`.
 
 ## Regras gerais
 

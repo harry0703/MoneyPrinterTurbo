@@ -32,7 +32,7 @@ Ex.: `en-US-AndrewNeural-Male`, `es-ES-AlvaroNeural-Male`, `pt-BR-FranciscaNeura
 Rode `--stop-at subtitle` com o mesmo texto e velocidade, e converta a legenda:
 
 ```sh
-python3 .claude/skills/video/scripts/srt_to_timing.py storage/tasks/<task_id>/subtitle.srt storage/projects/<slug>/timing.json
+python3 .agents/skills/video/scripts/srt_to_timing.py storage/tasks/<task_id>/subtitle.srt storage/projects/<slug>/timing.json
 ```
 Os cortes de cena caem no início de uma frase; a duração de cada clipe vai do início da
 sua primeira frase até o início da próxima cena.
