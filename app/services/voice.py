@@ -1252,7 +1252,10 @@ def populate_legacy_submaker_with_full_text(
     sub_maker.subs = []
     sub_maker.offset = []
 
-    normalized_text = (text or "").strip()
+    # 与 create_subtitle() 使用同一套脚本清理：`---`、`***` 这类 Markdown
+    # 分隔行不会被朗读，若参与按字符比例分配，会占用一段音频时长，导致
+    # 后续字幕提前出现，或最后一句字幕在音频结束前就消失。
+    normalized_text = utils.normalize_script_for_subtitle_matching(text or "").strip()
     if not normalized_text:
         return sub_maker
 
