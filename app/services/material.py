@@ -878,6 +878,14 @@ def generate_videos_wavespeed(
     try:
         submit_body = submit_response.json()
     except Exception as e:
+        if 400 <= submit_status < 500:
+            # 网关或鉴权层返回的 4xx 可能是纯文本/HTML。4xx 仍是明确拒绝，
+            # 远端没有创建任务，不能误报为“可能已计费”而终止整个任务。
+            logger.error(
+                "wavespeed video generation request rejected: "
+                f"http_status={submit_status}, unreadable body: {type(e).__name__}"
+            )
+            return []
         raise WaveSpeedUnconfirmedTaskError(
             "wavespeed submission returned an unreadable response, the task "
             f"may already exist remotely: error={type(e).__name__}"
