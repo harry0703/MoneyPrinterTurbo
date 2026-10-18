@@ -42,6 +42,7 @@ _CONNECTION_FAILURE_MARKERS = (
 )
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
+_UNOPENED_THINK_BLOCK_RE = re.compile(r"^.*</think\s*>", re.IGNORECASE | re.DOTALL)
 _URL_USERINFO_RE = re.compile(
     r"((?:https?|wss?)://)([^/\s?#@]*:[^/\s?#@]*@)", re.IGNORECASE
 )
@@ -193,6 +194,10 @@ def _normalize_text_response(content, llm_provider: str) -> str:
     # `<think>...</think>` 中返回。视频脚本和关键词只需要最终可朗读文本，
     # 如果不在服务层统一清理，WebUI、字幕和配音都会把思考过程当正文处理。
     content = _THINK_BLOCK_RE.sub("", content)
+    # DeepSeek R1、QwQ 等模型的对话模板会把起始 `<think>` 放进提示词，
+    # vLLM/Ollama 等网关返回的正文只剩 `推理...</think>答案`。成对清理之后
+    # 仍残留的闭合标签之前都是推理内容，也不能进入脚本。
+    content = _UNOPENED_THINK_BLOCK_RE.sub("", content)
     content = _UNCLOSED_THINK_BLOCK_RE.sub("", content).strip()
     if not content:
         raise ValueError(f"[{llm_provider}] returned empty text content")
