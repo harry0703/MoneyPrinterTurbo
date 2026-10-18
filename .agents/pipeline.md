@@ -22,7 +22,13 @@ storage/projects/<slug>/
   shotlist.json     # cena -> vídeo -> trecho (cacador-de-clipes)
   raw/              # downloads (low-res para assistir, 1080p para cortar)
   timeline/NN.mp4   # clipes finais no formato do brief, sem áudio (editor-de-clipes)
-  credits.md        # canal + link de cada trecho usado
+  credits.md        # canal + link de cada trecho usado, e cada música com licença
+  arte.md           # identidade visual do vídeo explicada (diretor-de-arte)
+  arte.json         # parâmetros de legenda, texto na tela e thumbnail
+  audit/            # fatos-NN.md, direitos-NN.md (auditor)
+  aprovacao-NN.md   # pacote de aprovação para o usuário (diretor)
+  publicacao/       # thumb-*.png, thumbs_preview.png, publicacao.md
+  entrega.md        # checklist final e veredito (diretor)
   output/           # vídeo final copiado do storage/tasks/<task_id>/
 ```
 
@@ -30,16 +36,20 @@ storage/projects/<slug>/
 
 | # | Papel | Entrada | Saída |
 |---|---|---|---|
-| 1 | `pesquisador` | brief.md | research.md, sources.json, rascunho de script.txt, music-plan.md |
-| 2 | `critico` | script.txt, research.md | critique/content-NN.md |
-| 3 | `sugestor-de-pauta` | script.txt, research.md, críticas | critique/ideas-NN.md |
-| 4 | `pesquisador` | críticas + sugestões | script.txt revisado (no máximo 2 rodadas de 2–4) |
-| 5 | `montador-mpt` | script.txt, music-plan.md | áudio de teste, timing.json, music.json, bgm.mp3 |
-| 6 | `cacador-de-clipes` | timing.json, sources.json | shotlist.json, raw/ |
-| 7 | `editor-de-clipes` | shotlist.json, timing.json | timeline/NN.mp4, credits.md |
-| 8 | `montador-mpt` | timeline/ | output/final.mp4 |
-| 9 | `critico` (passe visual) | output/final.mp4, timing.json | critique/visual-NN.md |
-| 10 | volta para 6/7 se o critico reprovar o passe visual (no máximo 2 rodadas) | | |
+| 1 | `pesquisador` | brief.md | research.md, sources.json, script.txt, music-plan.md |
+| 2 | `critico` · `sugestor-de-pauta` · `auditor` (fatos) | script.txt, research.md | critique/content-NN.md, critique/ideas-NN.md, audit/fatos-NN.md |
+| 3 | `pesquisador` | críticas, sugestões, auditoria | script.txt revisado (no máximo 2 rodadas de 2–3) |
+| 4 | `diretor-de-arte` | brief, script, music-plan, fichas | arte.md, arte.json |
+| 5 | `diretor` (aprovação) | tudo acima | aprovacao-NN.md → **parada para o usuário** |
+| 6 | `montador-mpt` | script.txt, music-plan.md | áudio de teste, timing.json, music.json, bgm.mp3 |
+| 7 | `cacador-de-clipes` | timing.json, sources.json, arte.md | shotlist.json, raw/ |
+| 8 | `editor-de-clipes` | shotlist.json, arte.json | timeline/NN.mp4, credits.md |
+| 9 | `montador-mpt` | timeline/, bgm.mp3, arte.json | output/final.mp4 |
+| 10 | `critico` (visual) · `auditor` (direitos) | output/final.mp4, shotlist, music.json, credits.md | critique/visual-NN.md, audit/direitos-NN.md |
+| 11 | `designer-de-thumbnail` · `redator-de-publicacao` | timeline/, arte.json, script, credits.md | publicacao/thumb-*.png, publicacao/publicacao.md |
+| 12 | `diretor` (entrega) | tudo | entrega.md (`PRONTO` ou `REFAZER <etapa>`) |
+
+Etapas com `·` rodam em paralelo. Reprovação no 10 volta para 7/8 (no máximo 2 rodadas).
 
 ## Contratos
 
@@ -63,6 +73,7 @@ storage/projects/<slug>/
   "kind": "image", "why": "número citado na fala"}]
 ```
 Origem: `url` + `start` (qualquer site do yt-dlp; baixa só o trecho) ou `file` + `ss` (local).
+Campos opcionais `text` (texto na tela, `\n` quebra linha) e `text_pos` (`top` | `center` | `bottom`).
 `kind`: `fill` (preenche o quadro cortando; `x`/`y` posicionam), `window` (gravação de janela, tira a
 barra de título), `fit` (conteúdo inteiro sobre fundo desfocado; `zoom` 0–1 amplia o centro — telas,
 slides, documentos, vídeo de orientação diferente), `image` (foto, print ou gráfico com zoom lento).
@@ -77,6 +88,20 @@ Quem gera os clipes é `.agents/skills/video/scripts/build_timeline.py`.
   {"start": 34.5, "mood": "amedrontador", "file": "raw/music/Darkest Child.mp3", "ss": 0,
    "title": "Darkest Child", "author": "Kevin MacLeod", "license": "CC BY 4.0"}]}
 ```
+
+`arte.json` (seções opcionais; o que faltar usa os padrões de `scripts/arte.py`; fontes só de
+`resource/fonts/`):
+```json
+{"legenda": {"font_name": "BeVietnamPro-Bold.ttf", "text_fore_color": "#FFFFFF",
+             "stroke_color": "#000000", "stroke_width": 1.5, "position": "bottom",
+             "background": true, "background_color": "#000000"},
+ "texto_na_tela": {"font": "BeVietnamPro-Bold.ttf", "color": "#FFD400", "size": 96,
+                   "box": true, "box_color": "#000000@0.55"},
+ "thumbnail": {"font": "BeVietnamPro-Bold.ttf", "color": "#FFFFFF", "accent": "#FFD400"}}
+```
+O `montador-mpt` traduz `legenda` para `--font-name`, `--text-fore-color`, `--stroke-color`,
+`--stroke-width`, `--subtitle-position`, `--subtitle-background-enabled` e
+`--subtitle-background-color` do `cli.py`.
 
 ## Regras gerais
 

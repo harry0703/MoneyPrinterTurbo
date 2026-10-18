@@ -59,8 +59,11 @@ Exceções que nada sobrescreve: as "Regras fixas" deste setup e os "Cuidados ob
   Nada de música comercial ou trilha de jogo/filme.
 - **Créditos:** `credits.md` lista cada trecho de vídeo e cada música (título, autor, licença, link),
   pronto para colar na descrição.
-- **Paradas obrigatórias:** aprovação do roteiro, da trilha e do plano visual antes de baixar e
-  editar; aviso quando faltar material para uma cena.
+- **Paradas obrigatórias:** o `diretor` leva ao usuário o pacote de aprovação (roteiro, trilha,
+  plano visual e arte) antes de baixar e editar; aviso quando faltar material para uma cena.
+- **Auditoria:** nada chega ao usuário com auditoria de fatos `CORRIGIR`, e nada é entregue sem
+  auditoria de direitos `OK`.
+- **Embalagem honesta:** título e thumbnail só prometem o que o vídeo mostra.
 - **Nunca:** publicar, enviar ou agendar o vídeo; mudar `config.toml` ou o código do app durante
   a produção; apagar arquivos fora de `storage/projects/<slug>/` e das tasks de teste que você criou.
 - **Falhas:** relate o erro real com o log; não finja que uma etapa deu certo.

@@ -17,6 +17,11 @@ kind:
   image   imagem estática (foto, print, gráfico gerado) com zoom lento.
 Aliases antigos: game/vert → fill, gta → window, app → fit com zoom 0.62.
 
+Texto na tela (opcional, por cena): "text" (use \n para quebrar linha) e "text_pos"
+(top | center | bottom, padrão top). Fonte, cor, tamanho e caixa vêm de "texto_na_tela" do
+arte.json do projeto (feito pelo diretor-de-arte); sem arte.json, usa os padrões de arte.py.
+O tamanho encolhe sozinho para caber na largura. Evite símbolos que a fonte não tem (→, emoji).
+
 --preview monta raw/timeline_preview.png com um quadro de cada clipe para conferir visualmente.
 """
 
@@ -25,6 +30,8 @@ import json
 import os
 import subprocess
 import sys
+
+import arte
 
 MARGIN = 1.0  # segundos baixados a mais antes do início, para o corte cair em quadro bom
 SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
@@ -103,15 +110,33 @@ def _source(project: str, item: dict) -> tuple[str, float]:
     return out, start - begin
 
 
-def build(project: str, item: dict, size: tuple[int, int]) -> str:
+def _text(project: str, item: dict, size: tuple[int, int], style: dict) -> str:
+    w, h = size
+    scale = w / 1080
+    y = {"top": "h*0.12", "center": "(h-text_h)/2", "bottom": "h*0.66-text_h"}[item.get("text_pos", "top")]
+    longest = max(len(line) for line in item["text"].splitlines())
+    # encolhe para caber em 85% da largura (≈ 0,64 do tamanho por caractere em fonte bold)
+    font_size = round(min(int(style["size"]) * scale, w * 0.85 / (longest * 0.64)))
+    return arte.drawtext(
+        item["text"], os.path.join(project, "raw", f"_text_{item['n']}.txt"),
+        font=style["font"], color=style["color"], size=font_size,
+        x="(w-text_w)/2", y=y, box=bool(style.get("box")), box_color=style.get("box_color", "#000000@0.55"),
+        border=0 if style.get("box") else round(4 * scale),
+    )
+
+
+def build(project: str, item: dict, size: tuple[int, int], style: dict) -> str:
     kind, defaults = ALIASES.get(item["kind"], (item["kind"], {}))
     item = {**defaults, **item, "kind": kind}
     src, ss = _source(project, item)
     out = os.path.join(project, "timeline", f"{item['n']}.mp4")
     loop = ["-loop", "1"] if kind == "image" else []
+    flt = _filter(*size, item)
+    if item.get("text"):
+        flt[-1] += "," + _text(project, item, size, style)
     subprocess.run(
         ["ffmpeg", "-v", "error", "-y", *loop, "-ss", f"{ss:g}", "-i", src, "-t", str(item["dur"]), "-an",
-         *_filter(*size, item), "-c:v", "libx264", "-crf", "20", "-preset", "fast", "-pix_fmt", "yuv420p", out],
+         *flt, "-c:v", "libx264", "-crf", "20", "-preset", "fast", "-pix_fmt", "yuv420p", out],
         check=True,
     )
     return out
@@ -172,11 +197,12 @@ def main() -> None:
         item["n"] = f"{int(item['n']):02d}"
     only = {f"{int(n):02d}" for n in args.only.split(",")} if args.only else None
 
+    style = arte.load(project)["texto_na_tela"]
     os.makedirs(os.path.join(project, "timeline"), exist_ok=True)
     for item in shots:
         if only and item["n"] not in only:
             continue
-        build(project, item, size)
+        build(project, item, size, style)
 
     clips = [os.path.join(project, "timeline", f"{item['n']}.mp4") for item in shots]
     total = 0.0

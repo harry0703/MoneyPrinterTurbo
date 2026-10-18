@@ -22,6 +22,8 @@ imagens preferidas, material próprio).
    - `fill`: ajuste `x`/`y` no shotlist se a ação não estiver no centro.
    - `fit`: confira se o elemento citado na fala (menu, ícone, tabela) ficou legível; ajuste `zoom`.
    - Remova facecam/marca d'água ajustando `x`/`zoom`/`crop`; se não der, avise.
+   - Textos na tela: o campo `text` do shotlist é desenhado com o estilo de `texto_na_tela` do
+     `arte.json`; confira na prévia que ele não cobre o assunto da cena nem a legenda.
    - Para refazer só algumas cenas: `--only 03,07`.
 3. Abra `raw/timeline_preview.png` e confira cada clipe contra a frase da cena.
 4. Some as durações; a soma deve ser ≥ duração do áudio. Se faltar, estenda a última cena.

@@ -33,6 +33,13 @@ Copie este arquivo para `.agents/canais/<slug>.md` e preencha. Campo vazio = val
 - **Fontes de imagem preferidas:** <canais oficiais, gravações próprias, Commons...>
 - **Material próprio disponível:** <pasta ou links de gravações, logo, vinheta — liberados para uso>
 
+## Embalagem
+
+- **Padrão de título:** <ex.: palavra-chave no começo, até 60 caracteres, sem caixa alta inteira>
+- **Thumbnail:** <ex.: 2–4 palavras, rosto ou objeto grande, sempre o mesmo destaque amarelo>
+- **Descrição — links fixos:** <redes, site, apoio>
+- **Tags e hashtags fixas:** <...>
+
 ## Gostos do canal
 
 Só o que difere de `.agents/gostos.md` (música, estética, cores, legenda, narração).

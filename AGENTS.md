@@ -73,6 +73,11 @@ Fluxo para produzir um vídeo sobre qualquer assunto, do tema ao arquivo final: 
 | `montador-mpt` | roda o MoneyPrinterOmni (áudio, tempos, render) |
 | `critico` | aponta falhas e buracos (conteúdo e visual), não edita |
 | `sugestor-de-pauta` | propõe casos, dados, ganchos e cenas que enriquecem o vídeo |
+| `auditor` | confere fatos na fonte, licenças, créditos e direitos; só aponta |
+| `diretor-de-arte` | identidade visual: legenda, textos na tela, ritmo, direção da thumbnail |
+| `designer-de-thumbnail` | thumbnails com `build_thumbnail.py` |
+| `redator-de-publicacao` | títulos, descrição, créditos, tags e comentário fixado |
+| `diretor` | pacote de aprovação para o usuário e checklist de entrega; nunca publica |
 
 Para usar: peça ao seu assistente "siga `.agents/skills/video/SKILL.md` para um vídeo sobre <tema>".
 Requisitos do assistente: terminal, busca na web e capacidade de ver imagens (para conferir

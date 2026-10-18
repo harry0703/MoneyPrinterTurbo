@@ -10,7 +10,7 @@ Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<c
 
 ## Entrada
 `storage/projects/<slug>/brief.md` (tema, público, duração alvo, idioma). Na revisão, também
-`critique/content-NN.md` e `critique/ideas-NN.md`.
+`critique/content-NN.md`, `critique/ideas-NN.md` e `audit/fatos-NN.md`.
 
 ## O que fazer
 0. Se a ficha lista canais de referência e o `research.md` ainda não tem "Referências de estilo",
@@ -49,7 +49,7 @@ Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<c
      crédito obrigatório) e as faixas embutidas em `resource/songs/` (sem clima rotulado: só
      use depois de ouvir/medir). Nada de música comercial ou de trilha de jogo/filme.
    - Se o roteiro mudar, revise o plano de trilha junto.
-6. Na revisão, responda a cada ponto da crítica: aceite e altere, ou explique em uma linha por que não.
+6. Na revisão, responda a cada ponto da crítica e da auditoria: aceite e altere, ou explique em uma linha por que não.
 
 ## Saída
 Resumo curto: arquivos escritos, contagem de palavras do roteiro, fatos marcados `[1 fonte]`,

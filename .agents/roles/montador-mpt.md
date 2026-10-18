@@ -15,8 +15,9 @@ Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<c
 - Não mude `config.toml` nem código do app. Se algo do app quebrar, pare e relate o erro com o log.
 - Apague `storage/tasks/<task_id>` de testes descartados que você mesmo criou.
 
-Voz, velocidade, formato, legenda (fonte, cores, contorno, fundo, posição) e volume da trilha vêm
-do brief, da ficha do canal ou de `.agents/gostos.md`, nessa ordem; traduza-os para as opções
+Voz, velocidade, formato e volume da trilha vêm do brief, da ficha do canal ou de
+`.agents/gostos.md`, nessa ordem; a legenda (fonte, cores, contorno, fundo, posição) vem do
+`arte.json`; traduza-os para as opções
 `--font-name`, `--text-fore-color`, `--stroke-color`, `--subtitle-position` etc. do `cli.py`.
 
 ## Modo "tempo" (antes da caça de clipes)

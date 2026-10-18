@@ -28,7 +28,8 @@ Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<c
    print de matéria (`kind: image`), gravação que o usuário pode fazer, ou stock
    (`cli.py ... --video-terms ... --stop-at materials` baixa para `storage/cache_videos/`;
    veja o conteúdo antes).
-6. Grave `shotlist.json` conforme o contrato do pipeline, com `why` curto por cena.
+6. Grave `shotlist.json` conforme o contrato do pipeline, com `why` curto por cena, e copie os
+   textos na tela do `arte.md` para o campo `text` (e `text_pos`) da cena da frase indicada.
 
 Não baixe 1080p nem corte nada: isso é do editor-de-clipes. Use os `kind` e campos do contrato
 (`fill`, `window`, `fit`, `image`; `x`, `y`, `zoom`).
