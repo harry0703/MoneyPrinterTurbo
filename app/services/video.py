@@ -1377,8 +1377,11 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if word_width <= max_width:
             current = word
         else:
-            lines.extend(split_long_token(word))
-            current = ""
+            # 最后一段仍未占满整行，后续单词应继续尝试接在它后面，
+            # 否则每个超长词之后都会多出一行。
+            pieces = split_long_token(word)
+            lines.extend(pieces[:-1])
+            current = pieces[-1] if pieces else ""
 
     if current:
         lines.append(current)
