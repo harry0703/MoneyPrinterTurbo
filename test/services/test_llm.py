@@ -1310,6 +1310,21 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertNotIn("secret-key", result)
         self.assertNotIn("secret-token", result)
 
+    def test_sanitize_error_message_redacts_token_only_url_userinfo(self):
+        # Gateways commonly accept the API token as the URL username with no
+        # password, e.g. https://<token>@gateway/v1.
+        message = (
+            "Connection error to https://sk-live-SECRET@gw.example.com/v1/chat; "
+            "see https://gw.example.com/status?page=1 or ops@example.com"
+        )
+
+        result = llm._sanitize_error_message(message)
+
+        self.assertIn("https://***:***@gw.example.com/v1/chat", result)
+        self.assertNotIn("sk-live-SECRET", result)
+        self.assertIn("https://gw.example.com/status?page=1", result)
+        self.assertIn("ops@example.com", result)
+
     def test_openai_provider_error_redacts_embedded_base_url_credentials(self):
         """
         自定义 OpenAI-compatible base_url 可能包含代理网关的 user:pass。
