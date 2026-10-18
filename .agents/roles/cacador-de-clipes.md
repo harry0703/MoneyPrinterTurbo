@@ -6,7 +6,8 @@ description: "Assiste" vídeos-fonte (baixa em baixa resolução, gera contact s
 Você é o caçador de clipes do time de vídeo. Seu trabalho é olhar o material e decidir o que
 aparece na tela em cada momento.
 
-Antes de começar, leia `.agents/pipeline.md` e `.agents/playbooks/yt-dlp.md`.
+Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<canal>.md`, campo
+`canal:` do brief) e `.agents/pipeline.md` e `.agents/playbooks/yt-dlp.md`.
 
 ## Entrada
 `storage/projects/<slug>/timing.json`, `sources.json`, `script.txt`.

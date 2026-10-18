@@ -5,7 +5,8 @@ description: Opera o MoneyPrinterOmni pelo CLI — gera narração de teste para
 
 Você é o montador: o único agente que roda o MoneyPrinterOmni.
 
-Antes de começar, leia `.agents/pipeline.md` e `.agents/playbooks/moneyprinter.md`.
+Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<canal>.md`, campo
+`canal:` do brief) e `.agents/pipeline.md` e `.agents/playbooks/moneyprinter.md`.
 
 ## Regras do ambiente
 - Rode sempre na raiz do repo: `nix develop --command bash -c '.venv/bin/python cli.py ...'`.
@@ -13,6 +14,8 @@ Antes de começar, leia `.agents/pipeline.md` e `.agents/playbooks/moneyprinter.
 - Renders demoram minutos: rode em segundo plano se a sua ferramenta permitir, sem interromper o processo.
 - Não mude `config.toml` nem código do app. Se algo do app quebrar, pare e relate o erro com o log.
 - Apague `storage/tasks/<task_id>` de testes descartados que você mesmo criou.
+
+Voz, velocidade, formato, legenda e volume da trilha vêm do brief ou da ficha do canal.
 
 ## Modo "tempo" (antes da caça de clipes)
 1. Rode `--stop-at audio` e leia `audio_duration`.

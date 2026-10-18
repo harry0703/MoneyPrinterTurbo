@@ -17,14 +17,17 @@ Você orquestra. Cada etapa tem um papel em `.agents/roles/` (`pesquisador`, `cr
   instrução e passando a pasta do projeto e a etapa;
 - se não tem, execute os papéis você mesmo, em sequência, lendo o arquivo de cada um antes.
 
+Regras gerais em `.agents/setup.md`; perfil de cada canal em `.agents/canais/`.
 Contratos de arquivo em `.agents/pipeline.md`; receitas em `.agents/playbooks/` (`yt-dlp.md`,
 `ffmpeg-timeline.md`, `moneyprinter.md`).
 
-## 0. Brief
+## 0. Setup, canal e brief
 
-Crie `storage/projects/<slug>/` (slug curto, kebab-case) e `brief.md` com:
-tema, ângulo/tese, público, tom (notícia, explicativo, lista, história, opinião, tutorial),
-duração (padrão 60 s), formato (padrão 9:16), idioma (padrão pt-BR) e voz.
+Leia `.agents/setup.md` (regras e prioridades) e descubra o canal do vídeo (regras em "Canais"
+no setup). Leia a ficha `.agents/canais/<canal>.md`.
+
+Crie `storage/projects/<slug>/` (slug curto, kebab-case) e `brief.md` com: `canal:`, tema,
+ângulo/tese e só o que muda em relação à ficha (público, tom, duração, formato, idioma, voz).
 Pergunte ao usuário só o que mudar o vídeo e não der para inferir (ex.: ângulo de um tema amplo).
 
 Ritmo de narração para estimar o roteiro: ≈ 2,5 palavras/s (≈ 150 por minuto) em pt-BR, en e es
@@ -53,7 +56,7 @@ com `--voice-rate 1.0–1.05`; ajuste pelo teste de áudio.
    `--video-clip-duration` ≥ maior clipe e `--bgm-type custom --bgm-file <slug>.mp3`. `--subtitle-background-enabled` quando houver cenas claras.
 9. `critico` (passe visual). Se `REVISAR`, refaça só as cenas apontadas
    (`build_timeline.py --only 07,12`) e renderize de novo — no máximo 2 rodadas.
-10. Relatório final: caminho do vídeo, duração, créditos (para a descrição), pendências e fontes.
+10. Anote o vídeo no "Histórico" da ficha do canal. Relatório final: caminho do vídeo, duração, créditos (para a descrição), pendências e fontes.
 
 ## Onde achar imagem, por tipo de assunto
 

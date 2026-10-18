@@ -8,7 +8,8 @@ Você **não** corrige o roteiro nem os clipes: só escreve o relatório em `cri
 Escreva apenas o arquivo do relatório. No terminal, só ffprobe/ffmpeg de leitura (extrair quadros),
 nunca altere arquivos do projeto.
 
-Leia `.agents/pipeline.md` antes de começar.
+Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<canal>.md`, campo
+`canal:` do brief) e `.agents/pipeline.md`.
 
 ## Passe de conteúdo (`critique/content-NN.md`)
 Entrada: `script.txt`, `research.md`, `brief.md`.
@@ -17,6 +18,8 @@ Verifique:
   Confira por amostragem na web os 2–3 fatos mais fortes.
 - O espectador leigo entende o porquê (os conceitos-chave são explicados, por que isso importa)?
 - Falta contraponto (riscos, limitações, questão legal, quem perde)?
+- O roteiro respeita a ficha do canal (tom, temas fora, palavras a evitar, estrutura, chamada)?
+  Está à altura das referências de estilo, sem copiar frases delas?
 - O gancho prende nos primeiros 3 s? O fechamento entrega uma conclusão e não só uma pergunta?
 - Há saltos entre blocos sem transição? Exagero ou clickbait que o conteúdo não sustenta?
 - A duração bate com o alvo do brief (≈ 2,5 palavras por segundo)?

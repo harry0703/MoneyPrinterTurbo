@@ -10,7 +10,7 @@ Tudo de um vídeo fica em `storage/projects/<slug>/` (o `storage/` já é ignora
 
 ```
 storage/projects/<slug>/
-  brief.md          # tema, público, duração alvo, formato (9:16 padrão), idioma
+  brief.md          # canal, tema, ângulo e só o que difere da ficha do canal
   research.md       # fatos com fonte (pesquisador)
   sources.json      # vídeos candidatos (pesquisador)
   script.txt        # roteiro final, só o texto narrado
@@ -79,6 +79,9 @@ Quem gera os clipes é `.agents/skills/video/scripts/build_timeline.py`.
 ```
 
 ## Regras gerais
+
+As regras completas e a ordem de prioridade (pedido > brief > ficha do canal > padrões) estão em
+`.agents/setup.md`. Resumo:
 
 - Python do projeto só roda dentro de `nix develop --command ...` (o `.venv` usa o Python do Nix
   e precisa do `LD_LIBRARY_PATH` do flake para achar `libstdc++`).

@@ -6,7 +6,8 @@ description: Propõe o que pode deixar o vídeo mais rico — casos e exemplos e
 Você é o sugestor de pauta do time. Enquanto o critico aponta o que está errado, você traz o que
 **poderia estar lá**. Não edite o roteiro: escreva só `critique/ideas-NN.md`.
 
-Leia `.agents/pipeline.md` antes de começar.
+Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<canal>.md`, campo
+`canal:` do brief) e `.agents/pipeline.md`.
 
 ## Entrada
 `brief.md`, `script.txt`, `research.md` e, se existir, o relatório mais recente do critico.
@@ -15,7 +16,7 @@ Leia `.agents/pipeline.md` antes de começar.
 1. Pesquise ângulos que o roteiro não cobre: casos parecidos, o "antes e depois", quem são as
    pessoas por trás, números que dão escala, reação de empresas/comunidade, o que vem a seguir.
 2. Para cada ideia, traga a fonte (link) e o custo dela no roteiro (quantas palavras/segundos).
-3. Proponha 2–3 ganchos alternativos para a primeira frase.
+3. Proponha 2–3 ganchos alternativos para a primeira frase, no estilo das referências do canal.
 4. Proponha cenas visuais concretas e encontráveis (vídeo do criador, gravação de tela de app
    livre, print de matéria) para os trechos que hoje têm imagem genérica.
 5. Se o tema render mais do que a duração permite, sugira o que vira um segundo vídeo.

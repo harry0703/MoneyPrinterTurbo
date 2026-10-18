@@ -53,3 +53,27 @@ Baixe 1 s a mais de margem nas pontas.
 
 - "Sign in to confirm you're not a bot": pule o vídeo e use outro candidato. Não peça cookies.
 - Facecam do youtuber, marca d'água, legendas queimadas: anote no shotlist; o editor corta.
+
+## Estudar um canal de referência
+
+Vídeos recentes com visualizações (troque `/shorts` por `/videos` para vídeos longos; `--playlist-end`
+limita a quantidade):
+
+```sh
+yt-dlp --no-warnings --flat-playlist --playlist-end 15 \
+  --print "%(id)s | %(view_count)s | %(title)s" "https://www.youtube.com/@<handle>/shorts"
+```
+
+Legenda automática (só no idioma do canal, para não estourar o limite de requisições) e os
+primeiros 15 s em texto — é ali que está o gancho:
+
+```sh
+yt-dlp -q --no-warnings --skip-download --write-auto-subs --sub-langs "<idioma>-orig,<idioma>" \
+  --sub-format vtt -o "raw/ref_%(id)s" "https://www.youtube.com/shorts/<id>"
+awk '/-->/{split($1,t,":"); s=t[1]*3600+t[2]*60+t[3]; keep=(s<15); next}
+     keep && NF && !/^(WEBVTT|Kind|Language)/{gsub(/<[^>]*>/,""); print}' raw/ref_<id>.<idioma>-orig.vtt | uniq
+```
+
+Analise 3–5 dos mais vistos: como abrem, quantas palavras por segundo, como fecham, padrão de
+título. Para ritmo de corte, baixe um em ≤360p e gere a contact sheet. Resuma em
+`research.md` na seção "Referências de estilo" — padrões, não frases copiadas.
