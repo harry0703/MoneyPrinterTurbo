@@ -3679,7 +3679,14 @@ def create_subtitle(
                 _write_subtitle_items(sub_items, subtitle_file)
                 return
 
-        script_lines = utils.split_string_by_punctuations(text)
+        # 只有符号的行（如 `* * *`、`———`、`• • •` 场景分隔）不会被朗读，
+        # 也不会得到任何词级时间轴；保留它们会让行数永远对不上，整段字幕
+        # 都无法生成。
+        script_lines = [
+            line
+            for line in utils.split_string_by_punctuations(text)
+            if re.sub(r"[_\W]+", "", line)
+        ]
         if hasattr(sub_maker, "cues") and sub_maker.cues:
             sub_items = _build_subtitle_items_from_edge_cues(sub_maker, script_lines)
         else:
