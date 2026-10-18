@@ -25,14 +25,20 @@ def runtime_root() -> Path:
     if is_source_checkout():
         return SOURCE_ROOT
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "MoneyPrinterTurbo"
+        return _with_legacy(Path.home() / "Library" / "Application Support" / "MoneyPrinterOmni")
     if sys.platform == "win32":
         base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
     else:
         base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
         if not base.is_absolute():
             base = Path.home() / ".local" / "share"
-    return base / "MoneyPrinterTurbo"
+    return _with_legacy(base / "MoneyPrinterOmni")
+
+
+def _with_legacy(root: Path) -> Path:
+    """改名前的安装使用 MoneyPrinterTurbo 目录；新目录不存在时继续沿用旧数据。"""
+    legacy = root.with_name("MoneyPrinterTurbo")
+    return legacy if not root.exists() and legacy.exists() else root
 
 
 def config_template() -> Path:

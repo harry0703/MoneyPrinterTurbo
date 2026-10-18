@@ -1,4 +1,4 @@
-# Playbook: MoneyPrinterTurbo via CLI
+# Playbook: MoneyPrinterOmni via CLI
 
 Sempre a partir da raiz do repo e dentro do dev shell:
 

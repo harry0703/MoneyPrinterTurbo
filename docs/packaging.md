@@ -1,6 +1,6 @@
 # pip 安装包与 PyPI 发布
 
-发行包名采用 `mpt`，项目名称仍为 MoneyPrinterTurbo，版本沿用 `1.3.8`。
+发行包名采用 `mpt`，项目名称仍为 MoneyPrinterOmni，版本沿用 `1.3.8`。
 2026-10-16 已使用 `harry0703` 发布到
 [PyPI](https://pypi.org/project/mpt/1.3.8/)，同时提供 wheel 和 sdist。
 已发布文件不可覆盖，后续代码变更需要提升版本后重新构建和验证。
@@ -69,9 +69,9 @@ mpt cli --video-script "A short video from local materials." \
 
 | 平台 | 运行目录 |
 | --- | --- |
-| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
-| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
-| Linux | `$XDG_DATA_HOME/MoneyPrinterTurbo`，默认 `~/.local/share/MoneyPrinterTurbo` |
+| macOS | `~/Library/Application Support/MoneyPrinterOmni` |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterOmni` |
+| Linux | `$XDG_DATA_HOME/MoneyPrinterOmni`，默认 `~/.local/share/MoneyPrinterOmni` |
 
 可通过 `MPT_HOME` 显式指定运行目录（源码版也支持）。其中：
 

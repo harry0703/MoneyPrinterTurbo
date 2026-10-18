@@ -51,7 +51,7 @@ def _ensure_model_loaded() -> bool:
                 f"********************************************\n"
                 f"this may be caused by network issue. \n"
                 f"please download the model manually and put it in the 'models' folder. \n"
-                f"see [README.md FAQ](https://github.com/harry0703/MoneyPrinterTurbo) for more details.\n"
+                f"see [README.md FAQ](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni) for more details.\n"
                 f"********************************************\n\n"
             )
             return False

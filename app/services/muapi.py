@@ -23,7 +23,7 @@ from app.models.schema import MaterialInfo, VideoAspect
 
 
 DEFAULT_BASE_URL = "https://api.muapi.ai/api/v1"
-# The budget Seedance Lite route supports the three MoneyPrinterTurbo aspect
+# The budget Seedance Lite route supports the three MoneyPrinterOmni aspect
 # ratios, 3-12 second clips, and 480p/720p/1080p output.
 DEFAULT_ENDPOINT = "seedance-lite-t2v"
 DEFAULT_RESOLUTION = "480p"

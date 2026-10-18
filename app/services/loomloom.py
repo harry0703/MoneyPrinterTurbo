@@ -1,4 +1,4 @@
-"""LoomLoom Market clients for MoneyPrinterTurbo batch generation.
+"""LoomLoom Market clients for MoneyPrinterOmni batch generation.
 
 This module deliberately lives outside ``llm_provider``. LoomLoom executes a
 versioned Market SkillBot with quote, confirmation, run lifecycle, and result
@@ -26,7 +26,7 @@ DEFAULT_BASE_URL = "https://loomloom.shengsuanyun.com/loom/v1"
 DEFAULT_SCRIPT_MARKET_LISTING_ID = "019fd618-9baa-73d9-94f4-c9270b6f3025"
 VIDEO_CAPABILITY_PROFILE_ID = "video.text-to-video.aspect-ratio.v1"
 # 文案与视频是两个输入、产物结构完全不同的已上架 SkillBot。两个 ID 都是
-# MoneyPrinterTurbo 集成的内部常量，用户只需提供 API Key，不应接触 Listing ID。
+# MoneyPrinterOmni 集成的内部常量，用户只需提供 API Key，不应接触 Listing ID。
 DEFAULT_VIDEO_MARKET_LISTING_ID = "01a06563-7331-773a-b9b2-25989a0dd70e"
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 30.0
 DEFAULT_POLL_INTERVAL_SECONDS = 2.0
@@ -119,7 +119,7 @@ class LoomLoomSettings:
             .strip()
             .rstrip("/"),
             api_token=resolve_api_token(values),
-            # MoneyPrinterTurbo 固定调用项目已经上架的默认 SkillBot。Listing ID
+            # MoneyPrinterOmni 固定调用项目已经上架的默认 SkillBot。Listing ID
             # 属于集成实现细节，不能要求普通用户在 config.toml 中重复配置。
             market_listing_id=DEFAULT_SCRIPT_MARKET_LISTING_ID,
             listing_version_id="",

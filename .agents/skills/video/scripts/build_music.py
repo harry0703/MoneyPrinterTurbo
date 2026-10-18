@@ -15,7 +15,7 @@ music.json:
 música toca até o "start" da próxima, com crossfade. "ss" é o ponto da faixa onde começar;
 faixas curtas entram em loop. Todas são normalizadas para o mesmo volume percebido.
 
-Gera <projeto>/bgm.mp3 e uma cópia em storage/bgm/<slug>.mp3 (pasta que o MoneyPrinterTurbo
+Gera <projeto>/bgm.mp3 e uma cópia em storage/bgm/<slug>.mp3 (pasta que o MoneyPrinterOmni
 aceita em --bgm-file). Imprime o valor para usar com --bgm-type custom --bgm-file.
 --preview gera <projeto>/raw/bgm_preview.mp3 com a narração por cima, se existir <projeto>/audio.mp3.
 """

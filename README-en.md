@@ -1,20 +1,22 @@
 <div align="center">
 
-# MoneyPrinterTurbo 💸
+# MoneyPrinterOmni 💸
 
 ### An All-in-One AI Short Video Generator
 
-Provide a video <b>topic</b> or <b>keyword</b>, and MoneyPrinterTurbo will generate the script, match footage, create subtitles and background music, and produce an HD short video.
+<sub>MoneyPrinterOmni is a fork of [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) by harry0703 (MIT).</sub>
+
+Provide a video <b>topic</b> or <b>keyword</b>, and MoneyPrinterOmni will generate the script, match footage, create subtitles and background music, and produce an HD short video.
 
 [![Version](https://img.shields.io/github/v/release/harry0703/MoneyPrinterTurbo?color=blue&label=version)](https://github.com/harry0703/MoneyPrinterTurbo/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Downloads](https://img.shields.io/github/downloads/harry0703/MoneyPrinterTurbo/total)](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 
-<a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-<a href="https://www.star-history.com/harry0703/moneyprinterturbo"><img src="https://api.star-history.com/badge?repo=harry0703/MoneyPrinterTurbo" alt="Star History Rank" style="height: 55px;" height="55"/></a>
+<a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterOmni | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://www.star-history.com/guilherme4colamarco/moneyprinteromni"><img src="https://api.star-history.com/badge?repo=Guilherme4Colamarco/MoneyPrinterOmni" alt="Star History Rank" style="height: 55px;" height="55"/></a>
 
-English | [简体中文](README.md) | [日本語](README-ja.md) | [Releases](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/harry0703/MoneyPrinterTurbo/issues)
+English | [简体中文](README.md) | [日本語](README-ja.md) | [Releases](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/issues)
 
 </div>
 
@@ -31,6 +33,8 @@ English | [简体中文](README.md) | [日本語](README-ja.md) | [Releases](htt
 ---
 
 ## Special Thanks ❤️
+
+> Sponsors and offers of the upstream MoneyPrinterTurbo project.
 
 <div align="center">
   <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
@@ -217,7 +221,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 
 ## Gallery 🎬
 
-All examples below were generated with MoneyPrinterTurbo.
+All examples below were generated with MoneyPrinterOmni.
 
 ### Portrait 9:16
 
@@ -280,18 +284,18 @@ All examples below were generated with MoneyPrinterTurbo.
 
 ### Generate Videos with an AI Agent
 
-If your AI Agent can read Skill documents and operate a local terminal, send it the prompt below. The Agent will install and configure MoneyPrinterTurbo, generate the video, and return the video file path. It will ask only for required API keys that are not already configured. This workflow currently supports macOS and Windows.
+If your AI Agent can read Skill documents and operate a local terminal, send it the prompt below. The Agent will install and configure MoneyPrinterOmni, generate the video, and return the video file path. It will ask only for required API keys that are not already configured. This workflow currently supports macOS and Windows.
 
 ```text
-Use this Skill: https://raw.githubusercontent.com/harry0703/MoneyPrinterTurbo/main/docs/skill/SKILL.md
+Use this Skill: https://raw.githubusercontent.com/Guilherme4Colamarco/MoneyPrinterOmni/main/docs/skill/SKILL.md
 Create a video with the topic "How AI is changing everyday life."
 ```
 
 ### Run in Google Colab
 
-Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
+Want to try MoneyPrinterOmni without setting up a local environment? Run it directly in Google Colab!
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Guilherme4Colamarco/MoneyPrinterOmni/blob/main/docs/MoneyPrinterOmni.ipynb)
 
 ### Windows
 
@@ -318,6 +322,8 @@ Use the local setup or Docker instructions below.
 
 The official PyPI package is **[mpt](https://pypi.org/project/mpt/)**,
 maintained by `harry0703`. The `MoneyPrinterTurbo` package on PyPI is maintained by a third party.
+
+> `mpt` installs the upstream MoneyPrinterTurbo. To run MoneyPrinterOmni, use the source setup below.
 
 No repository clone is needed. Requires Python 3.11 or later; Python 3.11 is recommended.
 
@@ -355,9 +361,9 @@ The installed application stores configuration and generated files here by defau
 
 | System | Data directory |
 | --- | --- |
-| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
-| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
-| Linux | `~/.local/share/MoneyPrinterTurbo`, or `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+| macOS | `~/Library/Application Support/MoneyPrinterOmni` |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterOmni` |
+| Linux | `~/.local/share/MoneyPrinterOmni`, or `$XDG_DATA_HOME/MoneyPrinterOmni` |
 
 Set `MPT_HOME` before launch to choose another directory. Generated videos are under
 `storage/tasks` in that directory. To upgrade, activate your virtual environment and
@@ -371,7 +377,7 @@ run `python -m pip install --upgrade mpt`.
 #### ① Clone the Project
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/Guilherme4Colamarco/MoneyPrinterOmni.git
 ```
 
 #### ② Complete the Initial Setup
@@ -389,11 +395,11 @@ If you are using a Windows system, please refer to Microsoft's documentation:
 2. [Use Docker containers with WSL](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
 ```shell
-cd MoneyPrinterTurbo
+cd MoneyPrinterOmni
 docker compose -f docker-compose.release.yml up
 ```
 
-> The recommended default is `docker-compose.release.yml`, which pulls the prebuilt image from GitHub Container Registry: `ghcr.io/harry0703/moneyprinterturbo:latest`.
+> The recommended default is `docker-compose.release.yml`, which pulls the prebuilt image from GitHub Container Registry: `ghcr.io/guilherme4colamarco/moneyprinteromni:latest`.
 > If you need to build the image locally, you can still run `docker compose up`.
 > Before the first start, copy `config.example.toml` to `config.toml` so it can be mounted into the containers.
 
@@ -414,8 +420,8 @@ Open your browser and visit http://127.0.0.1:8080/docs or http://127.0.0.1:8080/
 Use [uv](https://docs.astral.sh/uv/) to manage the Python environment and dependencies. The project supports Python 3.11 or later; the example below uses Python 3.11.
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
-cd MoneyPrinterTurbo
+git clone https://github.com/Guilherme4Colamarco/MoneyPrinterOmni.git
+cd MoneyPrinterOmni
 uv python install 3.11
 uv sync --frozen
 ```
@@ -436,7 +442,7 @@ Notes:
 
 #### ② Launch the WebUI 🌐
 
-Note that you need to execute the following commands in the `root directory` of the MoneyPrinterTurbo project
+Note that you need to execute the following commands in the `root directory` of the MoneyPrinterOmni project
 
 ###### Windows
 
@@ -523,13 +529,13 @@ The summary contains `total`, `succeeded`, `failed`, and `tasks`; each task entr
 
 ### Voice Synthesis
 
-ElevenLabs speech speed depends on the selected model. The default `eleven_multilingual_v2` accepts 0.7×–1.2×; select `eleven_v3` for the wider 0.25×–4.0× REST range. MoneyPrinterTurbo reports unsupported selections before sending a generation request and preserves the selected rate without clamping. Non-default speeds on `eleven_v4`/`eleven_v4_turbo` are unsupported. Other model IDs use a conservative 0.7×–1.2× validation range; this does not guarantee that every model supports the speed setting. If the provider returns `invalid_voice_settings`, generation stops without retrying and shows its explanation. The [live v2/v3 validation reported by the maintainer](https://github.com/harry0703/MoneyPrinterTurbo/pull/1578#issuecomment-6040107858) takes precedence over the broader range described in the [official voice-settings reference](https://github.com/elevenlabs/skills/blob/main/text-to-speech/references/voice-settings.md).
+ElevenLabs speech speed depends on the selected model. The default `eleven_multilingual_v2` accepts 0.7×–1.2×; select `eleven_v3` for the wider 0.25×–4.0× REST range. MoneyPrinterOmni reports unsupported selections before sending a generation request and preserves the selected rate without clamping. Non-default speeds on `eleven_v4`/`eleven_v4_turbo` are unsupported. Other model IDs use a conservative 0.7×–1.2× validation range; this does not guarantee that every model supports the speed setting. If the provider returns `invalid_voice_settings`, generation stops without retrying and shows its explanation. The [live v2/v3 validation reported by the maintainer](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/pull/1578#issuecomment-6040107858) takes precedence over the broader range described in the [official voice-settings reference](https://github.com/elevenlabs/skills/blob/main/text-to-speech/references/voice-settings.md).
 
-**Azure TTS V1** in the WebUI is powered by **Edge TTS** and is free to use without an API key. MoneyPrinterTurbo also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **MiniMax TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, self-hosted **Kokoro TTS**, **Fish Audio TTS**, [ModelBest VoxCPM TTS](https://platform.modelbest.cn/console/docs/api/audio), and a no-voice mode.
+**Azure TTS V1** in the WebUI is powered by **Edge TTS** and is free to use without an API key. MoneyPrinterOmni also supports **Azure TTS V2**, **SiliconFlow TTS**, **Google Gemini TTS**, **Xiaomi MiMo TTS**, **MiniMax TTS**, **ElevenLabs TTS**, self-hosted **Chatterbox TTS**, self-hosted **Kokoro TTS**, **Fish Audio TTS**, [ModelBest VoxCPM TTS](https://platform.modelbest.cn/console/docs/api/audio), and a no-voice mode.
 
 Select a provider and voice in the WebUI, then follow the on-screen instructions for any required credentials. Edge TTS does not require an API key; [Azure TTS V2](https://portal.azure.com/) and other cloud providers require credentials from their respective platforms. See the available Edge TTS voices in the [voice list](./docs/voice-list.txt).
 
-ModelBest VoxCPM requires an API key and a model ID with the `speech_synthesis` capability. Its SSE response streams WAV audio, which MoneyPrinterTurbo automatically converts to the MP3 used by the video pipeline. In addition to standard text-to-speech, the WebUI can clone speaker identity from optional reference audio. High-fidelity delivery reuses that clip with its exact transcript by default, or accepts a separate performance example, and sends `prompt_audio` plus `prompt_text` to continue its pacing, emotion, and pronunciation. The WebUI can use the local Whisper configuration to create an editable transcript draft. Uploads are limited to 20 MiB and each converted WAV to 5 MiB. Reference material is scoped to the current browser session and task and is not written to configuration, presets, task history, or logs.
+ModelBest VoxCPM requires an API key and a model ID with the `speech_synthesis` capability. Its SSE response streams WAV audio, which MoneyPrinterOmni automatically converts to the MP3 used by the video pipeline. In addition to standard text-to-speech, the WebUI can clone speaker identity from optional reference audio. High-fidelity delivery reuses that clip with its exact transcript by default, or accepts a separate performance example, and sends `prompt_audio` plus `prompt_text` to continue its pacing, emotion, and pronunciation. The WebUI can use the local Whisper configuration to create an editable transcript draft. Uploads are limited to 20 MiB and each converted WAV to 5 MiB. Reference material is scoped to the current browser session and task and is not written to configuration, presets, task history, or logs.
 
 ### Subtitle Generation
 
@@ -550,10 +556,10 @@ model_size = "large-v3-turbo"
 
 > On first use, Whisper automatically downloads the model from Hugging Face. If the automatic download fails, download `whisper-large-v3` manually from [Hugging Face](https://huggingface.co/Systran/faster-whisper-large-v3).
 
-After extracting the model, place the entire directory in `.\MoneyPrinterTurbo\models`. The final path should be `.\MoneyPrinterTurbo\models\whisper-large-v3`:
+After extracting the model, place the entire directory in `.\MoneyPrinterOmni\models`. The final path should be `.\MoneyPrinterOmni\models\whisper-large-v3`:
 
 ```
-MoneyPrinterTurbo
+MoneyPrinterOmni
   ├─models
   │   └─whisper-large-v3
   │          config.json
@@ -642,7 +648,7 @@ Solution: [See how to download the model manually from Hugging Face](#subtitle-g
 
 ## Feedback & Suggestions 📢
 
-- You can submit an [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) or a [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls).
+- You can submit an [issue](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/issues) or a [pull request](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/pulls).
 
 ## License 📝
 

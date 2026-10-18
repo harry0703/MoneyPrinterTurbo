@@ -1,4 +1,4 @@
-"""Converte a subtitle.srt de uma task do MoneyPrinterTurbo em timing.json.
+"""Converte a subtitle.srt de uma task do MoneyPrinterOmni em timing.json.
 
 Uso: python3 srt_to_timing.py <subtitle.srt> <timing.json>
 """

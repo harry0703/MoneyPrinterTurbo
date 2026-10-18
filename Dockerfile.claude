@@ -3,7 +3,7 @@
 # Claude 订阅（Pro / Max / Team）不签发 API Key，只有 Claude Code 官方客户端
 # 能使用订阅凭证，所以 `claude_code` Provider 依赖容器内存在可执行的 claude
 # CLI。这里复用发布镜像，避免重新安装 Python 依赖。
-FROM ghcr.io/harry0703/moneyprinterturbo:latest
+FROM ghcr.io/guilherme4colamarco/moneyprinteromni:latest
 
 # CLI 版本固定，避免镜像重建时行为漂移；升级时改这里的版本号即可。
 ARG CLAUDE_CODE_VERSION=2.1.260

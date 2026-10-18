@@ -26,9 +26,9 @@ def test_installed_data_is_in_user_directory(monkeypatch, tmp_path, platform):
     for key in ("MPT_HOME", "LOCALAPPDATA", "XDG_DATA_HOME"):
         monkeypatch.delenv(key, raising=False)
     expected = {
-        "darwin": tmp_path / "Library/Application Support/MoneyPrinterTurbo",
-        "win32": tmp_path / "AppData/Local/MoneyPrinterTurbo",
-        "linux": tmp_path / ".local/share/MoneyPrinterTurbo",
+        "darwin": tmp_path / "Library/Application Support/MoneyPrinterOmni",
+        "win32": tmp_path / "AppData/Local/MoneyPrinterOmni",
+        "linux": tmp_path / ".local/share/MoneyPrinterOmni",
     }
     assert paths.runtime_root() == expected[platform]
 
@@ -40,7 +40,7 @@ def test_explicit_home_and_linux_xdg_directory(monkeypatch, tmp_path):
     monkeypatch.setattr(paths, "is_source_checkout", lambda: False)
     monkeypatch.setattr(paths.sys, "platform", "linux")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
-    assert paths.runtime_root() == tmp_path / "xdg/MoneyPrinterTurbo"
+    assert paths.runtime_root() == tmp_path / "xdg/MoneyPrinterOmni"
 
 
 def test_concurrent_resource_seeding_preserves_existing_files(monkeypatch, tmp_path):

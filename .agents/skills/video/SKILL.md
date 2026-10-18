@@ -1,6 +1,6 @@
 ---
 name: video
-description: Produz um vídeo narrado sobre qualquer assunto (Shorts/Reels/TikTok ou YouTube horizontal), do tema ao arquivo final, com o MoneyPrinterTurbo e um time de papéis (pesquisa, crítica, clipes, edição, render) — pesquisa com fonte, roteiro criticado, narração na duração alvo, imagens reais (vídeos da web, stock, imagens, gráficos ou gravações do usuário) sincronizadas frase a frase e render. Use quando pedirem para criar, roteirizar ou montar um vídeo.
+description: Produz um vídeo narrado sobre qualquer assunto (Shorts/Reels/TikTok ou YouTube horizontal), do tema ao arquivo final, com o MoneyPrinterOmni e um time de papéis (pesquisa, crítica, clipes, edição, render) — pesquisa com fonte, roteiro criticado, narração na duração alvo, imagens reais (vídeos da web, stock, imagens, gráficos ou gravações do usuário) sincronizadas frase a frase e render. Use quando pedirem para criar, roteirizar ou montar um vídeo.
 ---
 
 # video — do tema ao vídeo final

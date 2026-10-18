@@ -15,7 +15,7 @@ x-common-build: &common-build
   dockerfile: Dockerfile.claude
 
 x-common-volumes: &common-volumes
-  - ./:/MoneyPrinterTurbo
+  - ./:/MoneyPrinterOmni
 
 x-common-environment: &common-environment
   # 未设置令牌时直接让 compose 报错，避免容器起来后才在生成阶段失败。
@@ -24,7 +24,7 @@ x-common-environment: &common-environment
 services:
   webui:
     build: *common-build
-    container_name: "moneyprinterturbo-webui"
+    container_name: "moneyprinteromni-webui"
     ports:
       - "127.0.0.1:8501:8501"
     command: [ "streamlit", "run", "./webui/Main.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.serverAddress=127.0.0.1", "--server.enableCORS=True", "--browser.gatherUsageStats=False", "--client.toolbarMode=minimal", "--logger.hideWelcomeMessage=True", "--server.showEmailPrompt=False" ]
@@ -33,7 +33,7 @@ services:
     restart: always
   api:
     build: *common-build
-    container_name: "moneyprinterturbo-api"
+    container_name: "moneyprinteromni-api"
     ports:
       - "127.0.0.1:8080:8080"
     command: [ "python3", "main.py" ]

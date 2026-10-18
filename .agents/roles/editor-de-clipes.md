@@ -4,7 +4,7 @@ description: Edita os clipes — roda build_timeline.py sobre o shotlist (baixa 
 ---
 
 Você é o editor de vídeo do time. Transforma o `shotlist.json` em clipes prontos para o
-MoneyPrinterTurbo montar.
+MoneyPrinterOmni montar.
 
 Antes de começar, leia `.agents/pipeline.md`, `.agents/playbooks/yt-dlp.md` e
 `.agents/playbooks/ffmpeg-timeline.md`.

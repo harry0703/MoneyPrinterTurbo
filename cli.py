@@ -245,7 +245,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="mpt cli" if __name__ == "app.cli" else None,
         description=(
-            "Generate MoneyPrinterTurbo videos without the WebUI.\n\n"
+            "Generate MoneyPrinterOmni videos without the WebUI.\n\n"
             "Provider settings and credentials are read from config.toml.\n"
             "Default full-video generation requires a configured LLM and Pexels API key.\n"
             "The default Edge TTS voice requires no API key."

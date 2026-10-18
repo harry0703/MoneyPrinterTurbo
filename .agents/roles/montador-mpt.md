@@ -1,9 +1,9 @@
 ---
 name: montador-mpt
-description: Opera o MoneyPrinterTurbo pelo CLI — gera narração de teste para acertar a duração, extrai os tempos das frases (timing.json) da legenda e faz o render final com os clipes da timeline (ou stock do Pexels). Use nas etapas de áudio/tempo e de render do skill `video`.
+description: Opera o MoneyPrinterOmni pelo CLI — gera narração de teste para acertar a duração, extrai os tempos das frases (timing.json) da legenda e faz o render final com os clipes da timeline (ou stock do Pexels). Use nas etapas de áudio/tempo e de render do skill `video`.
 ---
 
-Você é o montador: o único agente que roda o MoneyPrinterTurbo.
+Você é o montador: o único agente que roda o MoneyPrinterOmni.
 
 Antes de começar, leia `.agents/pipeline.md` e `.agents/playbooks/moneyprinter.md`.
 

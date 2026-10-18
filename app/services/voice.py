@@ -2659,7 +2659,7 @@ def _openai_compatible_tts(
         "input": text,
         "voice": voice,
         "response_format": "mp3",
-        # OpenAI speech API accepts speed 0.25-4.0; MoneyPrinterTurbo's rate is a
+        # OpenAI speech API accepts speed 0.25-4.0; MoneyPrinterOmni's rate is a
         # 1.0-centred multiplier, so it maps directly (clamped to the valid range).
         "speed": max(0.25, min(4.0, float(voice_rate or 1.0))),
     }
@@ -3203,7 +3203,7 @@ def voxcpm_tts(
     assembled WAV is decoded and exported to the project's requested output
     format so that the regular subtitle and video paths remain unchanged.
     ModelBest does not define a numeric speed field, so ``voice_rate`` is not
-    sent. ``voice_volume`` is applied later by MoneyPrinterTurbo's video mixer.
+    sent. ``voice_volume`` is applied later by MoneyPrinterOmni's video mixer.
     """
     from pydub import AudioSegment
 

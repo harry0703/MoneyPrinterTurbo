@@ -1,12 +1,12 @@
 {
   "meta": {
-    "name": "MoneyPrinterTurbo AI 视频素材",
-    "description": "为 MoneyPrinterTurbo 批量生成无字幕、无配音的短视频素材片段。",
+    "name": "MoneyPrinterOmni AI 视频素材",
+    "description": "为 MoneyPrinterOmni 批量生成无字幕、无配音的短视频素材片段。",
     "scenario": "short-video-material-generation",
     "inputSummary": "场景描述、画面比例和场景编号",
     "primaryOutputType": "video",
     "tags": [
-      "MoneyPrinterTurbo",
+      "MoneyPrinterOmni",
       "短视频",
       "AI 视频素材"
     ]
@@ -47,7 +47,7 @@
       {
         "key": "aspectRatio",
         "label": "画面比例",
-        "description": "MoneyPrinterTurbo 最终成片使用的画面比例",
+        "description": "MoneyPrinterOmni 最终成片使用的画面比例",
         "valueType": "enum",
         "enumValues": [
           "9:16",

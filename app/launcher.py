@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         cli._force_utf8_console()
         return cli.run_cli(argv[1:])
 
-    parser = argparse.ArgumentParser(prog="mpt", description="MoneyPrinterTurbo")
+    parser = argparse.ArgumentParser(prog="mpt", description="MoneyPrinterOmni")
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("cli", help="generate videos (mpt cli --help)")

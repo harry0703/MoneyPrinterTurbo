@@ -1,5 +1,5 @@
 {
-  description = "MoneyPrinterTurbo - dev shell and launcher (Python deps are managed by uv.lock)";
+  description = "MoneyPrinterOmni - dev shell and launcher (Python deps are managed by uv.lock)";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 

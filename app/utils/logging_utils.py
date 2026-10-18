@@ -73,7 +73,7 @@ def _project_relative_path(file_path):
     把绝对路径缩短为 ``./`` 开头、始终使用正斜杠的项目相对路径。
 
     Windows 上项目可能通过映射网络盘或 ``subst`` 盘启动。此时调用栈里的路径
-    仍是 ``X:\\MoneyPrinterTurbo\\...``，而 ``PROJECT_ROOT`` 经 ``realpath``
+    仍是 ``X:\\MoneyPrinterOmni\\...``，而 ``PROJECT_ROOT`` 经 ``realpath``
     解析后落在 ``C:\\...``，``os.path.relpath`` 会直接抛出 ``ValueError``。
     格式化函数抛错会被 loguru 捕获并丢弃整条记录，终端和 WebUI 日志面板会
     同时变空，因此这里必须兜底返回原始路径。项目目录之外的文件同理：把

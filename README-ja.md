@@ -1,20 +1,22 @@
 <div align="center">
 
-# MoneyPrinterTurbo 💸
+# MoneyPrinterOmni 💸
 
 ### オールインワン AI ショート動画生成ツール
 
-動画の<b>テーマ</b>または<b>キーワード</b>を指定するだけで、MoneyPrinterTurbo が台本の生成、素材のマッチング、字幕と BGM の作成を行い、高画質のショート動画を出力します。
+<sub>MoneyPrinterOmni は harry0703 による [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) のフォークです（MIT ライセンス）。</sub>
+
+動画の<b>テーマ</b>または<b>キーワード</b>を指定するだけで、MoneyPrinterOmni が台本の生成、素材のマッチング、字幕と BGM の作成を行い、高画質のショート動画を出力します。
 
 [![Version](https://img.shields.io/github/v/release/harry0703/MoneyPrinterTurbo?color=blue&label=version)](https://github.com/harry0703/MoneyPrinterTurbo/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Downloads](https://img.shields.io/github/downloads/harry0703/MoneyPrinterTurbo/total)](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
 
-<a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterTurbo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-<a href="https://www.star-history.com/harry0703/moneyprinterturbo"><img src="https://api.star-history.com/badge?repo=harry0703/MoneyPrinterTurbo" alt="Star History Rank" style="height: 55px;" height="55"/></a>
+<a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterOmni | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://www.star-history.com/guilherme4colamarco/moneyprinteromni"><img src="https://api.star-history.com/badge?repo=Guilherme4Colamarco/MoneyPrinterOmni" alt="Star History Rank" style="height: 55px;" height="55"/></a>
 
-日本語 | [English](README-en.md) | [简体中文](README.md) | [リリース](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/harry0703/MoneyPrinterTurbo/issues)
+日本語 | [English](README-en.md) | [简体中文](README.md) | [リリース](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/issues)
 
 </div>
 
@@ -31,6 +33,8 @@
 ---
 
 ## スペシャルサンクス ❤️
+
+> 上流プロジェクト MoneyPrinterTurbo のスポンサーと特典です。
 
 <div align="center">
   <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
@@ -184,7 +188,7 @@
 
 ## ギャラリー 🎬
 
-以下の例はすべて MoneyPrinterTurbo で生成されたものです。
+以下の例はすべて MoneyPrinterOmni で生成されたものです。
 
 ### 縦型 9:16
 
@@ -247,18 +251,18 @@
 
 ### AI エージェントで動画を生成する
 
-お使いの AI エージェントが Skill ドキュメントを読み、ローカルのターミナルを操作できるなら、以下のプロンプトを送ってください。エージェントが MoneyPrinterTurbo のインストールと設定を行い、動画を生成して、動画ファイルのパスを返します。未設定の必須 API キーだけを尋ねてきます。このワークフローは現在 macOS と Windows に対応しています。
+お使いの AI エージェントが Skill ドキュメントを読み、ローカルのターミナルを操作できるなら、以下のプロンプトを送ってください。エージェントが MoneyPrinterOmni のインストールと設定を行い、動画を生成して、動画ファイルのパスを返します。未設定の必須 API キーだけを尋ねてきます。このワークフローは現在 macOS と Windows に対応しています。
 
 ```text
-Use this Skill: https://raw.githubusercontent.com/harry0703/MoneyPrinterTurbo/main/docs/skill/SKILL.md
+Use this Skill: https://raw.githubusercontent.com/Guilherme4Colamarco/MoneyPrinterOmni/main/docs/skill/SKILL.md
 Create a video with the topic "How AI is changing everyday life."
 ```
 
 ### Google Colab で実行する
 
-ローカル環境を用意せずに MoneyPrinterTurbo を試したいですか？ Google Colab で直接実行できます！
+ローカル環境を用意せずに MoneyPrinterOmni を試したいですか？ Google Colab で直接実行できます！
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Guilherme4Colamarco/MoneyPrinterOmni/blob/main/docs/MoneyPrinterOmni.ipynb)
 
 ### Windows
 
@@ -284,6 +288,8 @@ GitHub Releases から最新の Windows 用ワンクリックパッケージを�
 
 公式の PyPI パッケージ名は **[mpt](https://pypi.org/project/mpt/)** で、`harry0703` が管理しています。
 PyPI 上の `MoneyPrinterTurbo` という名前のパッケージは第三者が管理しています。
+
+> `mpt` でインストールされるのは上流の MoneyPrinterTurbo です。MoneyPrinterOmni はソースからセットアップしてください。
 
 リポジトリのクローンは不要です。Python 3.11 以降が必要で、Python 3.11 を推奨します。
 
@@ -322,9 +328,9 @@ CLI での動画生成については `mpt cli --help` を参照してくださ�
 
 | OS | データディレクトリ |
 | --- | --- |
-| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
-| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
-| Linux | `~/.local/share/MoneyPrinterTurbo` または `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+| macOS | `~/Library/Application Support/MoneyPrinterOmni` |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterOmni` |
+| Linux | `~/.local/share/MoneyPrinterOmni` または `$XDG_DATA_HOME/MoneyPrinterOmni` |
 
 起動前に `MPT_HOME` を設定すると、保存先を変更できます。
 生成された動画は、そのディレクトリ内の `storage/tasks` に保存されます。
@@ -338,7 +344,7 @@ CLI での動画生成については `mpt cli --help` を参照してくださ�
 #### ① プロジェクトをクローンする
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
+git clone https://github.com/Guilherme4Colamarco/MoneyPrinterOmni.git
 ```
 
 #### ② 初期設定を行う
@@ -356,11 +362,11 @@ Windows をお使いの場合は、Microsoft のドキュメントを参照し�
 2. [WSL で Docker コンテナを使用する](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
 ```shell
-cd MoneyPrinterTurbo
+cd MoneyPrinterOmni
 docker compose -f docker-compose.release.yml up
 ```
 
-> 既定では `docker-compose.release.yml` を推奨します。GitHub Container Registry からビルド済みイメージ `ghcr.io/harry0703/moneyprinterturbo:latest` を取得します。
+> 既定では `docker-compose.release.yml` を推奨します。GitHub Container Registry からビルド済みイメージ `ghcr.io/guilherme4colamarco/moneyprinteromni:latest` を取得します。
 > ローカルでイメージをビルドする必要がある場合は、これまでどおり `docker compose up` を実行できます。
 > 初回起動の前に、`config.example.toml` を `config.toml` にコピーしておくと、コンテナにマウントされます。
 
@@ -381,8 +387,8 @@ docker compose -f docker-compose.release.yml up
 [uv](https://docs.astral.sh/uv/) を使って Python 環境と依存関係を管理します。本プロジェクトは Python 3.11 以降に対応しており、以下の例では Python 3.11 を使用します。
 
 ```shell
-git clone https://github.com/harry0703/MoneyPrinterTurbo.git
-cd MoneyPrinterTurbo
+git clone https://github.com/Guilherme4Colamarco/MoneyPrinterOmni.git
+cd MoneyPrinterOmni
 uv python install 3.11
 uv sync --frozen
 ```
@@ -403,7 +409,7 @@ pip install -r requirements.txt
 
 #### ② WebUI を起動する 🌐
 
-以下のコマンドは MoneyPrinterTurbo プロジェクトの`ルートディレクトリ`で実行する必要がある点に注意してください
+以下のコマンドは MoneyPrinterOmni プロジェクトの`ルートディレクトリ`で実行する必要がある点に注意してください
 
 ###### Windows
 
@@ -472,7 +478,7 @@ uv run python cli.py --batch-file ./tasks.json --stop-at video
 
 ### 音声合成
 
-WebUI の **Azure TTS V1** は **Edge TTS** を利用しており、無料かつ API キー不要です。MoneyPrinterTurbo は **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**Xiaomi MiMo TTS**、**ElevenLabs TTS**、セルフホストの **Chatterbox TTS**、セルフホストの **Kokoro TTS**、**Fish Audio TTS**、および音声なしモードにも対応しています。
+WebUI の **Azure TTS V1** は **Edge TTS** を利用しており、無料かつ API キー不要です。MoneyPrinterOmni は **Azure TTS V2**、**SiliconFlow TTS**、**Google Gemini TTS**、**Xiaomi MiMo TTS**、**ElevenLabs TTS**、セルフホストの **Chatterbox TTS**、セルフホストの **Kokoro TTS**、**Fish Audio TTS**、および音声なしモードにも対応しています。
 
 WebUI でプロバイダーと音声を選択し、必要な認証情報については画面の案内に従ってください。Edge TTS に API キーは不要です。[Azure TTS V2](https://portal.azure.com/) やその他のクラウドプロバイダーでは、それぞれのプラットフォームで発行した認証情報が必要です。利用可能な Edge TTS の音声は[音声リスト](./docs/voice-list.txt)で確認できます。
 
@@ -495,10 +501,10 @@ model_size = "large-v3-turbo"
 
 > 初回利用時、Whisper は Hugging Face からモデルを自動的にダウンロードします。自動ダウンロードに失敗する場合は、[Hugging Face](https://huggingface.co/Systran/faster-whisper-large-v3) から `whisper-large-v3` を手動でダウンロードしてください。
 
-モデルを展開したら、ディレクトリ全体を `.\MoneyPrinterTurbo\models` に配置します。最終的なパスは `.\MoneyPrinterTurbo\models\whisper-large-v3` になります:
+モデルを展開したら、ディレクトリ全体を `.\MoneyPrinterOmni\models` に配置します。最終的なパスは `.\MoneyPrinterOmni\models\whisper-large-v3` になります:
 
 ```
-MoneyPrinterTurbo
+MoneyPrinterOmni
   ├─models
   │   └─whisper-large-v3
   │          config.json
@@ -584,7 +590,7 @@ Trying to load the model directly from the local cache, if it exists.
 
 ## フィードバックと提案 📢
 
-- [issue](https://github.com/harry0703/MoneyPrinterTurbo/issues) または [pull request](https://github.com/harry0703/MoneyPrinterTurbo/pulls) を送っていただけます。
+- [issue](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/issues) または [pull request](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/pulls) を送っていただけます。
 
 ## ライセンス 📝
 

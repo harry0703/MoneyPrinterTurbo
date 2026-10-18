@@ -22,7 +22,7 @@ from loguru import logger
 from streamlit_tour import Tour
 
 # WebUI 作为独立入口运行时，需要让项目根目录优先于第三方依赖，
-# 避免依赖中的同名 app 包遮蔽 MoneyPrinterTurbo 自己的 app 包。
+# 避免依赖中的同名 app 包遮蔽 MoneyPrinterOmni 自己的 app 包。
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if root_dir in sys.path:
     sys.path.remove(root_dir)
@@ -69,22 +69,23 @@ from app.utils.logging_utils import configure_terminal_logger
 from app.utils import utils
 
 st.set_page_config(
-    page_title="MoneyPrinterTurbo",
+    page_title="MoneyPrinterOmni",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="auto",
     menu_items={
-        "Report a bug": "https://github.com/harry0703/MoneyPrinterTurbo/issues",
-        "About": "# MoneyPrinterTurbo\nSimply provide a topic or keyword for a video, and it will "
+        "Report a bug": "https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/issues",
+        "About": "# MoneyPrinterOmni\nSimply provide a topic or keyword for a video, and it will "
         "automatically generate the video copy, video materials, video subtitles, "
         "and video background music before synthesizing a high-definition short "
-        "video.\n\nhttps://github.com/harry0703/MoneyPrinterTurbo",
+        "video.\n\nhttps://github.com/Guilherme4Colamarco/MoneyPrinterOmni\n\n"
+        "Fork of MoneyPrinterTurbo by harry0703: https://github.com/harry0703/MoneyPrinterTurbo",
     },
 )
 
 
 # Streamlit 1.59 会在页面右上角默认展示 Deploy、skills nudge 等平台入口。
-# MoneyPrinterTurbo 是面向终端用户的本地工具，这些入口会造成顶部大块空白，
+# MoneyPrinterOmni 是面向终端用户的本地工具，这些入口会造成顶部大块空白，
 # 也会让新用户误以为需要安装额外组件。这里统一隐藏 Streamlit 平台工具栏，
 # 并压缩主容器顶部留白，只保留项目自己的标题、语言选择和业务设置区域。
 style_file = Path(__file__).with_name("styles.css")
@@ -240,12 +241,12 @@ _RUNTIME_CONFIG_SECTIONS = {
 }
 # 设置预设与密钥备份使用各自的文件标识。导入时先校验 schema 和版本，
 # 避免把任务记录、config.toml 或其它 JSON 误当成本功能的导出文件。
-SETTINGS_PRESET_SCHEMA = "moneyprinterturbo.settings-preset"
+SETTINGS_PRESET_SCHEMA = "moneyprinteromni.settings-preset"
 SETTINGS_PRESET_VERSION = 1
-SETTINGS_PRESET_FILE_NAME = "moneyprinterturbo-settings.json"
-KEY_BACKUP_SCHEMA = "moneyprinterturbo.key-backup"
+SETTINGS_PRESET_FILE_NAME = "moneyprinteromni-settings.json"
+KEY_BACKUP_SCHEMA = "moneyprinteromni.key-backup"
 KEY_BACKUP_VERSION = 1
-KEY_BACKUP_FILE_NAME = "moneyprinterturbo-keys.json"
+KEY_BACKUP_FILE_NAME = "moneyprinteromni-keys.json"
 # Export files contain only settings or credentials, not media. Reject oversized
 # uploads before decoding and parsing them in the Streamlit process.
 MAX_SETTINGS_TRANSFER_BYTES = 2 * 1024 * 1024
@@ -1738,12 +1739,12 @@ def _render_brand(available_update: str | None = None):
     st.markdown(
         f"""
         <h1 class="mpt-brand">
-            <span class="mpt-brand__name">MoneyPrinterTurbo</span>
+            <span class="mpt-brand__name">MoneyPrinterOmni</span>
             <a class="mpt-brand__version"
-               href="https://github.com/harry0703/MoneyPrinterTurbo"
+               href="https://github.com/Guilherme4Colamarco/MoneyPrinterOmni"
                target="_blank"
                rel="noopener noreferrer"
-               aria-label="Open MoneyPrinterTurbo on GitHub"
+               aria-label="Open MoneyPrinterOmni on GitHub"
                title="Open project on GitHub">v{html.escape(str(config.project_version))}</a>
             {update_link}
         </h1>
@@ -2938,7 +2939,9 @@ def _load_transfer_payload(raw_bytes, schema, version):
     payload = json.loads(raw_bytes.decode("utf-8-sig"))
     if not isinstance(payload, dict):
         raise ValueError("exported file must contain a JSON object")
-    if payload.get("schema") != schema:
+    # 兼容改名前（MoneyPrinterTurbo）导出的文件。
+    legacy_schema = schema.replace("moneyprinteromni.", "moneyprinterturbo.", 1)
+    if payload.get("schema") not in (schema, legacy_schema):
         raise ValueError(f"unexpected schema: {payload.get('schema')!r}")
     if payload.get("version") != version:
         raise ValueError(f"unsupported version: {payload.get('version')!r}")
@@ -4623,7 +4626,7 @@ def _loomloom_script_signature(
 
 
 def _render_local_script_generation(params):
-    """保留 MoneyPrinterTurbo 原有的本地 LLM 脚本生成路径。"""
+    """保留 MoneyPrinterOmni 原有的本地 LLM 脚本生成路径。"""
     if not st.button(
         tr("Generate Video Script and Keywords"),
         key="auto_generate_script",

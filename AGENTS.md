@@ -64,7 +64,7 @@ Fluxo para produzir um vídeo sobre qualquer assunto, do tema ao arquivo final: 
 | `pesquisador` | fatos com fonte, material visual por bloco, roteiro |
 | `cacador-de-clipes` | assiste os vídeos e escolhe o trecho de cada cena |
 | `editor-de-clipes` | gera os clipes no formato do vídeo com `build_timeline.py` |
-| `montador-mpt` | roda o MoneyPrinterTurbo (áudio, tempos, render) |
+| `montador-mpt` | roda o MoneyPrinterOmni (áudio, tempos, render) |
 | `critico` | aponta falhas e buracos (conteúdo e visual), não edita |
 | `sugestor-de-pauta` | propõe casos, dados, ganchos e cenas que enriquecem o vídeo |
 

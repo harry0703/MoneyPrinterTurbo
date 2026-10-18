@@ -1,11 +1,11 @@
 {
   "meta": {
-    "name": "MoneyPrinterTurbo 批量文案候选",
-    "description": "根据视频主题批量生成可直接用于 MoneyPrinterTurbo 的文案与素材搜索词。",
+    "name": "MoneyPrinterOmni 批量文案候选",
+    "description": "根据视频主题批量生成可直接用于 MoneyPrinterOmni 的文案与素材搜索词。",
     "scenario": "short-video-script",
     "inputSummary": "视频主题、生成要求和候选编号",
     "primaryOutputType": "text",
-    "tags": ["MoneyPrinterTurbo", "短视频", "批量文案"]
+    "tags": ["MoneyPrinterOmni", "短视频", "批量文案"]
   },
   "steps": [
     {

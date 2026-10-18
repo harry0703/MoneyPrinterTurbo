@@ -360,11 +360,11 @@ class TestKimiCodeOAuth(unittest.TestCase):
     # ---- 身份头（真实应用身份） ----
 
     def test_identity_headers_use_genuine_application_identity(self):
-        """身份头必须是 MoneyPrinterTurbo 自己的，不伪装成 kimi_code_cli。"""
+        """身份头必须是 MoneyPrinterOmni 自己的，不伪装成 kimi_code_cli。"""
         headers = oauth._identity_headers()
-        self.assertEqual(headers["X-Msh-Platform"], "MoneyPrinterTurbo")
+        self.assertEqual(headers["X-Msh-Platform"], "MoneyPrinterOmni")
         self.assertEqual(headers["X-Msh-Version"], oauth.__version__)
-        self.assertTrue(headers["User-Agent"].startswith("MoneyPrinterTurbo/"))
+        self.assertTrue(headers["User-Agent"].startswith("MoneyPrinterOmni/"))
         self.assertNotIn("kimi_code_cli", headers.values())
 
         payload = {
@@ -377,8 +377,8 @@ class TestKimiCodeOAuth(unittest.TestCase):
         ) as post:
             oauth.request_device_code("china")
         sent = post.call_args.kwargs["headers"]
-        self.assertEqual(sent["X-Msh-Platform"], "MoneyPrinterTurbo")
-        self.assertTrue(sent["User-Agent"].startswith("MoneyPrinterTurbo/"))
+        self.assertEqual(sent["X-Msh-Platform"], "MoneyPrinterOmni")
+        self.assertTrue(sent["User-Agent"].startswith("MoneyPrinterOmni/"))
 
     # ---- network error contract (WebUI 依赖) ----
 

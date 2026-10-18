@@ -1,14 +1,14 @@
-# MoneyPrinterTurbo — Official Python Package
+# MoneyPrinterOmni
 
-**mpt is the official Python distribution of
-[MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo), maintained by
-[harry0703](https://pypi.org/user/harry0703/).**
+**[MoneyPrinterOmni](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni) is a fork of
+[MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo), whose official `mpt`
+package is maintained by [harry0703](https://pypi.org/user/harry0703/).**
 
 Install the official package with **`python -m pip install mpt`**.
 The separately named `MoneyPrinterTurbo` package on PyPI is a third-party
 distribution and is not maintained by this project.
 
-MoneyPrinterTurbo generates short videos from a topic or a prepared script.
+MoneyPrinterOmni generates short videos from a topic or a prepared script.
 It combines local or online materials, voice narration, subtitles, and background
 music. Use the WebUI interactively or run the same video pipeline from the CLI.
 
@@ -62,15 +62,15 @@ videos in your user directory:
 
 | System | Default directory |
 | --- | --- |
-| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
-| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
-| Linux | `~/.local/share/MoneyPrinterTurbo` (or `$XDG_DATA_HOME/MoneyPrinterTurbo`) |
+| macOS | `~/Library/Application Support/MoneyPrinterOmni` |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterOmni` |
+| Linux | `~/.local/share/MoneyPrinterOmni` (or `$XDG_DATA_HOME/MoneyPrinterOmni`) |
 
 Set `MPT_HOME` before starting the application to choose another directory.
 Configuration is stored in `config.toml`; generated videos are under
 `storage/tasks/<task-id>/`. Existing user configuration and resources are preserved
 when the application starts or upgrades.
 
-See the [project documentation](https://github.com/harry0703/MoneyPrinterTurbo)
+See the [project documentation](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni)
 for supported providers and advanced options. Report problems through
-[GitHub Issues](https://github.com/harry0703/MoneyPrinterTurbo/issues).
+[GitHub Issues](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/issues).
