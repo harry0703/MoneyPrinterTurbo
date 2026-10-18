@@ -1620,11 +1620,15 @@ def siliconflow_tts(
         logger.error("SiliconFlow API key is not set")
         return None
 
-    # 将voice_volume转换为硅基流动的增益范围
-    # 默认voice_volume为1.0，对应gain为0
-    gain = voice_volume - 1.0
-    # 确保gain在[-10, 10]范围内
-    gain = max(-10, min(10, gain))
+    # voice_volume 是线性倍数，硅基流动的 gain 单位是 dB，范围 [-10, 10]。
+    # 默认 1.0 对应 0 dB；2.0 约为 +6 dB，0.6 约为 -4.4 dB。直接相减会把
+    # 2 倍音量当作 +1 dB，试听音量与最终视频的线性混音结果明显不一致。
+    if voice_volume is None:
+        voice_volume = 1.0
+    if voice_volume <= 0:
+        gain = -10.0
+    else:
+        gain = max(-10.0, min(10.0, 20.0 * math.log10(voice_volume)))
 
     url = "https://api.siliconflow.cn/v1/audio/speech"
 
