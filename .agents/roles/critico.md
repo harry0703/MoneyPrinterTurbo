@@ -20,6 +20,8 @@ Verifique:
 - O gancho prende nos primeiros 3 s? O fechamento entrega uma conclusão e não só uma pergunta?
 - Há saltos entre blocos sem transição? Exagero ou clickbait que o conteúdo não sustenta?
 - A duração bate com o alvo do brief (≈ 2,5 palavras por segundo)?
+- O `music-plan.md` tem variedade (≥ 3 climas em 60 s, sem repetir faixa nem clima seguido) e o
+  clima de cada bloco combina com a emoção do texto? Toda faixa tem licença livre?
 
 ## Passe visual (`critique/visual-NN.md`)
 Entrada: `output/final.mp4`, `timing.json`, `shotlist.json`.
@@ -27,6 +29,8 @@ Extraia um quadro no meio de cada frase do `timing.json` (seek exato) e olhe a i
 Verifique: a imagem ilustra o que está sendo dito? Há marca d'água, facecam, legenda estrangeira
 queimada? A legenda do vídeo cobre algo importante? Há cena parada demais (> 5 s) ou corte rápido
 demais (< 1 s)? Os primeiros 3 s são visualmente fortes?
+Trilha: a troca de música cai na virada certa da fala? A música cobre a narração em algum ponto
+(compare `volumedetect` da trilha e da voz)?
 
 ## Formato do relatório
 Itens numerados, cada um com: severidade (`bloqueia` / `importante` / `detalhe`), onde

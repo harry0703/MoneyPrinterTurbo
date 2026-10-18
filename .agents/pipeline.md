@@ -14,6 +14,9 @@ storage/projects/<slug>/
   research.md       # fatos com fonte (pesquisador)
   sources.json      # vídeos candidatos (pesquisador)
   script.txt        # roteiro final, só o texto narrado
+  music-plan.md     # blocos do roteiro → clima da música + faixas candidatas (pesquisador)
+  music.json        # deixas de música em segundos (montador-mpt)
+  bgm.mp3           # trilha montada, várias músicas com crossfade (build_music.py)
   critique/         # content-NN.md, visual-NN.md (critico), ideas-NN.md (sugestor-de-pauta)
   timing.json       # frases com início/fim, vindas da SRT (montador-mpt)
   shotlist.json     # cena -> vídeo -> trecho (cacador-de-clipes)
@@ -27,11 +30,11 @@ storage/projects/<slug>/
 
 | # | Papel | Entrada | Saída |
 |---|---|---|---|
-| 1 | `pesquisador` | brief.md | research.md, sources.json, rascunho de script.txt |
+| 1 | `pesquisador` | brief.md | research.md, sources.json, rascunho de script.txt, music-plan.md |
 | 2 | `critico` | script.txt, research.md | critique/content-NN.md |
 | 3 | `sugestor-de-pauta` | script.txt, research.md, críticas | critique/ideas-NN.md |
 | 4 | `pesquisador` | críticas + sugestões | script.txt revisado (no máximo 2 rodadas de 2–4) |
-| 5 | `montador-mpt` | script.txt | áudio de teste, timing.json (ajusta texto/velocidade até bater a duração) |
+| 5 | `montador-mpt` | script.txt, music-plan.md | áudio de teste, timing.json, music.json, bgm.mp3 |
 | 6 | `cacador-de-clipes` | timing.json, sources.json | shotlist.json, raw/ |
 | 7 | `editor-de-clipes` | shotlist.json, timing.json | timeline/NN.mp4, credits.md |
 | 8 | `montador-mpt` | timeline/ | output/final.mp4 |
@@ -65,6 +68,16 @@ barra de título), `fit` (conteúdo inteiro sobre fundo desfocado; `zoom` 0–1 
 slides, documentos, vídeo de orientação diferente), `image` (foto, print ou gráfico com zoom lento).
 Quem gera os clipes é `.agents/skills/video/scripts/build_timeline.py`.
 
+`music.json` (`start` = início, em segundos, da frase onde a música entra; ver docstring de
+`build_music.py`):
+```json
+{"crossfade": 1.5, "cues": [
+  {"start": 0, "mood": "alegre", "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Monkeys%20Spinning%20Monkeys.mp3",
+   "ss": 0, "title": "Monkeys Spinning Monkeys", "author": "Kevin MacLeod", "license": "CC BY 4.0"},
+  {"start": 34.5, "mood": "amedrontador", "file": "raw/music/Darkest Child.mp3", "ss": 0,
+   "title": "Darkest Child", "author": "Kevin MacLeod", "license": "CC BY 4.0"}]}
+```
+
 ## Regras gerais
 
 - Python do projeto só roda dentro de `nix develop --command ...` (o `.venv` usa o Python do Nix
@@ -72,3 +85,5 @@ Quem gera os clipes é `.agents/skills/video/scripts/build_timeline.py`.
 - Fatos recentes: sempre com fonte. Nada de inventar números, datas ou nomes.
 - Trechos de terceiros: curtos (≤ 8 s), sem áudio, com crédito em `credits.md`.
 - A soma das durações da timeline deve ser ≥ duração do áudio.
+- Trilha variada: ≥ 3 climas em 60 s, sem repetir faixa nem clima em blocos seguidos; só música
+  de licença livre, creditada em `credits.md`.

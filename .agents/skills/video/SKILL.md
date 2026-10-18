@@ -37,10 +37,12 @@ com `--voice-rate 1.0–1.05`; ajuste pelo teste de áudio.
 2. Em paralelo: `critico` (passe de conteúdo) e `sugestor-de-pauta`.
 3. Se o critico disser `REVISAR` ou houver sugestão de alto ganho, `pesquisador` revisa.
    Repita 2–3 no máximo 2 vezes.
-4. **Pare e mostre ao usuário** o roteiro, a duração estimada, o plano visual de cada bloco e as
-   sugestões não usadas. Só continue com o aval dele.
+4. **Pare e mostre ao usuário** o roteiro, a duração estimada, o plano visual e o clima da música
+   de cada bloco, e as sugestões não usadas. Só continue com o aval dele.
 5. `montador-mpt` (modo tempo): `--stop-at audio` até bater a duração (texto primeiro; velocidade
    só ±10%), depois `--stop-at subtitle` e `scripts/srt_to_timing.py` → `timing.json`.
+   Em seguida (modo trilha): `music.json` a partir do `music-plan.md` e `scripts/build_music.py`
+   → `bgm.mp3`, várias músicas trocando nas viradas da história.
 6. `cacador-de-clipes` → `shotlist.json`. Cada cena começa no início de uma frase; `dur` vai até o
    início da próxima cena; a soma deve ser ≥ áudio. Se faltar material, pergunte ao usuário se ele
    grava/envia algo ou aceita stock.
@@ -48,7 +50,7 @@ com `--voice-rate 1.0–1.05`; ajuste pelo teste de áudio.
    confere a prévia (olhando a imagem) e escreve `credits.md`.
 8. `montador-mpt` (modo render) → `output/final.mp4` com `--video-source local`,
    `--video-concat-mode sequential`, `--video-transition-mode none` e
-   `--video-clip-duration` ≥ maior clipe. `--subtitle-background-enabled` quando houver cenas claras.
+   `--video-clip-duration` ≥ maior clipe e `--bgm-type custom --bgm-file <slug>.mp3`. `--subtitle-background-enabled` quando houver cenas claras.
 9. `critico` (passe visual). Se `REVISAR`, refaça só as cenas apontadas
    (`build_timeline.py --only 07,12`) e renderize de novo — no máximo 2 rodadas.
 10. Relatório final: caminho do vídeo, duração, créditos (para a descrição), pendências e fontes.
@@ -78,6 +80,8 @@ Rode com `python3` da raiz do repo (só biblioteca padrão; chamam `ffmpeg`, e `
   exata. `kind`: `fill` (preenche cortando; `x`/`y` posicionam), `window` (gravação de janela),
   `fit` (conteúdo inteiro sobre fundo desfocado; `zoom` 0–1 amplia o centro), `image` (zoom lento).
   Detalhes no docstring.
+- `scripts/build_music.py <projeto> [--duration s] [--preview]` — junta as faixas do `music.json`
+  com crossfade, volume normalizado e loop de faixas curtas; copia para `storage/bgm/<slug>.mp3`.
 
 ## O que já aprendemos
 
@@ -90,6 +94,8 @@ Rode com `python3` da raiz do repo (só biblioteca padrão; chamam `ffmpeg`, e `
   `fill` perde o que importa.
 - Legenda branca some em fundo claro: use fundo de legenda.
 - Trechos de terceiros curtos (≤ 8 s), sem áudio e creditados; prefira o autor original.
+- Uma música só no vídeo inteiro cansa: troque de clima nas viradas (≥ 3 climas em 60 s).
+  Faixas de clima diferente têm volumes muito diferentes; o `build_music.py` normaliza.
 
 ## Regras
 

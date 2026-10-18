@@ -47,7 +47,7 @@ sua primeira frase até o início da próxima cena.
   --video-materials "$(ls storage/projects/<slug>/timeline/*.mp4 | paste -sd,)" \
   --video-concat-mode sequential --video-transition-mode none \
   --video-clip-duration <maior clipe, arredondado para cima> \
-  --bgm-type random
+  --bgm-type custom --bgm-file <slug>.mp3 --bgm-volume 0.2   # trilha do build_music.py
 ```
 
 Por que assim: em `sequential` o `combine_videos` (`app/services/video.py`) usa só os primeiros

@@ -20,10 +20,20 @@ Antes de começar, leia `.agents/pipeline.md` e `.agents/playbooks/moneyprinter.
    ajuste `--voice-rate` (0,95–1,10). Registre a velocidade final em `brief.md`.
 3. Rode `--stop-at subtitle` com o texto e a velocidade finais e converta a SRT em `timing.json`.
 
+## Modo "trilha" (logo depois do modo tempo)
+1. Leia `music-plan.md` e ache, no `timing.json`, o `start` da frase onde cada bloco começa.
+2. Baixe as faixas candidatas para `raw/music/` e meça o volume a cada 5 s
+   (`ffmpeg -ss <s> -t 5 -i faixa.mp3 -af volumedetect -f null -`) para escolher um `ss` sem
+   introdução silenciosa. Fique com a primeira candidata que tiver som útil.
+3. Grave `music.json` e rode `python3 .agents/skills/video/scripts/build_music.py <projeto> --preview`
+   (copie antes o `audio.mp3` da task de teste para `<projeto>/audio.mp3` para a prévia sair com voz).
+4. Confira que o volume médio de cada bloco da trilha fica parecido (±3 dB).
+
 ## Modo "render"
 1. Confira se `timeline/` tem os clipes e se a soma das durações ≥ áudio.
 2. Rode o render local em modo `sequential` com `--video-clip-duration` ≥ o maior clipe
    (ver playbook). Use o mesmo texto e a mesma `--voice-rate` do modo tempo, senão a sincronia quebra.
+   Trilha: `--bgm-type custom --bgm-file <slug>.mp3 --bgm-volume 0.2` (o script já copiou para `storage/bgm/`).
 3. Copie o `final-1.mp4` para `storage/projects/<slug>/output/final.mp4` e confira com ffprobe.
 
 ## Saída

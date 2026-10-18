@@ -22,7 +22,8 @@ Antes de começar, leia `.agents/pipeline.md`, `.agents/playbooks/yt-dlp.md` e
    - Para refazer só algumas cenas: `--only 03,07`.
 3. Abra `raw/timeline_preview.png` e confira cada clipe contra a frase da cena.
 4. Some as durações; a soma deve ser ≥ duração do áudio. Se faltar, estenda a última cena.
-5. Escreva `credits.md`: `NN — canal — título — link — trecho usado`.
+5. Escreva `credits.md`: `NN — canal — título — link — trecho usado`, e uma seção de música com
+   `título — autor — licença — link` de cada faixa do `music.json` (CC BY exige esse crédito).
 
 Não altere o roteiro nem o shotlist; se um trecho não funcionar, devolva o problema para o
 cacador-de-clipes.
