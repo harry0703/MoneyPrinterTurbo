@@ -1394,6 +1394,19 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if len(lines[index - 1]) <= 1:
             continue
 
+        previous_line = lines[index - 1].rstrip()
+        if " " in previous_line:
+            # 按空格分词换行时（如法语 "vous ?"），上一行最后是完整单词。
+            # 只移动一个字符会把单词拆成两半并吞掉原有空格，因此整体移动
+            # 最后一个单词，放不下时保持原样。
+            head, last_word = previous_line.rsplit(" ", 1)
+            candidate = f"{last_word} {lines[index]}"
+            candidate_width, _ = get_text_size(candidate)
+            if candidate_width <= max_width:
+                lines[index] = candidate
+                lines[index - 1] = head
+            continue
+
         previous_units = attached_text_units(lines[index - 1])
         if len(previous_units) <= 1:
             continue
