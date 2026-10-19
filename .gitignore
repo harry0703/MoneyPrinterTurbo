@@ -45,3 +45,8 @@ htmlcov/
 
 # Claude Code 订阅令牌（docker compose 自动读取），禁止提交
 .env
+
+# Exclusiones para el cliente de escritorio en Tauri/Rust
+MPTDesktop/node_modules/
+**/src-tauri/target/
+**/src-tauri/resources/

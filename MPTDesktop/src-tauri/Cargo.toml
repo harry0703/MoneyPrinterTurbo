@@ -1,0 +1,21 @@
+[package]
+name = "mpt-desktop"
+version = "1.3.8"
+description = "MoneyPrinterTurbo Desktop - Tauri v2 native shell with PyInstaller sidecar"
+authors = ["MufLabs"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
