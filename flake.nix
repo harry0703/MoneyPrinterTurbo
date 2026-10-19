@@ -31,14 +31,18 @@
               pkgs.ffmpeg # moviepy / bgm validation; imageio-ffmpeg also bundles one
               pkgs.imagemagick # optional text rendering fallback for moviepy
               pkgs.git
+              pkgs.nodejs_24 # animations/ (Remotion); versão em animations/.nvmrc
+              pkgs.chromium # render do Remotion sem baixar browser em runtime
             ];
 
             env = {
               UV_PYTHON = "${python}/bin/python";
               UV_PYTHON_DOWNLOADS = "never";
+              PUPPETEER_EXECUTABLE_PATH = "${pkgs.chromium}/bin/chromium";
             };
 
             shellHook = ''
+              [ -d animations/node_modules ] || echo "hint: npm ci --prefix animations   (Remotion)"
               export PYTHONPATH="$PWD''${PYTHONPATH:+:$PYTHONPATH}"
               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibs}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
               [ -f config.toml ] || echo "hint: cp config.example.toml config.toml"

@@ -28,6 +28,9 @@ Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<c
    print de matéria (`kind: image`), gravação que o usuário pode fazer, ou stock
    (`cli.py ... --video-terms ... --stop-at materials` baixa para `storage/cache_videos/`;
    veja o conteúdo antes).
+   Quando a fala descreve um processo, esquema, planta ou dado, não procure vídeo: marque o item
+   com `"anim": "<IdDaComposição>"` (e `"props"` se precisar), `"file": "raw/anim_NN.mp4"` e
+   `"kind": "fill"`. O `animador` renderiza esse clipe com a `dur` exata (etapa 7b).
 6. Grave `shotlist.json` conforme o contrato do pipeline, com `why` curto por cena, e copie os
    textos na tela do `arte.md` para o campo `text` (e `text_pos`) da cena da frase indicada.
 

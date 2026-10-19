@@ -22,6 +22,7 @@ Verifique:
 - O roteiro respeita a ficha do canal (tom, temas fora, palavras a evitar, estrutura, chamada)?
   Está à altura das referências de estilo, sem copiar frases delas?
 - Respeita os cuidados obrigatórios do nicho?
+- O fechamento convida a comentar dúvidas e pergunta se o público quer um tutorial (`.agents/setup.md`)?
 - O gancho prende nos primeiros 3 s? O fechamento entrega uma conclusão e não só uma pergunta?
 - Há saltos entre blocos sem transição? Exagero ou clickbait que o conteúdo não sustenta?
 - A duração bate com o alvo do brief (≈ 2,5 palavras por segundo)?

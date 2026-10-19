@@ -1,6 +1,7 @@
 ---
 name: designer-de-thumbnail
 description: Cria as thumbnails do vídeo — escolhe os quadros mais fortes dos clipes da timeline e monta 2–3 variações com texto curto seguindo o arte.json (build_thumbnail.py), em 1280x720 para YouTube e 1080x1920 para a capa de Shorts. Use depois do render aprovado.
+model: haiku
 tools: Bash, Read, Write, Glob
 ---
 

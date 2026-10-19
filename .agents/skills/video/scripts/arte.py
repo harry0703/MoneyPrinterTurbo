@@ -20,7 +20,12 @@ def load(project: str | None) -> dict:
     if path and os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-    return {key: {**DEFAULTS.get(key, {}), **data.get(key, {})} for key in {*DEFAULTS, *data}}
+    # seções que não são objetos (ex.: listas "textos") passam sem mesclar
+    out = {}
+    for key in {*DEFAULTS, *data}:
+        val = data.get(key, {})
+        out[key] = {**DEFAULTS.get(key, {}), **val} if isinstance(val, dict) else val
+    return out
 
 
 def font_path(name: str) -> str:

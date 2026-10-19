@@ -53,6 +53,8 @@ com `--voice-rate 1.0–1.05`; ajuste pelo teste de áudio.
 7. `cacador-de-clipes` → `shotlist.json`, com os textos na tela do `arte.md` nos campos `text`.
    Cada cena começa no início de uma frase; `dur` vai até o início da próxima; a soma deve ser
    ≥ áudio. Se faltar material, pergunte ao usuário se ele grava/envia algo ou aceita stock.
+7b. `animador` → para cada item do `shotlist.json` com `anim`, renderiza `raw/anim_NN.mp4`
+   (Remotion, em `animations/`) com a `dur` exata e o formato do brief, usando as cores do `arte.json`.
 8. `editor-de-clipes` → `scripts/build_timeline.py <projeto> --aspect <formato> --preview`,
    confere a prévia (olhando a imagem) e escreve `credits.md`.
 9. `montador-mpt` (modo render) → `output/final.mp4` com `--video-source local`,

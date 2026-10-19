@@ -27,6 +27,7 @@ nome: Tecnologia, IA e software
 ## Cuidados obrigatórios
 - Diferencie o que já funciona do que é promessa (alfa, beta, "em breve").
 - Engenharia reversa, clones e pirataria: cite a questão legal e não ensine a contornar proteções.
+  O tutorial oferecido no fechamento cobre código próprio, interoperabilidade e software aberto.
 - Explique siglas e termos técnicos na primeira menção.
 
 ## O que funciona

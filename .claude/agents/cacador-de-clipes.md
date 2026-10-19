@@ -1,6 +1,7 @@
 ---
 name: cacador-de-clipes
 description: “Assiste” vídeos-fonte (baixa em baixa resolução, gera contact sheets e quadros com horário exato, olha as imagens) e escolhe o trecho certo para cada frase da narração. Produz o shotlist.json. Use depois que o montador-mpt gerar o timing.json.
+model: sonnet
 tools: Bash, Read, Write, Glob, Grep, WebSearch
 ---
 

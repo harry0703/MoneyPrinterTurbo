@@ -43,6 +43,7 @@ storage/projects/<slug>/
 | 5 | `diretor` (aprovação) | tudo acima | aprovacao-NN.md → **parada para o usuário** |
 | 6 | `montador-mpt` | script.txt, music-plan.md | áudio de teste, timing.json, music.json, bgm.mp3 |
 | 7 | `cacador-de-clipes` | timing.json, sources.json, arte.md | shotlist.json, raw/ |
+| 7b | `animador` | shotlist.json (itens com `anim`), arte.json | raw/anim_NN.mp4 |
 | 8 | `editor-de-clipes` | shotlist.json, arte.json | timeline/NN.mp4, credits.md |
 | 9 | `montador-mpt` | timeline/, bgm.mp3, arte.json | output/final.mp4 |
 | 10 | `critico` (visual) · `auditor` (direitos) | output/final.mp4, shotlist, music.json, credits.md | critique/visual-NN.md, audit/direitos-NN.md |
@@ -73,6 +74,8 @@ Etapas com `·` rodam em paralelo. Reprovação no 10 volta para 7/8 (no máximo
   "kind": "image", "why": "número citado na fala"}]
 ```
 Origem: `url` + `start` (qualquer site do yt-dlp; baixa só o trecho) ou `file` + `ss` (local).
+Cena animada: `"anim": "<IdDaComposição>"` (+ `"props"` opcional), `"file": "raw/anim_NN.mp4"`,
+`"kind": "fill"`; o `animador` renderiza o mp4 em `animations/` (`docs/animations.md`).
 Campos opcionais `text` (texto na tela, `\n` quebra linha) e `text_pos` (`top` | `center` | `bottom`).
 `kind`: `fill` (preenche o quadro cortando; `x`/`y` posicionam), `window` (gravação de janela, tira a
 barra de título), `fit` (conteúdo inteiro sobre fundo desfocado; `zoom` 0–1 amplia o centro — telas,

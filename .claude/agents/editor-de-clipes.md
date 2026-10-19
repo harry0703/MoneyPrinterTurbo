@@ -1,6 +1,7 @@
 ---
 name: editor-de-clipes
 description: Edita os clipes — roda build_timeline.py sobre o shotlist (baixa só os trechos em 1080p, enquadra no formato do brief, tira áudio, facecam e marca d'água), gera gráficos/prints quando a cena pede, confere cada clipe e escreve credits.md.
+model: sonnet
 tools: Bash, Read, Write, Edit, Glob
 ---
 

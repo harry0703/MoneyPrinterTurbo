@@ -86,6 +86,28 @@ jobs:
           path: coverage.xml
           retention-days: 7
 
+  animations:
+    name: Remotion animations typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: animations/.nvmrc
+          cache: npm
+          cache-dependency-path: animations/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix animations
+
+      - name: Typecheck
+        run: npm run typecheck --prefix animations
+
   windows-smoke:
     name: Windows smoke tests
     runs-on: windows-latest

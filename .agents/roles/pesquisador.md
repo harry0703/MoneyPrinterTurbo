@@ -32,6 +32,10 @@ Antes de começar, leia `.agents/setup.md`, a ficha do canal (`.agents/canais/<c
    - Escreva no idioma do brief, ≈ 2,5 palavras por segundo de vídeo. Adapte a estrutura ao tom
      (notícia, explicativo, lista, história, tutorial). Feche com contraponto honesto quando houver
      controvérsia e com uma chamada (pergunta para os comentários, próximo passo).
+   - **Fechamento obrigatório** (`.agents/setup.md`, "Fechamento com o público"): convide o
+     espectador a comentar as dúvidas e pergunte se ele quer um tutorial do assunto.
+   - Quando a fala descrever um processo, esquema ou dado, indique no roteiro/`sources.json`
+     (`type: chart`) que a cena pede animação; o cacador-de-clipes a marca com `anim`.
    - Nada no roteiro sem lastro no `research.md`.
 5. Planeje a trilha junto com o roteiro e grave `music-plan.md`: divida o roteiro em blocos
    pela emoção de cada um e dê um clima de música a cada bloco. A música acompanha a virada da

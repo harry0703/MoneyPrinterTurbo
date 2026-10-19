@@ -63,6 +63,18 @@ Exceções que nada sobrescreve: as "Regras fixas" deste setup e os "Cuidados ob
   plano visual e arte) antes de baixar e editar; aviso quando faltar material para uma cena.
 - **Auditoria:** nada chega ao usuário com auditoria de fatos `CORRIGIR`, e nada é entregue sem
   auditoria de direitos `OK`.
+- **Fechamento com o público:** todo roteiro termina convidando o espectador a **comentar as
+  dúvidas** e perguntando se ele quer um **tutorial** do assunto (adapte as palavras ao tema e ao
+  tom do canal; omita só o tutorial quando não fizer sentido). Vale além da "chamada final" da
+  ficha do canal. Em temas de engenharia reversa, o tutorial prometido cobre código próprio,
+  interoperabilidade e software aberto, nunca contornar proteções.
+- **Modelo por papel:** ao delegar cada papel a um subagente, escolha o modelo pela função, não
+  um só para todos. Modelo pequeno e barato (ex.: Haiku) para trabalho mecânico: operar o CLI,
+  montar thumbnails, escrever a embalagem de publicação. Modelo intermediário (ex.: Sonnet) para o
+  que exige julgamento, olhar visual ou código: pesquisa, auditoria, crítica, sugestão de pauta,
+  direção, caça e edição de clipes, animação. Modelo mais forte só se um papel errar fatos ou
+  análise repetidamente. No Claude Code, é a linha `model:` de `.claude/agents/<papel>.md`; em
+  outras ferramentas, o equivalente. Ao criar um papel novo, defina o modelo na hora.
 - **Embalagem honesta:** título e thumbnail só prometem o que o vídeo mostra.
 - **Nunca:** publicar, enviar ou agendar o vídeo; mudar `config.toml` ou o código do app durante
   a produção; apagar arquivos fora de `storage/projects/<slug>/` e das tasks de teste que você criou.

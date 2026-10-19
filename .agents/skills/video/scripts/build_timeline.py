@@ -72,10 +72,15 @@ def _filter(w: int, h: int, item: dict) -> list[str]:
         return ["-filter_complex", _fit(w, h, item)]
     if kind == "image":
         frames = round(float(item["dur"]) * 30)
+        # "zoom" = zoom final (padrão: sobe 0,0008/quadro até 1,15); "x"/"y" = ponto de foco (0-1)
+        zmax = float(item.get("zoom", 1.15))
+        rate = f"{(zmax - 1) / frames:.6f}" if "zoom" in item else "0.0008"
+        fx, fy = float(item.get("x", 0.5)), float(item.get("y", 0.5))
         return [
             "-vf",
             f"scale={w * 2}:{h * 2}:force_original_aspect_ratio=increase,crop={w * 2}:{h * 2},"
-            f"zoompan=z='min(zoom+0.0008,1.15)':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':"
+            f"zoompan=z='min(zoom+{rate},{zmax})':x='max(0,min(iw-iw/zoom,iw*{fx}-iw/zoom/2))':"
+            f"y='max(0,min(ih-ih/zoom,ih*{fy}-ih/zoom/2))':"
             f"d={frames}:s={w}x{h}:fps=30,setsar=1",
         ]
     sys.exit(f"cena {item['n']}: kind desconhecido {kind!r}")
@@ -130,7 +135,8 @@ def build(project: str, item: dict, size: tuple[int, int], style: dict) -> str:
     item = {**defaults, **item, "kind": kind}
     src, ss = _source(project, item)
     out = os.path.join(project, "timeline", f"{item['n']}.mp4")
-    loop = ["-loop", "1"] if kind == "image" else []
+    is_still = kind == "image" or src.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+    loop = ["-loop", "1"] if is_still else []
     flt = _filter(*size, item)
     if item.get("text"):
         flt[-1] += "," + _text(project, item, size, style)

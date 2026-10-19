@@ -53,7 +53,8 @@ Some as durações e compare com o áudio. Gere um quadro do meio de cada clipe 
 
 ## Gráficos para temas com dados
 
-Gere um PNG com os números do `research.md` (fonte citada no rodapé do gráfico) e use `kind: image`:
+Gráficos animados e esquemas: use o `animador` (Remotion, `docs/animations.md`). Para um gráfico
+estático simples, gere um PNG com os números do `research.md` (fonte citada no rodapé do gráfico) e use `kind: image`:
 
 ```sh
 nix shell nixpkgs#python3Packages.matplotlib -c python3 - <<'PY'
