@@ -22,6 +22,35 @@ PROVIDER_TIPS_PREFIXES = (
 # 避免把完全相同的品牌名复制十份，也避免长说明后续只更新部分语言。
 ENGLISH_FALLBACK_KEYS = frozenset(
     {
+        # The creative experiment flow ships in English and Chinese first;
+        # secondary locales use the WebUI's explicit English fallback until
+        # reviewed translations are available.
+        "Creative Experiment",
+        "Creative Experiment Help",
+        "Creative Source Persistence",
+        "Script Model",
+        "Recorded Cost",
+        "Unknown Cost",
+        "Campaign Goal",
+        "Target Audience",
+        "Source Notes",
+        "Primary Outcome Metric",
+        "Draft Three Variants",
+        "Drafting Variants",
+        "Creative Brief Changed",
+        "Creative CSV Too Large",
+        "Choose Creative Variant",
+        "Use Creative Variant",
+        "Creative Variant Applied",
+        "Creative Outcomes",
+        "Creative Outcomes Help",
+        "Aggregate Analytics CSV",
+        "Import and Compare",
+        "Creative Task Missing",
+        "Creative Outcome Partial Save",
+        "Observed Outcomes",
+        "Creative Provenance",
+        "No Predicted Outcome",
         "AI Video Quote Required",
         "AI Video Quote Retained For Retry",
         "AI Video Quote Estimate Incomplete",
