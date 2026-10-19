@@ -115,6 +115,9 @@ MPT_METASO_MINIMAX_API_KEY
 MPT_MUAPI_API_KEY
 ```
 
+For `vgenv_api_key`, ask the user to set `VGENV_API_KEY` in their own runtime
+environment. Do not request or echo its value in chat.
+
 When `SEEDANCE_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated Seedance clip creates a paid Ark task. Only after the user explicitly
 confirms, rerun with `--confirm-seedance-charge`; never add this flag silently.
@@ -132,6 +135,11 @@ When `METASO_MINIMAX_CHARGE_CONFIRMATION_REQUIRED` is present, explain that
 every generated MiniMax H3 clip creates a paid Metaso task. Only after the user
 explicitly confirms, rerun with `--confirm-metaso-minimax-charge`; never add
 this flag silently.
+
+When `VGENV_CHARGE_CONFIRMATION_REQUIRED` is present, explain that each
+vgenv MiniMax H3 clip creates a paid task with an independent API service.
+Only after the user explicitly confirms, rerun with `--confirm-vgenv-charge`;
+never add this flag silently.
 
 When `MUAPI_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated MuAPI clip creates a paid task. Only after the user explicitly

@@ -46,6 +46,20 @@ oneapi_model_name = ""
 
 
 class TestMptAgentSkill(unittest.TestCase):
+    def test_vgenv_requires_its_own_key_and_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                '[app]\nllm_provider = "ollama"\nvgenv_api_key = ""\n',
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {"VGENV_API_KEY": ""}, clear=False):
+                provider, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "vgenv"]
+                )
+            self.assertEqual(provider, "ollama")
+            self.assertEqual(missing, ["vgenv_api_key", "confirm_vgenv_charge"])
+
     def test_repeated_source_options_follow_the_actual_cli_last_value(self):
         import cli
 

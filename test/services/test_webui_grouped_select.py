@@ -119,6 +119,7 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
             "pixabay",
             "coverr",
             "metaso_minimax",
+            "vgenv",
             "ofox",
             "loomloom",
             "volcengine_seedance",
