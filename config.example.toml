@@ -189,6 +189,7 @@ metaso_minimax_run_timeout = 1800
 # Images are generated on demand (one per script keyword, billed per image by
 # your provider) and rendered into short zoom-effect video clips.
 # Example: "https://api.openai.com/v1" or "http://127.0.0.1:8080/v1"
+# For a free local SDXL server, see docs/local-image-server/README.md.
 openai_image_base_url = ""
 # Optional for local gateways that need no auth. Leave empty to send requests
 # without an Authorization header; provide one or more keys for cloud relays.
