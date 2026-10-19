@@ -16,7 +16,7 @@
 <a href="https://trendshift.io/repositories/8731" target="_blank"><img src="https://trendshift.io/api/badge/repositories/8731" alt="harry0703%2FMoneyPrinterOmni | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 <a href="https://www.star-history.com/guilherme4colamarco/moneyprinteromni"><img src="https://api.star-history.com/badge?repo=Guilherme4Colamarco/MoneyPrinterOmni" alt="Star History Rank" style="height: 55px;" height="55"/></a>
 
-日本語 | [English](README-en.md) | [简体中文](README.md) | [リリース](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/issues)
+[English](README.md) | [简体中文](README-zh.md) | 日本語 | [リリース](https://github.com/harry0703/MoneyPrinterTurbo/releases) | [Issues](https://github.com/Guilherme4Colamarco/MoneyPrinterOmni/issues)
 
 </div>
 
