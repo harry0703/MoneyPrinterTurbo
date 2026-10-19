@@ -321,6 +321,13 @@ onomeo_api_key = ""
 onomeo_base_url = ""
 onomeo_model_name = ""
 
+# EmpirioLabs AI, an OpenAI-compatible API for open and proprietary models.
+# API key: https://platform.empiriolabs.ai/dashboard/api-keys
+# Model list: https://docs.empiriolabs.ai/models-pricing
+empiriolabs_api_key = ""
+empiriolabs_base_url = ""
+empiriolabs_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
