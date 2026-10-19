@@ -603,6 +603,13 @@
     "kimi_code.oauth.region_mismatch": "Signed in for region \"{authorized}\", but the selected API Platform is \"{selected}\". Requests will use \"{authorized}\" to match your credential; sign in again to switch regions.",
     "kimi_code.oauth.network_error": "Could not reach the Kimi authorization service (network error). Check your connection, then start sign-in again.",
     "kimi_code.oauth.changed": "Sign-in state changed in another page. This authorization has stopped; sign in again if needed.",
-    "kimi_code.oauth.poll_retry": "Network error while checking the authorization status; retrying automatically…"
+    "kimi_code.oauth.poll_retry": "Network error while checking the authorization status; retrying automatically…",
+    "Diagnostic Logging": "Diagnostic logging",
+    "Diagnostic Logging Help": "Changes apply immediately to this service and all its browser sessions.",
+    "Log Level": "Log level",
+    "Trace API Requests": "Trace API request parameters",
+    "Trace API Requests Help": "Independent of log level and off by default. Records redacted parameters, status and timing. Prompts may be visible. Media and response bodies are omitted. Turn off after troubleshooting.",
+    "Apply Logging Settings": "Apply logging settings",
+    "Logging Settings Applied": "Logging settings applied to this service."
   }
 }

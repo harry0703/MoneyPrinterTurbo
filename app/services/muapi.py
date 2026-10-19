@@ -18,6 +18,8 @@ from urllib.parse import quote_plus, urlsplit
 import requests
 from loguru import logger
 
+from app.utils.request_logging import trace_http_call
+
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect
 
@@ -237,7 +239,8 @@ def generate_videos(
     # A timeout or 5xx after POST may mean that MuAPI accepted and billed the
     # job.  Retrying the submission could create a second paid generation.
     try:
-        response = requests.post(
+        response = trace_http_call(
+            "POST", requests.post,
             videos_url,
             json=payload,
             headers=headers,
@@ -362,7 +365,8 @@ def _wait_for_task(
 
         phase_timeout = max(min(remaining / 2.0, 30.0), 0.001)
         try:
-            response = requests.get(
+            response = trace_http_call(
+                "GET", requests.get,
                 result_url,
                 headers=headers,
                 proxies=config.proxy,

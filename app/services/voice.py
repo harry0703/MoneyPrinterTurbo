@@ -24,6 +24,8 @@ import requests
 from edge_tts import SubMaker
 from edge_tts.srt_composer import Subtitle
 from loguru import logger
+
+from app.utils.request_logging import trace_http_call
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from openai import OpenAI
 
@@ -216,7 +218,8 @@ def get_elevenlabs_voices(api_key: str) -> list[str]:
                 logger.warning("ElevenLabs voice catalog time budget exhausted; returning partial catalog")
                 break
             phase_timeout = min(10.0, remaining / 2.0)
-            response = requests.get(
+            response = trace_http_call(
+                "GET", requests.get,
                 url, params=dict(params), headers=headers,
                 timeout=(phase_timeout, phase_timeout), allow_redirects=False,
             )
@@ -320,7 +323,8 @@ def get_kokoro_voices(*, fallback: bool = True) -> list[str]:
                 api_key = config.kokoro.get("api_key", "")
                 if api_key:
                     headers["Authorization"] = f"Bearer {api_key}"
-                response = requests.get(
+                response = trace_http_call(
+                    "GET", requests.get,
                     f"{base_url}/audio/voices", headers=headers, timeout=5
                 )
                 if response.status_code == 200:
@@ -1649,7 +1653,8 @@ def siliconflow_tts(
                 f"start siliconflow tts, model: {model}, voice: {voice}, try: {i + 1}"
             )
 
-            response = requests.post(
+            response = trace_http_call(
+                "POST", requests.post,
                 url,
                 json=payload,
                 headers=headers,
@@ -2239,7 +2244,8 @@ def get_minimax_voice_catalog(
         if tts_endpoint.endswith("/t2a_v2")
         else f"{tts_endpoint.rstrip('/')}/get_voice"
     )
-    response = requests.post(
+    response = trace_http_call(
+        "POST", requests.post,
         voice_endpoint,
         json={"voice_type": voice_type},
         headers={
@@ -2401,7 +2407,8 @@ def minimax_tts(text: str, voice_id: str, voice_rate: float, voice_file: str, vo
         received_success = False
         try:
             logger.info(f"start MiniMax TTS, model: {model}, voice: {voice_id}, try: {attempt + 1}")
-            response = requests.post(url, json=payload, headers=headers, allow_redirects=False, timeout=120)
+            response = trace_http_call(
+                "POST", requests.post, url, json=payload, headers=headers, allow_redirects=False, timeout=120)
             if 300 <= response.status_code < 400:
                 # Redirecting a speech POST may replay a billed synthesis or
                 # forward its input/credentials. Do not follow or resubmit it.
@@ -2523,7 +2530,8 @@ def elevenlabs_tts(
             logger.info(f"start elevenlabs tts, voice_id: {voice_id}, try: {i + 1}")
             ensure_file_path_exists(voice_file)
 
-            response = requests.post(
+            response = trace_http_call(
+                "POST", requests.post,
                 url,
                 json=payload,
                 headers=headers,
@@ -2673,7 +2681,8 @@ def _openai_compatible_tts(
             logger.info(f"start {provider} tts, voice: {voice}, try: {i + 1}")
             ensure_file_path_exists(voice_file)
 
-            response = requests.post(url, json=payload, headers=headers, allow_redirects=False, timeout=120)
+            response = trace_http_call(
+                "POST", requests.post, url, json=payload, headers=headers, allow_redirects=False, timeout=120)
             if 300 <= response.status_code < 400:
                 # Redirecting a speech POST may replay a billed synthesis or
                 # forward its input/credentials. Do not follow or resubmit it.
@@ -2926,7 +2935,8 @@ def fish_audio_tts(
             )
             ensure_file_path_exists(voice_file)
 
-            response = requests.post(url, json=payload, headers=headers, allow_redirects=False, timeout=60)
+            response = trace_http_call(
+                "POST", requests.post, url, json=payload, headers=headers, allow_redirects=False, timeout=60)
             if 300 <= response.status_code < 400:
                 # Redirecting a speech POST may replay a billed synthesis or
                 # forward its input/credentials. Do not follow or resubmit it.
@@ -3271,7 +3281,8 @@ def voxcpm_tts(
                 f"start VoxCPM TTS, model: {model_id}, voice: {voice_id}, "
                 f"try: {attempt + 1}"
             )
-            response = requests.post(
+            response = trace_http_call(
+                "POST", requests.post,
                 url,
                 json=payload,
                 headers=headers,

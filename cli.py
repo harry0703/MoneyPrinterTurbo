@@ -1718,12 +1718,12 @@ def _run_batch_tasks(args: argparse.Namespace, tasks: list[VideoParams]) -> int:
 
 def run_cli(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    from app.config import config
-    from app.utils.logging_utils import configure_terminal_logger
+    import app.config  # noqa: F401 -- 初始化配置及进程日志设置。
+    from app.utils.logging_utils import configure_terminal_logger, get_logging_options
 
     # 配置模块默认把终端日志发往 stdout。CLI 的 stdout 是机器可读 JSON，
     # 必须在素材预处理等步骤开始前切到 stderr，帮助和参数错误仍保持延迟导入。
-    configure_terminal_logger(sys.stderr, level=config.log_level, colorize=False)
+    configure_terminal_logger(sys.stderr, level=get_logging_options()[0], colorize=False)
     if args.batch_file:
         try:
             tasks = _build_batch_tasks(args)

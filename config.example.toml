@@ -11,6 +11,18 @@ log_level = "DEBUG"
 listen_host = "0.0.0.0"
 listen_port = 8080
 
+[diagnostics]
+# Optional override for the top-level log_level, shared by API, CLI and WebUI.
+# log_level = "INFO"
+# Request tracing is independent of log level and disabled by default.
+# It logs redacted request parameters and response status/timing, never response
+# bodies. Prompts may be visible; only enable while troubleshooting.
+# WebUI: Settings > Interface > Diagnostic logging; Apply takes effect immediately
+# in that process. Other processes / manual file edits require a restart.
+# 请求追踪独立于日志等级，默认关闭；提示词可能出现在日志中。
+# WebUI 设置中的诊断日志可立即生效；其它进程及手工修改配置后需要重启。
+log_requests = false
+
 [app]
 
 # Optional protection for API routes and generated files under /tasks.

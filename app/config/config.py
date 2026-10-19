@@ -17,6 +17,7 @@ config_file = f"{root_dir}/config.toml"
 _CONTAINER_CGROUP_MARKERS = ("docker", "containerd", "kubepods", "libpod", "podman")
 _DOCKER_HOST_GATEWAY_NAME = "host.docker.internal"
 _config_save_lock = threading.RLock()
+_diagnostics_update_lock = threading.Lock()
 _pending_config_lock = threading.RLock()
 _pending_config_updates = {}
 _pending_config_save_requested = False
@@ -99,15 +100,21 @@ def update_config_nonblocking(config_section, key, value):
 
     返回 True 表示值已经生效，False 表示已进入待更新队列。
     """
+    return update_config_values_nonblocking(config_section, {key: value})
+
+
+def update_config_values_nonblocking(config_section, changes):
+    """将同一次操作的关联字段一起排队，避免并发应用时拆散配置。"""
     # 所有更新都先进入同一队列，再尝试获取配置锁。这样多个页面同时修改同一
     # 配置项时，写入队列的先后顺序就是最终顺序，不会出现较早线程在获取锁后
     # 把较新线程已经排队的值误删掉。
     with _pending_config_lock:
-        _pending_config_updates[_pending_update_key(config_section, key)] = (
-            config_section,
-            key,
-            copy.deepcopy(value),
-        )
+        for key, value in changes.items():
+            _pending_config_updates[_pending_update_key(config_section, key)] = (
+                config_section,
+                key,
+                copy.deepcopy(value),
+            )
 
     acquired = _config_save_lock.acquire(blocking=False)
     if not acquired:
@@ -119,9 +126,24 @@ def update_config_nonblocking(config_section, key, value):
 
     try:
         _apply_pending_config_updates_locked()
-        return config_section.get(key, _MISSING) == value
+        return all(
+            config_section.get(key, _MISSING) == value
+            for key, value in changes.items()
+        )
     finally:
         _config_save_lock.release()
+
+
+def update_logging_options(level, log_requests):
+    """串行发布运行期快照与持久化意图，不等待生成任务的长配置锁。"""
+    from app.utils.logging_utils import get_logging_options, set_logging_options
+
+    with _diagnostics_update_lock:
+        set_logging_options(level, log_requests)
+        level, log_requests = get_logging_options()
+        return update_config_values_nonblocking(
+            diagnostics, {"log_level": level, "log_requests": log_requests}
+        )
 
 
 def delete_config_nonblocking(config_section, key):
@@ -569,6 +591,7 @@ def save_config():
         config_to_save["fish_audio"] = dict(fish_audio)
         config_to_save["voxcpm"] = dict(voxcpm)
         config_to_save["ui"] = dict(ui)
+        config_to_save["diagnostics"] = dict(diagnostics)
         serialized_config = toml.dumps(config_to_save)
 
         # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
@@ -615,6 +638,7 @@ def save_config():
 
 
 _cfg = load_config()
+diagnostics = _SynchronizedConfig(_cfg.get("diagnostics", {}))
 app = _SynchronizedConfig(_cfg.get("app", {}))
 whisper = _cfg.get("whisper", {})
 proxy = _cfg.get("proxy", {})

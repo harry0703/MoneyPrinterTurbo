@@ -603,6 +603,13 @@
     "kimi_code.oauth.region_mismatch": "当前凭证属于「{authorized}」区域，但所选 API Platform 为「{selected}」。请求将按凭证区域「{authorized}」发出；如需切换区域，请重新登录。",
     "kimi_code.oauth.network_error": "无法连接 Kimi 授权服务（网络错误）。请检查网络连接后重新发起登录。",
     "kimi_code.oauth.changed": "登录状态已在其他页面变更，本次授权已停止。请按需重新登录。",
-    "kimi_code.oauth.poll_retry": "检查授权状态时网络异常，正在自动重试……"
+    "kimi_code.oauth.poll_retry": "检查授权状态时网络异常，正在自动重试……",
+    "Diagnostic Logging": "诊断日志",
+    "Diagnostic Logging Help": "立即调整当前服务的日志，设置对所有浏览器会话生效。",
+    "Log Level": "日志等级",
+    "Trace API Requests": "记录 API 请求参数",
+    "Trace API Requests Help": "独立于日志等级，默认关闭。记录脱敏参数、状态和耗时；提示词可能可见。音视频和响应正文不记录。排查结束后请关闭。",
+    "Apply Logging Settings": "应用日志设置",
+    "Logging Settings Applied": "日志设置已在当前服务生效。"
   }
 }
