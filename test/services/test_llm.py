@@ -586,6 +586,19 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(onomeo.requires_api_key)
         self.assertEqual(onomeo.api_key_url, "https://onomeo.com/dashboard")
         self.assertEqual(onomeo.model_docs_url, "https://onomeo.com/models")
+        empiriolabs = get_llm_provider("empiriolabs")
+        self.assertEqual(empiriolabs.default_model, "qwen3-8-flash")
+        self.assertEqual(empiriolabs.default_base_url, "https://api.empiriolabs.ai/v1")
+        self.assertEqual(empiriolabs.adapter, "openai_compatible")
+        self.assertTrue(empiriolabs.requires_api_key)
+        self.assertEqual(
+            empiriolabs.api_key_url,
+            "https://platform.empiriolabs.ai/dashboard/api-keys",
+        )
+        self.assertEqual(
+            empiriolabs.model_docs_url,
+            "https://docs.empiriolabs.ai/models-pricing",
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -663,6 +676,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "yapi",
                 "opper",
                 "onomeo",
+                "empiriolabs",
                 "ollama",
                 "claude_code",
                 "oneapi",
