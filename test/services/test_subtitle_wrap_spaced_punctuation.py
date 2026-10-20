@@ -43,3 +43,21 @@ def test_character_wrapped_punctuation_still_borrows_one_character():
     lines = wrapped.splitlines()
     assert "".join(lines) == "ab" * 4 + "。"
     assert not lines[-1].startswith("。")
+
+
+@pytest.mark.parametrize("word", ["Bonjour", "Cafe\u0301"])
+@pytest.mark.parametrize("punctuation", ["!", "?", ":", ";"])
+def test_single_word_before_spaced_punctuation_is_not_split(word, punctuation):
+    font = ImageFont.truetype(FONT_PATH, 60)
+    left, _, right, _ = font.getbbox(word)
+    max_width = right - left + 2
+    text = f"{word} {punctuation}"
+    full_left, _, full_right, _ = font.getbbox(text)
+    assert full_right - full_left > max_width
+
+    wrapped, height = wrap_text(text, max_width, font=FONT_PATH, fontsize=60)
+
+    assert wrapped.splitlines() == [word, punctuation]
+    assert " ".join(wrapped.splitlines()) == text
+    ascent, descent = font.getmetrics()
+    assert height == 2 * (ascent + descent)
