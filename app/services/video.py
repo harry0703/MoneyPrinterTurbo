@@ -727,7 +727,13 @@ def _sanitize_image_file(image_path: str) -> str:
                 # Strip metadata after applying the camera's orientation.
                 # Palette transparency belongs to pixels, not removable metadata.
                 mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
-                cleaned_image = upright.convert(mode)
+                if upright.mode == "I;16":
+                    # PNG grayscale samples span0..65535; an RGB cast either
+                    # clips them to white or wraps when MoviePy encodes them.
+                    with upright.point(lambda value: value / 257 + 0.5) as byte_range:
+                        cleaned_image = byte_range.convert(mode)
+                else:
+                    cleaned_image = upright.convert(mode)
                 cleaned_image.info.clear()
                 source_digest.update(str(cleaned_image.size).encode())
                 source_digest.update(cleaned_image.mode.encode())
@@ -756,6 +762,7 @@ def _open_image_clip_with_fallback(image_path: str):
     # MoviePy does not apply camera EXIF orientation while decoding an image.
     # CMYK JPEG channels must become RGB; LA must become RGBA so MoviePy
     # creates a proper opacity mask rather than treating alpha as a color band.
+    # Bilevel pixels must become byte-range RGB rather than bool values0/1.
     # Ordinary RGB inputs retain the direct path.
     try:
         with Image.open(image_path) as image:
@@ -764,7 +771,7 @@ def _open_image_clip_with_fallback(image_path: str):
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode in {"CMYK", "LA"}:
+    if orientation in range(2, 9) or image_mode in {"CMYK", "LA", "1", "I;16"}:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
