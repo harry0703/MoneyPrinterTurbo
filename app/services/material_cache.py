@@ -467,7 +467,11 @@ def cleanup_expired_material_search_cache(
                     # rollback. Only remove temp files demonstrably old enough.
                     if cache_age < MATERIAL_SEARCH_CACHE_TTL_SECONDS:
                         continue
-                elif 0 <= cache_age < MATERIAL_SEARCH_CACHE_TTL_SECONDS:
+                elif (
+                    -_CLOCK_GRANULARITY_TOLERANCE_SECONDS
+                    <= cache_age
+                    < MATERIAL_SEARCH_CACHE_TTL_SECONDS
+                ):
                     continue
                 if not _is_same_cache_file(Path(entry.path), expected):
                     continue
