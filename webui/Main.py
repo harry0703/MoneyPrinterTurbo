@@ -37,6 +37,7 @@ from app.models.llm_provider import (
     normalize_provider_override,
 )
 from app.models.schema import (
+    ImageMotion,
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
@@ -1561,6 +1562,9 @@ def _apply_restored_params(params):
     _set_stable_widget_value(
         "video_fit_mode_select",
         params.get("video_fit_mode") or VideoFitMode.cover.value,
+    )
+    _set_stable_widget_value(
+        "image_motion_select", params.get("image_motion") or ImageMotion.zoom.value
     )
     _set_stable_widget_value(
         "video_clip_duration_select", params.get("video_clip_duration", 3)
@@ -5403,6 +5407,28 @@ def _render_video_settings(panel, params):
             _set_runtime_config(
                 "ui", "video_fit_mode", params.video_fit_mode.value
             )
+
+            if params.video_source in {"local", "openai_image"}:
+                image_motion_labels = {
+                    ImageMotion.static.value: tr("Static Image"),
+                    ImageMotion.zoom.value: tr("Slow Zoom"),
+                }
+                params.image_motion = ImageMotion(
+                    stable_selectbox(
+                        tr("Image Motion"),
+                        options=list(image_motion_labels),
+                        default_value=_saved_ui_choice(
+                            "image_motion", list(image_motion_labels), ImageMotion.zoom.value,
+                            # 生成任务持锁时，切换语言或素材来源会重建控件；
+                            # 此时必须恢复尚未落盘的最新选择，不能写回旧配置值。
+                            section=config.snapshot_config_with_pending(config.ui),
+                        ),
+                        key="image_motion_select",
+                        format_func=image_motion_labels.get,
+                        help=tr("Image Motion Help"),
+                    )
+                )
+                _set_runtime_config("ui", "image_motion", params.image_motion.value)
 
             # MiniMax H3 的远端时长范围是 4～15 秒。选择秘塔时使用完整能力
             # 范围，既避免 2/3 秒被按 4 秒计费，也让 WebUI 与 CLI、服务层一致。
