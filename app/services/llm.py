@@ -1325,8 +1325,8 @@ def _fallback_social_metadata(
 
     title = subject
     if not title and script:
-        # 没有主题时，用脚本第一句兜底生成 title，避免接口返回空标题。
-        title = re.split(r"(?<=[.!?。！？])\s+", script)[0]
+        # 中日文句末通常没有空格；英文仍要求空白，避免拆开 2.0 等数字。
+        title = re.split(r"(?<=[.!?])\s+|(?<=[。！？])\s*", script, maxsplit=1)[0]
 
     return {
         "title": _clamp_text(title, spec["title_max"]),
