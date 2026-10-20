@@ -227,6 +227,31 @@ def similarity(a, b):
     return 1 - (distance / max_length)
 
 
+def _later_next_sentence_cue_fits_better(
+    script_line, combined_subtitle, subtitle_items, next_subtitle_index, next_script_line
+):
+    """Use surrounding transcription to distinguish repeated next-sentence cues."""
+    boundary_score = similarity(script_line, combined_subtitle)
+    prefix = combined_subtitle
+    for index in range(next_subtitle_index, len(subtitle_items)):
+        cue = subtitle_items[index][2].strip()
+        if (
+            index > next_subtitle_index
+            and cue == next_script_line
+            and similarity(script_line, prefix) > boundary_score
+        ):
+            return True
+        prefix += " " + cue
+        # Beyond the target length, even a perfect shorter-string match cannot
+        # improve this boundary. Avoid scanning the rest of a long transcript.
+        if (
+            len(prefix) > len(script_line)
+            and len(script_line) / len(prefix) <= boundary_score
+        ):
+            break
+    return False
+
+
 def correct(subtitle_file, video_script):
     subtitle_items = file_to_subtitles(subtitle_file)
     normalized_script = utils.normalize_script_for_subtitle_matching(video_script)
@@ -259,6 +284,13 @@ def correct(subtitle_file, video_script):
                 if (
                     script_index + 1 < len(script_lines)
                     and next_subtitle == script_lines[script_index + 1].strip()
+                    and not _later_next_sentence_cue_fits_better(
+                        script_line,
+                        combined_subtitle,
+                        subtitle_items,
+                        next_subtitle_index,
+                        script_lines[script_index + 1].strip(),
+                    )
                 ):
                     break
                 if similarity(
