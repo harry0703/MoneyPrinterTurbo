@@ -193,3 +193,17 @@ class TestZoomTransitions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_slideout_short_scene_completes_requested_direction():
+    """A one-second transition must finish inside a 0.2-second scene."""
+    for side in ("left", "right", "top", "bottom"):
+        clip = ImageClip(np.full((64, 64, 3), 255, dtype=np.uint8)).with_duration(0.2)
+        outgoing = video_effects.slideout_transition(clip, 1.0, side)
+        try:
+            assert np.mean(outgoing.get_frame(0.0)) == 255
+            assert np.mean(outgoing.get_frame(0.199)) < 10
+            assert outgoing.duration == 0.2
+        finally:
+            outgoing.close()
+            clip.close()

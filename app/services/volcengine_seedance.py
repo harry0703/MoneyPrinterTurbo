@@ -7,6 +7,8 @@ from urllib.parse import quote_plus
 import requests
 from loguru import logger
 
+from app.utils.request_logging import trace_http_call
+
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect
 
@@ -121,7 +123,9 @@ def _duration_bounds() -> tuple[int, int]:
     def read(key: str, default: int) -> int:
         try:
             value = int(config.app.get(key, default))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            # TOML accepts `inf`; int(inf) raises OverflowError, which is not
+            # a provider error and would abort the task with a traceback.
             return default
         return value if value >= 1 else default
 
@@ -263,7 +267,8 @@ def generate_videos(
     # 提交接口不做自动重试：超时或 5xx 可能发生在付费任务已经创建之后，
     # 盲目重试会造成重复扣费。只有拿到明确拒绝响应时才判定为确定性失败。
     try:
-        response = requests.post(
+        response = trace_http_call(
+            "POST", requests.post,
             tasks_url,
             json=payload,
             headers=headers,
@@ -379,7 +384,8 @@ def _wait_for_task(
         # 网络库仍可能有极小调度误差，下一处 deadline 检查会阻止再次重试。
         phase_timeout = max(min(remaining / 2.0, 30.0), 0.001)
         try:
-            response = requests.get(
+            response = trace_http_call(
+                "GET", requests.get,
                 f"{tasks_url}/{task_id}",
                 headers=headers,
                 proxies=config.proxy,

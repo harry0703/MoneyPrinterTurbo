@@ -74,11 +74,16 @@ def validation_exception_handler(request: Request, e: RequestValidationError):
             Exception: str,
         },
     )
+    # Describe the first rejected field instead of always claiming a missing
+    # field: out-of-range values and malformed JSON are not "field required".
+    message = "invalid request parameters"
+    if errors and isinstance(errors[0], dict):
+        location = ".".join(str(part) for part in errors[0].get("loc") or ())
+        detail = errors[0].get("msg") or message
+        message = f"{location}: {detail}" if location else str(detail)
     return JSONResponse(
         status_code=400,
-        content=utils.get_response(
-            status=400, data=errors, message="field required"
-        ),
+        content=utils.get_response(status=400, data=errors, message=message),
     )
 
 

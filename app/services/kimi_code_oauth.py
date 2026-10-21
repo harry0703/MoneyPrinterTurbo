@@ -29,6 +29,8 @@ import uuid
 import requests
 from loguru import logger
 
+from app.utils.request_logging import trace_http_call
+
 from app import __version__
 from app.config import config
 
@@ -158,7 +160,8 @@ def request_device_code(region: str) -> dict:
     if region not in _REGIONS:
         raise ValueError(f"kimi_code: unknown region '{region}'")
     url = f"{_REGIONS[region]['auth_base']}/api/oauth/device_authorization"
-    response = requests.post(
+    response = trace_http_call(
+        "POST", requests.post,
         url,
         headers=_identity_headers(),
         data={"client_id": client_id()},
@@ -197,7 +200,8 @@ def poll_token(region: str, device_code: str) -> dict:
       - the token payload                     — approved
     """
     url = f"{_REGIONS[region]['auth_base']}/api/oauth/token"
-    response = requests.post(
+    response = trace_http_call(
+        "POST", requests.post,
         url,
         headers=_identity_headers(),
         data={
@@ -229,7 +233,8 @@ def poll_token(region: str, device_code: str) -> dict:
 
 def _refresh(region: str, refresh_token: str) -> dict:
     url = f"{_REGIONS[region]['auth_base']}/api/oauth/token"
-    response = requests.post(
+    response = trace_http_call(
+        "POST", requests.post,
         url,
         headers=_identity_headers(),
         data={
