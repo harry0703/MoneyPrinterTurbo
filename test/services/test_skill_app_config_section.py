@@ -35,3 +35,19 @@ def test_table_like_text_inside_multiline_value_is_not_a_settings_header():
     document = tomllib.loads(updated)
     assert document["app"]["pexels_api_keys"] == ["new-fixture"]
     assert document["ui"]["description"] == tomllib.loads(text)["ui"]["description"]
+
+
+def test_combined_quoted_multiline_app_update_preserves_other_tables_and_strings():
+    text = (
+        '[ui]\npexels_api_keys = ["ui"]\n'
+        '[app]\nnotes = """Example:\npexels_api_keys = ["example"]\n"""\n'
+        '  "pexels_api_keys" = [\n  "old",\n]\n'
+        '[other]\npexels_api_keys = ["other"]\n'
+    )
+    before = tomllib.loads(text)
+    updated = helper._replace_config_value(text, "pexels_api_keys", ["new"])
+    after = tomllib.loads(updated)
+    assert after["app"]["pexels_api_keys"] == ["new"]
+    assert after["app"]["notes"] == before["app"]["notes"]
+    assert after["ui"] == before["ui"]
+    assert after["other"] == before["other"]

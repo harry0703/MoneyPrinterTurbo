@@ -1899,6 +1899,29 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertNotIn("(pausa", flex_cleaned)
         self.assertNotIn("[pause", flex_cleaned)
 
+    def test_pause_tags_accept_duration_directly_after_cjk_keyword(self):
+        """中日文习惯不写冒号或空格，`[停顿3秒]` 也必须识别为停顿而不是被朗读。"""
+        script = "大家好。[停顿3秒]今天聊聊理财。[ポーズ2秒]最後。[pause2s]End."
+
+        self.assertTrue(utils.has_pause_tags("[暂停2秒]"))
+        self.assertEqual(
+            utils.parse_script_with_pauses(script),
+            [
+                ("speech", "大家好。"),
+                ("pause", 3.0),
+                ("speech", "今天聊聊理财。"),
+                ("pause", 2.0),
+                ("speech", "最後。"),
+                ("pause", 2.0),
+                ("speech", "End."),
+            ],
+        )
+        self.assertNotIn("停顿", utils.remove_pause_tags(script))
+
+        # 关键词后紧跟字母的普通文字仍不是停顿标签。
+        for text in ("[paused]", "(pauses)", "[暂停一下]"):
+            self.assertFalse(utils.has_pause_tags(text), text)
+
     def test_concat_audio_files_reads_pcm_in_bounded_chunks(self):
         """Long pause-aware narration should not load each WAV into memory."""
         real_wave_open = vs.wave.open
