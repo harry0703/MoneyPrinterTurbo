@@ -11,6 +11,8 @@ from typing import Any
 import requests
 from loguru import logger
 
+from app.utils.request_logging import trace_http_call
+
 from app.config import config
 from app.services import bgm as bgm_service
 from app.utils import utils
@@ -114,7 +116,8 @@ def test_connection() -> dict[str, Any]:
     if not api_key:
         raise SoniloError("Sonilo API key is required")
     try:
-        with requests.get(
+        with trace_http_call(
+            "GET", requests.get,
             f"{_base_url()}{SERVICES_PATH}",
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=(15, 30),
@@ -344,7 +347,8 @@ def _request_bgm(video_path: str, output_path: str, prompt: str) -> str:
         )
         try:
             with open(video_path, "rb") as video_file:
-                response = requests.post(
+                response = trace_http_call(
+                    "POST", requests.post,
                     f"{_base_url()}{VIDEO_TO_MUSIC_PATH}",
                     headers={"Authorization": f"Bearer {get_api_key()}"},
                     files={"video": (Path(video_path).name, video_file, "video/mp4")},

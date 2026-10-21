@@ -10,6 +10,8 @@ from uuid import uuid4
 
 import requests
 from loguru import logger
+
+from app.utils.request_logging import trace_http_call
 from app.config import config
 
 
@@ -252,7 +254,8 @@ class UploadPostService:
 
                 headers = {'Authorization': f'Apikey {self.api_key}'}
 
-                response = requests.post(
+                response = trace_http_call(
+                    "POST", requests.post,
                     f"{self.API_BASE}/api/upload",
                     headers=headers,
                     data=data,
@@ -356,7 +359,8 @@ class UploadPostService:
                 'Authorization': f'Apikey {self.api_key}'
             }
 
-            response = requests.get(
+            response = trace_http_call(
+                "GET", requests.get,
                 f"{self.API_BASE}/api/uploadposts/status",
                 params={'request_id': request_id},
                 headers=headers,

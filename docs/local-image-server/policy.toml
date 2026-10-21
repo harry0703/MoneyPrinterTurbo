@@ -1,0 +1,155 @@
+# Content policy for generated scenes.
+#
+# Patterns are Python regex and case-sensitive unless they start with (?i).
+# Rules run in order. The first matching "replace" rule ends the run.
+#   replace     swap the whole prompt for a safe scene
+#   substitute  replace only the matched words
+#   append      add guidance to the end of the prompt
+# Set enabled = false to switch a rule off.
+
+[defaults]
+negative = "blood, gore, corpses, wounds, nudity"
+
+# scenes for "replace" rules with use_places = true, first match wins
+[[places]]
+match = '(?i)\b(hira|cave)\b'
+scene = "rocky mountain cave entrance at dawn, soft light"
+
+[[places]]
+match = '(?i)\b(medina|madinah?|yathrib)\b'
+scene = "palm oasis with mud brick houses at golden hour"
+
+[[places]]
+match = '(?i)\b(mecca|makkah|kaaba|ka.bah)\b'
+scene = "arabian desert valley between rocky mountains at dawn"
+
+[[places]]
+match = '(?i)\b(jerusalem|al-?aqsa)\b'
+scene = "ancient stone city walls at sunrise"
+
+[[places]]
+match = '(?i)\b(sinai)\b'
+scene = "granite desert mountains at sunrise"
+
+# --- never depicted ---
+
+[[rules]]
+name = "god"
+# God is not shown as a figure in Islam, Judaism or most of Christianity
+action = "replace"
+match = ['\bGod\b', '(?i)\b(allah|yahweh|jehovah|the almighty)\b']
+scene = "rays of soft light breaking through clouds over a vast quiet landscape"
+no_people = true
+
+[[rules]]
+name = "prophet_muhammad"
+action = "replace"
+match = [
+  '''(?i)\b(muhammad|mohammed|mohammad|mohamed)(['’]?s)?\b''',
+  '\b[Tt]he (Holy )?Prophet\b',
+  '(?i)\b(messenger of (god|allah)|rasul(ullah)?|rasool)\b',
+]
+use_places = true
+scene = "vast desert landscape with distant mountains at sunrise, soft light"
+no_people = true
+
+[[rules]]
+name = "islamic_prophets"
+# arabic names imply islamic framing, where prophets are not depicted
+action = "replace"
+match = [
+  '(?i)\bprophets?\s+(isa|nuh|ibrahim|musa|yusuf|dawud|sulayman|yunus|ismail|yahya|zakariy+a|adam|idris|hud|salih|shu.?ayb)\b',
+  # bare names are common muslim names, so only with islamic context
+  '(?i)(?<!mansa )\b(isa|nuh|ibrahim|musa|yusuf|dawud|sulayman|yunus|yahya|zakariy+a|idris)\b(?=.*\b(islam\w*|qur.?an\w*|muslims?)\b)',
+]
+use_places = true
+scene = "vast desert landscape with distant mountains at sunrise, soft light"
+no_people = true
+
+[[rules]]
+name = "islamic_prophets_english_names"
+# for islamic content: Jesus, Moses, Abraham and Noah are prophets in Islam too.
+# off by default because Christian and Jewish art depicts them
+enabled = false
+action = "replace"
+match = ['(?i)\b(jesus|christ|moses|abraham|noah|joseph|david|solomon|jonah|john the baptist)\b']
+use_places = true
+scene = "vast desert landscape with distant mountains at sunrise, soft light"
+no_people = true
+
+[[rules]]
+name = "companions_and_family_of_the_prophet"
+# many muslims also avoid depicting the companions and the prophet's family
+action = "replace"
+match = [
+  '(?i)\b(sahaba|companions of the prophet|rightly guided caliphs?)\b',
+  '(?i)\b(abu bakr|umar ibn al.?khattab|caliph umar|uthman ibn affan|caliph uthman|ali ibn abi talib|imam ali|imam hu?s[as]+[ae]?in|khadijah?|fatimah? (al.?)?zahra|aisha bint abi bakr)\b',
+]
+use_places = true
+scene = "vast desert landscape with distant mountains at sunrise, soft light"
+no_people = true
+
+[[rules]]
+name = "bahai_central_figures"
+action = "replace"
+match = ['''(?i)\b(the b[aá]b|bah[aá]['’]?u['’]?ll[aá]h)\b''']
+scene = "terraced gardens descending a mountainside at sunrise"
+no_people = true
+
+[[rules]]
+name = "sikh_gurus"
+# images of the gurus exist, but many sikhs object to them
+action = "replace"
+match = ['(?i)\b(sikh gurus?|guru (nanak|angad|amar das|ram das|arjan|hargobind|har rai|har krishan|tegh bahadur|gobind singh))\b']
+scene = "golden temple reflected in the still pool at dawn"
+no_people = true
+
+# --- real suffering ---
+
+[[rules]]
+name = "atrocities"
+# a photoreal "historical photo" of a real atrocity is a fabrication
+action = "replace"
+match = ['(?i)\b(holocaust|shoah|auschwitz|concentration camps?|death camps?|genocides?|massacres?|ethnic cleansing|lynching|slave ships?|terrorist attacks?|9/11|september 11|hiroshima bombing|nakba)\b']
+scene = "memorial with candles and flowers at dusk, solemn and quiet"
+no_people = true
+
+[[rules]]
+name = "children_in_distress"
+action = "replace"
+match = ['(?i)\b(child|children|kids?|orphans?|bab(y|ies)|toddlers?)\b.{0,40}\b(starving|crying|wounded|injured|dying|dead|abused|suffering|malnourished)\b', '(?i)\b(starving|crying|wounded|injured|dying|dead|abused|suffering|malnourished)\b.{0,40}\b(child|children|kids?|orphans?|bab(y|ies)|toddlers?)\b']
+scene = "a small worn toy on an empty dusty road at dusk"
+no_people = true
+
+# --- softer fixes ---
+
+[[rules]]
+name = "living_public_figures"
+# no photoreal faces of real office holders
+action = "replace"
+match = ['''\b(?i:president|prime minister|chancellor|senator|governor|minister|pope|ceo|secretary.general)\s+[A-Z][\w'-]+(\s+[A-Z][\w'-]+)?''']
+scene = "government building exterior with flags at dusk"
+no_people = true
+
+[[rules]]
+name = "sacred_script"
+# image models write fake arabic, hebrew, sanskrit or gurmukhi
+action = "substitute"
+match = ['(?i)\b((arabic|hebrew|sanskrit|gurmukhi|tibetan|devanagari) )?(calligraph\w*|inscriptions?|scripture text|holy verses?|verses)\b']
+replacement = "ornate geometric patterns"
+negative = "calligraphy, script, lettering"
+
+[[rules]]
+name = "holy_books"
+action = "append"
+match = ['''(?i)\b(qur.?an|koran|torah|bible|gospels?|guru granth sahib|vedas?|bhagavad gita|sutras?|tripitaka|holy books?|scriptures?)\b''']
+text = "the holy book shown closed with a plain cover decorated only with geometric ornament, resting on an ornate stand"
+negative = "open book, pages, writing, lettering on the cover, emblem with text"
+
+[[rules]]
+name = "revered_figures"
+# depicted in these traditions, so keep them but frame them with respect
+action = "append"
+match = ['(?i)\b(jesus|christ|virgin mary|madonna|saints?|moses|abraham|buddha|bodhisattvas?|shiva|vishnu|krishna|rama|ganesh[a]?|durga|kali|lakshmi|hanuman|saraswati|parvati|mahavira)\b']
+text = "depicted reverently in a traditional devotional setting, dignified"
+negative = "cartoon, comic, sexualized, revealing clothing, mocking, toy, on shoes"
