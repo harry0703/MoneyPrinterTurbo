@@ -11,7 +11,11 @@ from app.models.schema import VideoParams
 from app.services import state as sm
 from app.services import task as tm
 from app.services.loomloom import LoomLoomConfirmedVideoRequest
-from app.utils.logging_utils import format_log_record, log_scope_thread_id
+from app.utils.logging_utils import (
+    format_log_record,
+    log_scope_thread_id,
+    runtime_log_filter,
+)
 
 
 # WebUI 的配置保存在进程级全局字典中。原来的同步实现会在完整生成期间持有
@@ -76,11 +80,12 @@ def _run_generation(
         if capture_logs:
             log_handler_id = logger.add(
                 lambda message: _append_task_log(task_id, str(message)),
-                level="DEBUG",
+                level=0,
                 format=format_log_record,
                 colorize=False,
                 filter=lambda record: (
                     log_scope_thread_id(record["thread"].id) == worker_thread_id
+                    and runtime_log_filter(record)
                 ),
             )
 

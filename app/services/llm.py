@@ -16,6 +16,7 @@ from openai.types.chat import ChatCompletion
 from app.config import config
 from app.models.llm_provider import DEFAULT_LLM_PROVIDER_ID, get_llm_provider
 from app.utils import utils
+from app.utils.request_logging import trace_sdk_call
 
 _max_retries = 5
 MIN_SCRIPT_PARAGRAPH_NUMBER = 1
@@ -42,8 +43,9 @@ _CONNECTION_FAILURE_MARKERS = (
 )
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
+_UNOPENED_THINK_BLOCK_RE = re.compile(r"^.*</think\s*>", re.IGNORECASE | re.DOTALL)
 _URL_USERINFO_RE = re.compile(
-    r"((?:https?|wss?)://)([^/\s?#@]*:[^/\s?#@]*@)", re.IGNORECASE
+    r"((?:https?|wss?)://)([^/\s?#@]+@)", re.IGNORECASE
 )
 _SENSITIVE_QUERY_RE = re.compile(
     r"([?&](?:api[_-]?key|access[_-]?token|token|key|secret|password)=)([^&#\s]+)",
@@ -193,6 +195,10 @@ def _normalize_text_response(content, llm_provider: str) -> str:
     # `<think>...</think>` 中返回。视频脚本和关键词只需要最终可朗读文本，
     # 如果不在服务层统一清理，WebUI、字幕和配音都会把思考过程当正文处理。
     content = _THINK_BLOCK_RE.sub("", content)
+    # DeepSeek R1、QwQ 等模型的对话模板会把起始 `<think>` 放进提示词，
+    # vLLM/Ollama 等网关返回的正文只剩 `推理...</think>答案`。成对清理之后
+    # 仍残留的闭合标签之前都是推理内容，也不能进入脚本。
+    content = _UNOPENED_THINK_BLOCK_RE.sub("", content)
     content = _UNCLOSED_THINK_BLOCK_RE.sub("", content).strip()
     if not content:
         raise ValueError(f"[{llm_provider}] returned empty text content")
@@ -392,7 +398,8 @@ def _generate_response(
             import dashscope
             from dashscope.api_entities.dashscope_response import GenerationResponse
 
-            response = dashscope.Generation.call(
+            response = trace_sdk_call(
+                llm_provider, base_url, dashscope.Generation.call,
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 api_key=api_key,
@@ -450,7 +457,8 @@ def _generate_response(
                     api_key=api_key,
                     http_options=http_options,
                 ) as client:
-                    response = client.models.generate_content(
+                    response = trace_sdk_call(
+                        llm_provider, base_url, client.models.generate_content,
                         model=model_name,
                         contents=prompt,
                         config=generation_config,
@@ -476,7 +484,8 @@ def _generate_response(
                 default_headers={"cf-aig-gateway-id": gateway_id},
                 **_sdk_transport_options(request_timeout, max_retries),
             )
-            response = client.chat.completions.create(
+            response = trace_sdk_call(
+                llm_provider, base_url, client.chat.completions.create,
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -490,7 +499,8 @@ def _generate_response(
                     f"{llm_provider}: model_name is not set, please set it in the config.toml file."
                 )
 
-            response = litellm.completion(
+            response = trace_sdk_call(
+                llm_provider, base_url, litellm.completion,
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 drop_params=True,
@@ -515,7 +525,8 @@ def _generate_response(
                 azure_endpoint=base_url,
                 **_sdk_transport_options(request_timeout, max_retries),
             )
-            response = client.chat.completions.create(
+            response = trace_sdk_call(
+                llm_provider, base_url, client.chat.completions.create,
                 model=model_name, messages=[{"role": "user", "content": prompt}]
             )
             if response:
@@ -701,7 +712,8 @@ def _generate_response(
                 default_headers=kimi_code_oauth.api_headers(),
                 **_sdk_transport_options(None, max_retries),
             )
-            response = client.chat.completions.create(
+            response = trace_sdk_call(
+                llm_provider, base_url, client.chat.completions.create,
                 model=request_model, messages=[{"role": "user", "content": prompt}]
             )
             if response and isinstance(response, ChatCompletion):
@@ -717,7 +729,8 @@ def _generate_response(
                 base_url=base_url,
                 **_sdk_transport_options(request_timeout, max_retries),
             )
-            response = sdk_stream = client.chat.completions.create(
+            response = sdk_stream = trace_sdk_call(
+                llm_provider, base_url, client.chat.completions.create,
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 extra_body={"enable_thinking": False},
@@ -744,7 +757,8 @@ def _generate_response(
             **_sdk_transport_options(request_timeout, max_retries),
         )
 
-        response = client.chat.completions.create(
+        response = trace_sdk_call(
+            llm_provider, base_url, client.chat.completions.create,
             model=model_name, messages=[{"role": "user", "content": prompt}]
         )
         if response:
@@ -1316,8 +1330,8 @@ def _fallback_social_metadata(
 
     title = subject
     if not title and script:
-        # 没有主题时，用脚本第一句兜底生成 title，避免接口返回空标题。
-        title = re.split(r"(?<=[.!?。！？])\s+", script)[0]
+        # 中日文句末通常没有空格；英文仍要求空白，避免拆开 2.0 等数字。
+        title = re.split(r"(?<=[.!?])\s+|(?<=[。！？])\s*", script, maxsplit=1)[0]
 
     return {
         "title": _clamp_text(title, spec["title_max"]),

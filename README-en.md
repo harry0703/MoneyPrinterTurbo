@@ -116,14 +116,6 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo"><img src="docs/sponsors/sidrune-logo.png" alt="Sidrune AI" width="120"></a>
-    </td>
-    <td align="left">
-      Thanks to <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo">Sidrune AI</a> for sponsoring this project! <strong>One gateway to access and manage leading AI models worldwide.</strong> Built for individual developers, technical teams, and enterprises, Sidrune AI offers a unified API to access and manage leading models. It dynamically selects between multiple routes to improve availability, with transparent model performance, response times, and costs. Depending on the model and route, <strong>API costs can be 40%–98% lower than official or benchmark rates</strong>. Sign up through <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo">our exclusive link</a> to receive <strong>&#36;3 in API credits</strong>.
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
       <a href="https://www.runninghub.ai/call-api?source=github"><img src="docs/sponsors/runninghub-logo.png" alt="RunningHub" width="56"></a><br>
       <a href="https://www.runninghub.ai/call-api?source=github">RunningHub API</a>
     </td>
@@ -189,7 +181,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 
 - [x] Generate or rewrite **multilingual video scripts** with AI, or supply a complete custom script
 - [x] Use leading providers including [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo), [OpenAI](https://platform.openai.com/api-keys), [Anthropic Claude](https://platform.claude.com/settings/keys), [Google Gemini](https://aistudio.google.com/app/apikey), [DeepSeek](https://platform.deepseek.com/api_keys), [Alibaba Cloud Qwen](https://qwen.ai/apiplatform), [Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI), [ByteDance VolcEngine Ark](https://console.volcengine.com/ark), [xAI Grok](https://console.x.ai/), [MiniMax](https://platform.minimax.io/), and [Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
-- [x] Connect through [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
+- [x] Connect through [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
 
 ### Video and Image Footage
 

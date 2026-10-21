@@ -93,7 +93,12 @@ def verify_token(
     except UnicodeEncodeError:
         # 直接调用方可能传入已经解码的 Unicode 字符串。
         token_bytes = token.encode("utf-8")
-    if not secrets.compare_digest(token_bytes, configured_key.encode("utf-8")):
+    configured_bytes = configured_key.encode("utf-8")
+    # 同时保留原先 Latin-1 Header 解码后的 Unicode 比较语义，避免已有
+    # 非 ASCII 客户端在加入 UTF-8 原始 Header 支持后失去访问权限。
+    raw_matches = secrets.compare_digest(token_bytes, configured_bytes)
+    decoded_matches = secrets.compare_digest(token.encode("utf-8"), configured_bytes)
+    if not (raw_matches or decoded_matches):
         raise HttpException(
             task_id=get_task_id(request),
             status_code=401,

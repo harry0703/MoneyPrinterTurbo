@@ -515,6 +515,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://onomeo.com/v1",
         model_docs_url="https://onomeo.com/models",
     ),
+    LLMProviderSpec(
+        "empiriolabs",
+        "EmpirioLabs AI",
+        api_key_url="https://platform.empiriolabs.ai/dashboard/api-keys",
+        default_model="qwen3-8-flash",
+        default_base_url="https://api.empiriolabs.ai/v1",
+        model_docs_url="https://docs.empiriolabs.ai/models-pricing",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
