@@ -123,7 +123,13 @@ def is_task_busy(task: dict | None) -> bool:
     try:
         state = int(state)
     except (TypeError, ValueError):
-        pass
+        # The function's own docstring promises to treat unparseable
+        # states as busy, so the delete API keeps a task that we
+        # cannot reason about. Returning False here would let
+        # delete_video() cancel a task that is still running or
+        # cross-posting whenever an older Redis snapshot or a
+        # legacy call site stored the state as a string.
+        return True
 
     # 视频生成和跨平台发布都可能继续读取任务目录。统一视为忙碌状态，
     # 可以避免 API 与 WebUI 分别维护规则后出现一个允许删除、另一个禁止
@@ -724,7 +730,9 @@ def get_video_materials(
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
-            materials=params.video_materials, clip_duration=params.video_clip_duration
+            materials=params.video_materials,
+            clip_duration=params.video_clip_duration,
+            image_motion=params.image_motion,
         )
         if not materials:
             _mark_task_failed(
@@ -813,6 +821,7 @@ def get_video_materials(
                 audio_duration=audio_duration * params.video_count,
                 max_clip_duration=params.video_clip_duration,
                 match_script_order=params.match_materials_to_script,
+                image_motion=params.image_motion,
                 # 素材阶段占用 40%~50%：每下完一个文件推进一次，慢速网络下
                 # 进度条不再长时间停在 40%。
                 progress_callback=_stage_progress_reporter(task_id, 40, 50),

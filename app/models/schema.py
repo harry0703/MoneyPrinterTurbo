@@ -53,6 +53,11 @@ class VideoFitMode(str, Enum):
     contain = "contain"
 
 
+class ImageMotion(str, Enum):
+    static = "static"
+    zoom = "zoom"
+
+
 SubtitleDisplayMode = Literal["sentence", "word_by_word"]
 SubtitleAnimation = Literal["none", "pop_spring"]
 _SUBTITLE_DISPLAY_MODES = ("sentence", "word_by_word")
@@ -108,6 +113,7 @@ class VideoParams(BaseModel):
     video_terms: Optional[str | List[str]] = None  # Keywords used to generate the video
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
     video_fit_mode: VideoFitMode = VideoFitMode.cover
+    image_motion: ImageMotion = ImageMotion.zoom
     video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_transition_mode: Optional[VideoTransitionMode] = None
     video_clip_duration: int = Field(default=5, ge=1)

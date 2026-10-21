@@ -221,6 +221,13 @@ def _video_fit_mode(value: str) -> str:
     return normalized
 
 
+def _image_motion(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in {"static", "zoom"}:
+        raise argparse.ArgumentTypeError("image-motion must be one of: static, zoom")
+    return normalized
+
+
 # 只有这些取值会请求外部音乐生成服务，因此只有它们消费配乐提示词。取值需与
 # app/services/task.py 的 _VIDEO_MUSIC_PROVIDERS 保持一致；集中定义后，新增
 # 配乐供应商不会再次遗漏 --bgm-type 校验、批量校验和提示词参数。
@@ -241,7 +248,9 @@ def _bgm_type(value: str) -> str:
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    command = "mpt cli" if __name__ == "app.cli" else "uv run python cli.py"
     parser = argparse.ArgumentParser(
+        prog="mpt cli" if __name__ == "app.cli" else None,
         description=(
             "Generate MoneyPrinterTurbo videos without the WebUI.\n\n"
             "Provider settings and credentials are read from config.toml.\n"
@@ -295,7 +304,7 @@ Batch manifests:
   storage/resource lookup rules. --stop-at is a batch-wide CLI option. The summary has
   total, succeeded, failed, and tasks keys; every task entry has index, task_id,
   status, result, failed_stage, and error.
-""",
+""".replace("uv run python cli.py", command),
         formatter_class=_CliHelpFormatter,
     )
 
@@ -431,6 +440,13 @@ Batch manifests:
         choices=["random", "sequential"],
         default=None,
         help="source clip concatenation order (default: random)",
+    )
+    video_group.add_argument(
+        "--image-motion",
+        type=_image_motion,
+        choices=["static", "zoom"],
+        default=None,
+        help="motion for local or AI-generated images (default: zoom)",
     )
     video_group.add_argument(
         "--video-transition-mode",
@@ -939,6 +955,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "video_script_prompt",
         "custom_system_prompt",
         "video_fit_mode",
+        "image_motion",
         "video_concat_mode",
         "video_transition_mode",
         "video_clip_duration",
@@ -977,6 +994,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
     ui_defaults = (
         ("video_clip_speed", float, _clip_speed),
         ("video_fit_mode", str, _video_fit_mode),
+        ("image_motion", str, _image_motion),
         ("font_name", str, None),
         ("subtitle_display_mode", str, _subtitle_display_mode),
         ("subtitle_animation", str, _subtitle_animation),
@@ -1716,6 +1734,12 @@ def _run_batch_tasks(args: argparse.Namespace, tasks: list[VideoParams]) -> int:
 
 def run_cli(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    import app.config  # noqa: F401 -- 初始化配置及进程日志设置。
+    from app.utils.logging_utils import configure_terminal_logger, get_logging_options
+
+    # 配置模块默认把终端日志发往 stdout。CLI 的 stdout 是机器可读 JSON，
+    # 必须在素材预处理等步骤开始前切到 stderr，帮助和参数错误仍保持延迟导入。
+    configure_terminal_logger(sys.stderr, level=get_logging_options()[0], colorize=False)
     if args.batch_file:
         try:
             tasks = _build_batch_tasks(args)
