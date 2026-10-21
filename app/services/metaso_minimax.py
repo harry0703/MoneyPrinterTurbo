@@ -17,6 +17,8 @@ from urllib.parse import quote, quote_plus, urlsplit
 import requests
 from loguru import logger
 
+from app.utils.request_logging import trace_http_call
+
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect
 
@@ -254,7 +256,8 @@ def generate_videos(
     # POST 超时或 5xx 发生时，远端可能已经创建并计费。接口没有提供客户端
     # 幂等键，因此这里绝不自动重发；上层会停止后续关键词，避免重复扣费。
     try:
-        response = requests.post(
+        response = trace_http_call(
+            "POST", requests.post,
             create_url,
             json=payload,
             headers=headers,
@@ -378,7 +381,8 @@ def _wait_for_task(
         # 不会有意越过任务总截止时间。到期后不会再发起下一次轮询。
         phase_timeout = max(min(remaining / 2.0, 30.0), 0.001)
         try:
-            response = requests.get(
+            response = trace_http_call(
+                "GET", requests.get,
                 query_url,
                 headers=headers,
                 proxies=config.proxy,

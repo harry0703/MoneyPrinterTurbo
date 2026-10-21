@@ -1525,7 +1525,7 @@ wheels = [
 
 [[package]]
 name = "mpt"
-version = "1.3.8"
+version = "1.3.9"
 source = { editable = "." }
 dependencies = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },

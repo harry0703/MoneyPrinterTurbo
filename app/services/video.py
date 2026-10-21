@@ -33,6 +33,7 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 from app.config import config
 from app.models import const
 from app.models.schema import (
+    ImageMotion,
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
@@ -727,7 +728,13 @@ def _sanitize_image_file(image_path: str) -> str:
                 # Strip metadata after applying the camera's orientation.
                 # Palette transparency belongs to pixels, not removable metadata.
                 mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
-                cleaned_image = upright.convert(mode)
+                if upright.mode == "I;16":
+                    # PNG grayscale samples span0..65535; an RGB cast either
+                    # clips them to white or wraps when MoviePy encodes them.
+                    with upright.point(lambda value: value / 257 + 0.5) as byte_range:
+                        cleaned_image = byte_range.convert(mode)
+                else:
+                    cleaned_image = upright.convert(mode)
                 cleaned_image.info.clear()
                 source_digest.update(str(cleaned_image.size).encode())
                 source_digest.update(cleaned_image.mode.encode())
@@ -756,6 +763,7 @@ def _open_image_clip_with_fallback(image_path: str):
     # MoviePy does not apply camera EXIF orientation while decoding an image.
     # CMYK JPEG channels must become RGB; LA must become RGBA so MoviePy
     # creates a proper opacity mask rather than treating alpha as a color band.
+    # Bilevel pixels must become byte-range RGB rather than bool values0/1.
     # Ordinary RGB inputs retain the direct path.
     try:
         with Image.open(image_path) as image:
@@ -764,7 +772,7 @@ def _open_image_clip_with_fallback(image_path: str):
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode in {"CMYK", "LA"}:
+    if orientation in range(2, 9) or image_mode in {"CMYK", "LA", "1", "I;16"}:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
@@ -1377,8 +1385,11 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if word_width <= max_width:
             current = word
         else:
-            lines.extend(split_long_token(word))
-            current = ""
+            # 最后一段仍未占满整行，后续单词应继续尝试接在它后面，
+            # 否则每个超长词之后都会多出一行。
+            pieces = split_long_token(word)
+            lines.extend(pieces[:-1])
+            current = pieces[-1] if pieces else ""
 
     if current:
         lines.append(current)
@@ -1880,31 +1891,31 @@ def generate_video(
         return bgm_mix_succeeded
 
 
-def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
+def render_image_zoom_video(
+    image_path: str, clip_duration: int = 5, image_motion: ImageMotion = ImageMotion.zoom
+) -> str:
     """
-    将单张本地图片渲染为带缓慢放大效果的 mp4 片段，返回输出文件路径。
+    将单张图片渲染为静止或缓慢放大的 mp4 片段，返回输出文件路径。
 
     local 素材预处理和 OpenAI 兼容文生图素材共用这段"图片 → 片段"渲染
-    逻辑：ImageClip 按 clip_duration 固定时长播放，并叠加每秒约 3% 的
-    动态放大，避免静态画面在成片中显得呆板。渲染异常由调用方按各自
-    素材源的失败约定处理。
+    逻辑：默认保留每秒约 3% 的动态放大，静止模式只固定播放时长。
+    此设置与片段转场独立。渲染异常由调用方按各自素材源的失败约定处理。
     """
+    motion = ImageMotion(image_motion)
     clip, _ = _open_image_clip_with_fallback(image_path)
     clip = clip.with_duration(clip_duration).with_position("center")
     temp_path = ""
     try:
-        # Apply a zoom effect using the resize method.
-        # A lambda function is used to make the zoom effect dynamic over time.
-        # The zoom effect starts from the original size and gradually scales up to 120%.
-        # t represents the current time, and clip.duration is the total duration of the clip.
-        # Note: 1 represents 100% size, so 1.2 represents 120%.
-        zoom_clip = clip.resized(
-            lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+        # 只有放大模式改变画面尺寸，静止模式保留原始构图及透明背景处理。
+        image_clip = (
+            clip.resized(lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration))
+            if motion == ImageMotion.zoom
+            else clip
         )
 
         # Optionally, create a composite video clip containing the zoomed clip.
         # This is useful if you want to add other elements to the video.
-        final_clip = CompositeVideoClip([zoom_clip], bg_color=(0, 0, 0))
+        final_clip = CompositeVideoClip([image_clip], bg_color=(0, 0, 0))
         try:
             # The duration changes the rendered content, so it must be part of
             # the output identity. Different tasks may render the same image
@@ -1918,7 +1929,8 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
             source_identity = source_digest.hexdigest()
             duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
             video_file = os.path.join(
-                os.path.dirname(image_path), f"{source_identity}.zoom-{duration_identity}.mp4"
+                os.path.dirname(image_path),
+                f"{source_identity}.{motion.value}-{duration_identity}.mp4",
             )
             descriptor, temp_path = tempfile.mkstemp(
                 prefix=".image-zoom-",
@@ -1940,7 +1952,9 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
             delete_files(temp_path)
 
 
-def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
+def preprocess_video(
+    materials: List[MaterialInfo], clip_duration=4, image_motion: ImageMotion = ImageMotion.zoom
+):
     # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
     if not materials:
         return []
@@ -2010,7 +2024,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 # 用于导出的图片片段。
                 close_clip(clip)
                 video_file = render_image_zoom_video(
-                    material_source_path, clip_duration
+                    material_source_path, clip_duration, image_motion=image_motion
                 )
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
