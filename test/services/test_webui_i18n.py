@@ -22,6 +22,13 @@ PROVIDER_TIPS_PREFIXES = (
 # 避免把完全相同的品牌名复制十份，也避免长说明后续只更新部分语言。
 ENGLISH_FALLBACK_KEYS = frozenset(
     {
+        "Diagnostic Logging",
+        "Diagnostic Logging Help",
+        "Log Level",
+        "Trace API Requests",
+        "Trace API Requests Help",
+        "Apply Logging Settings",
+        "Logging Settings Applied",
         "AI Video Quote Required",
         "AI Video Quote Retained For Retry",
         "AI Video Quote Estimate Incomplete",
@@ -55,6 +62,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.yapi",
         "llm_provider_label.opper",
         "llm_provider_label.onomeo",
+        "llm_provider_label.empiriolabs",
         "llm_provider_label.shengsuanyun",
         "llm_provider_label.muse_spark",
         "llm_provider_label.kimi_code",

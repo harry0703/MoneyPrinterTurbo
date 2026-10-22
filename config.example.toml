@@ -11,6 +11,18 @@ log_level = "DEBUG"
 listen_host = "0.0.0.0"
 listen_port = 8080
 
+[diagnostics]
+# Optional override for the top-level log_level, shared by API, CLI and WebUI.
+# log_level = "INFO"
+# Request tracing is independent of log level and disabled by default.
+# It logs redacted request parameters and response status/timing, never response
+# bodies. Prompts may be visible; only enable while troubleshooting.
+# WebUI: Settings > Interface > Diagnostic logging; Apply takes effect immediately
+# in that process. Other processes / manual file edits require a restart.
+# 请求追踪独立于日志等级，默认关闭；提示词可能出现在日志中。
+# WebUI 设置中的诊断日志可立即生效；其它进程及手工修改配置后需要重启。
+log_requests = false
+
 [app]
 
 # Optional protection for API routes and generated files under /tasks.
@@ -189,6 +201,7 @@ metaso_minimax_run_timeout = 1800
 # Images are generated on demand (one per script keyword, billed per image by
 # your provider) and rendered into short zoom-effect video clips.
 # Example: "https://api.openai.com/v1" or "http://127.0.0.1:8080/v1"
+# For a free local SDXL server, see docs/local-image-server/README.md.
 openai_image_base_url = ""
 # Optional for local gateways that need no auth. Leave empty to send requests
 # without an Authorization header; provide one or more keys for cloud relays.
@@ -307,6 +320,13 @@ opper_model_name = ""
 onomeo_api_key = ""
 onomeo_base_url = ""
 onomeo_model_name = ""
+
+# EmpirioLabs AI, an OpenAI-compatible API for open and proprietary models.
+# API key: https://platform.empiriolabs.ai/dashboard/api-keys
+# Model list: https://docs.empiriolabs.ai/models-pricing
+empiriolabs_api_key = ""
+empiriolabs_base_url = ""
+empiriolabs_model_name = ""
 
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys

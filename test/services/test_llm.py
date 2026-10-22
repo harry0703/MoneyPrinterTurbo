@@ -73,6 +73,21 @@ class TestScriptPromptOptions(unittest.TestCase):
         with self.assertRaises(ValueError):
             llm._normalize_text_response("<think>hidden reasoning", "minimax")
 
+    def test_normalize_text_response_removes_reasoning_before_unopened_close(self):
+        """
+        起始 `<think>` 位于对话模板中时，模型输出只包含推理和闭合标签。
+        闭合标签之前的推理不能进入脚本；只有推理时同样按空响应处理。
+        """
+        result = llm._normalize_text_response(
+            "The user wants a sea script. Let me plan.\n</think>\n\n"
+            "The ocean is vast.\n\nIt covers our planet.",
+            "deepseek",
+        )
+
+        self.assertEqual(result, "The ocean is vast.\n\nIt covers our planet.")
+        with self.assertRaises(ValueError):
+            llm._normalize_text_response("hidden reasoning\n</THINK>\n", "ollama")
+
     def test_build_script_prompt_appends_advanced_requirements(self):
         """
         高级文案要求只作为附加约束，不替换默认系统提示词。
@@ -586,6 +601,19 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(onomeo.requires_api_key)
         self.assertEqual(onomeo.api_key_url, "https://onomeo.com/dashboard")
         self.assertEqual(onomeo.model_docs_url, "https://onomeo.com/models")
+        empiriolabs = get_llm_provider("empiriolabs")
+        self.assertEqual(empiriolabs.default_model, "qwen3-8-flash")
+        self.assertEqual(empiriolabs.default_base_url, "https://api.empiriolabs.ai/v1")
+        self.assertEqual(empiriolabs.adapter, "openai_compatible")
+        self.assertTrue(empiriolabs.requires_api_key)
+        self.assertEqual(
+            empiriolabs.api_key_url,
+            "https://platform.empiriolabs.ai/dashboard/api-keys",
+        )
+        self.assertEqual(
+            empiriolabs.model_docs_url,
+            "https://docs.empiriolabs.ai/models-pricing",
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -663,6 +691,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "yapi",
                 "opper",
                 "onomeo",
+                "empiriolabs",
                 "ollama",
                 "claude_code",
                 "oneapi",
@@ -1309,6 +1338,21 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertNotIn("mypassword", result)
         self.assertNotIn("secret-key", result)
         self.assertNotIn("secret-token", result)
+
+    def test_sanitize_error_message_redacts_token_only_url_userinfo(self):
+        # Gateways commonly accept the API token as the URL username with no
+        # password, e.g. https://<token>@gateway/v1.
+        message = (
+            "Connection error to https://sk-live-SECRET@gw.example.com/v1/chat; "
+            "see https://gw.example.com/status?page=1 or ops@example.com"
+        )
+
+        result = llm._sanitize_error_message(message)
+
+        self.assertIn("https://***:***@gw.example.com/v1/chat", result)
+        self.assertNotIn("sk-live-SECRET", result)
+        self.assertIn("https://gw.example.com/status?page=1", result)
+        self.assertIn("ops@example.com", result)
 
     def test_openai_provider_error_redacts_embedded_base_url_credentials(self):
         """

@@ -742,7 +742,7 @@ class TestOpenAIImageProvider(unittest.TestCase):
         def fake_generate(search_term, minimum_duration, video_aspect, save_dir=""):
             return generated[search_term]
 
-        def fake_render(image_path, clip_duration):
+        def fake_render(image_path, clip_duration, image_motion="zoom"):
             return f"{image_path}.mp4"
 
         with (
@@ -895,7 +895,7 @@ class TestOpenAIImageProvider(unittest.TestCase):
         def fake_generate(search_term, minimum_duration, video_aspect, save_dir=""):
             return generated[search_term]
 
-        def fake_render(image_path, clip_duration):
+        def fake_render(image_path, clip_duration, image_motion="zoom"):
             return f"{image_path}.mp4"
 
         with (

@@ -159,15 +159,17 @@ def _parse_byte_range(
     range_header: str | None, file_size: int, request_id: str
 ) -> tuple[int, int]:
     """解析单段 HTTP Range，并把无效或越界请求稳定转换成 416。"""
+    # 416 只用于回应 Range 请求。没有 Range 时空文件也是完整表示，
+    # 返回 0 字节的 200，与 /download 的行为一致。
+    if not range_header:
+        return 0, file_size - 1
+
     if file_size <= 0:
         raise HttpException(
             task_id=request_id,
             status_code=416,
             message=f"{request_id}: requested range is not satisfiable",
         )
-
-    if not range_header:
-        return 0, file_size - 1
 
     try:
         # 视频播放器这里只需要单段 bytes range。拒绝多段请求可以避免返回体

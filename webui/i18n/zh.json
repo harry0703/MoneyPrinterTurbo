@@ -110,6 +110,10 @@
     "Fill and Crop": "填满（居中裁剪）",
     "Fit with Black Bars": "完整显示（黑边）",
     "Video Fit Mode Help": "填满会占满整个输出画面并裁掉多余边缘；完整显示会保留全部素材画面，并在需要时添加黑边。",
+    "Image Motion": "图片动态效果",
+    "Static Image": "静止",
+    "Slow Zoom": "缓慢放大",
+    "Image Motion Help": "仅影响图片素材；片段之间的转场需单独设置。",
     "Clip Duration": "单个片段最大时长（秒）",
     "Clip Duration Help": "控制合成时使用的每个视频片段时长，不是视频总时长。",
     "Clip Speed": "片段播放速度",
@@ -248,6 +252,8 @@
     "llm_provider_tips.opper": "##### Opper 配置说明\n- **API Key**: 在 [Opper]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nOpper 是部署在欧盟、兼容 OpenAI 接口的多模型网关，可调用 50 多家厂商的 700 多个模型。",
     "llm_provider_label.onomeo": "onomeo",
     "llm_provider_tips.onomeo": "##### onomeo 配置说明\n- **API Key**: 登录后在 [onomeo]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`，会自动选择可用的免费模型；其它模型 ID 可在 [模型列表]({model_docs_url}) 查看\n\nonomeo 是兼容 OpenAI 接口的网关。免费模型有调用频率限制，其它模型按预付余额计费。",
+    "llm_provider_label.empiriolabs": "EmpirioLabs AI",
+    "llm_provider_tips.empiriolabs": "##### EmpirioLabs AI 配置说明\n- **API Key**: 在 [EmpirioLabs AI 控制台]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nEmpirioLabs AI 是兼容 OpenAI 接口的模型 API，可调用 Qwen、DeepSeek、GLM、Kimi、MiniMax 等开源与闭源模型。",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
@@ -603,6 +609,13 @@
     "kimi_code.oauth.region_mismatch": "当前凭证属于「{authorized}」区域，但所选 API Platform 为「{selected}」。请求将按凭证区域「{authorized}」发出；如需切换区域，请重新登录。",
     "kimi_code.oauth.network_error": "无法连接 Kimi 授权服务（网络错误）。请检查网络连接后重新发起登录。",
     "kimi_code.oauth.changed": "登录状态已在其他页面变更，本次授权已停止。请按需重新登录。",
-    "kimi_code.oauth.poll_retry": "检查授权状态时网络异常，正在自动重试……"
+    "kimi_code.oauth.poll_retry": "检查授权状态时网络异常，正在自动重试……",
+    "Diagnostic Logging": "诊断日志",
+    "Diagnostic Logging Help": "立即调整当前服务的日志，设置对所有浏览器会话生效。",
+    "Log Level": "日志等级",
+    "Trace API Requests": "记录 API 请求参数",
+    "Trace API Requests Help": "独立于日志等级，默认关闭。记录脱敏参数、状态和耗时；提示词可能可见。音视频和响应正文不记录。排查结束后请关闭。",
+    "Apply Logging Settings": "应用日志设置",
+    "Logging Settings Applied": "日志设置已在当前服务生效。"
   }
 }

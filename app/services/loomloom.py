@@ -20,6 +20,8 @@ from urllib.parse import quote, urlsplit
 import requests
 from loguru import logger
 
+from app.utils.request_logging import trace_http_call
+
 
 DEFAULT_RESULT_PORT_NAME = "output"
 DEFAULT_BASE_URL = "https://loomloom.shengsuanyun.com/loom/v1"
@@ -661,7 +663,8 @@ class LoomLoomScriptBackend:
                 "a LoomLoom credential is required for this request"
             )
         try:
-            response = self._session.request(
+            response = trace_http_call(
+                "REQUEST", self._session.request,
                 method,
                 url,
                 headers={

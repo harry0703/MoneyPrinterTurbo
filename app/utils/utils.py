@@ -242,11 +242,13 @@ def run_in_background(func, *args, **kwargs):
 
 
 def time_convert_seconds_to_hmsm(seconds) -> str:
-    hours = int(seconds // 3600)
-    seconds = seconds % 3600
-    minutes = int(seconds // 60)
-    milliseconds = int(seconds * 1000) % 1000
-    seconds = int(seconds % 60)
+    # Round once to whole milliseconds and derive every field from that value.
+    # Truncating float products such as 2.01 * 1000 == 2009.999... wrote cue
+    # boundaries one millisecond early.
+    total_milliseconds = int(round(seconds * 1000))
+    hours, remainder = divmod(total_milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1000)
     return "{:02d}:{:02d}:{:02d},{:03d}".format(hours, minutes, seconds, milliseconds)
 
 
@@ -319,9 +321,12 @@ PAUSE_TAG_KEYWORDS = (
     r"пауза|тишина|停顿|暂停|静音|ポーズ|一時停止|無音|일시중지|정지"
 )
 # 匹配所有包含停顿关键词的标签（方括号或圆括号），无论其参数合法与否均匹配，
-# 以确保非法标签（如 [pause: -2s]、[pause: nope]、[pause: 0s]）在合成前被彻底清除而不会泄漏给 TTS
+# 以确保非法标签（如 [pause: -2s]、[pause: nope]、[pause: 0s]）在合成前被彻底清除而不会泄漏给 TTS。
+# 关键词后不能用 `\b`：中日韩文字和数字都属于 `\w`，`[停顿3秒]` 这种不写冒号的
+# 常见写法会因为没有词边界而漏匹配，标签原文被直接朗读。这里只禁止关键词后
+# 紧跟字母（允许数字），`[paused]`、`[暂停一下]` 这类普通文字仍不会被误判。
 PAUSE_TAG_PATTERN = re.compile(
-    rf"[\[\(]\s*(?:{PAUSE_TAG_KEYWORDS})\b(?:\s*[:：]?\s*([^\]\)]*?))?\s*[\]\)]",
+    rf"[\[\(]\s*(?:{PAUSE_TAG_KEYWORDS})(?![^\W\d])(?:\s*[:：]?\s*([^\]\)]*?))?\s*[\]\)]",
     re.IGNORECASE,
 )
 

@@ -1,12 +1,23 @@
 import sys
 
 from app.config import config
-from app.utils.logging_utils import configure_terminal_logger
+from app.utils.logging_utils import (
+    LOG_LEVELS,
+    configure_terminal_logger,
+    set_logging_options,
+)
 
 
 def __init_logger():
     # _log_file = utils.storage_dir("logs/server.log")
-    _lvl = config.log_level
+    _lvl = str(config.diagnostics.get("log_level", config.log_level)).strip().upper()
+    if _lvl not in LOG_LEVELS:
+        _lvl = str(config.log_level).strip().upper()
+        if _lvl not in LOG_LEVELS:
+            _lvl = "DEBUG"
+    # 分别校验两个选项：非法追踪值不能降低用户已有的日志等级。
+    _trace = config.diagnostics.get("log_requests", False)
+    set_logging_options(_lvl, _trace if isinstance(_trace, bool) else False)
 
     configure_terminal_logger(
         sys.stdout,

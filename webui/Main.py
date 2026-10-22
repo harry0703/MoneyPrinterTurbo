@@ -37,6 +37,7 @@ from app.models.llm_provider import (
     normalize_provider_override,
 )
 from app.models.schema import (
+    ImageMotion,
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
@@ -65,8 +66,13 @@ from app.services import sonilo as sonilo_service
 from app.services import state as sm
 from app.services import task as tm
 from app.services import version_checker
-from app.utils.logging_utils import configure_terminal_logger
+from app.utils.logging_utils import (
+    LOG_LEVELS,
+    configure_terminal_logger,
+    get_logging_options,
+)
 from app.utils import utils
+from app.utils.request_logging import trace_http_call
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -210,7 +216,20 @@ _FINAL_VIDEO_PATTERN = re.compile(
     r"^final-(?P<index>\d+)\.(?P<extension>mp4|mov|mkv|webm)$",
     re.IGNORECASE,
 )
-_DOWNLOAD_FILENAME_INVALID_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+# 与 app/services/bgm.py、app/services/material_upload.py 的上传文件名规则共用
+# 同一份清单：除路径分隔符与 Win32 非法字符外，还要移除所有控制符和会改变显示
+# 形态的字符。此前只拦截 ord < 32（C0 控制符），漏掉了同一类问题的另一半：
+# * C1 控制符 U+007F-U+009F：会原样进入下载文件名、日志和界面。
+# * 双向文本控制符 U+200E/U+200F/U+202A-U+202E/U+2066-U+2069：U+202E 之后的
+#   字符会被反向渲染，``holiday<U+202E>4pm`` 看起来像另一个扩展名。
+# * U+2028/U+2029（Unicode 行/段分隔符）能在一行日志里制造视觉换行。
+# 视频主题是用户自由输入的文本，可以直接粘贴这些字符，因此必须在这里过滤。
+# 字符串不使用 r'' 前缀：``\\`` 表示要排除的反斜杠本身，``\x``/``\u`` 转义由
+# Python 解析，避免把转义文本写进字符集。
+_DOWNLOAD_FILENAME_INVALID_PATTERN = re.compile(
+    "[<>:\"/\\\\|?*\\x00-\\x1f\\x7f-\\x9f"
+    "\\u200e\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+)
 _WINDOWS_RESERVED_FILENAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
     | {
@@ -1558,6 +1577,9 @@ def _apply_restored_params(params):
         params.get("video_fit_mode") or VideoFitMode.cover.value,
     )
     _set_stable_widget_value(
+        "image_motion_select", params.get("image_motion") or ImageMotion.zoom.value
+    )
+    _set_stable_widget_value(
         "video_clip_duration_select", params.get("video_clip_duration", 3)
     )
     _set_stable_widget_value(
@@ -1914,7 +1936,7 @@ def init_log():
     # 基础日志 Handler 属于进程级资源，而不是页面会话状态。Streamlit 每次组件
     # 交互都会 rerun 页面脚本，代码热重载也可能让缓存失效。日志初始化只能
     # 精确替换终端 Handler，不能清空正在生成任务使用的 WebUI 临时 Handler。
-    _lvl = "DEBUG"
+    _lvl = get_logging_options()[0]
 
     return configure_terminal_logger(
         sys.stdout,
@@ -2646,7 +2668,8 @@ def get_groq_model_ids(api_key: str, base_url: str) -> list[str]:
     models_url = f"{normalized_base_url}/models"
 
     try:
-        response = requests.get(
+        response = trace_http_call(
+            "GET", requests.get,
             models_url,
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=10,
@@ -3177,6 +3200,28 @@ def _render_key_backup_settings(panel):
 # -----------------------------------------------------------------------------
 
 
+def _render_logging_settings():
+    level, log_requests = get_logging_options()
+    with st.expander(tr("Diagnostic Logging")):
+        st.caption(tr("Diagnostic Logging Help"))
+        with st.form("diagnostic_logging_form"):
+            selected_level = st.selectbox(
+                tr("Log Level"), LOG_LEVELS, index=LOG_LEVELS.index(level),
+                key="diagnostic_log_level",
+            )
+            selected_trace = st.checkbox(
+                tr("Trace API Requests"), value=log_requests,
+                key="diagnostic_log_requests",
+                help=tr("Trace API Requests Help"),
+            )
+            apply = st.form_submit_button(tr("Apply Logging Settings"))
+        if apply:
+            # 诊断不改变生成参数，直接生效；持久化仍走非阻塞配置队列。
+            config.update_logging_options(selected_level, selected_trace)
+            _save_runtime_config()
+            st.success(tr("Logging Settings Applied"))
+
+
 # 设置属于低频操作，使用中等尺寸 Dialog 避免长期占用主页面纵向空间，
 # 同时控制阅读行宽，避免弹窗在宽屏设备上显得过于松散。
 # Dialog 继承 fragment 行为，内部控件交互只重绘弹窗；函数末尾单独保存配置，
@@ -3325,6 +3370,7 @@ def _render_settings_dialog():
                 key="hide_log_checkbox",
             )
             _set_runtime_config("ui", "hide_log", hide_log)
+            _render_logging_settings()
 
         _render_cache_management_settings(cache_config_panel)
         # 密钥恢复会写回配置并清除密码控件状态，必须在下面渲染这些控件之前执行。
@@ -5374,6 +5420,28 @@ def _render_video_settings(panel, params):
             _set_runtime_config(
                 "ui", "video_fit_mode", params.video_fit_mode.value
             )
+
+            if params.video_source in {"local", "openai_image"}:
+                image_motion_labels = {
+                    ImageMotion.static.value: tr("Static Image"),
+                    ImageMotion.zoom.value: tr("Slow Zoom"),
+                }
+                params.image_motion = ImageMotion(
+                    stable_selectbox(
+                        tr("Image Motion"),
+                        options=list(image_motion_labels),
+                        default_value=_saved_ui_choice(
+                            "image_motion", list(image_motion_labels), ImageMotion.zoom.value,
+                            # 生成任务持锁时，切换语言或素材来源会重建控件；
+                            # 此时必须恢复尚未落盘的最新选择，不能写回旧配置值。
+                            section=config.snapshot_config_with_pending(config.ui),
+                        ),
+                        key="image_motion_select",
+                        format_func=image_motion_labels.get,
+                        help=tr("Image Motion Help"),
+                    )
+                )
+                _set_runtime_config("ui", "image_motion", params.image_motion.value)
 
             # MiniMax H3 的远端时长范围是 4～15 秒。选择秘塔时使用完整能力
             # 范围，既避免 2/3 秒被按 4 秒计费，也让 WebUI 与 CLI、服务层一致。

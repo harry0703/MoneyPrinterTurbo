@@ -110,6 +110,10 @@
     "Fill and Crop": "Fill (center crop)",
     "Fit with Black Bars": "Fit (black bars)",
     "Video Fit Mode Help": "Fill uses the entire output canvas and crops excess edges. Fit preserves the complete source frame and adds black bars when needed.",
+    "Image Motion": "Image Motion",
+    "Static Image": "Static",
+    "Slow Zoom": "Slow Zoom",
+    "Image Motion Help": "Only affects still images. Clip transitions are configured separately.",
     "Clip Duration": "Maximum Clip Duration (seconds)",
     "Clip Duration Help": "Controls the duration of each clip used in the composition, not the total video length.",
     "Clip Speed": "Clip Speed",
@@ -248,6 +252,8 @@
     "llm_provider_tips.opper": "##### Opper Configuration\n- **API Key**: Create an API key at [Opper]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs\n\nOpper is an EU-hosted, OpenAI-compatible gateway to 700+ models from 50+ providers.",
     "llm_provider_label.onomeo": "onomeo",
     "llm_provider_tips.onomeo": "##### onomeo Configuration\n- **API Key**: Sign in and create an API key at [onomeo]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`, which picks a working free model; see the [model list]({model_docs_url}) for other model IDs\n\nonomeo is an OpenAI-compatible gateway. Free models are rate limited; other models are charged from a prepaid balance.",
+    "llm_provider_label.empiriolabs": "EmpirioLabs AI",
+    "llm_provider_tips.empiriolabs": "##### EmpirioLabs AI Configuration\n- **API Key**: Create an API key in the [EmpirioLabs AI dashboard]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs\n\nEmpirioLabs AI is an OpenAI-compatible API for open and proprietary models, including Qwen, DeepSeek, GLM, Kimi and MiniMax.",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
@@ -603,6 +609,13 @@
     "kimi_code.oauth.region_mismatch": "Signed in for region \"{authorized}\", but the selected API Platform is \"{selected}\". Requests will use \"{authorized}\" to match your credential; sign in again to switch regions.",
     "kimi_code.oauth.network_error": "Could not reach the Kimi authorization service (network error). Check your connection, then start sign-in again.",
     "kimi_code.oauth.changed": "Sign-in state changed in another page. This authorization has stopped; sign in again if needed.",
-    "kimi_code.oauth.poll_retry": "Network error while checking the authorization status; retrying automatically…"
+    "kimi_code.oauth.poll_retry": "Network error while checking the authorization status; retrying automatically…",
+    "Diagnostic Logging": "Diagnostic logging",
+    "Diagnostic Logging Help": "Changes apply immediately to this service and all its browser sessions.",
+    "Log Level": "Log level",
+    "Trace API Requests": "Trace API request parameters",
+    "Trace API Requests Help": "Independent of log level and off by default. Records redacted parameters, status and timing. Prompts may be visible. Media and response bodies are omitted. Turn off after troubleshooting.",
+    "Apply Logging Settings": "Apply logging settings",
+    "Logging Settings Applied": "Logging settings applied to this service."
   }
 }

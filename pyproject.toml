@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mpt"
-version = "1.3.8"
+version = "1.3.9"
 description = "Official MoneyPrinterTurbo package with WebUI and CLI, maintained by harry0703."
 readme = "docs/pypi-description.md"
 requires-python = ">=3.11"
