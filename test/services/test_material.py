@@ -1002,8 +1002,8 @@ class TestMaterialTlsVerification(unittest.TestCase):
                 self.assertEqual(material.save_video(url, save_dir=temp_dir), "")
                 self.assertFalse((Path(temp_dir) / cached_name).exists())
                 self.assertEqual(
-                    material.save_video(url, save_dir=temp_dir),
-                    str(Path(temp_dir) / cached_name),
+                    Path(material.save_video(url, save_dir=temp_dir)),
+                    Path(temp_dir) / cached_name,
                 )
 
             self.assertEqual(get.call_count, 2)
