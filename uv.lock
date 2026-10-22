@@ -782,7 +782,7 @@ wheels = [
 
 [[package]]
 name = "fastapi-guard"
-version = "8.1.1"
+version = "8.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
@@ -790,9 +790,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ff/60/27001cbd83b1067380d0d8ab9b83d2e18fdcd89ad2168c8cfffb95bebca4/fastapi_guard-8.1.1.tar.gz", hash = "sha256:d863be886276021440031829b1447f51b22f605e0f893a184469720a7ef9e0e6", size = 70890 }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/2a/6d9600c4a9c2c5186bb272d9e1d8a587df3ea2ed7ca1867e8db81346c23a/fastapi_guard-8.1.2.tar.gz", hash = "sha256:33e7097fc0438319da9670d187916367bcba31c793f4251e7a5b45905e3b4897", size = 73502 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/00/47/79200f1c7a824be0eb34b0fc58019db760588cbbd89b1e06a62de597e9e1/fastapi_guard-8.1.1-py3-none-any.whl", hash = "sha256:933c8588a1c16c41acdd6b9bf0abb73a9a8aa19f0372dc9f5ff8b2cc6f54d5ae", size = 36778 },
+    { url = "https://files.pythonhosted.org/packages/51/6b/ff5fbe8839401ee9989663db62c059f97d0f214c0f045fbf63ea9d37b43c/fastapi_guard-8.1.2-py3-none-any.whl", hash = "sha256:0d0cca1fd82f835609e8612d1366cbe42940609080e6a80957285d06edefc99f", size = 38852 },
 ]
 
 [[package]]
@@ -1696,7 +1696,7 @@ requires-dist = [
     { name = "dashscope", specifier = "==1.20.14" },
     { name = "edge-tts", specifier = "==7.3.1" },
     { name = "fastapi", specifier = "==0.136.3" },
-    { name = "fastapi-guard", specifier = "==8.1.1" },
+    { name = "fastapi-guard", specifier = "==8.1.2" },
     { name = "faster-whisper", specifier = "==1.1.0" },
     { name = "google-genai", specifier = "==2.11.0" },
     { name = "imageio-ffmpeg", specifier = "==0.6.0" },
