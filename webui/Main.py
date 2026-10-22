@@ -216,7 +216,20 @@ _FINAL_VIDEO_PATTERN = re.compile(
     r"^final-(?P<index>\d+)\.(?P<extension>mp4|mov|mkv|webm)$",
     re.IGNORECASE,
 )
-_DOWNLOAD_FILENAME_INVALID_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+# 与 app/services/bgm.py、app/services/material_upload.py 的上传文件名规则共用
+# 同一份清单：除路径分隔符与 Win32 非法字符外，还要移除所有控制符和会改变显示
+# 形态的字符。此前只拦截 ord < 32（C0 控制符），漏掉了同一类问题的另一半：
+# * C1 控制符 U+007F-U+009F：会原样进入下载文件名、日志和界面。
+# * 双向文本控制符 U+200E/U+200F/U+202A-U+202E/U+2066-U+2069：U+202E 之后的
+#   字符会被反向渲染，``holiday<U+202E>4pm`` 看起来像另一个扩展名。
+# * U+2028/U+2029（Unicode 行/段分隔符）能在一行日志里制造视觉换行。
+# 视频主题是用户自由输入的文本，可以直接粘贴这些字符，因此必须在这里过滤。
+# 字符串不使用 r'' 前缀：``\\`` 表示要排除的反斜杠本身，``\x``/``\u`` 转义由
+# Python 解析，避免把转义文本写进字符集。
+_DOWNLOAD_FILENAME_INVALID_PATTERN = re.compile(
+    "[<>:\"/\\\\|?*\\x00-\\x1f\\x7f-\\x9f"
+    "\\u200e\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+)
 _WINDOWS_RESERVED_FILENAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
     | {
