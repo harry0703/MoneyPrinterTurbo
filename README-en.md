@@ -426,6 +426,8 @@ Notes:
 - `uv.lock` pins the resolved environment, so `uv sync --frozen` is recommended by default.
 - `requirements.txt` is kept only for legacy `pip`-based installation.
 
+> ⚠️ Note: this project is **not** installed with `pip install MoneyPrinterTurbo`. A third-party package with the same name (`MoneyPrinterTurbo` 1.4.5, published by `yanjlee`; see [issue #1643](https://github.com/harry0703/MoneyPrinterTurbo/issues/1643)) exists on PyPI. It is not released by this repository and its dependency metadata is broken, so `pip install MoneyPrinterTurbo` fails while resolving `execjs` / `base64`. Clone this repository and install its dependencies with `uv sync` or `pip install -r requirements.txt`, then run `webui.sh` / `webui.bat` or `python main.py`.
+
 #### ② Launch the WebUI 🌐
 
 Note that you need to execute the following commands in the `root directory` of the MoneyPrinterTurbo project

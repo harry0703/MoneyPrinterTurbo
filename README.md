@@ -429,6 +429,8 @@ pip install -r requirements.txt
 - `uv.lock` 是锁文件，建议默认执行 `uv sync --frozen`
 - `requirements.txt` 仅保留给旧的 `pip` 安装方式兼容使用
 
+> ⚠️ 注意：本项目**不是**通过 `pip install MoneyPrinterTurbo` 安装的。PyPI 上存在一个同名的第三方包 `MoneyPrinterTurbo`（1.4.5，由 `yanjlee` 发布，见 [issue #1643](https://github.com/harry0703/MoneyPrinterTurbo/issues/1643)），它不是本仓库发布的，且依赖声明已损坏（`pip install MoneyPrinterTurbo` 会因找不到 `execjs`、`base64` 等包而失败）。请克隆本仓库后按上述 `uv sync` 或 `pip install -r requirements.txt` 安装依赖，然后直接运行 `webui.sh` / `webui.bat` 或 `python main.py`。
+
 #### ② 启动 WebUI 🌐
 
 注意需要到 MoneyPrinterTurbo 项目 `根目录` 下执行以下命令
