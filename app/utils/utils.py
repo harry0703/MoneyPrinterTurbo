@@ -297,6 +297,11 @@ def split_string_by_punctuations(s):
             txt += char
             continue
 
+        if char == ":" and previous_char.isdigit() and next_char.isdigit():
+            # Edge TTS returns a clock time such as "10:30" as one word, so it is no line break.
+            txt += char
+            continue
+
         if char == "," and previous_char.isdigit() and next_char.isdigit():
             # 英文数字里的千分位逗号不是断句符，例如 "1,000 years"。
             # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
