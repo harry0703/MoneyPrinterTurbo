@@ -375,6 +375,14 @@ LLM_PROVIDER_REGISTRY = (
     ),
     # 聚合与统一接入平台
     LLMProviderSpec(
+        "infistar",
+        "Infistar",
+        api_key_url="https://infistar.cc/keys",
+        default_model="gpt-6-luna",
+        default_base_url="https://infistar.cc/v1",
+        model_docs_url="https://infistar.cc/pricing",
+    ),
+    LLMProviderSpec(
         "shengsuanyun",
         "Shengsuan Cloud",
         api_key_url="https://www.shengsuanyun.com/?from=CH_XUQ4OTSK",

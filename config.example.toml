@@ -258,6 +258,13 @@ moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""
 
+# 无限星河 AI（Infistar），项目赞助商，提供 OpenAI 兼容接口。
+# 密钥：https://infistar.cc/keys；模型列表：https://infistar.cc/pricing
+# 地址和模型留空时使用 https://infistar.cc/v1 和 gpt-6-luna。
+infistar_api_key = ""
+infistar_base_url = ""
+infistar_model_name = ""
+
 # Shengsuan Cloud, OpenAI-compatible multi-model API.
 # API docs: https://lean.shengsuanyun.com/apidocs/api/openai-api
 shengsuanyun_api_key = ""

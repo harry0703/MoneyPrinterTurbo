@@ -64,6 +64,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.onomeo",
         "llm_provider_label.empiriolabs",
         "llm_provider_label.shengsuanyun",
+        "llm_provider_label.infistar",
         "llm_provider_label.muse_spark",
         "llm_provider_label.kimi_code",
         "kimi_code.oauth.login",

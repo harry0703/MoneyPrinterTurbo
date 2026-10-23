@@ -234,6 +234,8 @@
     "Recommended": "Recommended",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (Recommended)",
     "llm_provider_label.muse_spark": "Muse Spark",
+    "llm_provider_label.infistar": "Infistar",
+    "llm_provider_tips.infistar": "##### Infistar Configuration\n- **API Key**: Create a key in the [Infistar console]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs\n\nInfistar sponsors MoneyPrinterTurbo and provides an OpenAI-compatible API.",
     "llm_provider_label.shengsuanyun": "Shengsuan Cloud",
     "llm_provider_label.apimart": "APIMart",
     "llm_provider_label.openrouter": "OpenRouter",

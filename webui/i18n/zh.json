@@ -234,6 +234,8 @@
     "Recommended": "推荐",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI（推荐）",
     "llm_provider_label.muse_spark": "Muse Spark",
+    "llm_provider_label.infistar": "无限星河 AI / Infistar",
+    "llm_provider_tips.infistar": "##### 无限星河 AI 配置说明\n- **API Key**：在[无限星河控制台]({api_key_url})创建密钥\n- **Base Url**：默认 `{default_base_url}`\n- **Model Name**：默认 `{default_model}`；其他模型 ID 请查看[模型列表]({model_docs_url})\n\nInfistar 是 MoneyPrinterTurbo 的项目赞助商，提供 OpenAI 兼容接口。",
     "llm_provider_label.shengsuanyun": "胜算云",
     "llm_provider_label.apimart": "APIMart",
     "llm_provider_label.openrouter": "OpenRouter",
