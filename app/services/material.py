@@ -219,6 +219,23 @@ def get_api_key(cfg_key: str):
         return api_keys[_api_key_counter % len(api_keys)]
 
 
+# 库存素材源默认直连上游；配置 *_base_url 后可改为指向 Sub2API 网关的
+# 服务商中继（/media/relay/<provider>），由网关集中持有上游凭据。
+DEFAULT_PEXELS_BASE_URL = "https://api.pexels.com"
+DEFAULT_PIXABAY_BASE_URL = "https://pixabay.com"
+DEFAULT_COVERR_BASE_URL = "https://api.coverr.co"
+
+
+def _stock_base_url(cfg_key: str, default: str) -> str:
+    """读取库存素材源基地址；为空时回落到上游默认地址。"""
+    value = str(config.app.get(cfg_key, "") or "").strip().rstrip("/")
+    if not value:
+        return default
+    if not value.startswith(("http://", "https://")):
+        raise ValueError(f"{cfg_key} must be an absolute HTTP(S) URL")
+    return value
+
+
 def _redact_secret(message: str, secret: str) -> str:
     """
     对即将写入日志的异常文本做最小范围脱敏。
@@ -354,7 +371,8 @@ def search_videos_pexels(
     params = {"query": search_term, "per_page": 20}
     if aspect != VideoAspect.square:
         params["orientation"] = aspect.name
-    query_url = f"https://api.pexels.com/v1/videos/search?{urlencode(params)}"
+    base_url = _stock_base_url("pexels_base_url", DEFAULT_PEXELS_BASE_URL)
+    query_url = f"{base_url}/v1/videos/search?{urlencode(params)}"
     logger.info(f"searching videos on pexels: term={search_term!r}")
 
     try:
@@ -462,7 +480,8 @@ def search_videos_pixabay(
         "per_page": 50,
         "key": api_key,
     }
-    query_url = f"https://pixabay.com/api/videos/?{urlencode(params)}"
+    base_url = _stock_base_url("pixabay_base_url", DEFAULT_PIXABAY_BASE_URL)
+    query_url = f"{base_url}/api/videos/?{urlencode(params)}"
     logger.info(
         f"searching videos on pixabay: term={search_term!r}, "
         f"proxy_enabled={bool(config.proxy)}"
@@ -625,7 +644,8 @@ def search_videos_coverr(
         params["filter"] = "is_vertical:true"
     elif aspect == VideoAspect.landscape:
         params["filter"] = "is_vertical:false"
-    query_url = f"https://api.coverr.co/videos?{urlencode(params)}"
+    base_url = _stock_base_url("coverr_base_url", DEFAULT_COVERR_BASE_URL)
+    query_url = f"{base_url}/videos?{urlencode(params)}"
     logger.info(f"searching videos on coverr: term={search_term!r}")
 
     try:

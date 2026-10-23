@@ -96,11 +96,29 @@ video_source = "pexels"
 # Register at https://www.pexels.com/api/
 pexels_api_keys = []
 
+# ── Sub2API gateway relay (optional) / Sub2API 网关中继（可选）─────────────────
+# Every material and text-to-video provider below can point its base_url at a
+# Sub2API gateway relay prefix (/media/relay/<provider>). The gateway then holds
+# the real upstream credentials and this app only needs a Sub2API API key, so
+# no provider keys are stored on the MoneyPrinterTurbo host.
+# 下列素材与文生视频平台均可把 base_url 指向 Sub2API 网关中继前缀
+# (/media/relay/<provider>)。网关持有上游真实凭据，本机只需 Sub2API API Key，
+# MoneyPrinterTurbo 侧不再保存任何平台密钥。
+
 # Register at https://pixabay.com/api/docs/
 pixabay_api_keys = []
 
 # Register at https://coverr.co/developers?ctx=header_navigation
 coverr_api_keys = []
+
+# Optional: point stock footage search at a Sub2API gateway relay instead of
+# calling Pexels / Pixabay / Coverr directly. The gateway then holds the real
+# upstream credentials and MoneyPrinterTurbo only needs a Sub2API API key.
+# 可选：把库存素材搜索指向 Sub2API 网关中继，由网关持有上游真实凭据，
+# MoneyPrinterTurbo 只需 Sub2API API Key。留空即直连上游。
+# pexels_base_url = "http://192.168.31.252:18080/media/relay/pexels"
+# pixabay_base_url = "http://192.168.31.252:18080/media/relay/pixabay"
+# coverr_base_url = "http://192.168.31.252:18080/media/relay/coverr"
 
 # WaveSpeed AI generates clips from your script keywords with text-to-video
 # models. Create an API key at https://wavespeed.ai
