@@ -1230,7 +1230,8 @@ def _normalize_hashtags(raw, count: int) -> List[str]:
     重复标签或不符合常见格式的 hashtag。
     """
     if isinstance(raw, str):
-        candidates = re.split(r"[\s,]+", raw)
+        # CJK text separates tags with ，、； and no spaces; # starts a new tag.
+        candidates = re.split(r"[\s,，、;；#]+", raw)
     elif isinstance(raw, (list, tuple)):
         # 数组里的每一项视为一个完整标签，因此 "du lich" 会变成
         # "#dulich"，而不是拆成两个标签。
