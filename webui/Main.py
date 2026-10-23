@@ -1209,10 +1209,19 @@ def _delete_task(task_id, task_path, task_state=None):
 
     task_snapshot = dict(current_task or {})
     task_snapshot.setdefault("state", task_state)
-    if task_id in _active_generation_tasks():
+    is_active = task_id in _active_generation_tasks()
+    if is_active:
         task_snapshot["state"] = const.TASK_STATE_PROCESSING
 
-    if tm.is_task_busy(task_snapshot):
+    # A task with no live tracked record (current_task is None) and not in
+    # this session's active-generation registry has nothing that could be
+    # processing or cross-posting it. is_task_busy()'s conservative
+    # "unparseable state means busy" rule (including state=None) is meant
+    # for tracked records whose state could not be read correctly -- it
+    # was never meant to cover disk-only history entries that were never
+    # tracked in the first place, whose UI-assigned state=None
+    # (_scan_history_tasks) has no bearing on whether anything is running.
+    if (current_task is not None or is_active) and tm.is_task_busy(task_snapshot):
         logger.warning(f"refused to delete running task: {task_id}")
         return False
 
@@ -1293,7 +1302,17 @@ def _render_task_table(filtered_tasks, key_prefix):
             task_id = task["task_id"]
             has_video = bool(task["video_file"] and os.path.isfile(task["video_file"]))
             is_processing = _task_state_filter_key(task) == "processing"
-            is_busy = is_processing or tm.is_task_busy(task)
+            # History-sourced rows (source == "history") have no live tracked
+            # record by construction -- see _collect_task_summaries(), which
+            # only keeps a "history" entry when no runtime/active record
+            # overrode it. is_task_busy()'s conservative "unparseable state
+            # means busy" rule is for tracked records whose state could not
+            # be read, not for these -- without this, every history task
+            # with no video file (state=None, see _scan_history_tasks)
+            # permanently shows a disabled Delete button.
+            is_busy = is_processing or (
+                task.get("source") != "history" and tm.is_task_busy(task)
+            )
             has_restore_data = os.path.isfile(
                 os.path.join(task["task_path"], "script.json")
             )
