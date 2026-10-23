@@ -1227,6 +1227,43 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(sub_items), len(script_lines))
         self.assertIn("1,000 years", sub_items[-1])
 
+    def test_script_split_keeps_clock_time_colon(self):
+        """
+        Edge TTS returns a clock time such as "10:30" as one word, so the script split
+        must not break a line at its colon.
+        """
+        text = "The class starts at 10:30 every morning. We film everything in 16:9."
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            ["The class starts at 10:30 every morning", "We film everything in 16:9"],
+        )
+
+    def test_edge_cue_aggregation_handles_clock_time(self):
+        """
+        The word boundaries edge-tts 7.3.1 returns for this script with en-US-JennyNeural:
+        "10:30" is one word, "16:9" is three. Both lines must still get a subtitle each,
+        without falling back to Whisper.
+        """
+        text = "We film everything in 16:9. The class starts at 10:30 every morning."
+        script_lines = utils.split_string_by_punctuations(text)
+        words = "We film everything in 16 : 9 The class starts at 10:30 every morning".split()
+        cues = [
+            SimpleNamespace(
+                content=word,
+                start=timedelta(seconds=index * 0.3),
+                end=timedelta(seconds=index * 0.3 + 0.25),
+            )
+            for index, word in enumerate(words)
+        ]
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(
+            SimpleNamespace(cues=cues), script_lines
+        )
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("10:30 every morning", sub_items[-1])
+
     def test_script_split_supports_arabic_punctuation(self):
         """
         阿拉伯语脚本常用 ، ؛ ؟ 作为自然断句标点。断句阶段必须识别这些
