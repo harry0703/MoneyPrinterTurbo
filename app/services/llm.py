@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 from time import perf_counter
 from typing import List
 
@@ -1240,7 +1241,16 @@ def _normalize_hashtags(raw, count: int) -> List[str]:
     seen = set()
     result: List[str] = []
     for item in candidates:
-        tag = re.sub(r"[^\w]", "", item, flags=re.UNICODE)
+        # \w does not match combining marks, so keep them explicitly: they are
+        # the vowel signs and tone marks of Devanagari, Bengali, Tamil and Thai
+        # tags, and dropping them misspells the tag ("#भारत" became "#भरत").
+        tag = "".join(
+            character
+            for character in item
+            if character.isalnum()
+            or character == "_"
+            or unicodedata.category(character).startswith("M")
+        )
         if not tag:
             continue
         key = tag.lower()
