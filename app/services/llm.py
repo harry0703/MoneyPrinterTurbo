@@ -1241,16 +1241,24 @@ def _normalize_hashtags(raw, count: int) -> List[str]:
     seen = set()
     result: List[str] = []
     for item in candidates:
-        # \w does not match combining marks, so keep them explicitly: they are
-        # the vowel signs and tone marks of Devanagari, Bengali, Tamil and Thai
-        # tags, and dropping them misspells the tag ("#भारत" became "#भरत").
-        tag = "".join(
-            character
-            for character in item
-            if character.isalnum()
-            or character == "_"
-            or unicodedata.category(character).startswith("M")
-        )
+        # 印地语、泰语等依赖组合符，不能像 \w 那样直接删除。但组合符必须
+        # 附着于保留的字符；emoji 被删除后，其变体选择符也应丢弃，否则
+        # #☕️ 会留下只有不可见字符的标签，#coffee☕️ 也无法与 #coffee 去重。
+        # 数字本身会保留，因此还需清理 emoji 展示选择符和键帽组合符，
+        # 让 #1️⃣ 与 #1 一致；其它语言组合符和 CJK 字形变体仍按附着规则保留。
+        characters = []
+        can_attach_mark = False
+        for character in item:
+            if character in {"\ufe0e", "\ufe0f", "\u20e3"}:
+                can_attach_mark = False
+            elif character.isalnum() or character == "_":
+                characters.append(character)
+                can_attach_mark = True
+            elif can_attach_mark and unicodedata.category(character).startswith("M"):
+                characters.append(character)
+            else:
+                can_attach_mark = False
+        tag = "".join(characters)
         if not tag:
             continue
         key = tag.lower()
