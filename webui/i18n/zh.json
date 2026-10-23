@@ -618,6 +618,19 @@
     "Trace API Requests": "记录 API 请求参数",
     "Trace API Requests Help": "独立于日志等级，默认关闭。记录脱敏参数、状态和耗时；提示词可能可见。音视频和响应正文不记录。排查结束后请关闭。",
     "Apply Logging Settings": "应用日志设置",
-    "Logging Settings Applied": "日志设置已在当前服务生效。"
+    "Logging Settings Applied": "日志设置已在当前服务生效。",
+    "Infistar AI Video": "无限星河 AI 视频",
+    "Infistar AI Video Help": "通过无限星河调用 Seedance、MiniMax H3 或可灵，生成视频素材。",
+    "Infistar Video Key Help": "视频服务独立配置，可搭配任意大模型服务使用。[获取 API Key](https://infistar.cc/keys)。",
+    "Infistar Video Model": "视频模型",
+    "Infistar Video Specification": "当前规格：{seconds} 秒、{size}。",
+    "Infistar Video Invalid Model": "请先选择支持的无限星河视频模型。",
+    "Infistar Video Billing Notice": "每段素材都会由无限星河计费。系统逐段生成，凑够配音所需时长后停止；上传配音时按音频实际时长计算素材数量。",
+    "Confirm Infistar Charge": "我已了解无限星河视频生成会创建付费任务",
+    "Please Enter the Infistar API Key": "请在素材源设置中填写无限星河 API Key。",
+    "Confirm Infistar Charge Required": "请先确认无限星河视频生成费用。",
+    "Infistar MiniMax Landscape Help": "MiniMax H3 当前线路生成横屏素材。选择竖屏成片时，将按“素材画面适配”设置裁剪或留黑边。",
+    "Infistar Video API Key": "无限星河视频 API Key",
+    "Infistar Video Base URL": "无限星河视频 Base URL"
   }
 }

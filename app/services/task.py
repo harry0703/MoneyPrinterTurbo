@@ -19,6 +19,7 @@ from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
     elevenlabs_music,
+    infistar_video,
     llm,
     loomloom,
     material,
@@ -97,7 +98,7 @@ _VIDEO_MUSIC_PROVIDERS = {
 _SUPPORTED_VIDEO_SOURCES = frozenset({
     "pexels", "pixabay", "coverr", "local", "wavespeed",
     "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
-    "loomloom", "openai_image",
+    "loomloom", "openai_image", "infistar",
 })
 
 
@@ -888,6 +889,13 @@ def get_video_materials(
                 details=details,
             )
             return None
+        except infistar_video.InfistarVideoError as exc:
+            remote_task_id = str(exc.task_id or "").strip()
+            _mark_task_failed(
+                task_id, "materials", str(exc),
+                details={"infistar_task_id": remote_task_id} if remote_task_id else None,
+            )
+            return None
         except muapi.MuAPIError as exc:
             # MuAPI tasks are billable after acceptance.  Preserve the remote
             # request ID on any ambiguous or post-completion failure so the
@@ -1555,6 +1563,16 @@ def _run_pipeline(
             "preflight",
             "Volcano Engine Seedance requires an Ark API key",
         )
+
+    if stop_at in {"materials", "video"} and params.video_source == "infistar":
+        try:
+            if not infistar_video.is_enabled():
+                raise infistar_video.InfistarVideoError("Infistar video generation requires an API key")
+            infistar_video.model_id()
+            if params.video_aspect not in {"16:9", "9:16"}:
+                raise infistar_video.InfistarVideoError("Infistar video currently supports 16:9 and 9:16")
+        except infistar_video.InfistarVideoError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
 
     if (
         stop_at in {"materials", "video"}

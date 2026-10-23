@@ -23,6 +23,7 @@ from PIL import Image, UnidentifiedImageError
 from app.config import config
 from app.models.schema import ImageMotion, MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
+    infistar_video,
     material_cache,
     material_upload,
     metaso_minimax,
@@ -2205,6 +2206,11 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
+    if source == "infistar":
+        return _download_videos_infistar_on_demand(
+            task_id=task_id, search_terms=search_terms, video_aspect=video_aspect,
+            audio_duration=audio_duration, max_clip_duration=max_clip_duration,
+        )
     if source == "wavespeed":
         # AI 生成按条计费，不能沿用库存源"先为全部关键词取回候选、再挑选"
         # 的流程，否则会为用不到的片段付费。生成源改为逐段按需生成，凑够
@@ -3069,3 +3075,33 @@ if __name__ == "__main__":
     download_videos(
         "test123", ["Money Exchange Medium"], audio_duration=100, source="pixabay"
     )
+
+
+def _download_videos_infistar_on_demand(
+    *, task_id, search_terms, video_aspect, audio_duration, max_clip_duration,
+):
+    """逐段下单；素材够用即停止，未知状态或下载失败不继续购买下一段。"""
+    try:
+        required = float(audio_duration)
+        clip_duration = int(max_clip_duration)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise infistar_video.InfistarVideoError("Infistar duration must be finite and positive") from exc
+    if not math.isfinite(required) or clip_duration <= 0:
+        raise infistar_video.InfistarVideoError("Infistar duration must be finite and positive")
+    paths = []
+    sources = []
+    covered = 0.0
+    try:
+        for term in search_terms:
+            if covered >= required:
+                break
+            item = infistar_video.generate_video(
+                search_term=term, video_aspect=video_aspect,
+                output_dir=utils.task_dir(task_id),
+            )
+            paths.append(item.url)
+            sources.append(_material_source_record(item, item.url))
+            covered += min(clip_duration, item.duration)
+    finally:
+        _persist_material_sources(task_id, sources)
+    return paths

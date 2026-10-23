@@ -618,6 +618,19 @@
     "Trace API Requests": "Trace API request parameters",
     "Trace API Requests Help": "Independent of log level and off by default. Records redacted parameters, status and timing. Prompts may be visible. Media and response bodies are omitted. Turn off after troubleshooting.",
     "Apply Logging Settings": "Apply logging settings",
-    "Logging Settings Applied": "Logging settings applied to this service."
+    "Logging Settings Applied": "Logging settings applied to this service.",
+    "Infistar AI Video": "Infistar AI Video",
+    "Infistar AI Video Help": "Generate clips with Seedance, MiniMax H3 or Kling through Infistar.",
+    "Infistar Video Key Help": "Configure video access independently and use it with any LLM provider. [Get an API key](https://infistar.cc/keys).",
+    "Infistar Video Model": "Video Model",
+    "Infistar Video Specification": "Current specification: {seconds} seconds, {size}.",
+    "Infistar Video Invalid Model": "Select a supported Infistar video model before generating.",
+    "Infistar Video Billing Notice": "Each generated clip is billed by Infistar. Clips are submitted one at a time until they cover the voiceover. With uploaded audio, its actual duration determines the required clip count.",
+    "Confirm Infistar Charge": "I understand Infistar video generation creates paid tasks",
+    "Please Enter the Infistar API Key": "Please enter the Infistar API key in material source settings.",
+    "Confirm Infistar Charge Required": "Please confirm the Infistar video charge before generating.",
+    "Infistar MiniMax Landscape Help": "The current MiniMax H3 route generates landscape footage. Portrait output uses the selected video fit mode to crop it or add black bars.",
+    "Infistar Video API Key": "Infistar Video API Key",
+    "Infistar Video Base URL": "Infistar Video Base URL"
   }
 }

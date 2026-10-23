@@ -76,7 +76,7 @@ tls_verify = true
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
 # "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "loomloom",
-# "openai_image", "local".
+# "openai_image", "infistar", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
 # "loomloom" is a paid Shengsuan Cloud source and requires explicit
@@ -264,6 +264,17 @@ moonshot_model_name = ""
 infistar_api_key = ""
 infistar_base_url = ""
 infistar_model_name = ""
+
+# 视频素材源 infistar 独立配置，不要求使用 Infistar LLM。
+# Base URL 留空使用 https://infistar.cc/v1；也可通过 INFISTAR_VIDEO_API_KEY 设置密钥。
+# 可选模型：doubao-seedance-2-0-fast-260128（5 秒）、MiniMax-H3（6 秒）、
+# kling-v2-6（5 秒，取决于账号线路可用性）。视频按付费任务计费。
+# MiniMax 当前线路返回横屏素材；竖屏成片沿用画面适配设置裁剪或留边。
+infistar_video_api_key = ""
+infistar_video_base_url = ""
+infistar_video_model = "doubao-seedance-2-0-fast-260128"
+infistar_video_poll_interval = 5
+infistar_video_run_timeout = 1800
 
 # Shengsuan Cloud, OpenAI-compatible multi-model API.
 # API docs: https://lean.shengsuanyun.com/apidocs/api/openai-api

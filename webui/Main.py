@@ -54,6 +54,7 @@ from app.services import (
     material,
     metaso_minimax,
     muapi,
+    infistar_video,
     ofox,
     subtitle,
     video,
@@ -128,8 +129,8 @@ VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
 LOOMLOOM_MAX_POLL_FAILURES = 5
 # WebUI 按素材能力分组展示视频来源，但底层仍保存原有 video_source 值。
-# AI 视频组与设置页共用同一业务顺序：合作服务商优先，并按秘塔、OFox、
-# 胜算云、火山引擎排列；其余服务随后展示。这样两个入口的顺序一致，同时
+# AI 视频组与设置页共用同一业务顺序：合作服务商优先，并按秘塔、OFox、胜算云、
+# 火山引擎、无限星河排列；其余服务随后展示。这样两个入口的顺序一致，同时
 # 不改变 config.toml、历史任务和 API 请求中的字段语义，旧用户无需迁移配置。
 VIDEO_SOURCE_GROUPS = {
     "stock_video": ("pexels", "pixabay", "coverr"),
@@ -138,6 +139,7 @@ VIDEO_SOURCE_GROUPS = {
         "ofox",
         "loomloom",
         "volcengine_seedance",
+        "infistar",
         "wavespeed",
         "muapi",
     ),
@@ -770,6 +772,7 @@ def _initialize_session_state():
         "loomloom_video_scene_autofill_digest": "",
         "wavespeed_confirm_charge": False,
         "volcengine_seedance_confirm_charge": False,
+        "infistar_confirm_charge": False,
         "ofox_confirm_charge": False,
         "metaso_minimax_confirm_charge": False,
         "muapi_confirm_charge": False,
@@ -3714,7 +3717,7 @@ def _render_settings_dialog():
                 st.caption(tr("AI Video Generation APIs Help"))
 
                 # 视频生成 Provider 按赞助商优先展示，赞助商内部顺序
-                # 与 VIDEO_SOURCE_GROUPS 一致：秘塔、OFox、胜算云、火山引擎。
+                # 与 VIDEO_SOURCE_GROUPS 一致：秘塔、OFox、胜算云、火山引擎、无限星河。
                 st.markdown(f"**{tr('Metaso MiniMax H3')}**")
                 metaso_api_key = st.text_input(
                     tr("Metaso MiniMax API Key"),
@@ -3970,6 +3973,27 @@ def _render_settings_dialog():
                     "app",
                     "volcengine_seedance_base_url",
                     seedance_base_url.strip() or volcengine_seedance.DEFAULT_BASE_URL,
+                )
+
+                st.divider()
+                st.markdown(f"**{tr('Infistar AI Video')}**")
+                st.caption(tr("Infistar Video Key Help"))
+                infistar_video_key = st.text_input(
+                    tr("Infistar Video API Key"),
+                    value=str(config.app.get("infistar_video_api_key", "") or ""),
+                    type="password", key="infistar_video_api_key_input",
+                )
+                _set_runtime_config(
+                    "app", "infistar_video_api_key", infistar_video_key.strip()
+                )
+                infistar_video_base_url = st.text_input(
+                    tr("Infistar Video Base URL"),
+                    value=str(config.app.get("infistar_video_base_url", "") or ""),
+                    placeholder=infistar_video.DEFAULT_BASE_URL,
+                    key="infistar_video_base_url_input",
+                )
+                _set_runtime_config(
+                    "app", "infistar_video_base_url", infistar_video_base_url.strip()
                 )
 
                 st.divider()
@@ -5234,6 +5258,7 @@ def _render_video_settings(panel, params):
                 "coverr": tr("Coverr"),
                 "wavespeed": tr("WaveSpeed AI Video"),
                 "volcengine_seedance": tr("Volcano Engine Seedance"),
+                "infistar": tr("Infistar AI Video"),
                 "ofox": tr("OFox AI Video"),
                 "metaso_minimax": tr("Metaso MiniMax H3"),
                 "muapi": tr("MuAPI AI Video"),
@@ -5268,6 +5293,9 @@ def _render_video_settings(panel, params):
                     _effective_loomloom_api_token()
                 )
 
+            if params.video_source == "infistar":
+                st.caption(tr("Infistar AI Video Help"))
+                selected_infistar_model = _render_infistar_model_selector()
             if params.video_source == "wavespeed":
                 st.caption(tr("WaveSpeed AI Video Help"))
             if params.video_source == "volcengine_seedance":
@@ -5445,7 +5473,10 @@ def _render_video_settings(panel, params):
 
             # MiniMax H3 的远端时长范围是 4～15 秒。选择秘塔时使用完整能力
             # 范围，既避免 2/3 秒被按 4 秒计费，也让 WebUI 与 CLI、服务层一致。
-            if params.video_source == "metaso_minimax":
+            if params.video_source == "infistar":
+                # 每种模型先提供实测的固定规格；不把被 API 拒绝的时长发往付费接口。
+                video_clip_durations = [infistar_video.MODELS.get(selected_infistar_model, {"seconds": 5})["seconds"]]
+            elif params.video_source == "metaso_minimax":
                 video_clip_durations = list(
                     range(
                         metaso_minimax.DEFAULT_MIN_DURATION_SECONDS,
@@ -5576,6 +5607,9 @@ def _render_video_settings(panel, params):
                 _render_wavespeed_video_settings(params)
             if params.video_source == "volcengine_seedance":
                 _render_seedance_video_settings(params)
+            if params.video_source == "infistar":
+                st.warning(tr("Infistar Video Billing Notice"))
+                st.checkbox(tr("Confirm Infistar Charge"), key="infistar_confirm_charge")
             if params.video_source == "ofox":
                 _render_ofox_video_settings(params)
             if params.video_source == "metaso_minimax":
@@ -5641,6 +5675,31 @@ def _render_seedance_video_settings(params):
         key="volcengine_seedance_confirm_charge",
         help=tr("Confirm Volcano Engine Seedance Charge Help"),
     )
+
+
+def _render_infistar_model_selector():
+    """模型顺序固定为 Seedance、MiniMax、可灵；切换模型后重新确认费用。"""
+    snapshot = config.snapshot_config_with_pending(config.app)
+    configured = str(snapshot.get("infistar_video_model", "") or infistar_video.DEFAULT_MODEL)
+    options = list(infistar_video.MODELS)
+    if configured not in options:
+        options.append(configured)
+        st.error(tr("Infistar Video Invalid Model"))
+    model = stable_selectbox(
+        tr("Infistar Video Model"), options=options,
+        default_value=configured, key="infistar_video_model_select",
+        format_func=lambda value: infistar_video.MODELS.get(value, {"label": value})["label"],
+    )
+    if st.session_state.get("infistar_previous_video_model") != model:
+        st.session_state["infistar_confirm_charge"] = False
+        st.session_state["infistar_previous_video_model"] = model
+    _set_runtime_config("app", "infistar_video_model", model)
+    profile = infistar_video.MODELS.get(model)
+    if profile:
+        st.caption(tr("Infistar Video Specification").format(seconds=profile["seconds"], size=profile["size"]))
+        if model == "MiniMax-H3":
+            st.info(tr("Infistar MiniMax Landscape Help"))
+    return model
 
 
 def _render_ofox_video_settings(params):
@@ -8088,6 +8147,7 @@ def _render_generation_controls(
             voxcpm_prompt_text = _get_voxcpm_prompt_text()
 
         if params.video_source not in [
+            "infistar",
             "pexels",
             "pixabay",
             "coverr",
@@ -8154,6 +8214,19 @@ def _render_generation_controls(
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm Volcano Engine Seedance Charge Required"))
             st.stop()
+
+        if params.video_source == "infistar":
+            try:
+                snapshot = config.snapshot_config_with_pending(config.app)
+                if not infistar_video.is_enabled(snapshot):
+                    raise infistar_video.InfistarVideoError(tr("Please Enter the Infistar API Key"))
+                infistar_video.model_id(snapshot)
+                if not st.session_state.get("infistar_confirm_charge", False):
+                    raise infistar_video.InfistarVideoError(tr("Confirm Infistar Charge Required"))
+            except infistar_video.InfistarVideoError as exc:
+                _remove_active_generation_task(task_id)
+                st.error(str(exc))
+                st.stop()
 
         if params.video_source == "ofox" and not (
             ofox.is_enabled(config.snapshot_config_with_pending(config.app))
