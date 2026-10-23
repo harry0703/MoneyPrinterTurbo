@@ -1,0 +1,8 @@
+# CLAUDE.local.md (example — copy to CLAUDE.local.md, gitignored)
+
+Personal overrides for this machine/session. Not shared with the team.
+
+Examples:
+- Local paths or ports that differ from the shared setup.
+- Personal shorthand or reminders for this project.
+- Temporary debugging notes.

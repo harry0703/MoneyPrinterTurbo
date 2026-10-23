@@ -45,3 +45,15 @@ htmlcov/
 
 # Claude Code 订阅令牌（docker compose 自动读取），禁止提交
 .env
+
+# Vibe Coding scaffold — personal/local overrides, never commit
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Real MCP config (may contain tokens/paths) — commit .mcp.json.example instead
+.mcp.json
+
+# Additional secret file patterns
+.env.*
+*.pem
+*.key
