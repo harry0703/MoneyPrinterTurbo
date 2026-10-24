@@ -1783,7 +1783,12 @@ class TestLiteLLMProvider(unittest.TestCase):
             patch.object(config, "is_running_in_container", return_value=True),
             patch.object(config, "_can_resolve_hostname", return_value=True),
         ):
-            self._assert_ollama_base_url("http://host.docker.internal:11434/v1")
+            openai_client, *_ = self._call_ollama_generate_response()
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://host.docker.internal:11434/v1"},
+        )
 
     def test_ollama_default_base_url_falls_back_to_container_gateway(self):
         """
