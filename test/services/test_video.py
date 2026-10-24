@@ -534,7 +534,6 @@ class TestVideoService(unittest.TestCase):
 
         try:
             materials = vd.preprocess_video([m], clip_duration=4)
-            print(materials)
 
             # verify result
             self.assertIsNotNone(materials)
