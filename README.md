@@ -397,6 +397,8 @@ docker compose -f docker-compose.release.yml up
 
 > API 默认仅允许同源网页访问。只有独立网页前端需要从其他来源直接调用 API 时，才应通过环境变量 `CORS_ALLOWED_ORIGINS` 配置可信来源，例如 `http://localhost:3000,https://frontend.example.com`。curl、Postman、n8n 和其他服务端调用不受 CORS 限制。
 
+> 可选的限流与攻击特征拦截：[fastapi-guard](https://github.com/Guard-Core/fastapi-guard) 已随应用安装（包括 Docker 镜像），只需在 `config.toml` 的 `[guard]` 中设置 `enabled = true`。默认关闭，关闭时不会加载任何代码。启用后按客户端 IP 限流（`rate_limit_window` 秒内最多 `rate_limit` 次），并拦截 URL 路径、查询参数和请求头中的攻击特征（除 `ssrf` 外的全部检测类别：浏览器会把页面地址作为 `Referer` 发送，而 guard-core 4.4.0 会把其中的 localhost 和局域网地址判为 ssrf）；文案、提示词等请求体仅在设置 `scan_body = true` 时才会扫描。只有 `trusted_proxies`（默认仅本机回环地址）中的对端发来的 `X-Forwarded-For` 才会被信任。位于反向代理或 Docker 之后时，请把代理地址加入该列表，否则所有客户端会共用同一个限流桶。拦截响应仍会携带 CORS 头，并使用 API 的 JSON 错误格式（`{"status": 429, "message": "Too many requests"}`）。`main.py` 启动 Uvicorn 时会信任与 guard 相同的对端：`trusted_proxies` 为空时不处理代理头，否则把该列表传给 `forwarded_allow_ips`（`*` 等通配符会记录警告）。若自行运行 `uvicorn app.asgi:app`，请传入 `--no-proxy-headers`（`trusted_proxies` 为空）或使用相同列表的 `--forwarded-allow-ips`，并且不要让环境变量 `FORWARDED_ALLOW_IPS` 扩大范围，否则 Uvicorn 会在 guard 之前根据 `X-Forwarded-For` 改写客户端地址，限流可被绕过。
+
 ### 手动部署 📦
 
 > 视频教程

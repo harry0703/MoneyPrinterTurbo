@@ -642,6 +642,35 @@ diagnostics = _SynchronizedConfig(_cfg.get("diagnostics", {}))
 app = _SynchronizedConfig(_cfg.get("app", {}))
 whisper = _cfg.get("whisper", {})
 proxy = _cfg.get("proxy", {})
+guard = _cfg.get("guard", {})
+GUARD_DEFAULT_TRUSTED_PROXIES = ["127.0.0.1", "::1"]
+_WILDCARD_PROXIES = {"*", "0.0.0.0/0", "::/0"}
+
+
+def guard_trusted_proxies(guard_config: dict) -> list[str]:
+    return list(guard_config.get("trusted_proxies", GUARD_DEFAULT_TRUSTED_PROXIES))
+
+
+def uvicorn_proxy_options(guard_config: dict) -> dict:
+    """Make Uvicorn trust exactly the peers the guard trusts.
+
+    Uvicorn rewrites ``scope["client"]`` from X-Forwarded-For before the guard
+    runs, so with the guard on the two must agree: no trusted proxies means no
+    proxy headers, otherwise Uvicorn gets the same list (this also overrides the
+    FORWARDED_ALLOW_IPS environment variable). Guard off: Uvicorn defaults.
+    """
+
+    if not guard_config.get("enabled", False):
+        return {}
+    trusted = guard_trusted_proxies(guard_config)
+    if not trusted:
+        return {"proxy_headers": False}
+    if _WILDCARD_PROXIES.intersection(trusted):
+        logger.warning(
+            "[guard] trusted_proxies contains a wildcard, so any client can spoof "
+            "X-Forwarded-For and dodge the rate limit; list your proxy addresses"
+        )
+    return {"forwarded_allow_ips": ",".join(trusted)}
 azure = _SynchronizedConfig(_cfg.get("azure", {}))
 siliconflow = _SynchronizedConfig(_cfg.get("siliconflow", {}))
 minimax_tts = _SynchronizedConfig(_cfg.get("minimax_tts", {}))

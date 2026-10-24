@@ -649,6 +649,37 @@ compute_type = "int8"
 # https = "http://127.0.0.1:1080"
 
 # =============================================================================
+# Security Middleware / 安全中间件
+# =============================================================================
+
+[guard]
+# Optional fastapi-guard rate limiting and attack-pattern blocking for the API.
+# Ships with the app and is off by default; when off nothing is loaded.
+# Set enabled = true to turn it on.
+# 可选的 fastapi-guard 限流与攻击特征拦截，随应用一起安装，默认关闭，关闭时不会加载任何代码。
+enabled = false
+# Maximum requests per client IP within rate_limit_window seconds.
+# 每个客户端 IP 在窗口时间内允许的最大请求数。
+rate_limit = 100
+rate_limit_window = 60
+# Peers allowed to set X-Forwarded-For (IPs or CIDR ranges). The default trusts
+# only loopback. Behind a reverse proxy or Docker, list the proxy address,
+# otherwise every client shares the proxy's IP and one rate-limit bucket.
+# 只有这些对端可以设置 X-Forwarded-For，默认仅信任本机回环地址。
+# 位于反向代理或 Docker 之后时，请填写代理地址。
+# main.py starts Uvicorn with the same trust: an empty list turns proxy headers off, a
+# list is passed as forwarded_allow_ips. If you run `uvicorn` yourself, pass
+# --no-proxy-headers or a matching --forwarded-allow-ips; FORWARDED_ALLOW_IPS must not widen it.
+trusted_proxies = ["127.0.0.1", "::1"]
+# Also scan request bodies (video scripts, prompts) for attack patterns. Off by
+# default because free text produces false positives; the URL path, query
+# string and headers are always scanned when the guard is enabled. The ssrf
+# category is left out: browsers send the page address as Referer and
+# guard-core 4.4.0 flags localhost and LAN addresses in it.
+# 是否扫描请求体。默认关闭，路径、查询参数和请求头始终会被扫描。
+scan_body = false
+
+# =============================================================================
 # TTS Providers / 语音合成服务
 # =============================================================================
 
