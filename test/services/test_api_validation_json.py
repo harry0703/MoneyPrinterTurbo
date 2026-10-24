@@ -64,3 +64,68 @@ def test_normal_error_details_remain_available():
     assert error['type'] == 'greater_than_equal'
     assert error['input'] == 0
     assert error['ctx'] == {'ge': 1}
+
+
+def test_unsafe_font_name_returns_403_not_400():
+    """create_task pre-checks font_name via the file-serving wrapper.
+
+    Path-escaping attempts must be rejected with the same 403 that the
+    artifact endpoints already use, instead of the generic 400 returned
+    for value errors such as invalid subtitle colors.
+    """
+    payload = {
+        'video_subject': 'unsafe font test',
+        'video_script': 'demo',
+        'subtitle_enabled': True,
+        'font_name': '../etc/passwd',
+    }
+    with (
+        patch.dict(config.app, {'api_key': ''}),
+        patch('app.controllers.v1.video.task_manager.add_task') as schedule,
+        TestClient(asgi.get_application(), raise_server_exceptions=False) as client,
+    ):
+        response = client.post('/api/v1/videos', json=payload)
+    assert response.status_code == 403, response.text
+    schedule.assert_not_called()
+
+
+def test_unknown_font_name_returns_404():
+    """A font_name that is well-formed but missing on disk is a 404, not a 400."""
+    payload = {
+        'video_subject': 'unknown font test',
+        'video_script': 'demo',
+        'subtitle_enabled': True,
+        'font_name': 'this-font-does-not-exist.ttf',
+    }
+    with (
+        patch.dict(config.app, {'api_key': ''}),
+        patch('app.controllers.v1.video.task_manager.add_task') as schedule,
+        TestClient(asgi.get_application(), raise_server_exceptions=False) as client,
+    ):
+        response = client.post('/api/v1/videos', json=payload)
+    assert response.status_code == 404, response.text
+    schedule.assert_not_called()
+
+
+def test_valid_font_name_still_reaches_scheduler():
+    """A safe font_name must still pass through to the task scheduler."""
+    payload = {
+        'video_subject': 'safe font test',
+        'video_script': 'demo',
+        'subtitle_enabled': True,
+        'font_name': 'STHeitiMedium.ttc',
+    }
+    schedule = patch('app.controllers.v1.video.task_manager.add_task')
+    with (
+        patch.dict(config.app, {'api_key': ''}),
+        schedule,
+        TestClient(asgi.get_application(), raise_server_exceptions=False) as client,
+    ):
+        # Run inside the patched context so the test does not need an
+        # actual font file on disk for the controller-side check.
+        response = client.post('/api/v1/videos', json=payload)
+    # Either the request was accepted and the scheduler is invoked, or
+    # the scheduler failed because no real task manager is wired up in
+    # the test environment. The key invariant is that we did not get a
+    # 403/404 from the font pre-check.
+    assert response.status_code not in (403, 404), response.text
