@@ -353,6 +353,91 @@ class TestSubtitleService(unittest.TestCase):
         self.assertEqual(items[0][1], "00:00:00,100 --> 00:00:02,000")
         self.assertEqual(items[0][2], "Hello world")
 
+    def _correct_repeated_sentence_cues(self, script):
+        original_srt = (
+            "1\n00:00:00,000 --> 00:00:01,000\nHello\n\n"
+            "2\n00:00:01,000 --> 00:00:02,000\nnow\n\n"
+            "3\n00:00:02,000 --> 00:00:03,000\nplease\n\n"
+            "4\n00:00:04,000 --> 00:00:05,000\nnow\n\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "subtitle.srt"
+            path.write_text(original_srt, encoding="utf-8")
+            subtitle.correct(str(path), script)
+            return [(item[1], item[2]) for item in subtitle.file_to_subtitles(str(path))]
+
+    def test_correct_keeps_repeated_word_inside_current_sentence(self):
+        self.assertEqual(
+            self._correct_repeated_sentence_cues("Hello now please. now."),
+            [
+                ("00:00:00,000 --> 00:00:03,000", "Hello now please"),
+                ("00:00:04,000 --> 00:00:05,000", "now"),
+            ],
+            "repeated words must not move the next sentence onto an earlier cue",
+        )
+
+    def test_correct_uses_context_after_dropped_words_before_repeated_cue(self):
+        self.assertEqual(
+            self._correct_repeated_sentence_cues("Hello everyone now please. now."),
+            [
+                ("00:00:00,000 --> 00:00:03,000", "Hello everyone now please"),
+                ("00:00:04,000 --> 00:00:05,000", "now"),
+            ],
+            "surrounding cues must distinguish repeated words after omissions",
+        )
+
+    def test_correct_preserves_first_boundary_when_later_context_is_not_better(self):
+        for script, cues, expected in [
+            ("Hello now. now.", ["Hello now", "now", "now"], [0, 1]),
+            ("Hello. now.", ["Hello", "now", "now"], [0, 1]),
+            ("Hello world. now.", ["Hello world", "now", "later", "now"], [0, 1]),
+        ]:
+            with self.subTest(script=script):
+                body = "".join(
+                    f"{i + 1}\n00:00:{i * 2:02},000 --> 00:00:{i * 2 + 1:02},000\n{cue}\n\n"
+                    for i, cue in enumerate(cues)
+                )
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    path = Path(tmp_dir) / "subtitle.srt"
+                    path.write_text(body, encoding="utf-8")
+                    subtitle.correct(str(path), script)
+                    items = subtitle.file_to_subtitles(str(path))
+                self.assertEqual(
+                    [item[1] for item in items],
+                    [f"00:00:{i * 2:02},000 --> 00:00:{i * 2 + 1:02},000" for i in expected],
+                )
+
+    def test_correct_keeps_next_sentence_cue_when_transcription_drops_words(self):
+        """
+        Whisper 漏掉几个词时，当前句子仍应使用已有时间块，但不能把下一句
+        完全匹配的字幕也合并进来，否则下一句只剩零时长占位。
+        """
+        original_srt = (
+            "1\n00:00:00,000 --> 00:00:02,000\nHello everyone welcome\n\n"
+            "2\n00:00:02,500 --> 00:00:04,000\ntoday we talk\n\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+
+            subtitle.correct(
+                str(subtitle_file),
+                "Hello everyone welcome to the channel, today we talk",
+            )
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+
+        self.assertEqual(
+            [(item[1], item[2]) for item in items],
+            [
+                (
+                    "00:00:00,000 --> 00:00:02,000",
+                    "Hello everyone welcome to the channel",
+                ),
+                ("00:00:02,500 --> 00:00:04,000", "today we talk"),
+            ],
+        )
+
     def test_correct_removes_transcription_after_script_ends(self):
         """Whisper's trailing hallucinations must not appear as final captions."""
         original_srt = (
