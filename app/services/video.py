@@ -42,7 +42,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
-from app.services.utils import video_effects
+from app.services.utils import subtitle_shaping, video_effects
 from app.utils import file_security, logging_utils, utils
 from app.utils.subtitle_reader import moviepy_subtitles
 
@@ -1309,6 +1309,13 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
             height for _, height in wrapped_lines
         )
 
+    # 阿拉伯字母文本由 khatt 整形绘制（见 subtitle_shaping）。必须按整形后的
+    # 字形、并用实际绘制时的字体（缺字时的后备字体）测量，换行和高度才与
+    # 最终字幕一致；Pillow 未整形时测得的是断开的独立字形宽度。
+    shaped = subtitle_shaping.needs_shaping(text)
+    if shaped:
+        font, _ = subtitle_shaping.resolve_font(font, text)
+    shaped_font_path = font
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
@@ -1331,6 +1338,8 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         inner_text = inner_text.strip()
         if not inner_text:
             return 0, line_height
+        if shaped:
+            return subtitle_shaping.text_width(inner_text, shaped_font_path, fontsize), line_height
         left, top, right, bottom = font.getbbox(inner_text)
         # bbox 仍适合测量换行所需的实际宽度；高度必须始终使用稳定字体行高。
         return right - left, line_height
@@ -1618,6 +1627,9 @@ def generate_video(
             return "#000000" if params.text_background_color else None
         return params.text_background_color
 
+    # 字幕整形相关的提示（如阿拉伯字母字体回退）每个生成任务只记录一次。
+    shaping_notices: set[str] = set()
+
     def create_text_clip(subtitle_item):
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
@@ -1669,11 +1681,19 @@ def generate_video(
             # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
             # PIL 测量最长一行文字，再加水平内边距，避免短字幕出现过宽底板。
             try:
-                font = ImageFont.truetype(font_path, params.font_size)
-                text_w = max(
-                    int(font.getbbox(line)[2] - font.getbbox(line)[0])
-                    for line in wrapped_txt.split("\n")
-                )
+                if subtitle_shaping.needs_shaping(wrapped_txt):
+                    # 阿拉伯字母文本按整形后的字形和实际绘制字体测量。
+                    shaped_font, _ = subtitle_shaping.resolve_font(font_path, wrapped_txt)
+                    text_w = max(
+                        subtitle_shaping.text_width(line, shaped_font, params.font_size)
+                        for line in wrapped_txt.split("\n")
+                    )
+                else:
+                    font = ImageFont.truetype(font_path, params.font_size)
+                    text_w = max(
+                        int(font.getbbox(line)[2] - font.getbbox(line)[0])
+                        for line in wrapped_txt.split("\n")
+                    )
             except Exception as exc:
                 logger.warning(
                     f"failed to measure subtitle text width, fallback to max width: {str(exc)}"
@@ -1682,7 +1702,9 @@ def generate_video(
 
             box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
             radius = max(8, int(params.font_size * 0.4))
-            text_clip = TextClip(
+            text_clip = subtitle_shaping.text_clip(
+                TextClip,
+                notices=shaping_notices,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1713,7 +1735,9 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            text_clip = TextClip(
+            text_clip = subtitle_shaping.text_clip(
+                TextClip,
+                notices=shaping_notices,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1744,7 +1768,9 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            _clip = TextClip(
+            _clip = subtitle_shaping.text_clip(
+                TextClip,
+                notices=shaping_notices,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1802,7 +1828,9 @@ def generate_video(
         )
 
         def make_textclip(text):
-            return TextClip(
+            return subtitle_shaping.text_clip(
+                TextClip,
+                notices=shaping_notices,
                 text=text,
                 font=font_path,
                 font_size=params.font_size,
