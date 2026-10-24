@@ -346,6 +346,20 @@ def get_kokoro_voices(*, fallback: bool = True) -> list[str]:
     return voices or ([f"kokoro:{KOKORO_DEFAULT_VOICE}"] if fallback else [])
 
 
+# Audexum (https://audexum.com) serves an OpenAI-compatible /v1/audio/speech.
+# Voice list: GET https://audexum.com/v1/voices
+AUDEXUM_BASE_URL = "https://audexum.com/v1"
+AUDEXUM_VOICES = (
+    "Nova", "Atlas", "Reid", "Sage", "Kai", "Cole", "Ivy", "Mira", "Elle",
+    "F1", "F2", "F3", "F4", "F5", "M1", "M2", "M3", "M4", "M5",
+)
+
+
+def get_audexum_voices() -> list[str]:
+    """Return Audexum voices as ``audexum:<voice>``."""
+    return [f"audexum:{v}" for v in AUDEXUM_VOICES]
+
+
 def get_fish_audio_voices() -> list[str]:
     """Return configured Fish Audio voices.
 
@@ -494,6 +508,15 @@ def is_kokoro_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("kokoro:")
 
 
+def is_audexum_voice(voice_name: str) -> bool:
+    return (voice_name or "").startswith("audexum:")
+
+
+def get_audexum_api_key() -> str:
+    configured_key = str(config.audexum.get("api_key", "") or "").strip()
+    return configured_key or os.getenv("AUDEXUM_API_KEY", "").strip()
+
+
 def is_fish_audio_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("fish_audio:")
 
@@ -547,6 +570,8 @@ def is_azure_v1_voice(voice_name: str | None) -> bool:
     if is_kokoro_voice(name):
         return False
     if is_fish_audio_voice(name):
+        return False
+    if is_audexum_voice(name):
         return False
     if is_voxcpm_voice(name):
         return False
@@ -745,6 +770,13 @@ def _single_tts(
         else:
             logger.error(f"Invalid kokoro voice name format: {voice_name}")
             return None
+    elif is_audexum_voice(voice_name):
+        # 格式: audexum:<voice>
+        audexum_voice = voice_name.split(":", 1)[1].strip()
+        if not audexum_voice:
+            logger.error(f"Invalid audexum voice name format: {voice_name}")
+            return None
+        return audexum_tts(text, audexum_voice, voice_file, voice_rate, voice_volume)
     elif is_fish_audio_voice(voice_name):
         parts = voice_name.split(":")
         reference_id = parts[1] if len(parts) >= 2 else "default"
@@ -2851,6 +2883,37 @@ def kokoro_tts(
         model_id = config.kokoro.get("model_id", "kokoro") or "kokoro"
     return _openai_compatible_tts(
         "kokoro", base_url, api_key, model_id, voice, text, voice_rate, voice_file
+    )
+
+
+def audexum_tts(
+    text: str,
+    voice: str,
+    voice_file: str,
+    voice_rate: float = 1.0,
+    voice_volume: float = 1.0,
+) -> Union[SubMaker, None]:
+    """Generate speech with Audexum (https://audexum.com).
+
+    Audexum exposes an OpenAI-compatible ``/audio/speech`` endpoint, so this
+    reuses the shared transport. Configure ``[audexum] api_key`` or set
+    ``AUDEXUM_API_KEY``. No word-level timestamps are returned; set
+    ``subtitle_provider = "whisper"`` for tighter subtitle sync.
+    """
+    text = (text or "").strip()
+    if not text:
+        logger.error("Audexum TTS text is empty")
+        return None
+    api_key = get_audexum_api_key()
+    if not api_key:
+        logger.error(
+            "Audexum API key is not set. Please set it in config.toml "
+            "[audexum] or the AUDEXUM_API_KEY environment variable."
+        )
+        return None
+    base_url = (config.audexum.get("base_url", "") or AUDEXUM_BASE_URL).strip().rstrip("/")
+    return _openai_compatible_tts(
+        "audexum", base_url, api_key, "audexum", voice, text, voice_rate, voice_file
     )
 
 

@@ -256,6 +256,7 @@ _RUNTIME_CONFIG_SECTIONS = {
     "minimax_tts": config.minimax_tts,
     "siliconflow": config.siliconflow,
     "fish_audio": config.fish_audio,
+    "audexum": config.audexum,
     "voxcpm": config.voxcpm,
     "ui": config.ui,
 }
@@ -1513,6 +1514,8 @@ def _infer_tts_server_from_voice(voice_name):
         return "kokoro"
     if voice.is_fish_audio_voice(voice_name):
         return "fish_audio"
+    if voice.is_audexum_voice(voice_name):
+        return "audexum"
     if voice.is_voxcpm_voice(voice_name):
         return "voxcpm"
     if voice.is_azure_v2_voice(voice_name):
@@ -7069,6 +7072,7 @@ def _render_audio_settings(panel, params):
                 ("chatterbox", "Chatterbox TTS"),
                 ("kokoro", "Kokoro TTS"),
                 ("fish_audio", "Fish Audio TTS"),
+                ("audexum", "Audexum TTS"),
                 ("voxcpm", "VoxCPM TTS"),
             ]
 
@@ -7145,6 +7149,8 @@ def _render_audio_settings(panel, params):
                 filtered_voices = _get_kokoro_voice_options(saved_voice_name)
             elif selected_tts_server == "fish_audio":
                 filtered_voices = voice.get_fish_audio_voices()
+            elif selected_tts_server == "audexum":
+                filtered_voices = voice.get_audexum_voices()
             elif selected_tts_server == "voxcpm":
                 filtered_voices = voice.get_voxcpm_voices()
             else:
@@ -7180,6 +7186,8 @@ def _render_audio_settings(panel, params):
                         display_name.replace("Female", tr("Female"))
                         .replace("Male", tr("Male"))
                     )
+                if voice.is_audexum_voice(v):
+                    return v.split(":", 1)[1]
                 if voice.is_voxcpm_voice(v):
                     return v.split(":", 1)[1] or DEFAULT_VOXCPM_VOICE
                 return (
@@ -7402,6 +7410,19 @@ def _render_audio_settings(panel, params):
                     key="fish_audio_model_select",
                 )
                 _set_runtime_config("fish_audio", "model", fish_model)
+
+            # Audexum API settings section
+            if tts_mode_enabled and (
+                selected_tts_server == "audexum"
+                or (voice_name and voice.is_audexum_voice(voice_name))
+            ):
+                audexum_api_key = st.text_input(
+                    tr("Audexum API Key"),
+                    value=config.audexum.get("api_key", ""),
+                    type="password",
+                    key="audexum_api_key_input",
+                )
+                _set_runtime_config("audexum", "api_key", audexum_api_key)
 
             # ModelBest hosts VoxCPM behind its streaming Audio Speech API.
             # The fixed provider endpoint is still editable for compatible

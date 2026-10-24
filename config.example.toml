@@ -737,6 +737,13 @@ voices = []
 # windows (e.g. through August 2026).  There is no SLA.  Please check
 # https://fish.audio/pricing for current availability and commercial terms.
 
+[audexum]
+# Audexum TTS: https://audexum.com (free tier available, no card required).
+# API key: create one in your account. You can also set AUDEXUM_API_KEY.
+# Voices: Nova, Atlas, Reid, Sage, Kai, Cole, Ivy, Mira, Elle, F1-F5, M1-M5
+# (see https://audexum.com/v1/voices).
+api_key = ""
+
 [voxcpm]
 # ModelBest VoxCPM cloud TTS. Create an API Key and select a model with the
 # `speech_synthesis` capability at https://platform.modelbest.cn/console/
