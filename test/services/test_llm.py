@@ -1716,38 +1716,6 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         return openai_client, fake_completions, result
 
-    def _assert_ollama_base_url(self, expected_base_url: str):
-        class FakeCompletions:
-            def create(self, **kwargs):
-                self.kwargs = kwargs
-                message = types.SimpleNamespace(content="hello\nollama")
-                choice = types.SimpleNamespace(message=message)
-                return types.SimpleNamespace(choices=[choice])
-
-        fake_completions = FakeCompletions()
-        fake_client = types.SimpleNamespace(
-            chat=types.SimpleNamespace(completions=fake_completions)
-        )
-
-        with (
-            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
-            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
-        ):
-            result = llm._generate_response("Say hello")
-
-        openai_client.assert_called_once_with(
-            api_key="ollama",
-            base_url=expected_base_url,
-        )
-        self.assertEqual(
-            fake_completions.kwargs,
-            {
-                "model": "llama3",
-                "messages": [{"role": "user", "content": "Say hello"}],
-            },
-        )
-        self.assertEqual(result, "hello\nollama")
-
     def test_ollama_default_base_url_uses_localhost_outside_container(self):
         """
         普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。
