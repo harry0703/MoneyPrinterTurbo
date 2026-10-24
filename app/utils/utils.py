@@ -267,6 +267,270 @@ def text_to_srt(idx: int, msg: str, start_time: float, end_time: float) -> str:
     return srt
 
 
+ARABIC_CHAR_PATTERN = re.compile(
+    r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]"
+)
+
+
+def has_arabic_text(text: str) -> bool:
+    return bool(text and ARABIC_CHAR_PATTERN.search(str(text)))
+
+
+def _visual_arabic_to_logical(visual_text: str) -> str:
+    """
+    Convert visual presentation forms (e.g. from arabic_reshaper / python-bidi)
+    back to logical Arabic sequence for OpenType HarfBuzz shaping.
+    """
+    import unicodedata
+
+    lines = str(visual_text).split("\n")
+    logical_lines = []
+    for line in lines:
+        norm = unicodedata.normalize("NFKD", line)
+        chars = list(norm)
+        clusters = []
+        i = 0
+        n = len(chars)
+        while i < n:
+            cluster = [chars[i]]
+            i += 1
+            while i < n and unicodedata.category(chars[i]) in ("Mn", "Me"):
+                cluster.append(chars[i])
+                i += 1
+            clusters.append("".join(cluster))
+        logical_lines.append("".join(reversed(clusters)))
+    return "\n".join(logical_lines)
+
+
+def _render_arabic_with_harfbuzz(
+    draw,
+    xy: tuple[float, float],
+    text: str,
+    font,
+    fill=None,
+    stroke_width: int = 0,
+    stroke_fill=None,
+    anchor: str | None = None,
+):
+    import numpy as np
+    import uharfbuzz as hb
+    import freetype
+    from PIL import Image
+
+    font_path = getattr(font, "path", None)
+    font_size = getattr(font, "size", 10)
+    if not font_path or not os.path.isfile(font_path):
+        return False
+
+    ft_face = freetype.Face(font_path)
+    ft_face.set_char_size(int(font_size * 64))
+
+    with open(font_path, "rb") as f:
+        blob = hb.Blob(f.read())
+    hb_face = hb.Face(blob)
+    hb_font = hb.Font(hb_face)
+    hb_font.scale = (int(font_size * 64), int(font_size * 64))
+
+    # If text is already shaped to visual presentation forms, invert to logical
+    if any(0xFB50 <= ord(c) <= 0xFEFF for c in text):
+        logical_text = _visual_arabic_to_logical(text)
+    else:
+        logical_text = text
+
+    buf = hb.Buffer()
+    buf.add_str(logical_text)
+    buf.guess_segment_properties()
+    hb.shape(hb_font, buf)
+
+    ascent = ft_face.size.ascender / 64
+    baseline_y = float(xy[1]) if (anchor and "s" in anchor) else float(xy[1]) + ascent
+    pen_x = float(xy[0])
+    target_im = draw._image
+
+    # Stroke pass
+    if stroke_width > 0 and stroke_fill is not None:
+        stroker = freetype.Stroker()
+        stroker.set(
+            int(stroke_width * 64),
+            freetype.FT_STROKER_LINECAP_ROUND,
+            freetype.FT_STROKER_LINEJOIN_ROUND,
+            0,
+        )
+        s_pen_x = float(xy[0])
+        for info, pos in zip(buf.glyph_infos, buf.glyph_positions):
+            ft_face.load_glyph(info.codepoint, freetype.FT_LOAD_DEFAULT)
+            glyph = ft_face.glyph.get_glyph()
+            glyph.stroke(stroker, destroy=True)
+            bglyph = glyph.to_bitmap(
+                freetype.FT_RENDER_MODE_NORMAL, freetype.Vector(0, 0), destroy=True
+            )
+            bmp = bglyph.bitmap
+            if bmp.width > 0 and bmp.rows > 0:
+                gx = int(round(s_pen_x + pos.x_offset / 64 + bglyph.left))
+                gy = int(round(baseline_y - pos.y_offset / 64 - bglyph.top))
+                arr = np.array(bmp.buffer, dtype=np.uint8).reshape((bmp.rows, bmp.width))
+                mask = Image.fromarray(arr)
+                color_img = Image.new(target_im.mode, mask.size, stroke_fill)
+                target_im.paste(color_img, (gx, gy), mask)
+            s_pen_x += pos.x_advance / 64
+
+    # Main text fill pass
+    fill_color = fill if fill is not None else "white"
+    for info, pos in zip(buf.glyph_infos, buf.glyph_positions):
+        ft_face.load_glyph(info.codepoint, freetype.FT_LOAD_RENDER)
+        slot = ft_face.glyph
+        bmp = slot.bitmap
+        if bmp.width > 0 and bmp.rows > 0:
+            gx = int(round(pen_x + pos.x_offset / 64 + slot.bitmap_left))
+            gy = int(round(baseline_y - pos.y_offset / 64 - slot.bitmap_top))
+            arr = np.array(bmp.buffer, dtype=np.uint8).reshape((bmp.rows, bmp.width))
+            mask = Image.fromarray(arr)
+            color_img = Image.new(target_im.mode, mask.size, fill_color)
+            target_im.paste(color_img, (gx, gy), mask)
+        pen_x += pos.x_advance / 64
+    return True
+
+
+_PIL_IMAGE_DRAW_TEXT_ORIG = None
+
+
+def enable_arabic_shaping_support():
+    """
+    Ensure Pillow ImageDraw properly applies OpenType mark positioning (GPOS)
+    for vocalized Arabic text, using libraqm when available, and falling back
+    to HarfBuzz + FreeType when Pillow was compiled without RAQM.
+    """
+    global _PIL_IMAGE_DRAW_TEXT_ORIG
+    from PIL import ImageDraw, features
+
+    if _PIL_IMAGE_DRAW_TEXT_ORIG is not None:
+        return
+
+    _PIL_IMAGE_DRAW_TEXT_ORIG = ImageDraw.ImageDraw.text
+
+    def _arabic_aware_draw_text(
+        self,
+        xy,
+        text,
+        fill=None,
+        font=None,
+        anchor=None,
+        *args,
+        **kwargs,
+    ):
+        text_str = str(text) if text is not None else ""
+        if not has_arabic_text(text_str):
+            return _PIL_IMAGE_DRAW_TEXT_ORIG(
+                self,
+                xy,
+                text,
+                fill=fill,
+                font=font,
+                anchor=anchor,
+                *args,
+                **kwargs,
+            )
+
+        # 1. When libraqm is built into Pillow, use native RTL OpenType shaping
+        if features.check("raqm"):
+            kwargs.setdefault("direction", "rtl")
+            kwargs.setdefault("language", "ar")
+            return _PIL_IMAGE_DRAW_TEXT_ORIG(
+                self,
+                xy,
+                text,
+                fill=fill,
+                font=font,
+                anchor=anchor,
+                *args,
+                **kwargs,
+            )
+
+        # 2. When libraqm is not available, render with HarfBuzz + FreeType
+        try:
+            stroke_width = kwargs.get("stroke_width", 0)
+            stroke_fill = kwargs.get("stroke_fill", None)
+            rendered = _render_arabic_with_harfbuzz(
+                self,
+                xy,
+                text_str,
+                font,
+                fill=fill,
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+                anchor=anchor,
+            )
+            if rendered:
+                return
+        except Exception as e:
+            logger.debug(f"HarfBuzz rendering fallback to basic Pillow: {e}")
+
+        # 3. Fallback to basic Pillow renderer
+        return _PIL_IMAGE_DRAW_TEXT_ORIG(
+            self,
+            xy,
+            text,
+            fill=fill,
+            font=font,
+            anchor=anchor,
+            *args,
+            **kwargs,
+        )
+
+    ImageDraw.ImageDraw.text = _arabic_aware_draw_text
+
+
+enable_arabic_shaping_support()
+
+
+def format_arabic_text(text: str) -> str:
+    if not text:
+        return text
+    try:
+        import unicodedata
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+
+        if not has_arabic_text(text):
+            return text
+
+        reshaper = arabic_reshaper.ArabicReshaper(
+            configuration={
+                "delete_harakat": False,
+                "support_ligatures": True,
+                "shift_harakat_position": True,
+                "arabic ligature allah": False,
+            }
+        )
+
+        lines = text.split("\n")
+        formatted_lines = []
+        for line in lines:
+            if has_arabic_text(line):
+                reshaped = reshaper.reshape(line)
+                bidi_line = get_display(reshaped)
+                # If a line mistakenly starts with combining marks (harakat),
+                # attach them to the immediately following base character
+                chars = list(bidi_line)
+                n = len(chars)
+                if chars and unicodedata.category(chars[0]) in ("Mn", "Me"):
+                    i = 0
+                    marks = []
+                    while i < n and unicodedata.category(chars[i]) in ("Mn", "Me"):
+                        marks.append(chars[i])
+                        i += 1
+                    if i < n:
+                        base = chars[i]
+                        chars = [base] + marks + chars[i + 1 :]
+                        bidi_line = "".join(chars)
+                formatted_lines.append(bidi_line)
+            else:
+                formatted_lines.append(line)
+        return "\n".join(formatted_lines)
+    except Exception:
+        return text
+
+
 def str_contains_punctuation(word):
     for p in const.PUNCTUATIONS:
         if p in word:

@@ -2089,6 +2089,115 @@ class TestVideoService(unittest.TestCase):
         finally:
             clip.close()
 
+    def test_arabic_subtitle_rendering_and_vowel_marks(self):
+        """
+        验证阿拉伯语字幕（含带变音符号/Tashkeel的文本）能被正确塑形与绘制，
+        确保变音符号（Harakat）正确附着于所属字母，而不是浮动或错位到相邻字符。
+        同时验证在 Pillow 未启用 RAQM 时，HarfBuzz/FreeType 塑形管线能准确
+        计算字形附着位置（Mark-to-Base），防止元音超出文字边界。
+        """
+        from PIL import Image, ImageDraw, ImageFont
+
+        font_path = os.path.join(utils.font_dir(), "Amiri Quran.ttf")
+        self.assertTrue(os.path.exists(font_path), "Amiri Quran font must exist")
+
+        # 1. 验证元音符号附加与字符顺序（如 بِتَ: Teh+Fatha 在左, Beh+Kasra 在右）
+        formatted_short = utils.format_arabic_text("بِتَ")
+        self.assertEqual(formatted_short, "\uFE96\u064E\uFE91\u0650")
+        self.assertNotIn(formatted_short[0], ("\u064E", "\u0650", "\u064F", "\u0652"))
+        self.assertEqual(formatted_short[0], "\uFE96")  # Teh final
+        self.assertEqual(formatted_short[1], "\u064E")  # Fatha belongs to Teh
+        self.assertEqual(formatted_short[2], "\uFE91")  # Beh initial
+        self.assertEqual(formatted_short[3], "\u0650")  # Kasra belongs to Beh
+
+        # 2. 真实光栅化渲染测试：验证变音符号在实际字体内精确附着于所属字母
+        # 且带变音文本不会像无 GPOS 基础排版那样向右漂移到 145px 以外
+        test_font = ImageFont.truetype(font_path, 100)
+        img_marked = Image.new("RGB", (260, 240), "white")
+        ImageDraw.Draw(img_marked).text((30, 15), formatted_short, font=test_font, fill="black")
+
+        img_unmarked = Image.new("RGB", (260, 240), "white")
+        ImageDraw.Draw(img_unmarked).text((30, 15), utils.format_arabic_text("بت"), font=test_font, fill="black")
+
+        arr_u = vd.np.array(img_unmarked.convert("L"))
+        yu, xu = vd.np.where(arr_u < 128)
+        unmarked_right_edge = int(xu.max())
+
+        arr_m = vd.np.array(img_marked.convert("L"))
+        ym, xm = vd.np.where(arr_m < 128)
+        marked_right_edge = int(xm.max())
+
+        # 带变音文本右边界不能超出无变音文本底字右边界（无 GPOS 时会漂移至 145）
+        self.assertLessEqual(marked_right_edge, unmarked_right_edge + 5)
+
+        # 顶部变音符号 Fatha (y < 100) 位于左侧的 Teh，底部变音符号 Kasra (y > 140) 位于右侧的 Beh
+        fatha_xs = xm[ym < 100]
+        kasra_xs = xm[ym > 140]
+        self.assertGreater(len(fatha_xs), 0, "Fatha ink must be rendered")
+        self.assertGreater(len(kasra_xs), 0, "Kasra ink must be rendered")
+        self.assertLess(
+            float(fatha_xs.mean()),
+            float(kasra_xs.mean()),
+            "Fatha must be horizontally attached to Teh (left) and Kasra to Beh (right)",
+        )
+
+        cases = (
+            ("plain_arabic", "مرحبا بكم في عالم الذكاء الاصطناعي وصناعة المحتوى"),
+            ("vocalized_arabic", "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ"),
+        )
+
+        font_size = 40
+        max_width = 360
+        interline = int(font_size * 0.25)
+        vertical_padding = int(font_size * 0.35)
+        stroke_width = 2
+
+        for label, text in cases:
+            with self.subTest(case=label):
+                self.assertTrue(vd.subtitle_font_supports_text(font_path, text))
+                wrapped_text, text_height = vd.wrap_text(
+                    text=text,
+                    max_width=max_width,
+                    font=font_path,
+                    fontsize=font_size,
+                )
+                formatted_text = utils.format_arabic_text(wrapped_text)
+                self.assertNotEqual(formatted_text, wrapped_text)
+
+                if label == "vocalized_arabic":
+                    for mark in ("\u0650", "\u0652", "\u064E"):
+                        self.assertIn(mark, formatted_text)
+                    # 第一字符不能为悬空变音符号
+                    self.assertNotIn(formatted_text[0], ("\u064E", "\u0650", "\u064F", "\u0652"))
+
+                line_count = formatted_text.count("\n") + 1
+                stroke_padding = stroke_width * 2 * line_count
+                clip_height = int(
+                    text_height
+                    + vertical_padding
+                    + interline * line_count
+                    + stroke_padding
+                )
+
+                text_clip = vd.TextClip(
+                    text=formatted_text,
+                    font=font_path,
+                    font_size=font_size,
+                    color="#FFFFFF",
+                    stroke_color="#000000",
+                    stroke_width=stroke_width,
+                    interline=interline,
+                    size=(max_width, clip_height),
+                    text_align="center",
+                )
+                try:
+                    mask = text_clip.mask.get_frame(0)
+                    visible_rows, _ = vd.np.where(mask > 0.01)
+                    self.assertGreater(len(visible_rows), 0)
+                    self.assertLess(int(visible_rows.max()), clip_height)
+                finally:
+                    text_clip.close()
+
     def test_get_temp_audio_dir_returns_system_temp_on_windows(self):
         with patch("sys.platform", "win32"):
             result = vd._get_temp_audio_dir("/some/output/dir")
