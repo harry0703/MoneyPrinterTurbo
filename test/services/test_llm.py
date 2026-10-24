@@ -1804,7 +1804,12 @@ class TestLiteLLMProvider(unittest.TestCase):
                 config, "get_container_default_gateway_ip", return_value="172.17.0.1"
             ),
         ):
-            self._assert_ollama_base_url("http://172.17.0.1:11434/v1")
+            openai_client, *_ = self._call_ollama_generate_response()
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://172.17.0.1:11434/v1"},
+        )
 
     def test_ollama_explicit_base_url_takes_precedence(self):
         """
