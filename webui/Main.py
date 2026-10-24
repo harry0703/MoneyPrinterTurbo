@@ -2705,10 +2705,12 @@ def _get_material_api_keys(config_key):
 def _save_material_api_keys(config_key, value):
     """保存逗号分隔的素材 API Key，并允许用户显式清空旧配置。"""
     normalized_value = value.replace(" ", "")
+    # 末尾逗号或连续逗号会产生空字符串；素材服务按列表轮换 Key，空项会让
+    # 每隔几次请求就不带凭据发送并被服务商拒绝。
     _set_runtime_config(
         "app",
         config_key,
-        normalized_value.split(",") if normalized_value else [],
+        [key for key in normalized_value.split(",") if key],
     )
 
 
