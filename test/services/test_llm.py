@@ -1180,7 +1180,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def _patch_dashscope_generation(self, response):
         class FakeGenerationResponse(dict):
-            pass
+            """dict de resposta que também aceita atributos como status_code."""
 
         fake_response = FakeGenerationResponse(response)
         fake_response.status_code = response.get("status_code", 200)
