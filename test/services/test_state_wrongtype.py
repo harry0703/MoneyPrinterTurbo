@@ -22,8 +22,9 @@ def test_task_lookup_does_not_hide_unrelated_redis_errors():
     state = RedisState.__new__(RedisState)
     state._redis = Mock()
     state._redis.hgetall.side_effect = ResponseError("NOAUTH Authentication required")
-    with pytest.raises(ResponseError, match="NOAUTH"):
+    with pytest.raises(ResponseError) as exc_info:
         state.get_task("task-id")
+    assert "NOAUTH" in str(exc_info.value)
 
 
 def test_scan_skips_key_that_changes_type_before_hash_probe():
