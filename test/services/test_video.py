@@ -530,7 +530,6 @@ class TestVideoService(unittest.TestCase):
         m = MaterialInfo()
         m.url = os.path.basename(safe_img_path)
         m.provider = "local"
-        print(m)
 
         try:
             materials = vd.preprocess_video([m], clip_duration=4)
