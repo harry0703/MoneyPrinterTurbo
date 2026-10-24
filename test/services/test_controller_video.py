@@ -112,11 +112,9 @@ class TestVideoControllerHelpers(unittest.TestCase):
         ):
             async def run_lifespan():
                 async with asgi.application_lifespan(asgi.app):
-                    pass
+                    self.assertEqual(check_queue.call_count, 2)
 
             asyncio.run(run_lifespan())
-
-        self.assertEqual(check_queue.call_count, 2)
 
     def test_sanitize_upload_filename_rejects_empty_name(self):
         """空文件名和目录占位符不能进入服务端存储路径。"""
