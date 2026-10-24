@@ -297,6 +297,11 @@ def split_string_by_punctuations(s):
             txt += char
             continue
 
+        if char == "." and previous_char.isalpha() and next_char.isalpha():
+            # Edge TTS reads "U.S.", "e.g.", "9 a.m." and "example.com" as one word each.
+            txt += char
+            continue
+
         if char == ":" and previous_char.isdigit() and next_char.isdigit():
             # Edge TTS returns a clock time such as "10:30" as one word, so it is no line break.
             txt += char
