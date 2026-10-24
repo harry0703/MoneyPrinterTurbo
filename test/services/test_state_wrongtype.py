@@ -43,8 +43,9 @@ def test_scan_does_not_hide_unrelated_probe_errors():
     state._redis.scan.return_value = (0, [b"task-id"])
     pipeline = state._redis.pipeline.return_value.__enter__.return_value
     pipeline.execute.return_value = [ResponseError("NOPERM no permissions")]
-    with pytest.raises(ResponseError, match="NOPERM"):
+    with pytest.raises(ResponseError) as exc_info:
         state.list_task_ids()
+    assert "NOPERM" in str(exc_info.value)
 
 
 @pytest.mark.skipif(not os.getenv("MPT_TEST_REDIS_HOST"), reason="MPT_TEST_REDIS_HOST not set")
