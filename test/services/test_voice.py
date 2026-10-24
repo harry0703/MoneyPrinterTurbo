@@ -1264,6 +1264,56 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(sub_items), len(script_lines))
         self.assertIn("10:30 every morning", sub_items[-1])
 
+    def test_script_split_keeps_dots_inside_abbreviations_and_names(self):
+        """A dot between two letters belongs to "U.S.", "e.g." or "example.com", not a line break."""
+        text = (
+            "The U.S. economy grew. Visit example.com for the details, e.g. the prices."
+        )
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            [
+                "The U.S",
+                "economy grew",
+                "Visit example.com for the details",
+                "e.g",
+                "the prices",
+            ],
+        )
+
+    def test_edge_cue_aggregation_handles_dotted_abbreviations(self):
+        """
+        The word boundaries edge-tts 7.3.1 returns for each of these sentences with
+        en-US-AriaNeural: "U.S.", "9 a.m." and "example.com" are one word each. Every line
+        must still get its own subtitle, without falling back to Whisper.
+        """
+        text = (
+            "The U.S. economy grew last year. Dr. Smith arrives at 9 a.m. sharp. "
+            "Visit example.com for the details."
+        )
+        script_lines = utils.split_string_by_punctuations(text)
+        words = [
+            *"The U.S. economy grew last year Dr. Smith arrives at".split(),
+            "9 a.m.",
+            *"sharp Visit example.com for the details".split(),
+        ]
+        cues = [
+            SimpleNamespace(
+                content=word,
+                start=timedelta(seconds=index * 0.3),
+                end=timedelta(seconds=index * 0.3 + 0.25),
+            )
+            for index, word in enumerate(words)
+        ]
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(
+            SimpleNamespace(cues=cues), script_lines
+        )
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("Smith arrives at 9 a.m", sub_items[-3])
+        self.assertIn("Visit example.com for the details", sub_items[-1])
+
     def test_script_split_supports_arabic_punctuation(self):
         """
         阿拉伯语脚本常用 ، ؛ ؟ 作为自然断句标点。断句阶段必须识别这些
