@@ -544,7 +544,7 @@ class TestVideoService(unittest.TestCase):
             # moviepy get video info
             clip = VideoFileClip(materials[0].url)
             try:
-                print(clip)
+                self.assertGreater(clip.duration, 0)
             finally:
                 clip.close()
 
