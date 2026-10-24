@@ -11,7 +11,7 @@ from app.config import config
 WEBUI = Path(__file__).parents[2] / "webui/Main.py"
 
 
-@pytest.mark.parametrize("language", ["zh", "en"])
+@pytest.mark.parametrize("language", ["zh", "en", "de"])
 def test_infistar_video_models_specs_and_billing_confirmation(language):
     values = {
         "llm_provider": "infistar",
@@ -27,6 +27,11 @@ def test_infistar_video_models_specs_and_billing_confirmation(language):
         app.session_state["ui_language"] = language
         app.run()
         assert not app.exception
+        if language == "de":
+            assert any(
+                "Each generated clip is billed by Infistar." in warning.value
+                for warning in app.warning
+            )
         selector = app.selectbox(key=f"infistar_video_model_select_{language}")
         assert selector.options == ["Seedance 2.0 Fast", "MiniMax H3", "Kling 2.6"]
         assert app.selectbox(key=f"video_clip_duration_select_{language}").value == 5

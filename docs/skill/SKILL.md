@@ -113,6 +113,7 @@ MPT_VOLCENGINE_ARK_API_KEY
 MPT_OFOX_API_KEY
 MPT_METASO_MINIMAX_API_KEY
 MPT_MUAPI_API_KEY
+MPT_INFISTAR_VIDEO_API_KEY
 ```
 
 When `SEEDANCE_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
@@ -136,6 +137,11 @@ this flag silently.
 When `MUAPI_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated MuAPI clip creates a paid task. Only after the user explicitly
 confirms, rerun with `--confirm-muapi-charge`; never add this flag silently.
+
+When `INFISTAR_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
+generated Infistar clip creates a paid task. Only after the user explicitly
+confirms, rerun with `--confirm-infistar-charge`; never add this flag silently.
+Use the dedicated video key, separate from the Infistar LLM key.
 
 ### Exit code 1: repair or report
 

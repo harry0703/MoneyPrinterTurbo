@@ -36,6 +36,7 @@ volcengine_seedance_api_key = ""
 ofox_api_key = ""
 metaso_minimax_api_key = ""
 muapi_api_key = ""
+infistar_video_api_key = ""
 openai_image_base_url = ""
 openai_image_model = ""
 openai_image_api_keys = []
@@ -622,6 +623,83 @@ class TestMptAgentSkill(unittest.TestCase):
                     ["--video-source", "muapi", "--confirm-muapi-charge"],
                 )
             self.assertEqual(missing, [])
+
+    def test_infistar_source_uses_video_credentials_and_charge_confirmation(self):
+        """预检与实际视频服务使用相同凭据，不能误用 Infistar 大模型 Key。"""
+        from app.services import infistar_video
+
+        cases = (
+            ("", "", False, ["infistar_video_api_key", "confirm_infistar_charge"]),
+            ("", "", True, ["infistar_video_api_key"]),
+            ("video-key", "", False, ["confirm_infistar_charge"]),
+            ("video-key", "", True, []),
+            ("", "environment-video-key", True, []),
+            ("  ", "environment-video-key", True, []),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            for key, environment_key, confirmed, expected in cases:
+                settings = {
+                    "llm_provider": "ollama",
+                    "infistar_api_key": "llm-only-key",
+                    "infistar_video_api_key": key,
+                }
+                config_path.write_text(
+                    "[app]\n" + "\n".join(
+                        f"{field} = {json.dumps(value)}"
+                        for field, value in settings.items()
+                    ),
+                    encoding="utf-8",
+                )
+                args = ["--video-source", "infistar"]
+                if confirmed:
+                    args.append("--confirm-infistar-charge")
+                with (
+                    self.subTest(key=key, environment_key=environment_key, confirmed=confirmed),
+                    patch.dict(os.environ, {"INFISTAR_VIDEO_API_KEY": environment_key}, clear=True),
+                ):
+                    provider, missing = mpt_agent.missing_config(config_path, args)
+                    self.assertEqual(provider, "ollama")
+                    self.assertEqual(missing, expected)
+                    self.assertEqual(
+                        "infistar_video_api_key" not in missing,
+                        infistar_video.is_enabled(settings),
+                    )
+
+    def test_infistar_environment_key_is_written_without_leaking_to_output(self):
+        """Agent 专用环境变量应写入独立视频配置，日志不能包含密钥。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(MINIMAL_CONFIG, encoding="utf-8")
+            secret = "secret-infistar-video-key"
+            output = io.StringIO()
+            with (
+                patch.dict(os.environ, {"MPT_INFISTAR_VIDEO_API_KEY": secret}, clear=True),
+                redirect_stdout(output),
+            ):
+                mpt_agent.apply_environment_config(config_path)
+            self.assertEqual(
+                mpt_agent._plain_config_value(config_path.read_text(), "infistar_video_api_key"),
+                secret,
+            )
+            self.assertNotIn(secret, output.getvalue())
+            self.assertIn("infistar_video_api_key", output.getvalue())
+
+    def test_missing_infistar_inputs_report_video_key_and_charge_flag(self):
+        """只缺视频接入信息时，不应误提示更换大模型 Provider。"""
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "ollama", ["infistar_video_api_key", "confirm_infistar_charge"]
+            )
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn("INFISTAR_VIDEO_API_KEY_URL=https://infistar.cc/keys", text)
+        self.assertIn("INFISTAR_VIDEO_API_KEY_ENV=MPT_INFISTAR_VIDEO_API_KEY", text)
+        self.assertIn(
+            "INFISTAR_CHARGE_CONFIRMATION_REQUIRED=--confirm-infistar-charge", text
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
 
     def test_existing_provider_key_is_reused_without_asking_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:
