@@ -1370,11 +1370,15 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
 
     lines = []
     current = ""
+    # Remember real word boundaries separately from character-wrapped lines.
+    word_line_starts = set()
     words = text.split(" ")
     for word in words:
         candidate = f"{current} {word}".strip() if current else word
         candidate_width, _ = get_text_size(candidate)
         if candidate_width <= max_width:
+            if not current and lines:
+                word_line_starts.add(len(lines))
             current = candidate
             continue
 
@@ -1383,6 +1387,7 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
 
         word_width, _ = get_text_size(word)
         if word_width <= max_width:
+            word_line_starts.add(len(lines))
             current = word
         else:
             # 最后一段仍未占满整行，后续单词应继续尝试接在它后面，
@@ -1403,6 +1408,23 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if not lines[index] or lines[index][0] not in line_start_punctuation:
             continue
         if len(lines[index - 1]) <= 1:
+            continue
+
+        previous_line = lines[index - 1].rstrip()
+        if " " in previous_line or index in word_line_starts:
+            # 按空格分词换行时（如法语 "vous ?"），上一行最后是完整单词。
+            # 只移动一个字符会把单词拆成两半并吞掉原有空格，因此整体移动
+            # 最后一个单词，放不下时保持原样。
+            head, last_word = (
+                previous_line.rsplit(" ", 1)
+                if " " in previous_line
+                else ("", previous_line)
+            )
+            candidate = f"{last_word} {lines[index]}"
+            candidate_width, _ = get_text_size(candidate)
+            if candidate_width <= max_width:
+                lines[index] = candidate
+                lines[index - 1] = head
             continue
 
         previous_units = attached_text_units(lines[index - 1])
