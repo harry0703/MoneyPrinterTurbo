@@ -1695,6 +1695,27 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["ollama_base_url"] = base_url
         config.app["ollama_model_name"] = "llama3"
 
+    def _call_ollama_generate_response(self):
+        class FakeCompletions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                message = types.SimpleNamespace(content="hello\nollama")
+                choice = types.SimpleNamespace(message=message)
+                return types.SimpleNamespace(choices=[choice])
+
+        fake_completions = FakeCompletions()
+        fake_client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=fake_completions)
+        )
+
+        with (
+            patch.object(llm, "OpenAI", return_value=fake_client) as openai_client,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("Say hello")
+
+        return openai_client, fake_completions, result
+
     def _assert_ollama_base_url(self, expected_base_url: str):
         class FakeCompletions:
             def create(self, **kwargs):
@@ -1734,7 +1755,22 @@ class TestLiteLLMProvider(unittest.TestCase):
         self._use_ollama_provider()
 
         with patch.object(config, "is_running_in_container", return_value=False):
-            self._assert_ollama_base_url("http://localhost:11434/v1")
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://localhost:11434/v1"},
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_default_base_url_uses_host_gateway_inside_container(self):
         """
