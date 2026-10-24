@@ -470,7 +470,8 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
         line = line.strip()
         # Markdown 分隔符或强调符号单独成行时不会被 TTS 朗读，必须从
         # 脚本行里移除，避免字幕聚合卡在这类“不可发声”的目标行上。
-        if re.fullmatch(r"[-*_]{3,}", line):
+        # Neither is a line without a letter or digit: "* * *", "———", "• • •".
+        if line and not re.sub(r"[_\W]+", "", line):
             removed_separator_lines += 1
             continue
         cleaned_lines.append(line)
