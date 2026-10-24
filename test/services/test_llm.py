@@ -1818,7 +1818,12 @@ class TestLiteLLMProvider(unittest.TestCase):
         self._use_ollama_provider(base_url="http://ollama:11434/v1")
 
         with patch.object(config, "is_running_in_container", return_value=True):
-            self._assert_ollama_base_url("http://ollama:11434/v1")
+            openai_client, *_ = self._call_ollama_generate_response()
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://ollama:11434/v1"},
+        )
 
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
