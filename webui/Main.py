@@ -1213,14 +1213,25 @@ def _delete_task(task_id, task_path, task_state=None):
     if is_active:
         task_snapshot["state"] = const.TASK_STATE_PROCESSING
 
-    # A task with no live tracked record (current_task is None) and not in
-    # this session's active-generation registry has nothing that could be
-    # processing or cross-posting it. is_task_busy()'s conservative
-    # "unparseable state means busy" rule (including state=None) is meant
-    # for tracked records whose state could not be read correctly -- it
-    # was never meant to cover disk-only history entries that were never
-    # tracked in the first place, whose UI-assigned state=None
-    # (_scan_history_tasks) has no bearing on whether anything is running.
+    # With the default enable_redis=false config, each process (API,
+    # WebUI, CLI) keeps its own isolated in-memory task registry, so
+    # current_task/is_active above only see tasks THIS process started.
+    # is_task_actively_running() checks a disk-based lock every process
+    # can see instead, so a task started elsewhere (e.g. via the API
+    # while this is the WebUI process) still blocks deletion here.
+    if tm.is_task_actively_running(task_id):
+        logger.warning(f"refused to delete actively running task: {task_id}")
+        return False
+
+    # A task with no live tracked record (current_task is None), not in
+    # this session's active-generation registry, and with no active
+    # cross-process lock has nothing that could be processing or cross-
+    # posting it. is_task_busy()'s conservative "unparseable state means
+    # busy" rule (including state=None) is meant for tracked records
+    # whose state could not be read correctly -- it was never meant to
+    # cover disk-only history entries that were never tracked in the
+    # first place, whose UI-assigned state=None (_scan_history_tasks) has
+    # no bearing on whether anything is running.
     if (current_task is not None or is_active) and tm.is_task_busy(task_snapshot):
         logger.warning(f"refused to delete running task: {task_id}")
         return False
@@ -1310,7 +1321,14 @@ def _render_task_table(filtered_tasks, key_prefix):
             # be read, not for these -- without this, every history task
             # with no video file (state=None, see _scan_history_tasks)
             # permanently shows a disabled Delete button.
-            is_busy = is_processing or (
+            #
+            # is_task_actively_running() still applies on top of that: with
+            # the default enable_redis=false config, a task started by a
+            # different process (e.g. the API) is invisible to this
+            # process's in-memory state and would otherwise look exactly
+            # like an idle history row. The disk-based lock is the one
+            # signal every process can see.
+            is_busy = is_processing or tm.is_task_actively_running(task_id) or (
                 task.get("source") != "history" and tm.is_task_busy(task)
             )
             has_restore_data = os.path.isfile(

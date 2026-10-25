@@ -114,6 +114,54 @@ def _get_video_music_prompt(params: VideoParams) -> str:
     return prompt
 
 
+_ACTIVE_LOCK_FILENAME = ".active.lock"
+# Generous upper bound for one full pipeline run. A process that dies
+# without reaching the finally block (kill -9, OOM, host reboot) leaves
+# a stale lock behind; this cutoff lets a task recover from that instead
+# of staying falsely "active" forever.
+_ACTIVE_LOCK_STALE_SECONDS = 3600
+
+
+def _active_lock_path(task_id: str) -> str:
+    # task_dir() creates the directory if it doesn't exist yet.
+    return os.path.join(utils.task_dir(task_id), _ACTIVE_LOCK_FILENAME)
+
+
+def _mark_task_active(task_id: str) -> None:
+    try:
+        with open(_active_lock_path(task_id), "w") as f:
+            f.write(str(os.getpid()))
+    except OSError as e:
+        logger.warning(f"failed to write active-task lock for {task_id}: {e}")
+
+
+def _clear_task_active(task_id: str) -> None:
+    try:
+        os.remove(_active_lock_path(task_id))
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        logger.warning(f"failed to remove active-task lock for {task_id}: {e}")
+
+
+def is_task_actively_running(task_id: str) -> bool:
+    """
+    Cross-process liveness signal, independent of in-memory task state.
+
+    With the default enable_redis=false config, each process (API, WebUI,
+    CLI) keeps its own isolated in-memory task registry, so a task started
+    in one process is invisible to is_task_busy() calls made from another.
+    This lock file is the one signal every process can see, since the task
+    directory on disk is the only thing they actually share.
+    """
+    lock_path = _active_lock_path(task_id)
+    try:
+        mtime = os.path.getmtime(lock_path)
+    except OSError:
+        return False
+    return (time.time() - mtime) < _ACTIVE_LOCK_STALE_SECONDS
+
+
 def is_task_busy(task: dict | None) -> bool:
     """判断任务是否仍在生成或发布，供所有删除入口复用。"""
     if not task:
@@ -1921,6 +1969,7 @@ def start(
     ``allow_server_file_input`` 只供本机 CLI 使用。HTTP API 和 WebUI 必须保持
     默认值，让自定义音频始终受当前任务目录约束。
     """
+    _mark_task_active(task_id)
     try:
         return _run_pipeline(
             task_id,
@@ -1942,6 +1991,8 @@ def start(
             "pipeline",
             f"{type(exc).__name__}: {exc}",
         )
+    finally:
+        _clear_task_active(task_id)
 
 
 if __name__ == "__main__":
