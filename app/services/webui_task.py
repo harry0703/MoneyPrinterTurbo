@@ -10,6 +10,7 @@ from app.models import const
 from app.models.schema import VideoParams
 from app.services import state as sm
 from app.services import task as tm
+from app.services import jalapeno_video, volcengine_seedance
 from app.services.loomloom import LoomLoomConfirmedVideoRequest
 from app.utils.logging_utils import (
     format_log_record,
@@ -64,6 +65,7 @@ def _run_generation(
     voxcpm_reference_audio: bytes | None = None,
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
 ) -> dict:
     """
     在后台线程中执行现有视频流水线。
@@ -100,6 +102,8 @@ def _run_generation(
                 voxcpm_reference_audio=voxcpm_reference_audio,
                 voxcpm_prompt_audio=voxcpm_prompt_audio,
                 voxcpm_prompt_text=voxcpm_prompt_text,
+                **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+                   if jalapeno_video_endpoint is not None else {}),
             )
     except Exception as exc:
         # tm.start 已负责把流水线异常转换成失败状态；这里额外保护日志 sink、
@@ -144,6 +148,7 @@ def submit_generation(
     voxcpm_reference_audio: bytes | None = None,
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
 ) -> None:
     """
     登记并提交 WebUI 视频生成任务，调用后立即返回。
@@ -170,6 +175,12 @@ def submit_generation(
     # 已确认请求是冻结的数据对象，只在当前进程内传递。API Key 不会进入
     # VideoParams、任务状态、日志或落盘历史，也不会受后续页面 rerun 影响。
     loomloom_request_snapshot = loomloom_video_request
+    # 排队期间允许准备下一条内容，但已确认的付费配置不能随全局表单变化。
+    # 快照的密钥不参与 repr，仅随进程内任务参数传递，不写入 VideoParams。
+    if task_params.video_source == "jalapeno" and jalapeno_video_endpoint is None:
+        jalapeno_video_endpoint = jalapeno_video.endpoint(
+            config.snapshot_config_with_pending(config.app)
+        )
     sm.state.update_task(
         task_id,
         state=const.TASK_STATE_PROCESSING,
@@ -187,6 +198,8 @@ def submit_generation(
             voxcpm_reference_audio=voxcpm_reference_audio_snapshot,
             voxcpm_prompt_audio=voxcpm_prompt_audio_snapshot,
             voxcpm_prompt_text=voxcpm_prompt_text_snapshot,
+            **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+               if jalapeno_video_endpoint is not None else {}),
         )
     except Exception as exc:
         # 调度失败与流水线失败一样必须成为可查询状态，避免任务管理器永久显示

@@ -1,6 +1,7 @@
 import math
 import os
 import time
+from dataclasses import dataclass, field
 from typing import Any, Mapping
 from urllib.parse import quote_plus
 
@@ -29,6 +30,24 @@ TERMINAL_FAILURE_STATUSES = frozenset(
 )
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 SUPPORTED_RESOLUTIONS = frozenset({"480p", "720p", "1080p"})
+
+
+@dataclass(frozen=True)
+class SeedanceEndpoint:
+    """同协议接入点的提交快照，避免不同供应商互相改写全局配置。"""
+
+    provider_id: str
+    display_name: str
+    api_key: str = field(repr=False)
+    tasks_url: str
+    model: str
+    resolution: str
+    min_duration: int = 2
+    max_duration: int = 30
+    watermark: bool = False
+    generate_audio: bool = False
+    poll_interval: float = DEFAULT_POLL_INTERVAL_SECONDS
+    run_timeout: float = DEFAULT_RUN_TIMEOUT_SECONDS
 
 
 class VolcEngineSeedanceError(RuntimeError):
@@ -213,12 +232,18 @@ def generate_videos(
     search_term: str,
     minimum_duration: int,
     video_aspect: VideoAspect = VideoAspect.portrait,
+    *,
+    endpoint: SeedanceEndpoint | None = None,
 ) -> list[MaterialInfo]:
-    """提交一个方舟 Seedance 文生视频任务，并等待可下载的结果地址。"""
-    api_key = get_api_key()
+    """提交一个 Seedance 文生视频任务；默认仍采用原有方舟配置。"""
+    api_key = endpoint.api_key if endpoint else get_api_key()
+    provider_id = endpoint.provider_id if endpoint else "volcengine_seedance"
+    display_name = endpoint.display_name if endpoint else "Volcano Engine Seedance"
     if not api_key:
         raise VolcEngineSeedanceError(
-            "Volcano Engine Seedance requires an Ark API key"
+            f"{display_name} requires an API key"
+            if endpoint
+            else "Volcano Engine Seedance requires an Ark API key"
         )
 
     term = str(search_term or "").strip()
@@ -234,7 +259,9 @@ def generate_videos(
         raise VolcEngineSeedanceError(
             "Seedance clip duration must be a positive integer"
         ) from exc
-    minimum, maximum = _duration_bounds()
+    minimum, maximum = (
+        (endpoint.min_duration, endpoint.max_duration) if endpoint else _duration_bounds()
+    )
     duration = min(max(requested_duration, minimum), maximum)
     if duration != requested_duration:
         # 生成比请求更长不会影响成片：剪辑流程仍按片段时长裁剪；生成比请求
@@ -245,22 +272,29 @@ def generate_videos(
             f"requested={requested_duration}s, using={duration}s "
             f"(configured {minimum}-{maximum}s)"
         )
-    resolution = _resolution()
+    resolution = endpoint.resolution if endpoint else _resolution()
     payload = {
-        "model": _model_id(),
+        "model": endpoint.model if endpoint else _model_id(),
         "content": [{"type": "text", "text": term}],
         "ratio": aspect.value,
         "duration": duration,
         "resolution": resolution,
-        "watermark": _config_bool("volcengine_seedance_watermark", False),
+        "watermark": endpoint.watermark
+        if endpoint else _config_bool("volcengine_seedance_watermark", False),
     }
+    if endpoint:
+        # 新接入点明确关闭素材原声；成片仍由项目自己的配音与配乐流程处理。
+        payload["generate_audio"] = endpoint.generate_audio
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    tasks_url = f"{_base_url()}/contents/generations/tasks"
+    tasks_url = (
+        endpoint.tasks_url if endpoint
+        else f"{_base_url()}/contents/generations/tasks"
+    )
     logger.info(
-        "generating video with Volcano Engine Seedance: "
+        f"generating video with {display_name}: "
         f"model={payload['model']}, term={term!r}, duration={duration}s"
     )
 
@@ -312,13 +346,18 @@ def generate_videos(
         raise VolcEngineSeedanceUnconfirmedTaskError(
             "Seedance accepted the submission without returning a task id"
         )
-    logger.info(f"Volcano Engine Seedance task created: id={task_id}")
+    logger.info(f"{display_name} task created: id={task_id}")
 
+    poll_options = (
+        {"run_timeout": endpoint.run_timeout, "poll_interval": endpoint.poll_interval}
+        if endpoint else {}
+    )
     task = _wait_for_task(
         task_id=task_id,
         tasks_url=tasks_url,
         headers=headers,
         api_key=api_key,
+        **poll_options,
     )
     if task is None:
         return []
@@ -330,21 +369,20 @@ def generate_videos(
             task_id=task_id,
         )
 
-    width, height = _rendition_size(aspect, resolution)
+    rendition = {"id": task_id}
+    if endpoint is None:
+        width, height = _rendition_size(aspect, resolution)
+        rendition.update(width=width, height=height)
     return [
         MaterialInfo(
-            provider="volcengine_seedance",
+            provider=provider_id,
             url=video_url,
             duration=duration,
             source_info={
-                "provider": "volcengine_seedance",
+                "provider": provider_id,
                 "search_term": term,
                 "asset_id": task_id,
-                "rendition": {
-                    "id": task_id,
-                    "width": width,
-                    "height": height,
-                },
+                "rendition": rendition,
             },
         )
     ]
@@ -356,18 +394,24 @@ def _wait_for_task(
     tasks_url: str,
     headers: dict[str, str],
     api_key: str,
+    run_timeout: float | None = None,
+    poll_interval: float | None = None,
 ) -> dict[str, Any] | None:
-    deadline = time.monotonic() + _bounded_float(
-        "volcengine_seedance_run_timeout",
-        DEFAULT_RUN_TIMEOUT_SECONDS,
-        60.0,
-        7200.0,
+    deadline = time.monotonic() + (
+        run_timeout if run_timeout is not None else _bounded_float(
+            "volcengine_seedance_run_timeout",
+            DEFAULT_RUN_TIMEOUT_SECONDS,
+            60.0,
+            7200.0,
+        )
     )
-    poll_interval = _bounded_float(
-        "volcengine_seedance_poll_interval",
-        DEFAULT_POLL_INTERVAL_SECONDS,
-        0.5,
-        60.0,
+    poll_interval = (
+        poll_interval if poll_interval is not None else _bounded_float(
+            "volcengine_seedance_poll_interval",
+            DEFAULT_POLL_INTERVAL_SECONDS,
+            0.5,
+            60.0,
+        )
     )
     consecutive_failures = 0
     while True:

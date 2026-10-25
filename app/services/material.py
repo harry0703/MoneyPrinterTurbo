@@ -24,6 +24,7 @@ from app.config import config
 from app.models.schema import ImageMotion, MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
     infistar_video,
+    jalapeno_video,
     material_cache,
     material_upload,
     metaso_minimax,
@@ -2170,6 +2171,7 @@ def download_videos(
     match_script_order: bool = False,
     progress_callback: Callable[[float], None] | None = None,
     image_motion: ImageMotion = ImageMotion.zoom,
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
 ) -> List[str]:
     """
     搜索并下载覆盖配音时长所需的素材，返回本地文件路径。
@@ -2224,7 +2226,7 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
-    if source == "volcengine_seedance":
+    if source in {"volcengine_seedance", "jalapeno"}:
         # 与 WaveSpeed 相同，方舟官方接口会创建异步付费任务。必须按需逐段
         # 生成，只购买当前配音时长真正需要的素材。
         return _download_videos_seedance_on_demand(
@@ -2234,6 +2236,8 @@ def download_videos(
             audio_duration=audio_duration,
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
+            source=source,
+            endpoint_snapshot=jalapeno_video_endpoint,
         )
     if source == "ofox":
         # 与 WaveSpeed/方舟相同的按需付费语义：OFox 网关的 /v1/videos 会创建
@@ -2497,8 +2501,15 @@ def _download_videos_seedance_on_demand(
     audio_duration: float,
     max_clip_duration: int,
     material_directory: str,
+    source: str = "volcengine_seedance",
+    endpoint_snapshot: volcengine_seedance.SeedanceEndpoint | None = None,
 ) -> List[str]:
-    """顺序生成方舟 Seedance 素材，覆盖配音时长后立即停止付费下单。"""
+    """顺序生成 Seedance 素材，覆盖配音时长后立即停止付费下单。"""
+    service = jalapeno_video if source == "jalapeno" else volcengine_seedance
+    generation_options = (
+        {"endpoint_snapshot": endpoint_snapshot}
+        if source == "jalapeno" and endpoint_snapshot is not None else {}
+    )
     video_paths: List[str] = []
     material_sources: list[dict[str, Any]] = []
 
@@ -2537,10 +2548,11 @@ def _download_videos_seedance_on_demand(
     total_duration = 0.0
     for search_term in search_terms:
         try:
-            video_items = volcengine_seedance.generate_videos(
+            video_items = service.generate_videos(
                 search_term=search_term,
                 minimum_duration=clip_duration,
                 video_aspect=video_aspect,
+                **generation_options,
             )
         except volcengine_seedance.VolcEngineSeedanceUnconfirmedTaskError as exc:
             # 远端付费任务仍可能成功。立即停止继续下单，并保留任务 ID，方便
@@ -2558,7 +2570,7 @@ def _download_videos_seedance_on_demand(
 
         for item in video_items:
             saved_video_path = _save_generated_video_with_retry(
-                item.url, material_directory, "volcengine_seedance"
+                item.url, material_directory, source
             )
             if not saved_video_path:
                 # 远端任务已完成并产生费用，本地下载失败时必须把远端任务 ID
@@ -2575,13 +2587,35 @@ def _download_videos_seedance_on_demand(
                     task_id=remote_task_id,
                 )
             logger.info(f"video saved: {saved_video_path}")
+            if source == "jalapeno":
+                # 同为 480p，不同网关实际可能返回 854 或 864 宽。按下载成片
+                # 测量尺寸与时长，保证来源记录准确，避免高估素材覆盖范围。
+                try:
+                    with VideoFileClip(saved_video_path) as downloaded:
+                        actual_duration = float(downloaded.duration)
+                        width, height = downloaded.size
+                    if not math.isfinite(actual_duration) or actual_duration <= 0:
+                        raise ValueError("invalid generated video duration")
+                except Exception as exc:
+                    remote_task_id = str((item.source_info or {}).get("asset_id") or "")
+                    _persist_material_sources(task_id, material_sources)
+                    raise volcengine_seedance.VolcEngineSeedanceDownloadError(
+                        "Jalapeno Cloud generated a paid video but its local media could not be read",
+                        task_id=remote_task_id,
+                    ) from exc
+                item.duration = actual_duration
+                item.source_info = dict(item.source_info or {})
+                item.source_info["rendition"] = {
+                    **item.source_info.get("rendition", {}),
+                    "width": width, "height": height,
+                }
             video_paths.append(saved_video_path)
             try:
                 material_sources.append(_material_source_record(item, saved_video_path))
             except Exception as source_error:
                 logger.warning(
                     "failed to prepare generated material source record: "
-                    f"provider=volcengine_seedance, "
+                    f"provider={source}, "
                     f"error={type(source_error).__name__}, detail={source_error}"
                 )
             total_duration += min(clip_duration, item.duration)
@@ -2596,7 +2630,7 @@ def _download_videos_seedance_on_demand(
             break
 
     logger.success(
-        f"generated and downloaded {len(video_paths)} Volcano Engine Seedance videos"
+        f"generated and downloaded {len(video_paths)} {source} videos"
     )
     _persist_material_sources(task_id, material_sources)
     return video_paths

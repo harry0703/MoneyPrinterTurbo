@@ -20,6 +20,7 @@ from app.services import bgm as bgm_service
 from app.services import (
     elevenlabs_music,
     infistar_video,
+    jalapeno_video,
     llm,
     loomloom,
     material,
@@ -98,7 +99,7 @@ _VIDEO_MUSIC_PROVIDERS = {
 _SUPPORTED_VIDEO_SOURCES = frozenset({
     "pexels", "pixabay", "coverr", "local", "wavespeed",
     "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
-    "loomloom", "openai_image", "infistar",
+    "loomloom", "openai_image", "infistar", "jalapeno",
 })
 
 
@@ -727,6 +728,7 @@ def get_video_materials(
     video_terms,
     audio_duration,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
 ):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
@@ -806,6 +808,11 @@ def get_video_materials(
             return None
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
+        generation_options = (
+            {"jalapeno_video_endpoint": jalapeno_video_endpoint}
+            if params.video_source == "jalapeno" and jalapeno_video_endpoint is not None
+            else {}
+        )
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
         # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
         try:
@@ -826,6 +833,7 @@ def get_video_materials(
                 # 素材阶段占用 40%~50%：每下完一个文件推进一次，慢速网络下
                 # 进度条不再长时间停在 40%。
                 progress_callback=_stage_progress_reporter(task_id, 40, 50),
+                **generation_options,
             )
         except volcengine_seedance.VolcEngineSeedanceError as exc:
             # 未确认状态和已生成但下载失败都对应一个可在方舟控制台恢复的远端
@@ -833,7 +841,8 @@ def get_video_materials(
             # 各自维护恢复信息并在后续扩展时再次遗漏。
             remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
             details = (
-                {"volcengine_seedance_task_id": remote_task_id}
+                {("jalapeno_task_id" if params.video_source == "jalapeno"
+                  else "volcengine_seedance_task_id"): remote_task_id}
                 if remote_task_id
                 else None
             )
@@ -1534,6 +1543,7 @@ def _run_pipeline(
     voxcpm_reference_audio: bytes | None = None,
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(
@@ -1563,6 +1573,15 @@ def _run_pipeline(
             "preflight",
             "Volcano Engine Seedance requires an Ark API key",
         )
+
+    if stop_at in {"materials", "video"} and params.video_source == "jalapeno":
+        try:
+            # WebUI 已确认的配置跟随任务；其它入口在预检时冻结一次，避免
+            # 后续素材提交重新读取被别的请求改写的 Key、模型或规格。
+            if jalapeno_video_endpoint is None:
+                jalapeno_video_endpoint = jalapeno_video.endpoint()
+        except jalapeno_video.JalapenoVideoError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
 
     if stop_at in {"materials", "video"} and params.video_source == "infistar":
         try:
@@ -1803,6 +1822,8 @@ def _run_pipeline(
         video_terms,
         audio_duration,
         loomloom_video_request=loomloom_video_request,
+        **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+           if jalapeno_video_endpoint is not None else {}),
     )
     if not downloaded_videos:
         return _mark_task_failed(
@@ -1932,6 +1953,7 @@ def start(
     voxcpm_reference_audio: bytes | None = None,
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
 ):
     """
     执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。
@@ -1950,6 +1972,8 @@ def start(
             voxcpm_reference_audio=voxcpm_reference_audio,
             voxcpm_prompt_audio=voxcpm_prompt_audio,
             voxcpm_prompt_text=voxcpm_prompt_text,
+            **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+               if jalapeno_video_endpoint is not None else {}),
         )
     except Exception as exc:
         logger.exception(

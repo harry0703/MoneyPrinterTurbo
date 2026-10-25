@@ -276,6 +276,21 @@ infistar_video_model = "doubao-seedance-2-0-fast-260128"
 infistar_video_poll_interval = 5
 infistar_video_run_timeout = 1800
 
+# Jalapeno Cloud：活动页 https://www.jalapeno-cloud.ai/MoneyPrinterTurbo
+# 模型广场 https://www.jalapeno-cloud.ai/models
+jalapeno_api_key = ""
+jalapeno_base_url = ""
+jalapeno_model_name = ""
+# 视频 Key 留空复用 jalapeno_api_key；独立视频 Key 或环境变量
+# JALAPENO_VIDEO_API_KEY 优先。视频地址不复用 LLM 的 /v1 地址。
+# 地址支持 https://api.jalapeno-cloud.ai/api/v3 或完整 /contents/generations/tasks。
+jalapeno_video_api_key = ""
+jalapeno_video_base_url = ""
+jalapeno_video_model = "Doubao-Seedance-2-5-260628"
+jalapeno_video_resolution = "480p"
+jalapeno_video_poll_interval = 5
+jalapeno_video_run_timeout = 1800
+
 # Shengsuan Cloud, OpenAI-compatible multi-model API.
 # API docs: https://lean.shengsuanyun.com/apidocs/api/openai-api
 shengsuanyun_api_key = ""

@@ -631,6 +631,21 @@
     "Confirm Infistar Charge Required": "请先确认无限星河视频生成费用。",
     "Infistar MiniMax Landscape Help": "MiniMax H3 当前线路生成横屏素材。选择竖屏成片时，将按“素材画面适配”设置裁剪或留黑边。",
     "Infistar Video API Key": "无限星河视频 API Key",
-    "Infistar Video Base URL": "无限星河视频 Base URL"
+    "Infistar Video Base URL": "无限星河视频 Base URL",
+    "llm_provider_label.jalapeno": "Jalapeno Cloud",
+    "llm_provider_tips.jalapeno": "##### Jalapeno Cloud 配置说明\n- **API Key**：通过 [MoneyPrinterTurbo 专属活动页]({api_key_url})注册并获取密钥，活动权益以页面展示为准\n- **Base Url**：默认 `{default_base_url}`\n- **Model Name**：默认 `{default_model}`；其他模型 ID 请查看[模型广场]({model_docs_url})\n\n视频 Key 留空时会自动复用此 API Key，也可在素材来源设置中填写独立视频 Key。视频接口地址单独配置。",
+    "Jalapeno Cloud AI Video": "Jalapeno Cloud AI 视频",
+    "Jalapeno Cloud Video Help": "通过 Jalapeno Cloud 生成 Seedance 视频素材。[项目专属活动](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo) · [模型广场](https://www.jalapeno-cloud.ai/models)",
+    "Jalapeno Cloud Video API Key": "Jalapeno Cloud 视频 API Key（[获取 API Key](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo)）",
+    "Jalapeno Cloud Video Key Help": "留空时复用 Jalapeno Cloud 大模型 API Key；独立视频 Key 优先，也支持 JALAPENO_VIDEO_API_KEY 环境变量。使用其他大模型提供商时同样可以单独配置视频。",
+    "Jalapeno Cloud Video Key Reused": "正在复用 Jalapeno Cloud 大模型 API Key；填写上方独立视频 Key 可覆盖。",
+    "Jalapeno Cloud Video Model": "Jalapeno Cloud 视频模型",
+    "Jalapeno Cloud Video Base URL": "Jalapeno Cloud 视频 Base URL",
+    "Jalapeno Cloud Video Base URL Help": "默认 https://api.jalapeno-cloud.ai/api/v3/contents/generations/tasks，也支持填写 /api/v3 前缀地址。该地址独立于大模型的 /v1 地址。",
+    "Jalapeno Cloud Video Resolution": "Jalapeno Cloud 视频分辨率",
+    "Jalapeno Cloud Video Specification": "模型：{model} · 分辨率：{resolution}",
+    "Jalapeno Cloud Video Billing Notice": "Jalapeno Cloud 视频按任务计费。素材会逐段生成，覆盖配音时长后停止；生成状态未确认时不会自动重复提交。",
+    "Confirm Jalapeno Cloud Charge": "我已知晓 Jalapeno Cloud 视频生成会创建付费任务",
+    "Confirm Jalapeno Cloud Charge Required": "请先确认 Jalapeno Cloud 视频生成费用。"
   }
 }

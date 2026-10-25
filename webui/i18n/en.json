@@ -631,6 +631,21 @@
     "Confirm Infistar Charge Required": "Please confirm the Infistar video charge before generating.",
     "Infistar MiniMax Landscape Help": "The current MiniMax H3 route generates landscape footage. Portrait output uses the selected video fit mode to crop it or add black bars.",
     "Infistar Video API Key": "Infistar Video API Key",
-    "Infistar Video Base URL": "Infistar Video Base URL"
+    "Infistar Video Base URL": "Infistar Video Base URL",
+    "llm_provider_label.jalapeno": "Jalapeno Cloud",
+    "llm_provider_tips.jalapeno": "##### Jalapeno Cloud Configuration\n- **API Key**: Register and get a key on the [MoneyPrinterTurbo campaign page]({api_key_url}); see that page for current offers\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model marketplace]({model_docs_url}) for other IDs\n\nAn empty video key reuses this API key. You can override it in material source settings. The video endpoint is configured separately.",
+    "Jalapeno Cloud AI Video": "Jalapeno Cloud AI Video",
+    "Jalapeno Cloud Video Help": "Generate Seedance clips through Jalapeno Cloud. [Project campaign](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo) · [Model marketplace](https://www.jalapeno-cloud.ai/models)",
+    "Jalapeno Cloud Video API Key": "Jalapeno Cloud Video API Key ([Get API Key](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo))",
+    "Jalapeno Cloud Video Key Help": "Leave empty to reuse the Jalapeno Cloud LLM key. A dedicated video key or JALAPENO_VIDEO_API_KEY takes priority. Video access also works with any other LLM provider.",
+    "Jalapeno Cloud Video Key Reused": "Reusing the Jalapeno Cloud LLM API key. Enter a dedicated video key above to override it.",
+    "Jalapeno Cloud Video Model": "Jalapeno Cloud Video Model",
+    "Jalapeno Cloud Video Base URL": "Jalapeno Cloud Video Base URL",
+    "Jalapeno Cloud Video Base URL Help": "Defaults to https://api.jalapeno-cloud.ai/api/v3/contents/generations/tasks. The /api/v3 prefix is also accepted. This is separate from the LLM /v1 address.",
+    "Jalapeno Cloud Video Resolution": "Jalapeno Cloud Video Resolution",
+    "Jalapeno Cloud Video Specification": "Model: {model} · Resolution: {resolution}",
+    "Jalapeno Cloud Video Billing Notice": "Jalapeno Cloud bills each generated clip. Clips are submitted one at a time until they cover the voiceover. An unconfirmed submission is not automatically repeated.",
+    "Confirm Jalapeno Cloud Charge": "I understand Jalapeno Cloud video generation creates paid tasks",
+    "Confirm Jalapeno Cloud Charge Required": "Please confirm the Jalapeno Cloud video charge before generating."
   }
 }

@@ -37,6 +37,7 @@ SUPPORTED_SOURCES = {
     "metaso_minimax",
     "muapi",
     "infistar",
+    "jalapeno",
     # Keep this list aligned with ``_CLI_VIDEO_SOURCES`` in cli.py. A source that
     # the CLI accepts must not be rejected here as unsupported.
     "openai_image",
@@ -48,6 +49,7 @@ VOLCENGINE_ARK_API_KEY_URL = (
 OFOX_API_KEY_URL = "https://ofox.ai"
 MUAPI_API_KEY_URL = "https://muapi.ai"
 INFISTAR_VIDEO_API_KEY_URL = "https://infistar.cc/keys"
+JALAPENO_API_KEY_URL = "https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"
 PEXELS_API_KEY_URL = "https://www.pexels.com/api/"
 PEXELS_VALIDATION_URL = "https://api.pexels.com/v1/collections?per_page=1"
 PEXELS_API_KEY_HELP_URL = (
@@ -261,6 +263,7 @@ def apply_environment_config(config_path: Path) -> None:
     ).strip()
     muapi_key = os.environ.get("MPT_MUAPI_API_KEY", "").strip()
     infistar_video_key = os.environ.get("MPT_INFISTAR_VIDEO_API_KEY", "").strip()
+    jalapeno_video_key = os.environ.get("MPT_JALAPENO_VIDEO_API_KEY", "").strip()
     if not any(
         (
             provider,
@@ -273,6 +276,7 @@ def apply_environment_config(config_path: Path) -> None:
             metaso_minimax_key,
             muapi_key,
             infistar_video_key,
+            jalapeno_video_key,
         )
     ):
         return
@@ -315,6 +319,9 @@ def apply_environment_config(config_path: Path) -> None:
     if infistar_video_key:
         text = _replace_config_value(text, "infistar_video_api_key", infistar_video_key)
         changes.append("infistar_video_api_key")
+    if jalapeno_video_key:
+        text = _replace_config_value(text, "jalapeno_video_api_key", jalapeno_video_key)
+        changes.append("jalapeno_video_api_key")
     config_path.write_text(text, encoding="utf-8")
     log("updated configuration fields: " + ", ".join(changes))
 
@@ -491,6 +498,17 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("infistar_video_api_key")
         if not has_cli_option(cli_args, "--confirm-infistar-charge"):
             missing.append("confirm_infistar_charge")
+    elif source == "jalapeno":
+        value = (
+            _plain_config_value(text, "jalapeno_video_api_key").strip()
+            or os.environ.get("JALAPENO_VIDEO_API_KEY", "").strip()
+            or _plain_config_value(text, "jalapeno_api_key").strip()
+        )
+        # 同时缺少 LLM 和视频凭据时，只索取一次可共享的大模型 Key。
+        if not _has_configured_value(value) and "jalapeno_api_key" not in missing:
+            missing.append("jalapeno_video_api_key")
+        if not has_cli_option(cli_args, "--confirm-jalapeno-charge"):
+            missing.append("confirm_jalapeno_charge")
     elif source == "openai_image":
         # 与运行时的 is_openai_image_enabled() 保持一致：文生图素材源只要求端点
         # 与模型名。完全本地的 ComfyUI/SD 网关允许不配置 API Key，因此这里不
@@ -519,6 +537,7 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
             "metaso_minimax_api_key",
             "muapi_api_key",
             "infistar_video_api_key",
+            "jalapeno_video_api_key",
         }
         for field in missing
     ):
@@ -578,6 +597,12 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print("INFISTAR_VIDEO_API_KEY_ENV=MPT_INFISTAR_VIDEO_API_KEY")
     if "confirm_infistar_charge" in missing:
         print("INFISTAR_CHARGE_CONFIRMATION_REQUIRED=--confirm-infistar-charge")
+    if "jalapeno_video_api_key" in missing or "jalapeno_api_key" in missing:
+        print(f"JALAPENO_API_KEY_URL={JALAPENO_API_KEY_URL}")
+    if "jalapeno_video_api_key" in missing:
+        print("JALAPENO_VIDEO_API_KEY_ENV=MPT_JALAPENO_VIDEO_API_KEY")
+    if "confirm_jalapeno_charge" in missing:
+        print("JALAPENO_CHARGE_CONFIRMATION_REQUIRED=--confirm-jalapeno-charge")
     print("Request only the listed values, set the environment variables, and rerun the same command.")
     return NEEDS_INPUT_EXIT_CODE
 

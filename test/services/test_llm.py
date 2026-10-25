@@ -675,6 +675,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "minimax",
                 "mimo",
                 "iflytek",
+                "jalapeno",
                 "infistar",
                 "shengsuanyun",
                 "apimart",

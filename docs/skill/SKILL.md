@@ -114,6 +114,7 @@ MPT_OFOX_API_KEY
 MPT_METASO_MINIMAX_API_KEY
 MPT_MUAPI_API_KEY
 MPT_INFISTAR_VIDEO_API_KEY
+MPT_JALAPENO_VIDEO_API_KEY
 ```
 
 When `SEEDANCE_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
@@ -142,6 +143,11 @@ When `INFISTAR_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated Infistar clip creates a paid task. Only after the user explicitly
 confirms, rerun with `--confirm-infistar-charge`; never add this flag silently.
 Use the dedicated video key, separate from the Infistar LLM key.
+
+When `JALAPENO_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
+generated Jalapeno Cloud clip creates a paid task. After the user confirms,
+rerun with `--confirm-jalapeno-charge`. An empty video key reuses the
+configured Jalapeno Cloud LLM key; a dedicated video key takes priority.
 
 ### Exit code 1: repair or report
 

@@ -375,6 +375,14 @@ LLM_PROVIDER_REGISTRY = (
     ),
     # 聚合与统一接入平台
     LLMProviderSpec(
+        "jalapeno",
+        "Jalapeno Cloud",
+        api_key_url="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo",
+        default_model="DeepSeek-V4.1-Flash",
+        default_base_url="https://api.jalapeno-cloud.ai/v1",
+        model_docs_url="https://www.jalapeno-cloud.ai/models",
+    ),
+    LLMProviderSpec(
         "infistar",
         "Infistar",
         api_key_url="https://infistar.cc/keys",

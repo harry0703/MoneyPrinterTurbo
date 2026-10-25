@@ -45,6 +45,7 @@ _CLI_VIDEO_SOURCES = (
     "volcengine_seedance",
     "ofox",
     "infistar",
+    "jalapeno",
     "metaso_minimax",
     "muapi",
     "openai_image",
@@ -387,6 +388,10 @@ Batch manifests:
             "confirm that Volcano Engine Seedance creates paid Ark tasks; required "
             "with --video-source volcengine_seedance for materials or video output"
         ),
+    )
+    material_group.add_argument(
+        "--confirm-jalapeno-charge", action="store_true",
+        help="confirm paid Jalapeno Cloud video generation for materials or video output",
     )
     material_group.add_argument(
         "--confirm-infistar-charge", action="store_true",
@@ -800,6 +805,9 @@ Batch manifests:
     if (not args.batch_file and args.video_source == "infistar"
             and stage_requires_materials and not args.confirm_infistar_charge):
         parser.error("--confirm-infistar-charge is required with --video-source infistar")
+    if (not args.batch_file and args.video_source == "jalapeno"
+            and stage_requires_materials and not args.confirm_jalapeno_charge):
+        parser.error("--confirm-jalapeno-charge is required with --video-source jalapeno")
 
     if args.bgm_file:
         if args.bgm_type in (None, "custom"):
@@ -1205,6 +1213,7 @@ def _validate_batch_task_params(
     metaso_minimax_charge_confirmed: bool,
     muapi_charge_confirmed: bool,
     infistar_charge_confirmed: bool = False,
+    jalapeno_charge_confirmed: bool = False,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
@@ -1277,6 +1286,9 @@ def _validate_batch_task_params(
     if (params.video_source == "infistar" and stop_at in {"materials", "video"}
             and not infistar_charge_confirmed):
         raise ValueError("--confirm-infistar-charge is required for Infistar video generation")
+    if (params.video_source == "jalapeno" and stop_at in {"materials", "video"}
+            and not jalapeno_charge_confirmed):
+        raise ValueError("--confirm-jalapeno-charge is required for Jalapeno Cloud video generation")
 
     if stop_at == "subtitle" and not params.subtitle_enabled:
         raise ValueError("stop_at=subtitle cannot be combined with disabled subtitles")
@@ -1392,6 +1404,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                 ),
                 muapi_charge_confirmed=args.confirm_muapi_charge,
                 infistar_charge_confirmed=args.confirm_infistar_charge,
+                jalapeno_charge_confirmed=args.confirm_jalapeno_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc
