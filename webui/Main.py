@@ -956,9 +956,12 @@ def _remove_active_generation_task(task_id):
 
 
 def _prepare_generation_task():
-    # st.button 的 on_click 会在页面脚本重新执行前触发。这里提前生成任务 ID，
-    # 顶部任务管理入口就能在同一次 rerun 中显示“生成中”数量。
-    task_id = str(uuid4())
+    # Reuse the review workspace so approved clips already live in the final task folder.
+    task_id = (
+        st.session_state.get("clip_review_task_id")
+        if st.session_state.get("clip_approved_fingerprint")
+        else ""
+    ) or str(uuid4())
     st.session_state["pending_generation_task_id"] = task_id
     subject = st.session_state.get("video_subject") or st.session_state.get(
         "video_script"
@@ -6313,9 +6316,13 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
         use_container_width=True,
         disabled=not bool(script_content) or bool(preview_validation_error),
     )
+    if st.session_state.pop("regenerate_full_voiceover_preview", False):
+        full_preview_requested = True
 
     preview_type = ""
     preview_content = ""
+    if full_preview_requested:
+        st.session_state.pop("audio_approved_fingerprint", None)
     if short_preview_requested:
         preview_type = "sample"
         preview_content = sample_content
@@ -6434,6 +6441,17 @@ def _render_voice_preview(params, friendly_names, selected_tts_server, voice_nam
                 )
             else:
                 st.warning(tr("Voice Preview Duration Unavailable"))
+            st.caption("Step 1 · Review your complete narration")
+            if st.session_state.get("audio_approved_fingerprint") == cached_preview.get("fingerprint"):
+                st.success("Narration approved. Changes to the script or voice require approval again.")
+            elif st.button("Approve This Audio", key="approve_full_narration_audio", type="primary", use_container_width=True):
+                st.session_state["audio_approved_fingerprint"] = cached_preview.get("fingerprint")
+                st.rerun()
+            if st.button("Regenerate Audio", key="regenerate_full_narration_audio", use_container_width=True):
+                st.session_state.pop("voice_preview_audio", None)
+                st.session_state.pop("audio_approved_fingerprint", None)
+                st.session_state["regenerate_full_voiceover_preview"] = True
+                st.rerun()
 
 
 def _get_reusable_full_voice_preview(params, voice_mode: str) -> dict | None:
@@ -8062,6 +8080,199 @@ def _stage_task_audio(audio_path, audio_bytes):
                 logger.warning(f"failed to remove staged task audio: {exc}")
 
 
+
+def _clip_review_terms(params):
+    raw = params.video_terms or []
+    terms = (
+        [x.strip() for x in re.split(r"[,，;；\n]+", raw) if x.strip()]
+        if isinstance(raw, str)
+        else [str(x).strip() for x in raw if str(x).strip()]
+    )
+    sentences = [
+        x.strip()
+        for x in re.split(r"(?<=[.!?。！？])\s+|\n+", str(params.video_script or ""))
+        if x.strip()
+    ]
+
+    if params.match_materials_to_script and sentences:
+        count = min(len(sentences), len(terms)) if len(terms) >= len(sentences) else len(sentences)
+        return [
+            (s, terms[i] if len(terms) >= len(sentences) else s)
+            for i, s in enumerate(sentences[:count])
+        ]
+
+    return [(x, x) for x in (terms or sentences)]
+
+
+
+def _clip_review_fingerprint(params):
+    aspect = getattr(params.video_aspect, "value", params.video_aspect)
+    payload = {"source": params.video_source, "subject": str(params.video_subject or ""),
+               "script": str(params.video_script or ""), "terms": params.video_terms or "",
+               "aspect": str(aspect or ""), "clip_duration": int(params.video_clip_duration or 5),
+               "match_script_order": bool(params.match_materials_to_script)}
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _audio_is_approved(params, voice_mode, uploaded_audio_file):
+    if voice_mode == VOICE_MODE_UPLOAD:
+        if not uploaded_audio_file:
+            return False
+        try:
+            digest = hashlib.sha256(bytes(uploaded_audio_file.getbuffer())).hexdigest()
+        except Exception:
+            return False
+        return st.session_state.get("audio_approved_fingerprint") == "upload:" + digest
+    if voice_mode == VOICE_MODE_TTS:
+        cached = st.session_state.get("voice_preview_audio")
+        return bool(cached and cached.get("preview_type") == "full"
+                    and _get_reusable_full_voice_preview(params, voice_mode)
+                    and st.session_state.get("audio_approved_fingerprint") == cached.get("fingerprint"))
+    return True
+
+
+def _render_clip_approval_workflow(params, audio_ready):
+    source = params.video_source
+    if source not in ("pexels", "pixabay"):
+        if source == "coverr":
+            st.info("Preview-first review is available for Pexels and Pixabay. Coverr's MP4 URL is a download endpoint, so it is not requested for previews.")
+        elif source not in ("local",):
+            st.info("This source generates clips remotely rather than returning stock-video candidates. Provider generation or charges may happen before a preview exists.")
+        return False
+
+    fingerprint = _clip_review_fingerprint(params)
+    previous = st.session_state.get("clip_candidate_fingerprint")
+    if previous and previous != fingerprint:
+        for key in ("clip_candidate_groups", "clip_approved_fingerprint", "clip_approved_paths", "clip_approved_selection"):
+            st.session_state.pop(key, None)
+    st.session_state["clip_candidate_fingerprint"] = fingerprint
+
+    with st.container(border=True):
+        st.markdown("### Step 2 · Preview and approve video clips")
+        st.caption("Candidates stream from the provider and are not saved locally until you approve the selected clips.")
+        if not audio_ready:
+            st.warning("Approve the complete narration audio first. Clip search is disabled until then.")
+        if st.button("Find Preview Clips", key="find_preview_clips_button", use_container_width=True, disabled=not audio_ready):
+            groups = []
+            search_fn = material.search_videos_pexels if source == "pexels" else material.search_videos_pixabay
+            for sentence, term in _clip_review_terms(params):
+                try:
+                    found = search_fn(search_term=term, minimum_duration=max(int(params.video_clip_duration or 5), 1), video_aspect=params.video_aspect)
+                except Exception as exc:
+                    logger.warning(f"clip preview search failed: {type(exc).__name__}: {exc}")
+                    found = []
+                candidates, seen = [], set()
+                for item in found:
+                    url = str(getattr(item, "url", "") or "")
+                    if not url or url in seen:
+                        continue
+                    seen.add(url)
+                    source_info = getattr(item, "source_info", None)
+                    source_info = source_info if isinstance(source_info, dict) else {}
+                    candidates.append({"provider": str(getattr(item, "provider", source) or source),
+                                       "url": url, "duration": int(getattr(item, "duration", 0) or 0),
+                                       "asset_id": str(source_info.get("asset_id") or ""),
+                                       "source_page": str(source_info.get("source_page") or "")})
+                    if len(candidates) == 3:
+                        break
+                groups.append({"sentence": sentence, "term": term, "candidates": candidates})
+            st.session_state["clip_candidate_groups"] = groups
+            st.session_state.pop("clip_approved_fingerprint", None)
+            st.session_state.pop("clip_approved_paths", None)
+            st.session_state.pop("clip_approved_selection", None)
+            st.session_state.pop("clip_review_task_id", None)
+            st.rerun()
+
+        groups = st.session_state.get("clip_candidate_groups", [])
+        selected = []
+        if groups and st.session_state.get("clip_candidate_fingerprint") == fingerprint:
+            for i, group in enumerate(groups):
+                candidates = group.get("candidates", [])
+                st.markdown(f"**Scene {i + 1} · {group.get('sentence') or group.get('term')}**")
+                st.caption(f"Search query: {group.get('term')}")
+                if not candidates:
+                    st.warning("No candidates found for this scene. Change the keywords and search again.")
+                    selected.append(None)
+                    continue
+                key = f"clip_candidate_choice_{fingerprint[:12]}_{i}"
+                choice = st.radio("Choose a clip", list(range(len(candidates))),
+                                  index=min(int(st.session_state.get(key, 0) or 0), len(candidates)-1),
+                                  format_func=lambda n: f"Candidate {n+1}", horizontal=True,
+                                  key=key, label_visibility="collapsed")
+                selected.append(choice)
+                candidate = candidates[choice]
+                st.caption(f"{candidate['provider']} · {candidate['duration']} seconds")
+                _, preview_col, _ = st.columns([1, 2, 1]) 
+                with preview_col:
+                    st.video(candidate["url"])
+
+            approved = (st.session_state.get("clip_approved_fingerprint") == fingerprint
+                        and st.session_state.get("clip_approved_selection") == selected
+                        and bool(st.session_state.get("clip_approved_paths"))
+                        and all(os.path.isfile(x["path"]) and os.path.getsize(x["path"]) > 0 for x in st.session_state.get("clip_approved_paths", [])))
+            if st.session_state.get("clip_approved_fingerprint") == fingerprint and not approved:
+                for key in ("clip_approved_fingerprint", "clip_approved_paths", "clip_approved_selection"):
+                    st.session_state.pop(key, None)
+            if approved:
+                st.success(f"{len(st.session_state['clip_approved_paths'])} approved clips downloaded. Ready to generate.")
+            elif st.button("Approve Selected Clips & Download", key="approve_selected_clips_download_button",
+                           type="primary", use_container_width=True,
+                           disabled=not audio_ready or not selected or any(x is None for x in selected)):
+                review_id = st.session_state.get("clip_review_task_id") or str(uuid4())
+                # Local-source preprocessing only accepts files inside local_videos.
+                # Keep approved media there; store the review manifest in the task folder.
+                directory = utils.storage_dir("local_videos", create=True)
+                review_directory = utils.task_dir(review_id)
+                paths, failed = [], False
+                for scene_no, (group, index) in enumerate(zip(groups, selected), start=1):
+                    candidate = group["candidates"][index]
+                    try:
+                        path = material.save_video(candidate["url"], save_dir=directory)
+                        if not path or not os.path.isfile(path) or os.path.getsize(path) <= 0:
+                            raise OSError("empty video file")
+                        paths.append({"path": path, "duration": candidate["duration"], "provider": candidate["provider"],
+                                      "asset_id": candidate.get("asset_id", ""), "source_page": candidate.get("source_page", ""),
+                                      "sentence": group.get("sentence", ""), "search_term": group.get("term", "")})
+                    except Exception as exc:
+                        logger.warning(f"approved clip download failed: scene={scene_no}, error={type(exc).__name__}: {exc}")
+                        st.error(f"Scene {scene_no} could not be downloaded. No failed preview is auto-approved; replace it or try again.")
+                        failed = True
+                        break
+                if not failed and paths:
+                    try:
+                        with open(os.path.join(review_directory, "clip-review.json"), "w", encoding="utf-8") as review_file:
+                            json.dump({
+                                "status": "approved_and_downloaded",
+                                "fingerprint": fingerprint,
+                                "source": source,
+                                "clips": [{
+                                    "scene": i + 1,
+                                    "sentence": item.get("sentence", ""),
+                                    "search_term": item.get("search_term", ""),
+                                    "provider": item.get("provider", source),
+                                    "asset_id": item.get("asset_id", ""),
+                                    "source_page": item.get("source_page", ""),
+                                    "duration": item.get("duration", 0),
+                                    "file": os.path.basename(item["path"]),
+                                } for i, item in enumerate(paths)],
+                            }, review_file, ensure_ascii=False, indent=2)
+                    except OSError as exc:
+                        logger.warning(f"failed to persist clip review metadata: {type(exc).__name__}: {exc}")
+                    st.session_state["clip_review_task_id"] = review_id
+                    st.session_state["clip_approved_paths"] = paths
+                    st.session_state["clip_approved_selection"] = selected
+                    st.session_state["clip_approved_fingerprint"] = fingerprint
+                    st.rerun()
+                elif not failed:
+                    st.error("No clips were downloaded.")
+        else:
+            st.caption("Find preview clips to review one candidate per scene.")
+
+    return bool(st.session_state.get("clip_approved_fingerprint") == fingerprint
+                and st.session_state.get("clip_approved_paths")
+                and st.session_state.get("clip_approved_selection") is not None)
+
+
 def _render_generation_controls(
     params, uploaded_files, uploaded_audio_file, uploaded_bgm_file, voice_mode
 ):
@@ -8096,14 +8307,52 @@ def _render_generation_controls(
         # 已经得到明确处理，清除标记，避免后续普通生成继续显示旧提示。
         st.session_state.pop("task_restore_upload_requirements", None)
 
+    if voice_mode == VOICE_MODE_UPLOAD and uploaded_audio_file:
+        try:
+            digest = hashlib.sha256(bytes(uploaded_audio_file.getbuffer())).hexdigest()
+        except Exception:
+            digest = ""
+        upload_fingerprint = "upload:" + digest if digest else ""
+        st.caption("Step 1 · Review your uploaded narration")
+        if upload_fingerprint and st.session_state.get("audio_approved_fingerprint") == upload_fingerprint:
+            st.success("Uploaded narration approved.")
+        elif st.button("Approve Uploaded Audio", key="approve_uploaded_narration_audio", type="primary", use_container_width=True):
+            st.session_state["audio_approved_fingerprint"] = upload_fingerprint
+            st.rerun()
+
+    audio_ready = _audio_is_approved(params, voice_mode, uploaded_audio_file)
+    if voice_mode == VOICE_MODE_TTS and not audio_ready:
+        cached = st.session_state.get("voice_preview_audio")
+        if cached and cached.get("preview_type") == "full":
+            st.warning("To reuse the exact approved narration, set Voiceover Volume to 100%, generate a full voiceover preview, then approve it.")
+        else:
+            st.info("Generate and approve a full voiceover preview before searching for clips or generating a video.")
+    elif voice_mode == VOICE_MODE_UPLOAD and not audio_ready:
+        st.info("Approve the uploaded narration before searching for clips or generating a video.")
+
+    review_source = params.video_source
+    clip_ready = _render_clip_approval_workflow(params, audio_ready)
+    approved_clip_payload = st.session_state.get("clip_approved_paths", []) if clip_ready and review_source in ("pexels", "pixabay") else []
+    if approved_clip_payload:
+        has_local_materials = True
+        params.video_source = "local"
+        params.video_materials = [
+            MaterialInfo(provider="local", url=item["path"], duration=int(item.get("duration", 0) or 0))
+            for item in approved_clip_payload
+        ]
+        if params.match_materials_to_script:
+            params.video_concat_mode = VideoConcatMode.sequential
+
     _render_settings_transfer(params)
 
+    can_generate = audio_ready and (review_source not in ("pexels", "pixabay") or clip_ready)
     start_button = st.button(
         tr("Generate Video"),
         use_container_width=True,
         type="primary",
         key="generate_video_button",
         on_click=_prepare_generation_task,
+        disabled=not can_generate,
     )
     render_onboarding_tour()
     if start_button:
@@ -8502,6 +8751,9 @@ def _render_generation_controls(
             st.stop()
 
         st.session_state["current_generation_task_id"] = task_id
+        if review_source in ("pexels", "pixabay") and approved_clip_payload:
+            for state_key in ("clip_candidate_groups", "clip_candidate_fingerprint", "clip_approved_fingerprint", "clip_approved_paths", "clip_approved_selection", "clip_review_task_id"):
+                st.session_state.pop(state_key, None)
         logger.info(f"WebUI generation task submitted: task_id={task_id}")
 
     _render_current_generation_task()
