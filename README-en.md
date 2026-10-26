@@ -128,6 +128,18 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><img src="docs/sponsors/jalapeno-logo.png" alt="Jalapeno Cloud" width="56"></a><br>
+      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><strong>Jalapeno Cloud</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Jalapeno Cloud</a> for sponsoring this project!<br>
+      Access multiple AI models through OpenAI- and Anthropic-compatible APIs for application development and content creation.<br>
+      New users receive free credits, with <strong>up to 20% bonus credits on top-ups</strong>. Get <strong>up to 50% off</strong> models including DeepSeek-V4.1-flash and GLM-5.3-flash, plus an <strong>ongoing 10% discount on Doubao-Seedance-2.5</strong>. Official model sources with quality assurance.<br>
+      👉 <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Sign up and claim exclusive trial credits</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>
@@ -345,11 +357,11 @@ The application creates `config.toml` on first launch. Add the required API keys
 for online models, footage, or speech services in the WebUI basic settings.
 The installed application stores configuration and generated files here by default:
 
-| System | Data directory |
-| --- | --- |
-| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
-| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
-| Linux | `~/.local/share/MoneyPrinterTurbo`, or `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+| System  | Data directory                                                            |
+| ------- | ------------------------------------------------------------------------- |
+| macOS   | `~/Library/Application Support/MoneyPrinterTurbo`                         |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo`                                        |
+| Linux   | `~/.local/share/MoneyPrinterTurbo`, or `$XDG_DATA_HOME/MoneyPrinterTurbo` |
 
 Set `MPT_HOME` before launch to choose another directory. Generated videos are under
 `storage/tasks` in that directory. To upgrade, activate your virtual environment and
