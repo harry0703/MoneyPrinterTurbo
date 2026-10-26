@@ -30,6 +30,26 @@ from moviepy import (
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 
+try:
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+except ImportError:
+    arabic_reshaper = None
+    get_display = None
+
+
+def _shape_arabic_text(text: str) -> str:
+    """Join Arabic letters and put each line in right-to-left display order."""
+    if arabic_reshaper is None or not any(
+        "\u0600" <= ch <= "\u06ff" or "\u0750" <= ch <= "\u077f" for ch in text
+    ):
+        return text
+    # Wrapping already split the text into logical lines. Reorder each line on
+    # its own so the lines stay in top-to-bottom order.
+    return "\n".join(
+        get_display(arabic_reshaper.reshape(line)) for line in text.split("\n")
+    )
+
 from app.config import config
 from app.models import const
 from app.models.schema import (
@@ -1643,6 +1663,7 @@ def generate_video(
             font=font_path,
             fontsize=params.font_size,
         )
+        wrapped_txt = _shape_arabic_text(wrapped_txt)
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
         vertical_padding = int(params.font_size * 0.35)
