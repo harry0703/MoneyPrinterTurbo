@@ -1,4 +1,6 @@
 import json
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -108,24 +110,30 @@ def test_unknown_font_name_returns_404():
 
 
 def test_valid_font_name_still_reaches_scheduler():
-    """A safe font_name must still pass through to the task scheduler."""
+    """A safe font_name must still pass through to the task scheduler.
+
+    The fixture writes a real file into a temp font directory and points
+    ``utils.font_dir`` at it, so the pre-check passes because the font
+    actually exists on disk — not because the check was bypassed or the
+    repo's bundled fonts happen to be present.
+    """
     payload = {
         'video_subject': 'safe font test',
         'video_script': 'demo',
         'subtitle_enabled': True,
-        'font_name': 'STHeitiMedium.ttc',
+        'font_name': 'custom.ttf',
     }
-    schedule = patch('app.controllers.v1.video.task_manager.add_task')
-    with (
-        patch.dict(config.app, {'api_key': ''}),
-        schedule,
-        TestClient(asgi.get_application(), raise_server_exceptions=False) as client,
-    ):
-        # Run inside the patched context so the test does not need an
-        # actual font file on disk for the controller-side check.
-        response = client.post('/api/v1/videos', json=payload)
-    # Either the request was accepted and the scheduler is invoked, or
-    # the scheduler failed because no real task manager is wired up in
-    # the test environment. The key invariant is that we did not get a
-    # 403/404 from the font pre-check.
-    assert response.status_code not in (403, 404), response.text
+    with tempfile.TemporaryDirectory() as temp_dir:
+        font_dir = Path(temp_dir, 'fonts')
+        font_dir.mkdir()
+        (font_dir / 'custom.ttf').write_bytes(b'font file')
+        with (
+            patch.dict(config.app, {'api_key': ''}),
+            patch('app.controllers.v1.video.utils.font_dir', return_value=str(font_dir)),
+            patch('app.controllers.v1.video.task_manager.add_task') as schedule,
+            TestClient(asgi.get_application(), raise_server_exceptions=False) as client,
+        ):
+            response = client.post('/api/v1/videos', json=payload)
+    assert response.status_code == 200, response.text
+    assert response.json()['status'] == 200
+    schedule.assert_called_once()
