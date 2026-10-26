@@ -163,7 +163,15 @@ def get_ffmpeg_binary() -> str:
         # probe and every FFmpeg call would otherwise fail on the
         # first run for any user who set the variable to a path
         # under their home directory. Absolute paths are unaffected.
-        return os.path.expanduser(os.path.expandvars(configured_ffmpeg))
+        expanded_ffmpeg = os.path.expanduser(os.path.expandvars(configured_ffmpeg))
+        if expanded_ffmpeg != configured_ffmpeg:
+            # MoviePy/imageio-ffmpeg read IMAGEIO_FFMPEG_EXE directly
+            # from os.environ, so write the expanded path back before
+            # MoviePy resolves it; otherwise the pre-check passes but
+            # ColorClip.write_videofile() still fails with
+            # FileNotFoundError on the raw value (issue #1662).
+            os.environ["IMAGEIO_FFMPEG_EXE"] = expanded_ffmpeg
+        return expanded_ffmpeg
 
     system_ffmpeg = shutil.which("ffmpeg")
     if system_ffmpeg:
