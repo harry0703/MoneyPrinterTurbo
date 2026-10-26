@@ -678,7 +678,22 @@ app["redis_host"] = os.getenv(
 )
 
 ffmpeg_path = app.get("ffmpeg_path", "")
-if ffmpeg_path and os.path.isfile(ffmpeg_path):
-    os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
+if ffmpeg_path:
+    # config.toml 同样允许 "~" / "${VAR}" 写法：先展开再做存在性判断，
+    # 否则 isfile() 永远不成立，配置被静默忽略。
+    ffmpeg_path = os.path.expanduser(os.path.expandvars(ffmpeg_path))
+    if os.path.isfile(ffmpeg_path):
+        os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
+
+# 用户直接设置的 IMAGEIO_FFMPEG_EXE 也可能是 "~" / "${VAR}" 写法
+# （issue #1662）。MoviePy 2.x 在 import 时就通过 imageio 读取该变量
+# 并固定为 moviepy.config.FFMPEG_BINARY，之后不再重新解析；因此必须
+# 在本模块（所有入口最早的公共依赖，先于 moviepy 被导入）里完成展开，
+# 编码阶段才拿得到真实路径。
+_env_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
+if _env_ffmpeg:
+    os.environ["IMAGEIO_FFMPEG_EXE"] = os.path.expanduser(
+        os.path.expandvars(_env_ffmpeg)
+    )
 
 logger.info(f"{project_name} v{project_version}")
