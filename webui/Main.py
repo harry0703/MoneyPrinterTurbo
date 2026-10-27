@@ -2256,6 +2256,18 @@ def get_llm_provider_tips(provider_id, **kwargs):
 def format_llm_connection_error(provider_id, base_url, error):
     """为可明确定位的鉴权错误补充配置检查建议，同时保留原始响应。"""
     error_text = str(error or "").strip()
+    if provider_id == "openai_codex":
+        from app.services.codex_oauth import ERROR_MESSAGES
+
+        for key, message in ERROR_MESSAGES.items():
+            if error_text == message:
+                return tr(f"codex.oauth.{key}")
+        status_match = re.fullmatch(
+            r"OpenAI - Codex returned HTTP (\d+)\. Check the selected model and your account access\.",
+            error_text,
+        )
+        if status_match:
+            return tr("codex.oauth.http_error").format(status=status_match[1])
     normalized_error = error_text.lower()
     authentication_markers = (
         "401",
@@ -3552,7 +3564,12 @@ def _render_settings_dialog():
                     disabled=selected_service_endpoint is not None,
                 )
             st_llm_model_name = ""
-            if llm_provider == "groq":
+            if llm_provider == "openai_codex":
+                from webui.codex_models import render_codex_model_selector
+
+                with llm_form_panel:
+                    st_llm_model_name = render_codex_model_selector(llm_model_name, tr)
+            elif llm_provider == "groq":
                 effective_api_key = st_llm_api_key or llm_api_key
                 effective_base_url = st_llm_base_url or llm_base_url
                 groq_models = get_groq_model_ids(
@@ -3631,6 +3648,12 @@ def _render_settings_dialog():
                         field.default_value,
                     ),
                 )
+
+            if llm_provider == "openai_codex" and middle_config_panel.open:
+                from webui.codex_login import render_codex_login
+
+                with llm_form_panel.container():
+                    render_codex_login(tr)
 
             if llm_provider == "kimi_code" and middle_config_panel.open:
                 from app.services import kimi_code_oauth

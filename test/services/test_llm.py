@@ -664,6 +664,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "moonshot",
                 "kimi_code",
                 "openai",
+                "openai_codex",
                 "anthropic",
                 "gemini",
                 "muse_spark",

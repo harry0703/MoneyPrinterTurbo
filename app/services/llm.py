@@ -543,6 +543,19 @@ def _generate_response(
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
 
+        if adapter == "openai_codex":
+            from app.services import codex_oauth
+
+            timeout_seconds = coerce_claude_code_timeout(
+                extra_values.get("timeout"), "openai_codex_timeout"
+            )
+            if request_timeout is not None:
+                timeout_seconds = min(timeout_seconds, request_timeout)
+            return _normalize_text_response(
+                codex_oauth.generate_text(prompt, model_name, timeout_seconds),
+                llm_provider,
+            )
+
         if adapter == "claude_code":
             # Claude 订阅（Pro / Max / Team）不签发 API Key，其凭证只能由
             # Claude Code 官方客户端自己使用。这里不直接请求 Anthropic API，
