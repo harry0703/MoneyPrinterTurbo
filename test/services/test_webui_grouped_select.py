@@ -127,6 +127,7 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
             "wavespeed",
             "muapi",
             "openai_image",
+            "codex_image",
             "local",
         ]
 
