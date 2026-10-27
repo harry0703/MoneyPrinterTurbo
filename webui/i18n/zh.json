@@ -698,6 +698,16 @@
     "Generation Status Unavailable": "暂时无法获取任务状态，请稍候。后台任务可能仍在运行，请勿重复提交。",
     "Generation Task Unavailable": "任务记录暂不可用。若先前已提交付费生成，请先核对原任务状态，避免重复计费。",
     "Generation Untracked Worker Hint": "当前服务中没有此任务的执行记录；它可能仍在其他服务中运行。若服务曾重启，请先确认原任务状态。停止跟踪不会取消生成。",
-    "Stop Tracking Generation": "停止跟踪此任务"
+    "Stop Tracking Generation": "停止跟踪此任务",
+    "codex.image.label": "OpenAI - Codex 图像",
+    "codex.image.help": "使用共享的 ChatGPT 会话与账户额度。图像 Responses 模型可独立于 LLM 选择。目录不保证图像生成权限。",
+    "codex.image.timeout": "图像请求超时（秒）",
+    "codex.oauth.shared": "同一 ChatGPT 账户用于文本和图像。断开连接将同时影响两者。",
+    "codex.image.model_required": "请选择用于图像的 Codex Responses 模型。",
+    "codex.image.invalid_timeout": "图像超时必须是有限的正数。",
+    "codex.image.invalid_result": "Codex 未返回唯一完整有效的图像。",
+    "codex.image.uncertain": "请求可能已处理。已停止生成，不会自动重试。",
+    "codex.image.save_failed": "无法保存 Codex 图像。已停止，不会自动重试。",
+    "codex.image.render_failed": "无法渲染 Codex 图像。已停止，不会自动重试。"
   }
 }

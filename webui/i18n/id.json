@@ -452,6 +452,16 @@
     "OFox Upstream Vendor Help": "Vendor upstream yang melayani pembuatan video OFox. BytePlus (internasional) adalah bawaan dengan kebijakan konten yang konsisten; Volcano Engine adalah vendor Tiongkok daratan; Auto membiarkan gateway OFox menyeimbangkan beban antar vendor.",
     "OFox Vendor BytePlus": "BytePlus (internasional, bawaan)",
     "OFox Vendor Volcengine": "Volcano Engine (Tiongkok daratan)",
-    "OFox Vendor Auto": "Otomatis (penyeimbangan gateway)"
+    "OFox Vendor Auto": "Otomatis (penyeimbangan gateway)",
+    "codex.image.label": "Gambar OpenAI - Codex",
+    "codex.image.help": "Menggunakan sesi ChatGPT bersama dan batas akun. Pilih model Responses terpisah dari LLM. Katalog tidak menjamin akses gambar.",
+    "codex.image.timeout": "Batas waktu gambar (detik)",
+    "codex.oauth.shared": "Satu akun ChatGPT untuk teks dan gambar. Memutuskan koneksi memengaruhi keduanya.",
+    "codex.image.model_required": "Pilih model Responses Codex untuk gambar.",
+    "codex.image.invalid_timeout": "Batas waktu gambar harus berupa angka positif dan terbatas.",
+    "codex.image.invalid_result": "Codex tidak mengembalikan satu gambar lengkap yang valid.",
+    "codex.image.uncertain": "Permintaan mungkin telah diproses. Dihentikan tanpa mencoba lagi.",
+    "codex.image.save_failed": "Gagal menyimpan gambar Codex. Dihentikan tanpa mencoba lagi.",
+    "codex.image.render_failed": "Gagal merender gambar Codex. Dihentikan tanpa mencoba lagi."
   }
 }

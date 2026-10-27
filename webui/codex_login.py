@@ -11,6 +11,7 @@ FLOW_KEY = "openai_codex_login_flow"
 
 @st.fragment(run_every="2s")
 def render_codex_login(tr):
+    st.caption(tr("codex.oauth.shared"))
     stored_error = False
     try:
         authorized = codex_oauth.account_status()
@@ -42,7 +43,8 @@ def render_codex_login(tr):
             tr("codex.oauth.disconnect" if authorized or stored_error else "Cancel"),
             key="codex_disconnect",
         ):
-            codex_oauth.disconnect()
+            if authorized or stored_error:
+                codex_oauth.disconnect()
             st.session_state.pop(FLOW_KEY, None)
             st.rerun()
     if flow:

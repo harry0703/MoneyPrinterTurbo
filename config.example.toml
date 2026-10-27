@@ -28,6 +28,10 @@ log_requests = false
 # Uses ChatGPT subscription limits; no API key. Credentials live in storage/auth.
 openai_codex_model_name = ""
 openai_codex_timeout = ""
+# Codex image source: reuses the same ChatGPT login, with an independent Responses
+# model selection. Catalog candidates do not guarantee image-tool access.
+codex_image_model_name = ""
+codex_image_timeout = 300
 
 # Optional protection for API routes and generated files under /tasks.
 # Leave empty for local backward-compatible access. When configured, clients

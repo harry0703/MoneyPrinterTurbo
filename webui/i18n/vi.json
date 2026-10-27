@@ -452,6 +452,16 @@
     "OFox Upstream Vendor Help": "Nhà cung cấp thượng nguồn phục vụ việc tạo video OFox. BytePlus (quốc tế) là mặc định với chính sách nội dung nhất quán; Volcano Engine là nhà cung cấp Trung Quốc đại lục; Tự động để gateway OFox cân bằng tải giữa các nhà cung cấp.",
     "OFox Vendor BytePlus": "BytePlus (quốc tế, mặc định)",
     "OFox Vendor Volcengine": "Volcano Engine (Trung Quốc đại lục)",
-    "OFox Vendor Auto": "Tự động (gateway cân bằng tải)"
+    "OFox Vendor Auto": "Tự động (gateway cân bằng tải)",
+    "codex.image.label": "Ảnh OpenAI - Codex",
+    "codex.image.help": "Dùng chung phiên ChatGPT và giới hạn tài khoản. Chọn mô hình Responses độc lập với LLM. Danh mục không đảm bảo quyền tạo ảnh.",
+    "codex.image.timeout": "Thời gian chờ ảnh (giây)",
+    "codex.oauth.shared": "Một tài khoản ChatGPT dùng cho văn bản và ảnh. Ngắt kết nối ảnh hưởng cả hai.",
+    "codex.image.model_required": "Chọn mô hình Responses Codex cho ảnh.",
+    "codex.image.invalid_timeout": "Thời gian chờ ảnh phải là số dương hữu hạn.",
+    "codex.image.invalid_result": "Codex không trả về một ảnh hoàn chỉnh hợp lệ duy nhất.",
+    "codex.image.uncertain": "Yêu cầu có thể đã được xử lý. Đã dừng mà không thử lại.",
+    "codex.image.save_failed": "Không lưu được ảnh Codex. Đã dừng mà không thử lại.",
+    "codex.image.render_failed": "Không kết xuất được ảnh Codex. Đã dừng mà không thử lại."
   }
 }

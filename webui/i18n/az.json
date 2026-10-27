@@ -452,6 +452,16 @@
     "OFox Upstream Vendor Help": "OFox ilə video yaratmanı təmin edən əsas xidmət provayderi. BytePlus (beynəlxalq) vahid məzmun siyasəti olan standart provayderdir; Volcano Engine materik Çindəki provayderdir; avtomatik seçim OFox şlüzünə yükü provayderlər arasında tarazlaşdırmağa imkan verir.",
     "OFox Vendor BytePlus": "BytePlus (beynəlxalq, standart)",
     "OFox Vendor Volcengine": "Volcano Engine (materik Çin)",
-    "OFox Vendor Auto": "Avtomatik (şlüzdə yükün tarazlaşdırılması)"
+    "OFox Vendor Auto": "Avtomatik (şlüzdə yükün tarazlaşdırılması)",
+    "codex.image.label": "OpenAI - Codex şəkilləri",
+    "codex.image.help": "Ortaq ChatGPT sessiyasından və hesab limitlərindən istifadə edir. LLM-dən müstəqil Responses modeli seçin. Kataloq şəkil girişinə zəmanət vermir.",
+    "codex.image.timeout": "Şəkil vaxt limiti (saniyə)",
+    "codex.oauth.shared": "Bir ChatGPT hesabı mətn və şəkillər üçündür. Çıxış hər ikisinə təsir edir.",
+    "codex.image.model_required": "Şəkillər üçün Codex Responses modeli seçin.",
+    "codex.image.invalid_timeout": "Şəkil vaxt limiti müsbət və sonlu ədəd olmalıdır.",
+    "codex.image.invalid_result": "Codex tək tam və etibarlı şəkil qaytarmadı.",
+    "codex.image.uncertain": "Sorğu işlənmiş ola bilər. Təkrarlanmadan dayandırıldı.",
+    "codex.image.save_failed": "Codex şəklini saxlamaq mümkün olmadı. Təkrarlanmadan dayandırıldı.",
+    "codex.image.render_failed": "Codex şəklini emal etmək mümkün olmadı. Təkrarlanmadan dayandırıldı."
   }
 }

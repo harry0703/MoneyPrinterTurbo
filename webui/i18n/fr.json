@@ -452,6 +452,16 @@
     "OFox Upstream Vendor Help": "Fournisseur amont utilisé pour la génération vidéo OFox. BytePlus (international) est la valeur par défaut, avec une politique de contenu cohérente ; Volcano Engine est le fournisseur de Chine continentale ; Auto laisse la passerelle OFox répartir la charge entre les fournisseurs.",
     "OFox Vendor BytePlus": "BytePlus (international, défaut)",
     "OFox Vendor Volcengine": "Volcano Engine (Chine continentale)",
-    "OFox Vendor Auto": "Auto (répartition par la passerelle)"
+    "OFox Vendor Auto": "Auto (répartition par la passerelle)",
+    "codex.image.label": "Images OpenAI - Codex",
+    "codex.image.help": "Utilise la session ChatGPT partagée et les limites du compte. Choisissez un modèle Responses indépendant du LLM. Le catalogue ne garantit pas l’accès aux images.",
+    "codex.image.timeout": "Délai maximal des images (secondes)",
+    "codex.oauth.shared": "Un compte ChatGPT sert au texte et aux images. La déconnexion affecte les deux.",
+    "codex.image.model_required": "Choisissez un modèle Responses Codex pour les images.",
+    "codex.image.invalid_timeout": "Le délai des images Codex doit être un nombre positif et fini.",
+    "codex.image.invalid_result": "Codex n’a pas renvoyé une seule image complète et valide.",
+    "codex.image.uncertain": "La demande a peut-être été traitée. Génération arrêtée sans nouvelle tentative.",
+    "codex.image.save_failed": "Impossible d’enregistrer l’image Codex. Arrêt sans nouvelle tentative.",
+    "codex.image.render_failed": "Impossible de rendre l’image Codex. Arrêt sans nouvelle tentative."
   }
 }

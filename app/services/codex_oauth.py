@@ -1,4 +1,4 @@
-"""Device authorization and text-only Codex Responses transport.
+"""Device authorization and shared Codex Responses transport.
 
 The protocol is also used by Jarvys. This is an independent Python implementation;
 credentials belong to this application and never touch the user's Codex login.
@@ -309,6 +309,57 @@ def _credentials(force=False, expected=None, generation=None):
             renewed = _bundle(_json(response), current)
         _save(renewed)
         return renewed
+
+
+def request_image(payload, *, generation, timeout, read_result):
+    """Send an image request with the application's existing credentials.
+
+    Only an explicit 401 permits another POST. The caller owns image parsing;
+    credentials and the serialized refresh stay inside this service.
+    """
+    deadline = time.monotonic() + timeout
+    credentials = _credentials(generation=generation)
+    for attempt in range(2):
+        if generation != authorization_generation():
+            raise CodexError("codex.oauth.changed")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CodexError("codex.oauth.timeout")
+        try:
+            with _post(
+                RESPONSES_URL,
+                timeout=(min(15, remaining), remaining),
+                stream=True,
+                headers={
+                    "Authorization": "Bearer " + credentials["access_token"],
+                    "chatgpt-account-id": credentials["account_id"],
+                    "Accept": "text/event-stream",
+                    "OpenAI-Beta": "responses=experimental",
+                    "originator": "moneyprinterturbo",
+                    "User-Agent": "MoneyPrinterTurbo/1.3.9",
+                },
+                json=payload,
+            ) as response:
+                if response.status_code == 401 and attempt == 0:
+                    credentials = _credentials(
+                        force=True,
+                        expected=credentials["access_token"],
+                        generation=generation,
+                    )
+                    continue
+                if response.status_code == 429:
+                    raise CodexError("codex.oauth.rate_limit")
+                if response.status_code != 200:
+                    raise CodexError(
+                        "codex.oauth.http_error", status=response.status_code
+                    )
+                result = read_result(response, deadline)
+                if generation != authorization_generation():
+                    raise CodexError("codex.oauth.changed")
+                return result
+        except requests.RequestException:
+            raise CodexError("codex.oauth.network_error") from None
+    raise CodexError("codex.oauth.reconnect")
 
 
 def _final_text(payload):

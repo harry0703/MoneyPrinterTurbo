@@ -5,15 +5,20 @@ import streamlit as st
 from app.services import codex_models
 
 
-def render_codex_model_selector(current_model, tr):
-    refresh = st.button(tr("codex.models.refresh"), key="codex_models_refresh")
+def render_codex_model_selector(current_model, tr, *, prefix="openai_codex"):
+    refresh_key = (
+        "codex_models_refresh"
+        if prefix == "openai_codex"
+        else f"{prefix}_models_refresh"
+    )
+    refresh = st.button(tr("codex.models.refresh"), key=refresh_key)
     try:
         catalog = codex_models.get_catalog(force_refresh=refresh)
     except codex_models.CatalogError:
         st.warning(tr("codex.models.failed"))
         # A catalog outage must not erase or replace a previously selected model.
         return st.text_input(
-            tr("Model Name"), value=current_model, key="openai_codex_model_name_input"
+            tr("Model Name"), value=current_model, key=f"{prefix}_model_name_input"
         ).strip()
     if catalog.stale:
         st.caption(tr("codex.models.stale"))
@@ -27,7 +32,7 @@ def render_codex_model_selector(current_model, tr):
         options=options,
         index=options.index(current_model) if current_model in choices else None,
         format_func=choices.get,
-        key="openai_codex_model_name_select",
+        key=f"{prefix}_model_name_select",
         placeholder=tr("codex.models.choose"),
     )
     st.caption(tr("codex.models.source"))

@@ -452,6 +452,16 @@
     "OFox Upstream Vendor Help": "OFox 영상 생성에 사용할 업스트림 공급사입니다. BytePlus(국제)가 기본값으로 콘텐츠 정책이 일관됩니다. Volcano Engine은 중국 본토 공급사이며, 자동은 OFox 게이트웨이가 공급사 간 부하를 분산합니다.",
     "OFox Vendor BytePlus": "BytePlus (국제, 기본값)",
     "OFox Vendor Volcengine": "Volcano Engine (중국 본토)",
-    "OFox Vendor Auto": "자동 (게이트웨이 부하 분산)"
+    "OFox Vendor Auto": "자동 (게이트웨이 부하 분산)",
+    "codex.image.label": "OpenAI - Codex 이미지",
+    "codex.image.help": "공유 ChatGPT 세션과 계정 한도를 사용합니다. LLM과 별도로 Responses 모델을 선택하세요. 카탈로그는 이미지 접근 권한을 보장하지 않습니다.",
+    "codex.image.timeout": "이미지 요청 제한 시간(초)",
+    "codex.oauth.shared": "하나의 ChatGPT 계정으로 텍스트와 이미지를 사용합니다. 연결 해제는 둘 다에 적용됩니다.",
+    "codex.image.model_required": "이미지용 Codex Responses 모델을 선택하세요.",
+    "codex.image.invalid_timeout": "이미지 제한 시간은 양의 유한한 숫자여야 합니다.",
+    "codex.image.invalid_result": "Codex가 완전하고 유효한 이미지 하나를 반환하지 않았습니다.",
+    "codex.image.uncertain": "요청이 처리되었을 수 있습니다. 재시도 없이 중단했습니다.",
+    "codex.image.save_failed": "Codex 이미지를 저장하지 못했습니다. 재시도 없이 중단했습니다.",
+    "codex.image.render_failed": "Codex 이미지를 렌더링하지 못했습니다. 재시도 없이 중단했습니다."
   }
 }

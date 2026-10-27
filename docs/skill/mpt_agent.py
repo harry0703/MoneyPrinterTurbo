@@ -41,6 +41,7 @@ SUPPORTED_SOURCES = {
     # Keep this list aligned with ``_CLI_VIDEO_SOURCES`` in cli.py. A source that
     # the CLI accepts must not be rejected here as unsupported.
     "openai_image",
+    "codex_image",
     "local",
 }
 VOLCENGINE_ARK_API_KEY_URL = (
@@ -510,6 +511,15 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("jalapeno_video_api_key")
         if not has_cli_option(cli_args, "--confirm-jalapeno-charge"):
             missing.append("confirm_jalapeno_charge")
+    elif source == "codex_image":
+        if not _has_configured_value(_plain_config_value(text, "codex_image_model_name")):
+            missing.append("codex_image_model_name")
+        # This bootstrap helper runs without application dependencies. Presence
+        # is only a hint; the runtime validates/decrypts the shared session.
+        runtime_root = Path(os.environ.get("MPT_HOME") or config_path.parent)
+        connected = (runtime_root / "storage" / "auth" / "openai_codex.bin").is_file()
+        if not connected:
+            missing.append("codex_sign_in")
     elif source == "openai_image":
         # 与运行时的 is_openai_image_enabled() 保持一致：文生图素材源只要求端点
         # 与模型名。完全本地的 ComfyUI/SD 网关允许不配置 API Key，因此这里不
@@ -561,6 +571,8 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
             "openai_image_base_url, openai_image_model (the API key is optional "
             "for local gateways)"
         )
+    if "codex_sign_in" in missing:
+        print("CODEX_SIGN_IN_REQUIRED=Open Codex account settings in the WebUI and sign in once for text and images")
     if "pexels_api_keys" in missing:
         print(f"PEXELS_API_KEY_URL={PEXELS_API_KEY_URL}")
         print(f"PEXELS_API_KEY_HELP_URL={PEXELS_API_KEY_HELP_URL}")

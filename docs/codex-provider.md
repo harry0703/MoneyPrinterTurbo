@@ -7,8 +7,31 @@ must be enabled for the account. Use **Test LLM Connection** after connecting an
 selecting a model.
 
 This provider uses the Codex allowance of the connected ChatGPT subscription for
-text generation. Voice and video generation still use their separately configured
-providers. No API key, Codex CLI installation or shared CLI credentials are needed.
+text and optional image generation. No API key, Codex CLI installation or shared
+CLI credentials are needed. Voice and video rendering retain their existing providers.
+
+## Image material source
+
+Choose **OpenAI - Codex Images** under **AI Image** in Video Source. In Settings,
+the AI Image Generation APIs section has a separate Responses model selector and
+request timeout (`codex_image_model_name`, `codex_image_timeout`). There is no
+default model. The catalog lists candidates, not account-specific image access;
+the selected Responses model must support the image-generation tool for the account.
+The tool chooses its image engine; do not substitute a GPT Image engine name for
+the Responses model ID.
+
+Text and images share one ChatGPT account and one device-code login. Connecting
+from the image settings also connects the LLM, and an existing LLM session is
+reused automatically. Disconnecting removes the shared session for both. The
+LLM provider and its model remain independent of the image source and its model.
+
+Codex produces PNG material through the existing image-to-video path, including
+the existing static/zoom effects and duration handling. It does not change script,
+keyword or narration generation. Each image uses the account's allowance. If a
+request's result is uncertain, invalid, or cannot be saved/rendered, the job stops
+without automatically generating a replacement. Only an explicit 401 permits a
+single coordinated token refresh and retry. A logout or account switch invalidates
+queued and in-flight image work from the previous authorization.
 
 ## Models
 

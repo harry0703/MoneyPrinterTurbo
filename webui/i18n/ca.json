@@ -452,6 +452,16 @@
     "OFox Upstream Vendor Help": "Tria qui genera els vídeos a través d'OFox. BytePlus (internacional) és l'opció per defecte i aplica una política de contingut uniforme. Volcano Engine és el proveïdor de la Xina continental. L'opció automàtica reparteix les peticions entre proveïdors.",
     "OFox Vendor BytePlus": "BytePlus (internacional, per defecte)",
     "OFox Vendor Volcengine": "Volcano Engine (Xina continental)",
-    "OFox Vendor Auto": "Automàtic (repartiment de peticions)"
+    "OFox Vendor Auto": "Automàtic (repartiment de peticions)",
+    "codex.image.label": "Imatges OpenAI - Codex",
+    "codex.image.help": "Utilitza la sessió compartida de ChatGPT i els límits del compte. Tria un model Responses independent del LLM. El catàleg no garanteix accés a imatges.",
+    "codex.image.timeout": "Temps màxim d’imatges (segons)",
+    "codex.oauth.shared": "Un compte ChatGPT serveix per a text i imatges. Desconnectar afecta tots dos.",
+    "codex.image.model_required": "Tria un model Responses Codex per a imatges.",
+    "codex.image.invalid_timeout": "El temps màxim ha de ser un nombre positiu i finit.",
+    "codex.image.invalid_result": "Codex no ha retornat una única imatge completa i vàlida.",
+    "codex.image.uncertain": "La sol·licitud pot haver-se processat. Generació aturada sense reintentar.",
+    "codex.image.save_failed": "No s’ha pogut desar la imatge Codex. Aturat sense reintentar.",
+    "codex.image.render_failed": "No s’ha pogut renderitzar la imatge Codex. Aturat sense reintentar."
   }
 }

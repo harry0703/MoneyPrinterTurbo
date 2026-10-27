@@ -24,6 +24,7 @@ from PIL import Image, UnidentifiedImageError
 from app.config import config
 from app.models.schema import ImageMotion, MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
+    codex_image,
     generation_progress,
     infistar_video,
     jalapeno_video,
@@ -68,6 +69,19 @@ class OpenAIImagePaidResultError(RuntimeError):
 
 class OpenAIImageUnconfirmedError(OpenAIImagePaidResultError):
     """A paid image request may have succeeded without returning a response."""
+
+
+class CodexImageMaterialError(OpenAIImagePaidResultError):
+    """Stop the image loop while retaining a translatable, sanitized error."""
+
+    def __init__(self, error):
+        self.key = error.key
+        self.params = error.params
+        messages = {
+            "codex.image.save_failed": "Could not save the generated Codex image. Generation stopped without retrying.",
+            "codex.image.render_failed": "Could not render the generated Codex image. Generation stopped without retrying.",
+        }
+        super().__init__(messages.get(self.key, str(error)))
 
 
 def _safe_public_url(value: Any) -> str | None:
@@ -1749,6 +1763,50 @@ def generate_images_openai(
     return [item]
 
 
+def generate_images_codex(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+    save_dir: str = "",
+    *,
+    context=None,
+) -> List[MaterialInfo]:
+    """Obtain one Codex image using the existing PNG material representation."""
+    aspect = VideoAspect(video_aspect)
+    if minimum_duration <= 0:
+        return []
+    try:
+        context = context if context is not None else codex_image.capture_context()
+        codex_image.assert_current(context)
+        # Independent of the OpenAI-compatible provider's template and settings.
+        prompt = (
+            f"Create one image depicting: {search_term}. "
+            f"Compose the image for a {aspect.value} video frame."
+        )
+        generation_progress.submitting("codex_image")
+        image_bytes = codex_image.generate_image(prompt, context)
+        codex_image.assert_current(context)
+        try:
+            image_path, width, height = _save_openai_image_file(image_bytes, save_dir)
+        except _OpenAIImageDecodeError:
+            raise codex_image.CodexImageError("codex.image.invalid_result") from None
+        except OSError:
+            raise codex_image.CodexImageError("codex.image.save_failed") from None
+        codex_image.assert_current(context)
+    except codex_image.CodexImageError as error:
+        raise CodexImageMaterialError(error) from None
+    item = MaterialInfo()
+    item.provider = "codex_image"
+    item.url = image_path
+    item.duration = max(int(minimum_duration), 1)
+    item.source_info = {
+        "provider": "codex_image",
+        "search_term": search_term,
+        "rendition": {"id": None, "width": width, "height": height},
+    }
+    return [item]
+
+
 def _render_openai_image_video(
     image_path: str, clip_duration: int, image_motion: ImageMotion = ImageMotion.zoom
 ) -> str:
@@ -1778,6 +1836,9 @@ def _download_videos_openai_image_on_demand(
     max_clip_duration: int,
     material_directory: str,
     image_motion: ImageMotion = ImageMotion.zoom,
+    image_generator: Callable[..., List[MaterialInfo]] | None = None,
+    provider: str = "openai_image",
+    codex_image_context=None,
 ) -> List[str]:
     """
     按脚本片段顺序逐张生成 OpenAI 兼容文生图素材，凑够所需总时长立即停止。
@@ -1812,13 +1873,29 @@ def _download_videos_openai_image_on_demand(
         _persist_material_sources(task_id, material_sources)
         return video_paths
 
+    if image_generator is None:
+        image_generator = generate_images_openai
+    generation_options = {}
+    if provider == "codex_image":
+        try:
+            codex_image_context = (
+                codex_image_context
+                if codex_image_context is not None
+                else codex_image.capture_context()
+            )
+            codex_image.assert_current(codex_image_context)
+        except codex_image.CodexImageError as error:
+            raise CodexImageMaterialError(error) from None
+        generation_options["context"] = codex_image_context
+
     for search_term in search_terms:
         try:
-            items = generate_images_openai(
+            items = image_generator(
                 search_term=search_term,
                 minimum_duration=max_clip_duration,
                 video_aspect=video_aspect,
                 save_dir=material_directory,
+                **generation_options,
             )
         except OpenAIImagePaidResultError:
             _persist_material_sources(task_id, material_sources)
@@ -1829,9 +1906,19 @@ def _download_videos_openai_image_on_demand(
             )
             if not video_file:
                 _persist_material_sources(task_id, material_sources)
+                if provider == "codex_image":
+                    raise CodexImageMaterialError(
+                        codex_image.CodexImageError("codex.image.render_failed")
+                    )
                 raise OpenAIImagePaidResultError(
                     "generated image could not be rendered locally"
                 )
+            if provider == "codex_image":
+                try:
+                    codex_image.assert_current(codex_image_context)
+                except codex_image.CodexImageError as error:
+                    _persist_material_sources(task_id, material_sources)
+                    raise CodexImageMaterialError(error) from None
             logger.info(f"image material rendered: {video_file}")
             video_paths.append(video_file)
             try:
@@ -1841,7 +1928,7 @@ def _download_videos_openai_image_on_demand(
                 # 素材当作失败，更不能阻断视频生成。
                 logger.warning(
                     "failed to prepare generated material source record: "
-                    f"provider=openai_image, "
+                    f"provider={provider}, "
                     f"error={type(source_error).__name__}, detail={source_error}"
                 )
             total_duration += min(max_clip_duration, item.duration)
@@ -2184,6 +2271,7 @@ def download_videos(
     progress_callback: Callable[[float], None] | None = None,
     image_motion: ImageMotion = ImageMotion.zoom,
     jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
+    codex_image_context=None,
 ) -> List[str]:
     """
     搜索并下载覆盖配音时长所需的素材，返回本地文件路径。
@@ -2286,10 +2374,17 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
-    if source == "openai_image":
+    if source in {"openai_image", "codex_image"}:
         # 与 WaveSpeed 相同的按需付费语义：文生图按张计费，逐段生成、凑够
         # 所需时长立即停止。生成结果是一次性的本地图片文件，也不参与 24
         # 小时搜索缓存——缓存会让不同任务反复拿到同一张图。
+        image_options = {}
+        if source == "codex_image":
+            image_options = {
+                "image_generator": generate_images_codex,
+                "provider": source,
+                "codex_image_context": codex_image_context,
+            }
         return _download_videos_openai_image_on_demand(
             task_id=task_id,
             search_terms=search_terms,
@@ -2298,6 +2393,7 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
             image_motion=image_motion,
+            **image_options,
         )
 
     if match_script_order:
