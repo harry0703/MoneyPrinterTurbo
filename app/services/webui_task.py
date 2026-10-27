@@ -1,6 +1,10 @@
 import copy
+import hashlib
+import json
 import threading
+import time
 from collections import deque
+from dataclasses import asdict
 
 from loguru import logger
 
@@ -30,9 +34,50 @@ _task_logs: dict[str, deque[str]] = {}
 _task_logs_lock = threading.RLock()
 _MAX_LOG_TASKS = 20
 _MAX_LOG_RECORDS_PER_TASK = 1000
+_submission_lock = threading.RLock()
+_active_submissions: dict[str, str] = {}
 # Streamlit 无法由后台线程直接推送组件更新，只能通过 Fragment 轮询。0.5 秒
 # 足以让 WebUI 日志接近终端实时输出，又不会像高频刷新那样持续占用浏览器资源。
 TASK_LOG_REFRESH_INTERVAL_SECONDS = 0.5
+
+
+def is_generation_active(task_id: str) -> bool:
+    """以后台预占名额为准，覆盖入队及状态发布之间的窗口。"""
+    with _submission_lock:
+        return task_id in _active_submissions.values()
+
+
+def _submission_signature(params, references, request, endpoint, preview):
+    # 仅保留摘要，不保存凭据或上传内容。不同 Key/模型/输入是不同请求，
+    # 相同内容在完成后允许再次生成；只合并仍在排队或执行的重复提交。
+    request_inputs = asdict(request) if request is not None else None
+    if request_inputs is not None:
+        # 两个标签页会为相同报价输入各自生成一个幂等 ID；它不是内容差异。
+        # 保留账号、模型、输入行和报价版本，以首个已确认请求继续执行。
+        request_inputs.pop("client_request_id", None)
+    payload = {
+        "params": params.model_dump(mode="json", warnings=False),
+        "settings": {
+            name: config.snapshot_config_with_pending(getattr(config, name))
+            for name in ("app", "azure", "elevenlabs", "siliconflow", "chatterbox")
+        },
+        "references": [hashlib.sha256(value or b"").hexdigest() for value in references],
+        "request": request_inputs,
+        "endpoint": asdict(endpoint) if endpoint is not None else None,
+        # 配音来源会改变实际输出；暂存路径随本地任务 ID 变化，不属于输入差异。
+        "voice_preview": {
+            key: preview[key]
+            for key in ("script", "voice_name", "voice_rate", "voice_volume", "duration", "params", "audio_digest")
+            if key in preview
+        } if preview else None,
+    }
+    if preview and not preview.get("audio_digest"):
+        # 旧调用方没有内容摘要时，不能仅凭同一时长推断两个文件相同。
+        # 不在校验前读取任意路径；宁可保留不同文件的独立请求。
+        payload["voice_preview"]["audio_file"] = preview.get("audio_file")
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode()
+    ).hexdigest()
 
 
 def _append_task_log(task_id: str, message: str) -> None:
@@ -130,6 +175,10 @@ def _run_generation(
         )
         return failure
     finally:
+        with _submission_lock:
+            for signature, active_id in list(_active_submissions.items()):
+                if active_id == task_id:
+                    del _active_submissions[signature]
         if log_handler_id is not None:
             try:
                 logger.remove(log_handler_id)
@@ -149,7 +198,7 @@ def submit_generation(
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
     jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
-) -> None:
+) -> str:
     """
     登记并提交 WebUI 视频生成任务，调用后立即返回。
 
@@ -181,11 +230,50 @@ def submit_generation(
         jalapeno_video_endpoint = jalapeno_video.endpoint(
             config.snapshot_config_with_pending(config.app)
         )
+    signature = _submission_signature(
+        task_params,
+        (voxcpm_reference_audio_snapshot, voxcpm_prompt_audio_snapshot,
+         voxcpm_prompt_text_snapshot.encode()),
+        loomloom_request_snapshot, jalapeno_video_endpoint, voice_preview_snapshot,
+    )
+    # 同一锁内查重并预占，两个标签页同时点击也只会真正入队一次。
+    with _submission_lock:
+        existing = _active_submissions.get(signature)
+        if existing:
+            return existing
+        if task_id in _active_submissions.values():
+            return task_id
+        _active_submissions[signature] = task_id
+    try:
+        _enqueue_generation(
+            task_id, task_params, capture_logs, voice_preview_snapshot,
+            loomloom_request_snapshot, voxcpm_reference_audio_snapshot,
+            voxcpm_prompt_audio_snapshot, voxcpm_prompt_text_snapshot,
+            jalapeno_video_endpoint,
+        )
+    except Exception:
+        with _submission_lock:
+            if _active_submissions.get(signature) == task_id:
+                del _active_submissions[signature]
+        raise
+    return task_id
+
+
+def _enqueue_generation(
+    task_id, task_params, capture_logs, voice_preview_snapshot,
+    loomloom_request_snapshot, voxcpm_reference_audio_snapshot,
+    voxcpm_prompt_audio_snapshot, voxcpm_prompt_text_snapshot,
+    jalapeno_video_endpoint,
+):
+    submitted_at = time.time()
     sm.state.update_task(
         task_id,
         state=const.TASK_STATE_PROCESSING,
         progress=0,
         video_subject=task_params.video_subject or task_params.video_script or task_id,
+        generation_submitted_at=submitted_at,
+        generation_activity={"phase": "queued", "started_at": submitted_at,
+                             "updated_at": submitted_at},
     )
     try:
         _task_manager.add_task(

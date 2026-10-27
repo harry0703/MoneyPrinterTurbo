@@ -1,5 +1,6 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 import io
 import math
 import os
@@ -23,6 +24,7 @@ from PIL import Image, UnidentifiedImageError
 from app.config import config
 from app.models.schema import ImageMotion, MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
+    generation_progress,
     infistar_video,
     jalapeno_video,
     material_cache,
@@ -851,6 +853,7 @@ def generate_videos_wavespeed(
 
     # 提交 POST 绝不自动重试：请求可能已经在远端创建了付费任务，重发会造成
     # 重复生成和重复扣费（与官方 SDK 的 submission 策略一致）。
+    generation_progress.submitting("wavespeed")
     try:
         submit_response = trace_http_call(
             "POST", requests.post,
@@ -982,6 +985,7 @@ def _wait_for_wavespeed_prediction(
     :class:`WaveSpeedUnconfirmedTaskError`，由调用方终止整个生成流程。
     """
     deadline = time.monotonic() + WAVESPEED_RUN_TIMEOUT_SECONDS
+    generation_progress.remote("wavespeed", prediction_id)
     consecutive_failures = 0
     while True:
         try:
@@ -1028,6 +1032,7 @@ def _wait_for_wavespeed_prediction(
                     prediction_id=prediction_id,
                 ) from e
             consecutive_failures += 1
+            generation_progress.remote("wavespeed", prediction_id, retrying=True)
             if consecutive_failures > WAVESPEED_MAX_POLL_RETRIES:
                 raise WaveSpeedUnconfirmedTaskError(
                     "wavespeed prediction polling failed after "
@@ -1050,6 +1055,7 @@ def _wait_for_wavespeed_prediction(
         # 拿到一次有效响应就重置计数，只有连续失败才消耗重试额度。
         consecutive_failures = 0
         status = str(result_data.get("status") or "")
+        generation_progress.remote("wavespeed", prediction_id, status)
         if status == "completed":
             return result_data
         if status in WAVESPEED_FAILURE_STATUSES:
@@ -1157,6 +1163,7 @@ def _describe_download_progress(
 
 
 def save_video(video_url: str, save_dir: str = "") -> str:
+    generation_progress.downloading()
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
 
@@ -1222,6 +1229,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
                         now = time.monotonic()
                         if now - last_report_at >= _DOWNLOAD_HEARTBEAT_SECONDS:
                             last_report_at = now
+                            generation_progress.downloading(downloaded_bytes, declared_size)
                             # 只记录缓存文件名：下载地址可能带签名或密钥。
                             logger.info(
                                 f"downloading video {video_id}.mp4: "
@@ -1243,6 +1251,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
             # Container duration and an initial frame do not prove the rest of
             # a faststart MP4 arrived. Validate every video packet before a
             # nonempty cache entry becomes reusable by later tasks.
+            generation_progress.verifying()
             material_upload._validate_video(temp_path)
             if not (duration > 0 and fps > 0):
                 logger.warning(f"invalid video file: {temp_path} => invalid duration or fps")
@@ -1704,6 +1713,7 @@ def generate_images_openai(
         f"generating image via openai-compatible endpoint: model={model}, "
         f"term={search_term!r}, size={image_size}"
     )
+    generation_progress.submitting("openai_image")
     image_bytes, failure_detail = _request_openai_image(endpoint, payload)
     if image_bytes is None:
         logger.error(
@@ -1983,6 +1993,7 @@ def _search_terms_in_parallel(
     ) as executor:
         for search_term in search_terms:
             futures[executor.submit(
+                copy_context().run,
                 logging_utils.bind_log_scope(search_videos),
                 search_term,
                 minimum_duration,
@@ -2111,6 +2122,7 @@ def _download_materials_in_parallel(
     ) as executor:
         for search_term, item in materials:
             futures[executor.submit(
+                copy_context().run,
                 logging_utils.bind_log_scope(save_video),
                 item.url,
                 material_directory,

@@ -14,7 +14,7 @@ from loguru import logger
 
 from app.config import config
 from app.models.schema import MaterialInfo, VideoAspect
-from app.services import material_upload
+from app.services import generation_progress, material_upload
 from app.utils.request_logging import sanitize_payload, trace_http_call
 
 DEFAULT_BASE_URL = "https://infistar.cc/v1"
@@ -131,6 +131,7 @@ def _wait(task_id, base, headers, secret):
         "infistar_video_run_timeout", 1800, 60, 7200
     )
     interval = _setting_seconds("infistar_video_poll_interval", 5, 1, 60)
+    generation_progress.remote("infistar", task_id)
     failures = 0
     previous = ""
     while time.monotonic() < deadline:
@@ -153,6 +154,7 @@ def _wait(task_id, base, headers, secret):
             body = _json(response, task_id)
         except (requests.RequestException, OSError) as exc:
             failures += 1
+            generation_progress.remote("infistar", task_id, retrying=True)
             if failures > 5:
                 raise InfistarVideoUnconfirmedError(
                     "Infistar polling failed; keep the task ID and check the console",
@@ -162,6 +164,7 @@ def _wait(task_id, base, headers, secret):
             continue
         failures = 0
         status = str(body.get("status", "")).strip().lower()
+        generation_progress.remote("infistar", task_id, status)
         if status != previous:
             logger.info(f"Infistar video task: id={task_id}, status={status}")
             previous = status
@@ -184,6 +187,7 @@ def _wait(task_id, base, headers, secret):
 
 def _download(task_id, base, headers, output_dir):
     """仅向原始 content 端点发送 Key；重定向到对象存储后不携带凭据。"""
+    generation_progress.downloading()
     url = f"{base}/videos/{quote(task_id, safe='')}/content"
     response = None
     staged = None
@@ -221,10 +225,12 @@ def _download(task_id, base, headers, output_dir):
                 if count > MAX_DOWNLOAD_BYTES:
                     raise ValueError("Video download exceeds 512 MiB")
                 stream.write(chunk)
+                generation_progress.downloading(count)
             if count == 0:
                 raise ValueError("Video download is empty")
         # 复用素材验证：拒绝错误页、播放列表和仅有文件头的截断视频，
         # 完整解码成功后才将原子落盘的文件交给后续素材编排。
+        generation_progress.verifying()
         material_upload._validate_video(str(staged))
         from moviepy import VideoFileClip
 
@@ -272,6 +278,7 @@ def generate_video(*, search_term, video_aspect, output_dir) -> MaterialInfo:
     }
     # 当前 MiniMax 线路忽略 aspect_ratio，size 只接受分辨率档位。
     # 明确生成横屏素材，竖屏成片由既有画面适配逻辑裁剪或留边；WebUI 同步提示。
+    generation_progress.submitting("infistar")
     try:
         response = _request(
             "POST", f"{base}/videos", json=payload, headers=headers, timeout=(30, 90)

@@ -961,6 +961,10 @@ def _remove_active_generation_task(task_id):
 def _prepare_generation_task():
     # st.button 的 on_click 会在页面脚本重新执行前触发。这里提前生成任务 ID，
     # 顶部任务管理入口就能在同一次 rerun 中显示“生成中”数量。
+    current_id = _current_generation_task_id()
+    if current_id and webui_task.is_generation_active(current_id):
+        st.session_state["pending_generation_task_id"] = current_id
+        return
     task_id = str(uuid4())
     st.session_state["pending_generation_task_id"] = task_id
     subject = st.session_state.get("video_subject") or st.session_state.get(
@@ -2035,6 +2039,71 @@ def _render_generation_logs(task_id):
     st.code("\n".join(log_records))
 
 
+def _current_generation_task_id():
+    """URL 只保存本地任务 ID，让刷新/重连恢复原任务，不保存配置或凭据。"""
+    task_id = st.session_state.get("current_generation_task_id", "")
+    if not task_id:
+        try:
+            task_id = str(UUID(st.query_params.get("generation_task", "")))
+        except (ValueError, TypeError, AttributeError):
+            return ""
+        st.session_state["current_generation_task_id"] = task_id
+    return task_id
+
+
+def _generation_is_busy(task_id):
+    if not task_id:
+        return False
+    if webui_task.is_generation_active(task_id):
+        return True
+    try:
+        task = sm.state.get_task(task_id)
+    except Exception:
+        # 查询异常时不能把“状态未知”当作已完成而放开重复提交。
+        return True
+    return _normalize_task_state((task or {}).get("state")) == const.TASK_STATE_PROCESSING
+
+
+def _render_generation_activity(task):
+    activity = task.get("generation_activity") or {}
+    phase = activity.get("phase", "")
+    labels = {
+        "queued": "Generation Waiting In Queue",
+        "preparing": "Generation Preparing",
+        "script": "Generation Writing Script",
+        "terms": "Generation Preparing Terms",
+        "audio": "Generation Preparing Audio",
+        "subtitle": "Generation Preparing Subtitles",
+        "materials": "Generation Preparing Materials",
+        "submitting": "Generation Submitting",
+        "checking": "Generation Checking",
+        "remote_queued": "Generation Remote Queued",
+        "generating": "Generation Remote Running",
+        "generated": "Generation Remote Completed",
+        "downloading": "Generation Downloading",
+        "verifying": "Generation Verifying",
+        "rendering": "Generation Rendering",
+    }
+    st.info(tr(labels.get(phase, "Generating Video")))
+    now = time.time()
+    started = (task.get("generation_submitted_at") or task.get("generation_started_at")
+               or activity.get("started_at") or now)
+    elapsed = max(0, int(now - float(started)))
+    st.caption(tr("Generation Elapsed").format(time=f"{elapsed // 60:02d}:{elapsed % 60:02d}"))
+    if phase in {"submitting", "remote_queued", "generating", "checking"}:
+        st.caption(tr("Generation Long Wait Hint"))
+        if activity.get("retrying"):
+            st.warning(tr("Generation Poll Retry Hint"))
+        if activity.get("confirmed_at"):
+            age = max(0, int(now - float(activity["confirmed_at"])))
+            st.caption(tr("Generation Last Checked").format(seconds=age))
+    if phase == "downloading" and activity.get("downloaded_bytes"):
+        downloaded = activity["downloaded_bytes"] / (1024 * 1024)
+        st.caption(tr("Generation Downloaded").format(size=f"{downloaded:.1f}"))
+    if activity.get("remote_id"):
+        st.caption(tr("Generation Remote Task").format(task_id=activity["remote_id"]))
+
+
 def _render_generation_task_snapshot(task_id, task):
     """根据状态存储中的快照渲染进度、失败原因或最终成片。"""
     if not task:
@@ -2045,7 +2114,7 @@ def _render_generation_task_snapshot(task_id, task):
     state = _normalize_task_state(task.get("state"))
     progress = max(0, min(100, int(task.get("progress", 0) or 0)))
     if state == const.TASK_STATE_PROCESSING:
-        st.info(tr("Generating Video"))
+        _render_generation_activity(task)
         st.progress(
             progress,
             text=f"{tr('Task Progress')}: {progress}%",
@@ -2058,6 +2127,9 @@ def _render_generation_task_snapshot(task_id, task):
         error = str(task.get("error") or "").strip()
         message = tr("Video Generation Failed")
         st.error(f"{message}: {error}" if error else message)
+        activity = task.get("generation_activity") or {}
+        if activity.get("remote_id"):
+            st.warning(tr("Generation Existing Task Hint").format(task_id=activity["remote_id"]))
         if not video_files:
             _render_generation_logs(task_id)
             return
@@ -2161,9 +2233,12 @@ def _render_running_generation_task(task_id):
         logger.exception(
             f"failed to query WebUI generation task: task_id={task_id}, error={exc}"
         )
-        st.error(tr("Video Generation Failed"))
+        st.warning(tr("Generation Status Unavailable"))
         return
 
+    if not task and not webui_task.is_generation_active(task_id):
+        st.warning(tr("Generation Task Unavailable"))
+        return
     state = _normalize_task_state((task or {}).get("state"))
     if state in {const.TASK_STATE_COMPLETE, const.TASK_STATE_FAILED}:
         _remove_active_generation_task(task_id)
@@ -2172,11 +2247,20 @@ def _render_running_generation_task(task_id):
         st.rerun(scope="app")
 
     _render_generation_task_snapshot(task_id, task)
+    if not webui_task.is_generation_active(task_id):
+        # 持久状态可能属于重启前或另一服务进程，不能断言远端任务已停止。
+        # 只允许解除当前页面的跟踪，不取消任务、不改写其真实状态。
+        st.warning(tr("Generation Untracked Worker Hint"))
+        if st.button(tr("Stop Tracking Generation"), key=f"stop_tracking_generation_{task_id}"):
+            _remove_active_generation_task(task_id)
+            st.session_state["current_generation_task_id"] = ""
+            st.query_params.pop("generation_task", None)
+            st.rerun(scope="app")
 
 
 def _render_current_generation_task():
     """在生成按钮下方恢复当前页面最近提交任务的可查询 UI。"""
-    task_id = st.session_state.get("current_generation_task_id", "")
+    task_id = _current_generation_task_id()
     if not task_id:
         return
 
@@ -2186,9 +2270,13 @@ def _render_current_generation_task():
         logger.exception(
             f"failed to query current WebUI task: task_id={task_id}, error={exc}"
         )
-        st.error(tr("Video Generation Failed"))
+        # 即使首次读取失败，也要注册 Fragment，让状态后端恢复后自动继续。
+        _render_running_generation_task(task_id)
         return
 
+    if not task and not webui_task.is_generation_active(task_id):
+        st.warning(tr("Generation Task Unavailable"))
+        return
     state = _normalize_task_state((task or {}).get("state"))
     if state in {const.TASK_STATE_COMPLETE, const.TASK_STATE_FAILED}:
         _remove_active_generation_task(task_id)
@@ -4634,7 +4722,8 @@ def _render_loomloom_video_settings(params):
         st.session_state["loomloom_video_quote_error"] = ""
     quote_failed = bool(st.session_state.get("loomloom_video_quote_error"))
     # Quote 不创建付费任务，真正执行仍需用户明确勾选确认。
-    if token and batch is not None and not quote_is_current and not quote_failed:
+    if (token and batch is not None and not quote_is_current and not quote_failed
+            and not _generation_is_busy(_current_generation_task_id())):
         st.session_state["loomloom_video_confirm_charge"] = False
         try:
             quote_result = _create_loomloom_video_backend().quote(batch)
@@ -6586,6 +6675,7 @@ def _get_reusable_full_voice_preview(params, voice_mode: str) -> dict | None:
 
     return {
         "audio_bytes": bytes(cached_preview["audio_bytes"]),
+        "audio_digest": hashlib.sha256(cached_preview["audio_bytes"]).hexdigest(),
         "duration": float(duration),
         "sub_maker": cached_preview["sub_maker"],
         "script": script_content,
@@ -8195,12 +8285,14 @@ def _render_generation_controls(
 
     _render_settings_transfer(params)
 
+    generation_busy = _generation_is_busy(_current_generation_task_id())
     start_button = st.button(
-        tr("Generate Video"),
+        tr("Generating Video") if generation_busy else tr("Generate Video"),
         use_container_width=True,
         type="primary",
         key="generate_video_button",
         on_click=_prepare_generation_task,
+        disabled=generation_busy,
     )
     render_onboarding_tour()
     if start_button:
@@ -8590,7 +8682,7 @@ def _render_generation_controls(
             st.toast(tr("Generating Video"))
             logger.info(tr("Start Generating Video"))
             logger.info(utils.to_json(params))
-            webui_task.submit_generation(
+            submitted_task_id = webui_task.submit_generation(
                 task_id=task_id,
                 params=params,
                 capture_logs=not config.ui.get("hide_log", False),
@@ -8614,8 +8706,15 @@ def _render_generation_controls(
             st.error(tr("Video Generation Failed"))
             st.stop()
 
+        if isinstance(submitted_task_id, str) and submitted_task_id != task_id:
+            _remove_active_generation_task(task_id)
+            task_id = submitted_task_id
+            _add_active_generation_task(task_id, subject=params.video_subject)
         st.session_state["current_generation_task_id"] = task_id
+        st.query_params["generation_task"] = task_id
         logger.info(f"WebUI generation task submitted: task_id={task_id}")
+        if webui_task.is_generation_active(task_id):
+            st.rerun()
 
     _render_current_generation_task()
     return start_button

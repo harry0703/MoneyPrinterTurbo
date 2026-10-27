@@ -19,6 +19,7 @@ from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
     elevenlabs_music,
+    generation_progress,
     infistar_video,
     jalapeno_video,
     llm,
@@ -297,7 +298,8 @@ def _mark_task_failed(
     # return value used by the CLI. These fields are reset before a new attempt.
     failure_details = {
         key: existing_task[key]
-        for key in ("videos", "combined_videos", "warnings", "failed_video_index")
+        for key in ("videos", "combined_videos", "warnings", "failed_video_index",
+                    "generation_activity", "generation_started_at", "generation_submitted_at")
         if existing_task and key in existing_task
     }
     failure_details.update({
@@ -765,6 +767,7 @@ def get_video_materials(
         try:
             request.validate()
             backend = loomloom.LoomLoomVideoBackend(request.settings)
+            generation_progress.submitting("loomloom")
             execution = backend.execute(
                 request.batch,
                 client_request_id=request.client_request_id,
@@ -1550,7 +1553,10 @@ def _run_pipeline(
         task_id, state=const.TASK_STATE_PROCESSING, progress=5,
         failed_stage=None, error=None,
         videos=[], combined_videos=[], warnings=None, failed_video_index=None,
+        generation_started_at=time.time(),
     )
+
+    generation_progress.stage("preparing")
 
     if stop_at == "video" and params.subtitle_enabled:
         try:
@@ -1693,6 +1699,7 @@ def _run_pipeline(
         )
 
     # 1. Generate script
+    generation_progress.stage("script")
     video_script = generate_script(task_id, params)
     # The LLM adapter uses a leading "Error: " as its failure sentinel. A
     # user-provided script may legitimately quote that text anywhere, including
@@ -1718,6 +1725,7 @@ def _run_pipeline(
         )
         return {"script": video_script}
 
+    generation_progress.stage("terms")
     # 2. Generate terms
     video_terms = ""
     if stop_at in {"terms", "materials", "video"} and params.video_source != "local":
@@ -1739,6 +1747,7 @@ def _run_pipeline(
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
+    generation_progress.stage("audio")
     # 3. Generate audio
     generate_audio_kwargs = {
         "voice_preview": voice_preview,
@@ -1793,6 +1802,7 @@ def _run_pipeline(
         )
         return {"audio_file": audio_file, "audio_duration": audio_duration}
 
+    generation_progress.stage("subtitle")
     # 4. Generate subtitle
     subtitle_path = generate_subtitle(
         task_id, params, video_script, sub_maker, audio_file
@@ -1815,6 +1825,7 @@ def _run_pipeline(
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
+    generation_progress.stage("materials")
     # 5. Get video materials
     downloaded_videos = get_video_materials(
         task_id,
@@ -1848,6 +1859,7 @@ def _run_pipeline(
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
+    generation_progress.stage("rendering")
     # 6. Generate final videos
     partial_results = {}
     try:
@@ -1961,29 +1973,30 @@ def start(
     ``allow_server_file_input`` 只供本机 CLI 使用。HTTP API 和 WebUI 必须保持
     默认值，让自定义音频始终受当前任务目录约束。
     """
-    try:
-        return _run_pipeline(
-            task_id,
-            params,
-            stop_at=stop_at,
-            voice_preview=voice_preview,
-            loomloom_video_request=loomloom_video_request,
-            allow_server_file_input=allow_server_file_input,
-            voxcpm_reference_audio=voxcpm_reference_audio,
-            voxcpm_prompt_audio=voxcpm_prompt_audio,
-            voxcpm_prompt_text=voxcpm_prompt_text,
-            **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
-               if jalapeno_video_endpoint is not None else {}),
-        )
-    except Exception as exc:
-        logger.exception(
-            f"unexpected task pipeline failure, task_id: {task_id}, error: {exc}"
-        )
-        return _mark_task_failed(
-            task_id,
-            "pipeline",
-            f"{type(exc).__name__}: {exc}",
-        )
+    with generation_progress.task_scope(task_id):
+        try:
+            return _run_pipeline(
+                task_id,
+                params,
+                stop_at=stop_at,
+                voice_preview=voice_preview,
+                loomloom_video_request=loomloom_video_request,
+                allow_server_file_input=allow_server_file_input,
+                voxcpm_reference_audio=voxcpm_reference_audio,
+                voxcpm_prompt_audio=voxcpm_prompt_audio,
+                voxcpm_prompt_text=voxcpm_prompt_text,
+                **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+                   if jalapeno_video_endpoint is not None else {}),
+            )
+        except Exception as exc:
+            logger.exception(
+                f"unexpected task pipeline failure, task_id: {task_id}, error: {exc}"
+            )
+            return _mark_task_failed(
+                task_id,
+                "pipeline",
+                f"{type(exc).__name__}: {exc}",
+            )
 
 
 if __name__ == "__main__":
