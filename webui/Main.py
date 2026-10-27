@@ -3653,9 +3653,15 @@ def _render_settings_dialog():
                 )
             st_llm_model_name = ""
             if llm_provider == "openai_codex":
+                from webui.codex_login import render_codex_login
                 from webui.codex_models import render_codex_model_selector
 
                 with llm_form_panel:
+                    if middle_config_panel.open:
+                        # Keep the nested polling fragment's delta paths separate
+                        # from the model selector and connection-test controls.
+                        with st.container(key="codex_login_panel"):
+                            render_codex_login(tr)
                     st_llm_model_name = render_codex_model_selector(llm_model_name, tr)
             elif llm_provider == "groq":
                 effective_api_key = st_llm_api_key or llm_api_key
@@ -3736,12 +3742,6 @@ def _render_settings_dialog():
                         field.default_value,
                     ),
                 )
-
-            if llm_provider == "openai_codex" and middle_config_panel.open:
-                from webui.codex_login import render_codex_login
-
-                with llm_form_panel.container():
-                    render_codex_login(tr)
 
             if llm_provider == "kimi_code" and middle_config_panel.open:
                 from app.services import kimi_code_oauth

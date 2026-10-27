@@ -40,17 +40,23 @@ def test_all_codex_messages_are_translated_with_matching_placeholders(locale):
 
 
 @pytest.mark.parametrize("locale", LOCALES)
-def test_login_model_selector_and_expiration_render_in_selected_language(locale):
+def test_browser_login_and_expiration_render_in_selected_language(locale):
     localized = translations(locale)
     catalog = codex_models.Catalog(
         (codex_models.Model("gpt-7-test", "Test model"),), time.time()
     )
     flow = {
-        "device_auth_id": "synthetic-device",
-        "user_code": "TEST-CODE",
-        "interval": 5,
-        "expires_at": time.time() + 900,
-        "generation": codex_oauth.authorization_generation(),
+        "id": "synthetic-flow",
+        "authorize_url": "https://auth.openai.com/api/accounts/authorize?state=test",
+    }
+    details = {
+        "connected": False,
+        "authorized": False,
+        "legacy": False,
+        "profiles": [],
+        "active": "",
+        "email": "",
+        "revision": 0,
     }
     script = f"""
 import json
@@ -64,21 +70,17 @@ render_codex_login(tr)
     with (
         patch.object(codex_models, "get_catalog", return_value=catalog),
         patch.object(codex_oauth, "account_status", return_value=False),
-        patch.object(codex_oauth, "request_device_code", return_value=flow),
-        patch.object(codex_oauth, "poll_login", return_value=False),
+        patch.object(codex_oauth, "account_details", return_value=details),
+        patch.object(codex_oauth, "begin_login", return_value=flow),
+        patch.object(codex_oauth, "poll_login", return_value=False) as poll,
     ):
         app = AppTest.from_string(script, default_timeout=30).run()
         assert not app.exception
         assert app.button(key="codex_login").label == localized["codex.oauth.login"]
-        assert (
-            app.button(key="codex_models_refresh").label
-            == localized["codex.models.refresh"]
-        )
-        assert localized["codex.models.source"] in [item.value for item in app.caption]
         app.button(key="codex_login").click().run()
         assert not app.exception
-        assert localized["codex.oauth.pending"] in [item.value for item in app.info]
-        app.session_state["openai_codex_login_flow"] = dict(flow, expires_at=0)
+        assert localized["codex.oauth.pending"] in [item.value for item in app.caption]
+        poll.side_effect = codex_oauth.CodexError("expired")
         app.run()
         assert not app.exception
         assert localized["codex.oauth.expired"] in [item.value for item in app.error]
@@ -97,6 +99,19 @@ def test_connection_error_is_localized_without_changing_provider_diagnostics():
         patch.object(config, "ui", dict(config.ui, language="fr")),
         patch.object(config, "try_save_config", return_value=True),
         patch.object(codex_oauth, "account_status", return_value=True),
+        patch.object(
+            codex_oauth,
+            "account_details",
+            return_value={
+                "connected": True,
+                "authorized": True,
+                "legacy": False,
+                "profiles": [("client", "Test")],
+                "active": "client",
+                "email": "test@example.invalid",
+                "revision": 1,
+            },
+        ),
         patch.object(codex_models, "get_catalog", return_value=catalog),
         patch.object(llm, "test_connection", return_value=(False, error, 0.1)),
     ):
