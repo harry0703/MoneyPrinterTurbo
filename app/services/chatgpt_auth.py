@@ -21,7 +21,7 @@ import time
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import uuid4
 
-from filelock import FileLock
+from filelock import FileLock, Timeout as FileLockTimeout
 import jwt
 import requests
 
@@ -35,7 +35,10 @@ PLAN_SCOPE = "chatgpt.tokens.use.direct"
 SCOPES = "openid profile email offline_access resource.invoke " + PLAN_SCOPE
 USAGE_URL = "https://chatgpt.com/settings/usage"
 _lock = threading.RLock()
+_attempts_lock = threading.RLock()
 _attempts = {}
+UI_LOCK_TIMEOUT = 0.5
+AUTH_TIMEOUT = 90
 TERMINAL_REFRESH_ERRORS = frozenset(
     {
         "invalid_grant",
@@ -54,31 +57,33 @@ ERROR_MESSAGES = {
     "login_failed": "Could not complete ChatGPT sign-in. Start sign-in again.",
     "expired": "The sign-in request expired. Start sign-in again.",
     "changed": "The account changed or sign-in was cancelled. Start again.",
-    "not_connected": "Connect your ChatGPT account in the OpenAI - Codex settings first.",
+    "not_connected": "Connect your ChatGPT account in the OpenAI - ChatGPT (Native OAuth) settings first.",
     "reconnect": "Your ChatGPT session is no longer valid. Sign in again.",
     "incomplete": "OpenAI did not finish the response. No partial text was accepted.",
-    "timeout": "The OpenAI - Codex request timed out.",
+    "timeout": "The OpenAI - ChatGPT (Native OAuth) request timed out.",
     "empty": "OpenAI returned no text.",
     "rate_limit": "ChatGPT plan usage is limited. Review your usage settings.",
-    "http_error": "OpenAI - Codex returned HTTP {status}. Check the selected model and your account access.",
+    "http_error": "OpenAI - ChatGPT (Native OAuth) returned HTTP {status}. Check the selected model and your account access.",
     "plan_required": "Sign-in succeeded, but permission to use your ChatGPT plan is not enabled.",
-    "legacy": "This connection uses the previous Codex login. Sign in again to authorize MoneyPrinterTurbo.",
+    "busy": "Another process is updating the ChatGPT session. Please retry shortly.",
+    "ineligible": "ChatGPT plan usage is unavailable for this account or workspace. Choose another provider explicitly.",
+    "preview_import": "No native OAuth preview credentials can be imported, or the destination already exists.",
 }
 
 
-class CodexError(ValueError):
+class ChatGPTError(ValueError):
     """Public, credential-free diagnostics shared by the existing provider UI."""
 
     def __init__(self, key, **params):
-        self.key = key if key.startswith("codex.oauth.") else "codex.oauth." + key
+        self.key = key if key.startswith("chatgpt.oauth.") else "chatgpt.oauth." + key
         self.params = params
         super().__init__(
-            ERROR_MESSAGES[self.key.removeprefix("codex.oauth.")].format(**params)
+            ERROR_MESSAGES[self.key.removeprefix("chatgpt.oauth.")].format(**params)
         )
 
 
 def _credential_path():
-    return paths.runtime_root() / "storage" / "auth" / "openai_codex.bin"
+    return paths.runtime_root() / "storage" / "auth" / "openai_chatgpt.bin"
 
 
 def _protect(data, decrypt=False):
@@ -110,44 +115,63 @@ def _protect(data, decrypt=False):
     if not operation(
         ctypes.byref(source), None, None, None, None, 1, ctypes.byref(target)
     ):
-        raise CodexError("storage_error")
+        raise ChatGPTError("storage_error")
     try:
         return ctypes.string_at(target.data, target.size)
     finally:
         kernel.LocalFree(ctypes.cast(target.data, ctypes.c_void_p))
 
 
+def _remaining(deadline):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise ChatGPTError("timeout")
+    return remaining
+
+
 @contextmanager
-def _store_lock():
+def _store_lock(*, timeout=UI_LOCK_TIMEOUT, deadline=None):
     # WebUI and API may be separate processes sharing the same runtime root.
     destination = _credential_path()
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with _lock, FileLock(str(destination) + ".lock", timeout=35):
-        yield
+    wait_until = time.monotonic() + timeout
+    if deadline is not None:
+        wait_until = min(wait_until, deadline)
+    if not _lock.acquire(timeout=max(0, wait_until - time.monotonic())):
+        raise ChatGPTError("busy")
+    try:
+        file_lock = FileLock(str(destination) + ".lock")
+        try:
+            file_lock.acquire(timeout=max(0, wait_until - time.monotonic()))
+        except FileLockTimeout:
+            raise ChatGPTError("busy") from None
+        try:
+            yield
+        finally:
+            file_lock.release()
+    finally:
+        _lock.release()
+
+
+def _validate_store(data):
+    if (
+        not isinstance(data, dict)
+        or data.get("version") != 2
+        or not isinstance(data.get("profiles"), dict)
+        or not isinstance(data.get("revision"), int)
+        or not isinstance(data.get("active"), str)
+        or not isinstance(data.get("host_id"), str)
+        or any(not isinstance(profile, dict) for profile in data["profiles"].values())
+    ):
+        raise ChatGPTError("storage_error")
+    return data
 
 
 def _load():
     try:
-        data = json.loads(_protect(_credential_path().read_bytes(), decrypt=True))
-        if not isinstance(data, dict):
-            raise ValueError()
-        if data.get("version") != 2:
-            # Recognize the previous grant without treating it as SIWC consent.
-            if "access_token" not in data:
-                raise ValueError()
-            return {
-                "version": 2,
-                "host_id": "",
-                "profiles": {},
-                "active": "",
-                "revision": 0,
-                "legacy": True,
-            }
-        if not isinstance(data.get("profiles"), dict) or not isinstance(
-            data.get("revision"), int
-        ):
-            raise ValueError()
-        return data
+        return _validate_store(
+            json.loads(_protect(_credential_path().read_bytes(), decrypt=True))
+        )
     except FileNotFoundError:
         return {
             "version": 2,
@@ -157,7 +181,7 @@ def _load():
             "revision": 0,
         }
     except (OSError, ValueError, TypeError):
-        raise CodexError("storage_error") from None
+        raise ChatGPTError("storage_error") from None
 
 
 def _save(data):
@@ -174,17 +198,41 @@ def _save(data):
         Path(temporary).unlink(missing_ok=True)
 
 
-def _request_json(method, url, **kwargs):
+def import_preview_credentials():
+    """Explicitly copy this PR's old v2 store; never modify device-flow data.
+
+    The preview source is retained. Users can disconnect it in the Codex UI
+    after import; original device-flow credentials cannot be converted to OAuth.
+    """
+    with _store_lock():
+        if _credential_path().exists():
+            raise ChatGPTError("preview_import")
+        source = _credential_path().with_name("openai_codex.bin")
+        try:
+            data = _validate_store(
+                json.loads(_protect(source.read_bytes(), decrypt=True))
+            )
+        except (OSError, ValueError, TypeError):
+            raise ChatGPTError("preview_import") from None
+        _save(data)
+
+
+def _request_json(method, url, *, deadline=None, **kwargs):
+    remaining = _remaining(deadline) if deadline is not None else 30
     try:
         with requests.request(
-            method, url, timeout=30, allow_redirects=False, **kwargs
+            method,
+            url,
+            timeout=(min(10, remaining), min(30, remaining)),
+            allow_redirects=False,
+            **kwargs,
         ) as response:
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ValueError()
             if response.status_code != 200:
                 if response.status_code >= 500:
-                    raise CodexError("network_error")
+                    raise ChatGPTError("network_error")
                 error_code = payload.get("error")
                 if isinstance(error_code, dict):
                     error_code = error_code.get("code")
@@ -192,36 +240,42 @@ def _request_json(method, url, **kwargs):
                     isinstance(error_code, str)
                     and error_code in TERMINAL_REFRESH_ERRORS
                 ):
-                    error = CodexError("reconnect")
+                    error = ChatGPTError("reconnect")
                     error.oauth_error = error_code
                     raise error
-                raise CodexError("login_failed")
+                raise ChatGPTError("login_failed")
             return payload
+    except requests.Timeout:
+        raise ChatGPTError("timeout") from None
     except requests.RequestException:
-        raise CodexError("network_error") from None
+        raise ChatGPTError("network_error") from None
     except (ValueError, TypeError) as exc:
-        if isinstance(exc, CodexError):
+        if isinstance(exc, ChatGPTError):
             raise
-        raise CodexError("invalid_response") from None
+        raise ChatGPTError("invalid_response") from None
 
 
-def _metadata():
-    data = _request_json("GET", ISSUER + "/.well-known/openid-configuration")
+def _metadata(*, deadline=None):
+    data = _request_json(
+        "GET", ISSUER + "/.well-known/openid-configuration", deadline=deadline
+    )
     if data.get("issuer") != ISSUER:
-        raise CodexError("invalid_response")
+        raise ChatGPTError("invalid_response")
     return data
 
 
 def _issuer_endpoint(url):
     parsed = urlsplit(url or "")
     if parsed.scheme != "https" or parsed.netloc != "auth.openai.com":
-        raise CodexError("invalid_response")
+        raise ChatGPTError("invalid_response")
     return url
 
 
-def _identity_keys():
-    metadata = _metadata()
-    return _request_json("GET", _issuer_endpoint(metadata.get("jwks_uri")))
+def _identity_keys(*, deadline=None):
+    metadata = _metadata(deadline=deadline)
+    return _request_json(
+        "GET", _issuer_endpoint(metadata.get("jwks_uri")), deadline=deadline
+    )
 
 
 def _verify_identity(token, client_id, nonce=None, expected_subject=None, keys=None):
@@ -253,9 +307,9 @@ def _verify_identity(token, client_id, nonce=None, expected_subject=None, keys=N
             raise ValueError()
         return identity
     except (jwt.PyJWTError, ValueError, KeyError, TypeError, StopIteration) as exc:
-        if isinstance(exc, CodexError):
+        if isinstance(exc, ChatGPTError):
             raise
-        raise CodexError("login_failed") from None
+        raise ChatGPTError("login_failed") from None
 
 
 def _token_bundle(payload, client_id, identity, previous=None):
@@ -287,7 +341,7 @@ def _token_bundle(payload, client_id, identity, previous=None):
             "expires_at": time.time() + duration if access else 0,
         }
     except (ValueError, TypeError, KeyError):
-        raise CodexError("invalid_response") from None
+        raise ChatGPTError("invalid_response") from None
 
 
 def account_details():
@@ -299,7 +353,6 @@ def account_details():
             "authorized": bool(
                 profile.get("access_token") and PLAN_SCOPE in profile.get("scopes", [])
             ),
-            "legacy": data.get("legacy", False),
             "active": data["active"],
             "email": profile.get("email", ""),
             "revision": data["revision"],
@@ -318,7 +371,7 @@ def select_account(client_id):
     with _store_lock():
         data = _load()
         if client_id not in data["profiles"]:
-            raise CodexError("not_connected")
+            raise ChatGPTError("not_connected")
         if data["active"] != client_id:
             data["active"] = client_id
             data["revision"] += 1
@@ -338,38 +391,40 @@ class _LoginAttempt:
     expires_at: float = field(default_factory=lambda: time.time() + 600)
     redirect_uri: str = ""
     status: str = "pending"
-    error: CodexError | None = None
+    error: ChatGPTError | None = None
     server: HTTPServer | None = field(default=None, repr=False)
 
 
 def _complete_login(attempt, query):
+    deadline = time.monotonic() + AUTH_TIMEOUT
     if not secrets.compare_digest(
         query.get("state", "").encode("utf-8"), attempt.state.encode("utf-8")
     ):
-        raise CodexError("login_failed")
+        raise ChatGPTError("login_failed")
     if attempt.status != "pending":
-        raise CodexError("changed")
+        raise ChatGPTError("changed")
     if time.time() >= attempt.expires_at:
-        raise CodexError("expired")
+        raise ChatGPTError("expired")
     if query.get("error"):
-        raise CodexError("login_failed")
+        raise ChatGPTError("login_failed")
     client_id = query.get("client_id", attempt.client_id)
     if not client_id or client_id == "dynamic_agent_client" or not query.get("code"):
-        raise CodexError("login_failed")
+        raise ChatGPTError("login_failed")
     if attempt.client_id != "dynamic_agent_client" and client_id != attempt.client_id:
-        raise CodexError("login_failed")
+        raise ChatGPTError("login_failed")
     with _store_lock():
         data = _load()
         if data["revision"] != attempt.revision:
-            raise CodexError("changed")
+            raise ChatGPTError("changed")
         # Retain the issued registration even if the code exchange needs retrying.
         data["profiles"].setdefault(client_id, {"client_id": client_id})
         data["last_registration"] = client_id
         _save(data)
-    verification_keys = _identity_keys()
+    verification_keys = _identity_keys(deadline=deadline)
     payload = _request_json(
         "POST",
         TOKEN_URL,
+        deadline=deadline,
         data={
             "grant_type": "authorization_code",
             "client_id": client_id,
@@ -387,16 +442,15 @@ def _complete_login(attempt, query):
         keys=verification_keys,
     )
     profile = _token_bundle(payload, client_id, identity)
-    with _store_lock():
+    with _store_lock(timeout=AUTH_TIMEOUT):
         data = _load()
         if data["revision"] != attempt.revision or attempt.status != "pending":
-            raise CodexError("changed")
+            raise ChatGPTError("changed")
         if time.time() >= attempt.expires_at:
-            raise CodexError("expired")
+            raise ChatGPTError("expired")
         data["profiles"][client_id] = profile
         data["active"] = client_id
         data["revision"] += 1
-        data.pop("legacy", None)
         _save(data)
         attempt.status = "complete"
 
@@ -428,11 +482,11 @@ class _CallbackHandler(BaseHTTPRequestHandler):
             return
         try:
             if any(len(values) != 1 for values in query.values()):
-                raise CodexError("login_failed")
+                raise ChatGPTError("login_failed")
             _complete_login(attempt, {key: values[0] for key, values in query.items()})
             message = "ChatGPT sign-in completed. Return to MoneyPrinterTurbo."
             status = 200
-        except CodexError as exc:
+        except ChatGPTError as exc:
             attempt.error = exc
             attempt.status = "failed"
             message, status = (
@@ -440,7 +494,7 @@ class _CallbackHandler(BaseHTTPRequestHandler):
                 400,
             )
         except Exception:
-            attempt.error = CodexError("login_failed")
+            attempt.error = ChatGPTError("login_failed")
             attempt.status = "failed"
             message, status = (
                 "Sign-in was not completed. Return to MoneyPrinterTurbo.",
@@ -461,7 +515,7 @@ def _listen(attempt):
         while attempt.status == "pending" and time.time() < attempt.expires_at:
             attempt.server.handle_request()
         if attempt.status == "pending":
-            attempt.error = CodexError("expired")
+            attempt.error = ChatGPTError("expired")
             attempt.status = "failed"
     finally:
         attempt.server.server_close()
@@ -486,7 +540,7 @@ def begin_login(*, new_account=False, enable_plan=False):
     try:
         server = HTTPServer(("127.0.0.1", 0), _CallbackHandler)
     except OSError:
-        raise CodexError("login_failed") from None
+        raise ChatGPTError("login_failed") from None
     server.timeout = 0.5
     server.attempt = attempt
     attempt.server = server
@@ -513,7 +567,7 @@ def begin_login(*, new_account=False, enable_plan=False):
         params["login_hint"] = profile["email"]
     if enable_plan:
         params["prompt"] = "consent"
-    with _lock:
+    with _attempts_lock:
         # Finished attempts have no credentials and need not outlive the UI poll.
         for key in list(_attempts):
             if _attempts[key].status != "pending":
@@ -528,21 +582,21 @@ def begin_login(*, new_account=False, enable_plan=False):
 
 
 def poll_login(flow):
-    with _lock:
+    with _attempts_lock:
         attempt = _attempts.get(flow["id"])
         if not attempt:
-            raise CodexError("expired")
+            raise ChatGPTError("expired")
         if attempt.error:
             raise attempt.error
         return attempt.status == "complete"
 
 
 def cancel_login(flow):
-    with _lock:
+    with _attempts_lock:
         attempt = _attempts.get(flow["id"])
         if attempt and attempt.status == "pending":
             attempt.status = "cancelled"
-            attempt.error = CodexError("changed")
+            attempt.error = ChatGPTError("changed")
 
 
 def _clear_tokens(data, profile):
@@ -552,36 +606,53 @@ def _clear_tokens(data, profile):
     _save(data)
 
 
-def credentials(*, force=False, expected=None, session=None):
-    with _store_lock():
+def _selected_credentials(data, session=None):
+    selected = (data["active"], data["revision"])
+    if session is not None and session != selected:
+        raise ChatGPTError("changed")
+    profile = data["profiles"].get(data["active"], {})
+    if not profile.get("id_token"):
+        raise ChatGPTError("not_connected")
+    if PLAN_SCOPE not in profile.get("scopes", []):
+        raise ChatGPTError("plan_required")
+    if not profile.get("access_token"):
+        raise ChatGPTError("reconnect")
+    return profile, selected
+
+
+def credentials(*, force=False, expected=None, session=None, deadline=None):
+    deadline = deadline if deadline is not None else time.monotonic() + AUTH_TIMEOUT
+    with _store_lock(timeout=_remaining(deadline), deadline=deadline):
         data = _load()
-        if data.get("legacy"):
-            raise CodexError("legacy")
-        selected = (data["active"], data["revision"])
-        if session is not None and session != selected:
-            raise CodexError("changed")
-        profile = data["profiles"].get(data["active"], {})
-        if not profile.get("id_token"):
-            raise CodexError("not_connected")
-        if PLAN_SCOPE not in profile.get("scopes", []):
-            raise CodexError("plan_required")
-        if not profile.get("access_token"):
-            raise CodexError("reconnect")
+        profile, selected = _selected_credentials(data, session)
         if force and expected and profile["access_token"] != expected:
             return dict(profile), selected
         if not force and profile["expires_at"] > time.time() + 60:
             return dict(profile), selected
         if not profile.get("refresh_token"):
             _clear_tokens(data, profile)
-            raise CodexError("reconnect")
-        # Resolve validation keys before consuming the rotating refresh token.
-        # A JWKS/network outage after a successful exchange would lose its
-        # replacement while leaving the already-consumed token on disk.
-        verification_keys = _identity_keys()
+            raise ChatGPTError("reconnect")
+        previous_access = profile["access_token"]
+
+    # Discovery and JWKS do not mutate credentials. Fetch them without blocking
+    # account controls, before consuming a rotating refresh token.
+    verification_keys = _identity_keys(deadline=deadline)
+    with _store_lock(timeout=_remaining(deadline), deadline=deadline):
+        data = _load()
+        profile, selected = _selected_credentials(data, selected)
+        # Another process may have refreshed while we fetched keys or waited.
+        if profile["access_token"] != previous_access or (
+            not force and profile["expires_at"] > time.time() + 60
+        ):
+            return dict(profile), selected
+        if not profile.get("refresh_token"):
+            _clear_tokens(data, profile)
+            raise ChatGPTError("reconnect")
         try:
             payload = _request_json(
                 "POST",
                 TOKEN_URL,
+                deadline=deadline,
                 data={
                     "grant_type": "refresh_token",
                     "client_id": profile["client_id"],
@@ -589,7 +660,7 @@ def credentials(*, force=False, expected=None, session=None):
                     "resource": RESOURCE,
                 },
             )
-        except CodexError as error:
+        except ChatGPTError as error:
             if getattr(error, "oauth_error", None) in TERMINAL_REFRESH_ERRORS:
                 _clear_tokens(data, profile)
             raise
@@ -603,36 +674,40 @@ def credentials(*, force=False, expected=None, session=None):
                     keys=verification_keys,
                 )
             renewed = _token_bundle(payload, profile["client_id"], identity, profile)
-        except CodexError:
-            # The exchange succeeded but cannot be trusted. Offer reauthorization
-            # rather than continuing to show the now-consumed session as usable.
+        except ChatGPTError:
             _clear_tokens(data, profile)
             raise
+        # Persist the rotated token even if the caller's inference budget has
+        # just expired; discarding it here would lose the renewable session.
         data["profiles"][data["active"]] = renewed
         _save(data)
         if PLAN_SCOPE not in renewed["scopes"]:
-            raise CodexError("plan_required")
+            raise ChatGPTError("plan_required")
         if not renewed["access_token"]:
-            raise CodexError("reconnect")
+            raise ChatGPTError("reconnect")
         return dict(renewed), selected
 
 
-def assert_session(session):
-    with _store_lock():
+def assert_session(session, *, deadline=None):
+    wait = _remaining(deadline) if deadline is not None else UI_LOCK_TIMEOUT
+    with _store_lock(timeout=wait, deadline=deadline):
         data = _load()
         if (data["active"], data["revision"]) != session:
-            raise CodexError("changed")
+            raise ChatGPTError("changed")
 
 
 def disconnect():
     """Revoke the active session; keep its registration and the host identity."""
+    deadline = time.monotonic() + AUTH_TIMEOUT
     with _store_lock():
         data = _load()
         profile = data["profiles"].get(data["active"], {})
         confirmed = True
         if profile.get("refresh_token"):
             try:
-                endpoint = _issuer_endpoint(_metadata().get("revocation_endpoint"))
+                endpoint = _issuer_endpoint(
+                    _metadata(deadline=deadline).get("revocation_endpoint")
+                )
                 with requests.post(
                     endpoint,
                     data={
@@ -640,15 +715,14 @@ def disconnect():
                         "token_type_hint": "refresh_token",
                         "client_id": profile["client_id"],
                     },
-                    timeout=30,
+                    timeout=min(30, _remaining(deadline)),
                     allow_redirects=False,
                 ) as response:
                     confirmed = response.status_code == 200
-            except (CodexError, requests.RequestException):
+            except (ChatGPTError, requests.RequestException):
                 confirmed = False
         for name in ("access_token", "refresh_token", "id_token"):
             profile.pop(name, None)
         data["revision"] += 1
-        data.pop("legacy", None)
         _save(data)
         return confirmed

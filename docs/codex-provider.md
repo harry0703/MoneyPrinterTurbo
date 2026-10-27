@@ -1,79 +1,52 @@
-# OpenAI - Codex: Sign in with ChatGPT
+# OpenAI - Codex
 
-The existing `openai_codex` provider now registers MoneyPrinterTurbo through
-OpenAI's official [Sign in with ChatGPT flow](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
-It uses the signed-in account's authorized ChatGPT plan access for text
-generation. No API key, Codex CLI installation, or CLI credentials are required.
+Select **OpenAI - Codex** in the LLM provider settings and choose **Connect ChatGPT
+with a code**. Open the OpenAI authorization page, enter the displayed code and
+approve access. The UI polls for confirmation automatically. Device-code sign-in
+must be enabled for the account. Use **Test LLM Connection** after connecting and
+selecting a model.
 
-## Local sign-in
+This provider uses the Codex allowance of the connected ChatGPT subscription for
+text generation. Voice and video generation still use their separately configured
+providers. No API key, Codex CLI installation or shared CLI credentials are needed.
 
-1. Run MoneyPrinterTurbo locally and select **OpenAI - Codex** in LLM settings.
-2. Click **Continue with ChatGPT**, then **Open OpenAI authorization page**.
-3. In a browser on the same computer, sign in and authorize MoneyPrinterTurbo
-   to use your ChatGPT plan. OpenAI returns to a temporary `127.0.0.1` callback.
-4. Return to MoneyPrinterTurbo. If sign-in did not grant plan usage, the app
-   displays that state and lets you repeat authorization to enable it.
-5. Choose a model returned for your account and use **Test LLM Connection**,
-   or generate a script and search terms.
+## Models
 
-The callback listener belongs to the OAuth service; running the separate FastAPI
-server is unnecessary. This first implementation targets browser and Python
-runtime on the same computer. A browser on another machine cannot reach the
-runtime's loopback callback. Docker/remote VM credential transfer is not included.
+The selector fetches `https://models.dev/api.json` and applies the same compatibility
+rules as [Jarvys](https://github.com/Hackerprod/Jarvys). The public catalog is not an
+account-specific entitlement check. There is no fixed default model: choose an ID
+from the list. Model IDs are preserved exactly when sending requests.
 
-Voice, stock materials, and video-generation services remain separately configured.
-The **Manage usage** link opens ChatGPT's own plan/app usage settings.
+The catalog is cached locally for 24 hours. **Refresh models** bypasses the cache.
+If refreshing fails, the last valid catalog remains available. Without a cache,
+the UI allows entering a model ID manually. A previously selected model that is
+absent from a refreshed catalog is preserved instead of silently switching models.
+Catalog requests contain no ChatGPT credentials.
 
-## Registration and credentials
+## Credentials and errors
 
-The first sign-in uses `dynamic_agent_client` and a persistent installation host
-ID. The application saves the client ID issued by OpenAI and reuses it on later
-sign-ins. Every authorization uses fresh state, nonce and PKCE values. ID tokens
-are signature-verified against OpenAI's JWKS and checked for issuer, audience,
-expiry and nonce. Plan inference also requires the granted
-`chatgpt.tokens.use.direct` scope.
+Credentials are stored in `storage/auth/openai_codex.bin`, outside Git and the
+configuration file. Windows uses user-scoped DPAPI encryption; other systems use
+a private file. Tokens are refreshed under a lock to avoid concurrent reuse of
+rotating refresh tokens. The provider never imports or changes the credentials
+used by the Codex desktop app or CLI. **Disconnect ChatGPT** removes this app's
+local credentials; it does not revoke other sessions.
 
-Registrations remain separate even when their email addresses match. Settings
-can select a saved registration or add an account. Only a fully validated
-sign-in replaces the active account. Credentials live in
-`storage/auth/openai_codex.bin` under the application runtime root (`MPT_HOME`
-when configured). Windows uses user-scoped DPAPI; Unix files use private
-permissions. Writes are atomic and refreshes are serialized across processes.
-The provider does not read or modify Codex CLI/Desktop credentials.
+Requests are restricted to the OpenAI authorization and Codex Responses endpoints,
+without following redirects. Only completed Responses output is accepted; partial
+streams and raw provider error bodies are not exposed as generated text. A 401
+triggers at most one token refresh and retry. Authentication and model-picker
+controls and messages use the application's existing localization system in all
+14 supported languages. Extended provider setup tips follow the project's Chinese
+and English convention.
 
-**Disconnect ChatGPT** attempts to revoke the renewable session and clears its
-local tokens, while retaining the registration and installation host ID for a
-later sign-in. If revocation cannot be confirmed, the UI directs the user to
-ChatGPT settings to disconnect the app there.
+The device-code and Responses protocol was inspected in Jarvys and independently
+implemented in Python. See also [OpenAI authentication documentation](https://learn.chatgpt.com/docs/auth).
 
-## Models and text generation
+## Validation
 
-The model selector calls `GET https://api.openai.com/v1/models` with the active
-account's OAuth access token. It displays server-listed models in server order
-and sends the selected `slug` unchanged. It does not use models.dev or infer
-access from a model name. An unavailable saved model remains in configuration,
-but is not presented as an available option.
-
-Text generation calls `POST https://api.openai.com/v1/responses` with the same
-authorization, `store: false` and `stream: true`. Only `response.completed`
-produces a successful text result. There is no fallback to an environment API
-key, the ordinary OpenAI API-key provider, or ChatGPT backend-api endpoints.
-
-## Existing connections and validation
-
-Connections created by the old Codex device-code provider require a new sign-in.
-Their tokens are not reused as authorization for the public Responses API.
-The provider/configuration ID and saved model selection remain `openai_codex`.
-
-Protocol tests use generated signing keys and synthetic credentials. They cover
-a real loopback HTTP callback, PKCE binding, signed identity and consent,
-registration reuse, account selection, refresh, revocation, account-specific
-models and completed public Responses output. A real-account smoke test requires
-the user to finish browser authorization and then complete a text request; mocked
-tests alone do not establish real account eligibility.
-
-Local verification on Windows / Python 3.11 (2026-10-27) completed official
-browser authorization, returned eight account-listed models, and generated
-`MoneyPrinterTurbo OAuth OK` through the existing LLM entrypoint using
-`gpt-6.1-sol` and the public Responses API. Model access is account-specific;
-this is a validation record, not a fixed supported-model list.
+Tests cover pending, cancelled and expired sign-in, encrypted Windows persistence,
+concurrent token refresh, retry after 401, complete and incomplete SSE responses,
+catalog filtering, cache persistence, refresh and outage recovery, and translated
+Streamlit controls. Real-account sign-in was also confirmed by the user during
+local testing. Automated tests use synthetic credentials.

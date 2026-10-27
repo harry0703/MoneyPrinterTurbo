@@ -290,6 +290,18 @@ LLM_PROVIDER_REGISTRY = (
         ),
     ),
     LLMProviderSpec(
+        "openai_chatgpt",
+        "OpenAI - ChatGPT (Native OAuth)",
+        adapter="openai_chatgpt",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        extra_fields=(
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
+        ),
+    ),
+    LLMProviderSpec(
         "anthropic",
         "Anthropic Claude",
         api_key_url="https://platform.claude.com/settings/keys",

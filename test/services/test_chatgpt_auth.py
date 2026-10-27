@@ -159,7 +159,7 @@ def test_real_loopback_callback_registers_and_saves_verified_identity(issuer):
 )
 def test_invalid_identity_is_not_committed(issuer, overrides):
     issuer[0]["identity"] = overrides
-    with pytest.raises(auth.CodexError):
+    with pytest.raises(auth.ChatGPTError):
         authorize()
     assert not auth.account_status()
     assert auth._load()["profiles"]["oaiapp_test"] == {"client_id": "oaiapp_test"}
@@ -169,7 +169,7 @@ def test_invalid_signature_is_rejected(issuer):
     issuer[0]["signing_key"] = rsa.generate_private_key(
         public_exponent=65537, key_size=2048
     )
-    with pytest.raises(auth.CodexError):
+    with pytest.raises(auth.ChatGPTError):
         authorize()
     assert not auth.account_status()
 
@@ -179,7 +179,7 @@ def test_identity_only_sign_in_does_not_allow_inference(issuer):
     authorize()
     assert auth.account_details()["connected"]
     assert not auth.account_status()
-    with pytest.raises(auth.CodexError, match="permission"):
+    with pytest.raises(auth.ChatGPTError, match="permission"):
         auth.credentials()
     retry = auth.begin_login(enable_plan=True)
     query = parse_qs(urlsplit(retry["authorize_url"]).query)
@@ -204,7 +204,7 @@ def test_invalid_callback_does_not_exchange_code(issuer, kind):
         attempt.expires_at = 0
     else:
         query.pop("client_id")
-    with pytest.raises(auth.CodexError):
+    with pytest.raises(auth.ChatGPTError):
         auth._complete_login(attempt, query)
     assert issuer[1] == []
 
@@ -219,7 +219,7 @@ def test_returning_sign_in_reuses_registration_and_checks_subject(issuer):
     assert "agent_name_hint" not in query
     issuer[0]["identity"] = {"sub": "other-user"}
     attempt = auth._attempts[flow["id"]]
-    with pytest.raises(auth.CodexError):
+    with pytest.raises(auth.ChatGPTError):
         auth._complete_login(attempt, {"state": attempt.state, "code": "code"})
     assert auth._load()["profiles"]["oaiapp_test"]["subject"] == "user-one"
 
@@ -259,13 +259,51 @@ def test_concurrent_refresh_uses_registered_client_and_rotates_once(issuer):
     assert auth._load()["profiles"]["oaiapp_test"]["refresh_token"] == "renewed-refresh"
 
 
-def test_legacy_device_credentials_require_new_consent():
-    auth._save(
-        {"access_token": "legacy", "refresh_token": "old-refresh", "account_id": "old"}
+def test_native_login_and_denial_preserve_device_credentials(monkeypatch):
+    from app.services import codex_oauth
+
+    legacy_path = auth._credential_path().with_name("openai_codex.bin")
+    monkeypatch.setattr(codex_oauth, "_credential_path", lambda: legacy_path)
+    codex_oauth._save(
+        {
+            "access_token": "legacy",
+            "refresh_token": "old-refresh",
+            "account_id": "old",
+            "expires_at": time.time() + 3600,
+        }
     )
-    assert auth.account_details()["legacy"]
-    with pytest.raises(auth.CodexError, match="previous Codex login"):
-        auth.credentials()
+    before = legacy_path.read_bytes()
+    assert not auth.account_status()
+    flow = auth.begin_login()
+    attempt = auth._attempts[flow["id"]]
+    with pytest.raises(auth.ChatGPTError):
+        auth._complete_login(
+            attempt, {"state": attempt.state, "error": "access_denied"}
+        )
+    assert legacy_path.read_bytes() == before
+    assert codex_oauth.account_status()
+    assert not auth.account_status()
+    # An explicit preview import must not reinterpret old device credentials.
+    auth._credential_path().unlink()
+    with pytest.raises(auth.ChatGPTError, match="preview"):
+        auth.import_preview_credentials()
+    assert not auth._credential_path().exists()
+    assert legacy_path.read_bytes() == before
+
+
+def test_preview_import_preserves_registration_without_overwriting(issuer):
+    authorize()
+    expected = auth._load()
+    source = auth._credential_path().with_name("openai_codex.bin")
+    source.write_bytes(auth._credential_path().read_bytes())
+    original_source = source.read_bytes()
+    auth._credential_path().unlink()
+    auth.import_preview_credentials()
+    assert auth._load() == expected
+    assert source.read_bytes() == original_source
+    with pytest.raises(auth.ChatGPTError, match="destination"):
+        auth.import_preview_credentials()
+    assert auth._load() == expected
 
 
 def test_disconnect_revokes_then_retains_registration_and_host(issuer, monkeypatch):
@@ -338,7 +376,7 @@ def test_terminal_refresh_failure_allows_signing_in_again(
     response.json.return_value = {"error": error_code}
     monkeypatch.setattr(auth.requests, "request", lambda *a, **kw: response)
     monkeypatch.setattr(auth, "_request_json", expired_refresh)
-    with pytest.raises(auth.CodexError):
+    with pytest.raises(auth.ChatGPTError):
         auth.credentials()
     assert not auth.account_status()
     after = auth._load()
@@ -359,7 +397,7 @@ def test_jwks_outage_does_not_consume_a_rotating_refresh_token(issuer, monkeypat
 
     def jwks_outage(method, url, **kwargs):
         if url.endswith("/jwks"):
-            raise auth.CodexError("network_error")
+            raise auth.ChatGPTError("network_error")
         if url == auth.TOKEN_URL:
             refreshes.append(kwargs)
             result = request(method, url, **kwargs)
@@ -368,7 +406,7 @@ def test_jwks_outage_does_not_consume_a_rotating_refresh_token(issuer, monkeypat
         return request(method, url, **kwargs)
 
     monkeypatch.setattr(auth, "_request_json", jwks_outage)
-    with pytest.raises(auth.CodexError):
+    with pytest.raises(auth.ChatGPTError):
         auth.credentials()
     assert refreshes == []
     assert auth._load() == before
@@ -383,10 +421,10 @@ def test_temporary_refresh_failure_preserves_the_session(issuer, monkeypatch):
 
     def unavailable(method, url, **kwargs):
         if url == auth.TOKEN_URL:
-            raise auth.CodexError("network_error")
+            raise auth.ChatGPTError("network_error")
         return request(method, url, **kwargs)
 
     monkeypatch.setattr(auth, "_request_json", unavailable)
-    with pytest.raises(auth.CodexError):
+    with pytest.raises(auth.ChatGPTError):
         auth.credentials()
     assert auth._load() == before

@@ -24,12 +24,16 @@ listen_port = 8080
 log_requests = false
 
 [app]
-# OpenAI - Codex: use Continue with ChatGPT in WebUI settings to authorize this app.
-# Official native OAuth and public Responses API; no API key or Codex CLI.
-# Browser and app must run on the same computer for the local callback.
-# Existing device-code connections require a new sign-in. Credentials live in storage/auth.
+# OpenAI - Codex: existing device-code provider; upgrades preserve this connection.
+# Uses ChatGPT subscription limits; no API key. Credentials live in storage/auth.
 openai_codex_model_name = ""
 openai_codex_timeout = ""
+
+# OpenAI - ChatGPT (Native OAuth): separately selected, account/workspace eligibility required.
+# Browser and Python runtime must be on the same computer. Remote/Docker sign-in is not supported.
+# Uses public /v1/models and /v1/responses; never falls back to another billing path.
+openai_chatgpt_model_name = ""
+openai_chatgpt_timeout = ""
 
 # Optional protection for API routes and generated files under /tasks.
 # Leave empty for local backward-compatible access. When configured, clients
