@@ -821,6 +821,25 @@ class TestMptAgentSkill(unittest.TestCase):
                 config_path.read_text(encoding="utf-8"),
             )
 
+    def test_codex_subscription_provider_needs_no_api_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "openai_codex"'
+                ).replace(
+                    'deepseek_api_key = ""', 'deepseek_api_key = "other-provider-key"'
+                ).replace("pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]')
+                + 'openai_codex_model_name = "selected-model"\n',
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()):
+                provider = mpt_agent.reuse_existing_llm_provider(config_path)
+            active, missing = mpt_agent.missing_config(config_path, [])
+            self.assertEqual(provider, "openai_codex")
+            self.assertEqual(active, "openai_codex")
+            self.assertEqual(missing, [])
+
     def test_kimi_code_signed_in_provider_needs_no_api_key(self):
         """
         Kimi Code 走 OAuth 订阅凭证，已登录时辅助脚本不能要求 API Key，

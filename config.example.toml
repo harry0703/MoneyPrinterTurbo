@@ -24,6 +24,10 @@ listen_port = 8080
 log_requests = false
 
 [app]
+# OpenAI - Codex: sign in with a device code in WebUI settings.
+# Uses ChatGPT subscription limits; no API key. Credentials live in storage/auth.
+openai_codex_model_name = ""
+openai_codex_timeout = ""
 
 # Optional protection for API routes and generated files under /tasks.
 # Leave empty for local backward-compatible access. When configured, clients
