@@ -45,6 +45,7 @@ def exchange(tmp_path):
         "posts": [],
         "refreshes": 0,
         "hold_image": False,
+        "reject_first": False,
         "received": threading.Event(),
         "release": threading.Event(),
         "png": image.getvalue(),
@@ -62,6 +63,13 @@ def exchange(tmp_path):
             )
             if payload is not None:
                 state["posts"].append(self.headers.get("chatgpt-account-id"))
+                if state["reject_first"]:
+                    state["reject_first"] = False
+                    self.send_response(401)
+                    self.send_header("Content-Length", "2")
+                    self.end_headers()
+                    self.wfile.write(b"{}")
+                    return
                 event = {
                     "type": "response.completed",
                     "response": {
@@ -280,3 +288,36 @@ print('{}')
     script = "print(json.dumps({'revision':oauth.capture_session_binding().revision}))"
     first, second = exchange["child"](script), exchange["child"](script)
     assert _result(first)["revision"] == _result(second)["revision"]
+
+
+def test_switch_before_401_refresh_never_sends_as_new_account(exchange):
+    exchange["reject_first"] = True
+    ready = exchange["root"] / "refresh-ready"
+    resume = exchange["root"] / "refresh-resume"
+    process = exchange["child"](
+        f"""
+context=image.capture_context({{'codex_image_model_name':'synthetic-model'}})
+original=oauth._credentials
+def wait_before_refresh(force=False, **kwargs):
+    if force:
+        Path({str(ready)!r}).touch()
+        deadline=time.monotonic()+20
+        while not Path({str(resume)!r}).exists():
+            if time.monotonic()>deadline: raise RuntimeError('barrier timeout')
+            time.sleep(0.01)
+    return original(force=force, **kwargs)
+oauth._credentials=wait_before_refresh
+try:
+    image.generate_image('synthetic prompt',context)
+    print(json.dumps({{'ok':True}}))
+except oauth.CodexError as error:
+    print(json.dumps({{'ok':False,'error':error.key}}))
+"""
+    )
+    _wait(ready, process)
+    exchange["login"]("account-B")
+    resume.touch()
+    result = _result(process)
+    assert result == {"ok": False, "error": "codex.oauth.changed"}
+    assert exchange["posts"] == ["account-A"]
+    assert exchange["refreshes"] == 0

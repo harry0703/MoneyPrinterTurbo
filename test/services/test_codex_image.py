@@ -496,6 +496,9 @@ def test_provider_diagnostic_classifies_maintainer_400_without_recording_body():
             }
         },
     )
+    response.iter_content.return_value = iter(
+        [json.dumps(response.json.return_value).encode()]
+    )
     response.headers = {}
     with oauth.capture_image_diagnostics() as records:
         with patch.object(oauth, "_post", return_value=response) as post:
@@ -568,3 +571,31 @@ def test_binding_is_checked_on_loaded_credentials_before_dispatch():
             image.generate_image("private prompt", captured)
     assert error.value.key == "codex.oauth.changed"
     post.assert_not_called()
+
+
+@pytest.mark.parametrize("failure", ["oversize", "deadline", "network"])
+def test_error_diagnostics_body_is_bounded_and_never_changes_http_failure(failure):
+    response = reply(status=400)
+    response.headers = {}
+    if failure == "oversize":
+        response.iter_content.return_value = iter([b"x" * (64 * 1024 + 1)])
+    elif failure == "network":
+        response.iter_content.side_effect = requests.Timeout("private detail")
+    else:
+        response.iter_content.return_value = iter([b"{}"])
+    with oauth.capture_image_diagnostics() as records:
+        oauth._image_response_diagnostic(
+            response,
+            {"model": "selected-model"},
+            0,
+            time.monotonic() - 1 if failure == "deadline" else time.monotonic() + 30,
+        )
+    assert records == [
+        {
+            "kind": "http",
+            "attempt": 1,
+            "status": 400,
+            "requested_model": "selected-model",
+        }
+    ]
+    response.json.assert_not_called()

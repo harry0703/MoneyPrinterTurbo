@@ -288,6 +288,8 @@ def test_report_integrates_actual_transport_diagnostics_and_material_path(
             return False
 
         def iter_content(self, **kwargs):
+            if self.status_code == 400:
+                return iter([json.dumps(self.json()).encode()])
             return iter(
                 [("data: " + json.dumps(event) + "\n\n").encode() for event in events]
             )

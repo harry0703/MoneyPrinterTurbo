@@ -139,7 +139,7 @@ def _record_image_diagnostic(**fields):
         records.append(record)
 
 
-def _image_response_diagnostic(response, payload, attempt):
+def _image_response_diagnostic(response, payload, attempt, deadline):
     headers = response.headers
     _record_image_diagnostic(
         kind="http",
@@ -153,7 +153,12 @@ def _image_response_diagnostic(response, payload, attempt):
     # Never retain the provider's free-text body. A fixed classification records
     # the specific compatibility failure reported by the maintainer.
     try:
-        error = response.json().get("error", {})
+        body = bytearray()
+        for chunk in response.iter_content(chunk_size=4096):
+            if time.monotonic() >= deadline or len(body) + len(chunk) > 64 * 1024:
+                return
+            body.extend(chunk)
+        error = json.loads(body).get("error", {})
         if not isinstance(error, dict):
             return
         values = {
@@ -184,7 +189,7 @@ def _image_response_diagnostic(response, payload, attempt):
             else "provider_rejection"
         )
         _record_image_diagnostic(kind="provider_error", **fields)
-    except (ValueError, AttributeError, TypeError):
+    except (ValueError, AttributeError, TypeError, requests.RequestException):
         pass
 
 
@@ -519,6 +524,9 @@ def request_image(payload, *, generation, session, timeout, read_result):
                 if generation != authorization_generation():
                     raise CodexError("codex.oauth.changed")
                 _bound_current(session)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise CodexError("codex.oauth.timeout")
                 if (
                     credentials.get("account_id") != session.account_id
                     or credentials.get("session_revision") != session.revision
@@ -539,7 +547,7 @@ def request_image(payload, *, generation, session, timeout, read_result):
                     json=payload,
                 )
             with response:
-                _image_response_diagnostic(response, payload, attempt)
+                _image_response_diagnostic(response, payload, attempt, deadline)
                 if response.status_code == 401 and attempt == 0:
                     credentials = _credentials(
                         force=True,
