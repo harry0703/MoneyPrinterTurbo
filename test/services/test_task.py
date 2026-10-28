@@ -1060,6 +1060,7 @@ class TestTaskService(unittest.TestCase):
             with self.subTest(file_duration=file_duration):
                 task_id = f"test-tts-audio-priority-{uuid4().hex}"
                 task_dir = utils.task_dir(task_id)
+                self.addCleanup(shutil.rmtree, task_dir, ignore_errors=True)
                 audio_path = os.path.join(task_dir, "audio.mp3")
                 params = VideoParams(
                     video_subject="tts audio",
@@ -1075,18 +1076,15 @@ class TestTaskService(unittest.TestCase):
                     # is exactly the regression this test exists to catch.
                     return _file if isinstance(target, str) else _sub
 
-                try:
-                    with (
-                        patch.object(tm.voice, "tts", return_value=sub_maker) as tts,
-                        patch.object(
-                            tm.voice, "get_audio_duration", side_effect=fake_duration
-                        ) as get_duration,
-                    ):
-                        audio_file, audio_duration, result_sub_maker = tm.generate_audio(
-                            task_id, params, "script"
-                        )
-                finally:
-                    shutil.rmtree(task_dir, ignore_errors=True)
+                with (
+                    patch.object(tm.voice, "tts", return_value=sub_maker) as tts,
+                    patch.object(
+                        tm.voice, "get_audio_duration", side_effect=fake_duration
+                    ) as get_duration,
+                ):
+                    audio_file, audio_duration, result_sub_maker = tm.generate_audio(
+                        task_id, params, "script"
+                    )
 
                 self.assertEqual(audio_file, audio_path)
                 self.assertEqual(audio_duration, expected)
