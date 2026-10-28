@@ -487,6 +487,16 @@
     "chatgpt.oauth.ineligible": "Die ChatGPT-Plannutzung ist für dieses Konto oder diesen Arbeitsbereich nicht verfügbar. Wählen Sie einen anderen Anbieter.",
     "chatgpt.oauth.preview_import": "Keine nativen OAuth-Vorschauzugangsdaten zum Importieren, oder das Ziel existiert bereits.",
     "chatgpt.oauth.eligibility": "Natives OAuth erfordert ein berechtigtes Konto und Browser/Python auf demselben Rechner. Docker und Remote-Anmeldung werden nicht unterstützt. Codex bleibt separat verfügbar.",
-    "chatgpt.oauth.retry": "Erneut versuchen"
+    "chatgpt.oauth.retry": "Erneut versuchen",
+    "codex.image.label": "OpenAI - Codex Bilder",
+    "codex.image.help": "Nutzt die gemeinsame ChatGPT-Sitzung und Kontolimits. Responses-Modell unabhängig vom LLM wählen. Der Katalog garantiert keinen Bildzugriff.",
+    "codex.image.timeout": "Zeitlimit für Bilder (Sekunden)",
+    "codex.oauth.shared": "Ein ChatGPT-Konto für Text und Bilder. Abmelden betrifft beide.",
+    "codex.image.model_required": "Ein Codex-Responses-Modell für Bilder auswählen.",
+    "codex.image.invalid_timeout": "Das Bildzeitlimit muss eine positive endliche Zahl sein.",
+    "codex.image.invalid_result": "Codex lieferte kein einzelnes vollständiges gültiges Bild.",
+    "codex.image.uncertain": "Die Bildanfrage wurde möglicherweise verarbeitet. Ohne Wiederholung angehalten.",
+    "codex.image.save_failed": "Codex-Bild konnte nicht gespeichert werden. Ohne Wiederholung angehalten.",
+    "codex.image.render_failed": "Codex-Bild konnte nicht gerendert werden. Ohne Wiederholung angehalten."
   }
 }

@@ -487,6 +487,16 @@
     "chatgpt.oauth.ineligible": "ChatGPT planı bu hesab və ya iş sahəsi üçün əlçatan deyil. Başqa provayder seçin.",
     "chatgpt.oauth.preview_import": "İdxal ediləcək yerli OAuth önizləmə məlumatı yoxdur və ya hədəf artıq mövcuddur.",
     "chatgpt.oauth.eligibility": "Yerli OAuth uyğun hesab/iş sahəsi və Python ilə eyni kompüterdə brauzer tələb edir. Docker/uzaqdan giriş dəstəklənmir. Codex ayrıca əlçatandır.",
-    "chatgpt.oauth.retry": "Yenidən cəhd et"
+    "chatgpt.oauth.retry": "Yenidən cəhd et",
+    "codex.image.label": "OpenAI - Codex şəkilləri",
+    "codex.image.help": "Ortaq ChatGPT sessiyasından və hesab limitlərindən istifadə edir. LLM-dən müstəqil Responses modeli seçin. Kataloq şəkil girişinə zəmanət vermir.",
+    "codex.image.timeout": "Şəkil vaxt limiti (saniyə)",
+    "codex.oauth.shared": "Bir ChatGPT hesabı mətn və şəkillər üçündür. Çıxış hər ikisinə təsir edir.",
+    "codex.image.model_required": "Şəkillər üçün Codex Responses modeli seçin.",
+    "codex.image.invalid_timeout": "Şəkil vaxt limiti müsbət və sonlu ədəd olmalıdır.",
+    "codex.image.invalid_result": "Codex tək tam və etibarlı şəkil qaytarmadı.",
+    "codex.image.uncertain": "Sorğu işlənmiş ola bilər. Təkrarlanmadan dayandırıldı.",
+    "codex.image.save_failed": "Codex şəklini saxlamaq mümkün olmadı. Təkrarlanmadan dayandırıldı.",
+    "codex.image.render_failed": "Codex şəklini emal etmək mümkün olmadı. Təkrarlanmadan dayandırıldı."
   }
 }

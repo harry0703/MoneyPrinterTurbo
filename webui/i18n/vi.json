@@ -487,6 +487,16 @@
     "chatgpt.oauth.ineligible": "Gói ChatGPT không khả dụng cho tài khoản hoặc không gian này. Hãy chủ động chọn nhà cung cấp khác.",
     "chatgpt.oauth.preview_import": "Không có thông tin OAuth bản xem trước để nhập hoặc tệp đích đã tồn tại.",
     "chatgpt.oauth.eligibility": "OAuth gốc cần tài khoản/không gian đủ điều kiện và trình duyệt cùng máy với Python. Chưa hỗ trợ đăng nhập Docker/từ xa. Codex vẫn có thể chọn riêng.",
-    "chatgpt.oauth.retry": "Thử lại"
+    "chatgpt.oauth.retry": "Thử lại",
+    "codex.image.label": "Ảnh OpenAI - Codex",
+    "codex.image.help": "Dùng chung phiên ChatGPT và giới hạn tài khoản. Chọn mô hình Responses độc lập với LLM. Danh mục không đảm bảo quyền tạo ảnh.",
+    "codex.image.timeout": "Thời gian chờ ảnh (giây)",
+    "codex.oauth.shared": "Một tài khoản ChatGPT dùng cho văn bản và ảnh. Ngắt kết nối ảnh hưởng cả hai.",
+    "codex.image.model_required": "Chọn mô hình Responses Codex cho ảnh.",
+    "codex.image.invalid_timeout": "Thời gian chờ ảnh phải là số dương hữu hạn.",
+    "codex.image.invalid_result": "Codex không trả về một ảnh hoàn chỉnh hợp lệ duy nhất.",
+    "codex.image.uncertain": "Yêu cầu có thể đã được xử lý. Đã dừng mà không thử lại.",
+    "codex.image.save_failed": "Không lưu được ảnh Codex. Đã dừng mà không thử lại.",
+    "codex.image.render_failed": "Không kết xuất được ảnh Codex. Đã dừng mà không thử lại."
   }
 }

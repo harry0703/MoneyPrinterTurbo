@@ -734,6 +734,16 @@
     "chatgpt.oauth.ineligible": "此账号或工作区无法使用 ChatGPT 计划授权，请主动选择其他提供商。",
     "chatgpt.oauth.preview_import": "未找到可导入的原生 OAuth 预览凭证，或目标凭证已存在。",
     "chatgpt.oauth.eligibility": "原生 OAuth 需要符合资格的账号或工作区，且浏览器与 Python 必须运行在同一台电脑；暂不支持 Docker/远程登录。原有 Codex 提供商仍可单独选择。",
-    "chatgpt.oauth.retry": "重试"
+    "chatgpt.oauth.retry": "重试",
+    "codex.image.label": "OpenAI - Codex 图像",
+    "codex.image.help": "使用共享的 ChatGPT 会话与账户额度。图像 Responses 模型可独立于 LLM 选择。目录不保证图像生成权限。",
+    "codex.image.timeout": "图像请求超时（秒）",
+    "codex.oauth.shared": "同一 ChatGPT 账户用于文本和图像。断开连接将同时影响两者。",
+    "codex.image.model_required": "请选择用于图像的 Codex Responses 模型。",
+    "codex.image.invalid_timeout": "图像超时必须是有限的正数。",
+    "codex.image.invalid_result": "Codex 未返回唯一完整有效的图像。",
+    "codex.image.uncertain": "请求可能已处理。已停止生成，不会自动重试。",
+    "codex.image.save_failed": "无法保存 Codex 图像。已停止，不会自动重试。",
+    "codex.image.render_failed": "无法渲染 Codex 图像。已停止，不会自动重试。"
   }
 }

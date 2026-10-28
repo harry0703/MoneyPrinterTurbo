@@ -487,6 +487,16 @@
     "chatgpt.oauth.ineligible": "Paket ChatGPT tidak tersedia untuk akun atau ruang kerja ini. Pilih penyedia lain secara eksplisit.",
     "chatgpt.oauth.preview_import": "Tidak ada kredensial pratinjau OAuth native untuk diimpor atau tujuan sudah ada.",
     "chatgpt.oauth.eligibility": "OAuth native memerlukan akun/ruang kerja yang memenuhi syarat dan browser di komputer yang sama dengan Python. Login Docker/jarak jauh tidak didukung. Codex tetap tersedia terpisah.",
-    "chatgpt.oauth.retry": "Coba lagi"
+    "chatgpt.oauth.retry": "Coba lagi",
+    "codex.image.label": "Gambar OpenAI - Codex",
+    "codex.image.help": "Menggunakan sesi ChatGPT bersama dan batas akun. Pilih model Responses terpisah dari LLM. Katalog tidak menjamin akses gambar.",
+    "codex.image.timeout": "Batas waktu gambar (detik)",
+    "codex.oauth.shared": "Satu akun ChatGPT untuk teks dan gambar. Memutuskan koneksi memengaruhi keduanya.",
+    "codex.image.model_required": "Pilih model Responses Codex untuk gambar.",
+    "codex.image.invalid_timeout": "Batas waktu gambar harus berupa angka positif dan terbatas.",
+    "codex.image.invalid_result": "Codex tidak mengembalikan satu gambar lengkap yang valid.",
+    "codex.image.uncertain": "Permintaan mungkin telah diproses. Dihentikan tanpa mencoba lagi.",
+    "codex.image.save_failed": "Gagal menyimpan gambar Codex. Dihentikan tanpa mencoba lagi.",
+    "codex.image.render_failed": "Gagal merender gambar Codex. Dihentikan tanpa mencoba lagi."
   }
 }

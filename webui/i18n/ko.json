@@ -487,6 +487,16 @@
     "chatgpt.oauth.ineligible": "이 계정 또는 작업 공간에서는 ChatGPT 요금제를 사용할 수 없습니다. 다른 제공업체를 직접 선택하세요.",
     "chatgpt.oauth.preview_import": "가져올 네이티브 OAuth 미리 보기 인증 정보가 없거나 대상 파일이 이미 있습니다.",
     "chatgpt.oauth.eligibility": "네이티브 OAuth에는 자격이 있는 계정/작업 공간과 Python과 같은 컴퓨터의 브라우저가 필요합니다. Docker/원격 로그인은 지원하지 않습니다. 기존 Codex는 별도로 선택할 수 있습니다.",
-    "chatgpt.oauth.retry": "다시 시도"
+    "chatgpt.oauth.retry": "다시 시도",
+    "codex.image.label": "OpenAI - Codex 이미지",
+    "codex.image.help": "공유 ChatGPT 세션과 계정 한도를 사용합니다. LLM과 별도로 Responses 모델을 선택하세요. 카탈로그는 이미지 접근 권한을 보장하지 않습니다.",
+    "codex.image.timeout": "이미지 요청 제한 시간(초)",
+    "codex.oauth.shared": "하나의 ChatGPT 계정으로 텍스트와 이미지를 사용합니다. 연결 해제는 둘 다에 적용됩니다.",
+    "codex.image.model_required": "이미지용 Codex Responses 모델을 선택하세요.",
+    "codex.image.invalid_timeout": "이미지 제한 시간은 양의 유한한 숫자여야 합니다.",
+    "codex.image.invalid_result": "Codex가 완전하고 유효한 이미지 하나를 반환하지 않았습니다.",
+    "codex.image.uncertain": "요청이 처리되었을 수 있습니다. 재시도 없이 중단했습니다.",
+    "codex.image.save_failed": "Codex 이미지를 저장하지 못했습니다. 재시도 없이 중단했습니다.",
+    "codex.image.render_failed": "Codex 이미지를 렌더링하지 못했습니다. 재시도 없이 중단했습니다."
   }
 }

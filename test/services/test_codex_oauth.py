@@ -46,6 +46,7 @@ def flow():
         "device_auth_id": "device",
         "user_code": "CODE-ONE",
         "generation": codex.authorization_generation(),
+        "session_revision": None,
         "expires_at": time.time() + 900,
     }
 

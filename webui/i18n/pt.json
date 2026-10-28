@@ -487,6 +487,16 @@
     "chatgpt.oauth.ineligible": "O plano do ChatGPT não está disponível para esta conta ou espaço. Escolha outro provedor explicitamente.",
     "chatgpt.oauth.preview_import": "Não há credenciais de prévia OAuth nativa para importar ou o destino já existe.",
     "chatgpt.oauth.eligibility": "OAuth nativo exige conta ou espaço elegível e navegador no mesmo computador que Python. Login remoto/Docker não é suportado. Codex continua disponível separadamente.",
-    "chatgpt.oauth.retry": "Tentar novamente"
+    "chatgpt.oauth.retry": "Tentar novamente",
+    "codex.image.label": "Imagens OpenAI - Codex",
+    "codex.image.help": "Usa a sessão compartilhada do ChatGPT e os limites da conta. Escolha um modelo Responses independente do LLM. O catálogo não garante acesso a imagens.",
+    "codex.image.timeout": "Tempo limite de imagens (segundos)",
+    "codex.oauth.shared": "Uma conta ChatGPT atende texto e imagens. Desconectar afeta ambos.",
+    "codex.image.model_required": "Escolha um modelo Responses Codex para imagens.",
+    "codex.image.invalid_timeout": "O tempo limite deve ser um número positivo e finito.",
+    "codex.image.invalid_result": "Codex não retornou uma única imagem completa e válida.",
+    "codex.image.uncertain": "A solicitação pode ter sido processada. Geração interrompida sem repetir.",
+    "codex.image.save_failed": "Não foi possível salvar a imagem Codex. Interrompido sem repetir.",
+    "codex.image.render_failed": "Não foi possível renderizar a imagem Codex. Interrompido sem repetir."
   }
 }

@@ -168,7 +168,7 @@ def test_real_settings_select_and_refresh_preserve_saved_model():
         catalog.return_value = updated
         app.button(key="codex_models_refresh").click().run()
         assert not app.exception
-        assert catalog.call_args.kwargs["force_refresh"] is True
+        catalog.assert_any_call(force_refresh=True)
         assert (
             app.selectbox(key="openai_codex_model_name_select").value == "gpt-7-choice"
         )

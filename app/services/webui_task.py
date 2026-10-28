@@ -14,7 +14,7 @@ from app.models import const
 from app.models.schema import VideoParams
 from app.services import state as sm
 from app.services import task as tm
-from app.services import jalapeno_video, volcengine_seedance
+from app.services import codex_image, jalapeno_video, volcengine_seedance
 from app.services.loomloom import LoomLoomConfirmedVideoRequest
 from app.utils.logging_utils import (
     format_log_record,
@@ -47,7 +47,9 @@ def is_generation_active(task_id: str) -> bool:
         return task_id in _active_submissions.values()
 
 
-def _submission_signature(params, references, request, endpoint, preview):
+def _submission_signature(
+    params, references, request, endpoint, preview, codex_image_context=None
+):
     # 仅保留摘要，不保存凭据或上传内容。不同 Key/模型/输入是不同请求，
     # 相同内容在完成后允许再次生成；只合并仍在排队或执行的重复提交。
     request_inputs = asdict(request) if request is not None else None
@@ -71,6 +73,8 @@ def _submission_signature(params, references, request, endpoint, preview):
             if key in preview
         } if preview else None,
     }
+    if codex_image_context is not None:
+        payload["codex_image"] = asdict(codex_image_context)
     if preview and not preview.get("audio_digest"):
         # 旧调用方没有内容摘要时，不能仅凭同一时长推断两个文件相同。
         # 不在校验前读取任意路径；宁可保留不同文件的独立请求。
@@ -111,6 +115,7 @@ def _run_generation(
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
     jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
+    codex_image_context: codex_image.CodexImageContext | None = None,
 ) -> dict:
     """
     在后台线程中执行现有视频流水线。
@@ -147,6 +152,8 @@ def _run_generation(
                 voxcpm_reference_audio=voxcpm_reference_audio,
                 voxcpm_prompt_audio=voxcpm_prompt_audio,
                 voxcpm_prompt_text=voxcpm_prompt_text,
+                **({"codex_image_context": codex_image_context}
+                   if codex_image_context is not None else {}),
                 **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
                    if jalapeno_video_endpoint is not None else {}),
             )
@@ -230,11 +237,22 @@ def submit_generation(
         jalapeno_video_endpoint = jalapeno_video.endpoint(
             config.snapshot_config_with_pending(config.app)
         )
+    codex_image_context = (
+        codex_image.capture_context(config.snapshot_config_with_pending(config.app))
+        if task_params.video_source == "codex_image"
+        else None
+    )
     signature = _submission_signature(
         task_params,
-        (voxcpm_reference_audio_snapshot, voxcpm_prompt_audio_snapshot,
-         voxcpm_prompt_text_snapshot.encode()),
-        loomloom_request_snapshot, jalapeno_video_endpoint, voice_preview_snapshot,
+        (
+            voxcpm_reference_audio_snapshot,
+            voxcpm_prompt_audio_snapshot,
+            voxcpm_prompt_text_snapshot.encode(),
+        ),
+        loomloom_request_snapshot,
+        jalapeno_video_endpoint,
+        voice_preview_snapshot,
+        codex_image_context,
     )
     # 同一锁内查重并预占，两个标签页同时点击也只会真正入队一次。
     with _submission_lock:
@@ -246,10 +264,16 @@ def submit_generation(
         _active_submissions[signature] = task_id
     try:
         _enqueue_generation(
-            task_id, task_params, capture_logs, voice_preview_snapshot,
-            loomloom_request_snapshot, voxcpm_reference_audio_snapshot,
-            voxcpm_prompt_audio_snapshot, voxcpm_prompt_text_snapshot,
+            task_id,
+            task_params,
+            capture_logs,
+            voice_preview_snapshot,
+            loomloom_request_snapshot,
+            voxcpm_reference_audio_snapshot,
+            voxcpm_prompt_audio_snapshot,
+            voxcpm_prompt_text_snapshot,
             jalapeno_video_endpoint,
+            codex_image_context,
         )
     except Exception:
         with _submission_lock:
@@ -260,10 +284,16 @@ def submit_generation(
 
 
 def _enqueue_generation(
-    task_id, task_params, capture_logs, voice_preview_snapshot,
-    loomloom_request_snapshot, voxcpm_reference_audio_snapshot,
-    voxcpm_prompt_audio_snapshot, voxcpm_prompt_text_snapshot,
+    task_id,
+    task_params,
+    capture_logs,
+    voice_preview_snapshot,
+    loomloom_request_snapshot,
+    voxcpm_reference_audio_snapshot,
+    voxcpm_prompt_audio_snapshot,
+    voxcpm_prompt_text_snapshot,
     jalapeno_video_endpoint,
+    codex_image_context=None,
 ):
     submitted_at = time.time()
     sm.state.update_task(
@@ -286,6 +316,8 @@ def _enqueue_generation(
             voxcpm_reference_audio=voxcpm_reference_audio_snapshot,
             voxcpm_prompt_audio=voxcpm_prompt_audio_snapshot,
             voxcpm_prompt_text=voxcpm_prompt_text_snapshot,
+            **({"codex_image_context": codex_image_context}
+               if codex_image_context is not None else {}),
             **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
                if jalapeno_video_endpoint is not None else {}),
         )

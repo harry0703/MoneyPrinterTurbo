@@ -487,6 +487,16 @@
     "chatgpt.oauth.ineligible": "Le forfait ChatGPT est indisponible pour ce compte ou espace. Choisissez explicitement un autre fournisseur.",
     "chatgpt.oauth.preview_import": "Aucun identifiant OAuth natif de préversion à importer, ou la destination existe déjà.",
     "chatgpt.oauth.eligibility": "OAuth natif exige un compte/espace éligible et le navigateur sur la même machine que Python. Docker et la connexion distante ne sont pas pris en charge. Codex reste disponible séparément.",
-    "chatgpt.oauth.retry": "Réessayer"
+    "chatgpt.oauth.retry": "Réessayer",
+    "codex.image.label": "Images OpenAI - Codex",
+    "codex.image.help": "Utilise la session ChatGPT partagée et les limites du compte. Choisissez un modèle Responses indépendant du LLM. Le catalogue ne garantit pas l’accès aux images.",
+    "codex.image.timeout": "Délai maximal des images (secondes)",
+    "codex.oauth.shared": "Un compte ChatGPT sert au texte et aux images. La déconnexion affecte les deux.",
+    "codex.image.model_required": "Choisissez un modèle Responses Codex pour les images.",
+    "codex.image.invalid_timeout": "Le délai des images Codex doit être un nombre positif et fini.",
+    "codex.image.invalid_result": "Codex n’a pas renvoyé une seule image complète et valide.",
+    "codex.image.uncertain": "La demande a peut-être été traitée. Génération arrêtée sans nouvelle tentative.",
+    "codex.image.save_failed": "Impossible d’enregistrer l’image Codex. Arrêt sans nouvelle tentative.",
+    "codex.image.render_failed": "Impossible de rendre l’image Codex. Arrêt sans nouvelle tentative."
   }
 }

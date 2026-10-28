@@ -28,6 +28,10 @@ log_requests = false
 # Uses ChatGPT subscription limits; no API key. Credentials live in storage/auth.
 openai_codex_model_name = ""
 openai_codex_timeout = ""
+# Codex image source: reuses the same ChatGPT login, with an independent Responses
+# model selection. Catalog candidates do not guarantee image-tool access.
+codex_image_model_name = ""
+codex_image_timeout = 300
 
 # OpenAI - ChatGPT (Native OAuth): separately selected, account/workspace eligibility required.
 # Browser and Python runtime must be on the same computer. Remote/Docker sign-in is not supported.
