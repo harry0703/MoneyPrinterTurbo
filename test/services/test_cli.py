@@ -1677,9 +1677,7 @@ class TestCli(unittest.TestCase):
                 json.dumps([{"video_subject": "global audio"}]),
                 encoding="utf-8",
             )
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(working_dir)
+            with chdir(working_dir):
                 with (
                     patch(
                         "app.services.task.start",
@@ -1698,8 +1696,6 @@ class TestCli(unittest.TestCase):
                             "audio",
                         ]
                     )
-            finally:
-                os.chdir(old_cwd)
 
         self.assertEqual(code, 0)
         self.assertEqual(
