@@ -979,6 +979,7 @@ class TestTaskService(unittest.TestCase):
     def test_generate_audio_accepts_server_side_custom_file_for_trusted_cli(self):
         task_id = "test-custom-audio-server-side"
         task_dir = utils.task_dir(task_id)
+        self.addCleanup(shutil.rmtree, task_dir, ignore_errors=True)
 
         with tempfile.NamedTemporaryFile(suffix=".mp3") as server_audio:
             server_audio.write(b"fake audio")
@@ -990,19 +991,16 @@ class TestTaskService(unittest.TestCase):
                 voice_name="test-voice",
             )
 
-            try:
-                with (
-                    patch.object(tm.voice, "tts") as tts,
-                    patch.object(tm.voice, "get_audio_duration", return_value=6),
-                ):
-                    audio_file, audio_duration, result_sub_maker = tm.generate_audio(
-                        task_id,
-                        params,
-                        "script",
-                        allow_server_file_input=True,
-                    )
-            finally:
-                shutil.rmtree(task_dir, ignore_errors=True)
+            with (
+                patch.object(tm.voice, "tts") as tts,
+                patch.object(tm.voice, "get_audio_duration", return_value=6),
+            ):
+                audio_file, audio_duration, result_sub_maker = tm.generate_audio(
+                    task_id,
+                    params,
+                    "script",
+                    allow_server_file_input=True,
+                )
 
         self.assertEqual(audio_file, os.path.realpath(server_audio.name))
         self.assertEqual(audio_duration, 6)
