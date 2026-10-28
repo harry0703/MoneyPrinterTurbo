@@ -1598,9 +1598,7 @@ class TestCli(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(working_dir)
+            with chdir(working_dir):
                 with (
                     patch(
                         "app.services.task.start",
@@ -1612,8 +1610,6 @@ class TestCli(unittest.TestCase):
                     code = cli.run_cli(
                         ["--batch-file", str(manifest), "--stop-at", "audio"]
                     )
-            finally:
-                os.chdir(old_cwd)
 
         self.assertEqual(code, 0)
         self.assertEqual(
