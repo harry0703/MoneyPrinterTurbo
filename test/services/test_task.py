@@ -1010,6 +1010,7 @@ class TestTaskService(unittest.TestCase):
     def test_generate_audio_rejects_missing_custom_file_without_tts(self):
         task_id = "test-custom-audio-missing"
         task_dir = utils.task_dir(task_id)
+        self.addCleanup(shutil.rmtree, task_dir, ignore_errors=True)
         missing_audio_file = os.path.join(task_dir, "missing.mp3")
         params = VideoParams(
             video_subject="custom audio",
@@ -1019,16 +1020,13 @@ class TestTaskService(unittest.TestCase):
         )
         state = MemoryState()
 
-        try:
-            with (
-                patch.object(tm.voice, "tts") as tts,
-                patch.object(tm.sm, "state", state),
-            ):
-                audio_file, audio_duration, result_sub_maker = tm.generate_audio(
-                    task_id, params, "script"
-                )
-        finally:
-            shutil.rmtree(task_dir, ignore_errors=True)
+        with (
+            patch.object(tm.voice, "tts") as tts,
+            patch.object(tm.sm, "state", state),
+        ):
+            audio_file, audio_duration, result_sub_maker = tm.generate_audio(
+                task_id, params, "script"
+            )
 
         self.assertIsNone(audio_file)
         self.assertIsNone(audio_duration)
