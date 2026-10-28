@@ -275,7 +275,7 @@ class TestVoiceService(unittest.TestCase):
             self.fail("azure tts v1 failed")
         vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
         audio_duration = vs.get_audio_duration(sub_maker)
-        print(f"voice: {voice_name}, audio duration: {audio_duration}s")
+        self.assertGreater(audio_duration, 0)
 
     def test_azure_tts_v1_supports_legacy_edge_tts_without_boundary(self):
         """
