@@ -963,17 +963,15 @@ class TestTaskService(unittest.TestCase):
     def test_external_custom_audio_error_does_not_reveal_file_existence(self):
         task_id = "test-custom-audio-existence-oracle"
         task_dir = utils.task_dir(task_id)
+        self.addCleanup(shutil.rmtree, task_dir, ignore_errors=True)
 
         with tempfile.NamedTemporaryFile(suffix=".mp3") as server_audio:
             external_paths = [server_audio.name, f"{server_audio.name}.missing"]
             errors = []
-            try:
-                for external_path in external_paths:
-                    with self.assertRaises(ValueError) as raised:
-                        tm.resolve_custom_audio_file(task_id, external_path)
-                    errors.append(str(raised.exception))
-            finally:
-                shutil.rmtree(task_dir, ignore_errors=True)
+            for external_path in external_paths:
+                with self.assertRaises(ValueError) as raised:
+                    tm.resolve_custom_audio_file(task_id, external_path)
+                errors.append(str(raised.exception))
 
         self.assertEqual(errors[0], errors[1])
         self.assertIn("current task directory", errors[0])
