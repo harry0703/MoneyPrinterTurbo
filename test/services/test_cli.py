@@ -1644,9 +1644,7 @@ class TestCli(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(working_dir)
+            with chdir(working_dir):
                 with (
                     patch(
                         "app.services.task.start",
@@ -1659,8 +1657,6 @@ class TestCli(unittest.TestCase):
                     code = cli.run_cli(
                         ["--batch-file", str(manifest), "--stop-at", "materials"]
                     )
-            finally:
-                os.chdir(old_cwd)
 
             prepared_file = Path(
                 start.call_args.kwargs["params"].video_materials[0].url
