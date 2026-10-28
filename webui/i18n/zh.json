@@ -21,12 +21,12 @@
     "codex.oauth.rate_limit": "已达到 Codex 使用限制。请稍后重试。",
     "codex.models.refresh": "刷新模型列表",
     "codex.models.choose": "选择模型",
-    "codex.models.source": "采用与 Jarvys 相同的规则，从 models.dev 目录筛选 Codex 模型。实际可用性取决于你的账号。",
+    "codex.models.source": "从 models.dev 目录筛选 Codex 模型。实际可用性取决于你的账号。",
     "codex.models.failed": "无法获取模型目录。请保留或输入模型 ID，然后重新刷新。",
     "codex.models.stale": "无法刷新模型目录；当前显示上次保存的列表。",
     "codex.models.saved": "已保存的模型不在当前目录中。将保留该模型，不会自动切换。",
     "codex.oauth.http_error": "OpenAI - Codex 返回 HTTP {status}。请检查所选模型及账号访问权限。",
-    "llm_provider_tips.openai_codex": "##### OpenAI - Codex\n- **API Key**：无需填写；请通过下方设备验证码连接 ChatGPT 账号。\n- **Base Url**：无需填写。\n- **Model Name**：从动态 models.dev 目录选择模型，筛选规则与 Jarvys 一致。\n- 请求使用订阅的 Codex 配额。配音和视频服务需要单独配置。\n- 凭据仅保存在本地；Windows 使用 DPAPI 加密。",
+    "llm_provider_tips.openai_codex": "##### OpenAI - Codex\n- **API Key**：无需填写；请通过下方设备验证码连接 ChatGPT 账号。\n- **Base Url**：无需填写。\n- **Model Name**：从动态 models.dev 目录选择模型。\n- 请求使用订阅的 Codex 配额。配音和视频服务需要单独配置。\n- 凭据仅保存在本地；Windows 使用 DPAPI 加密。",
     "YouTube Audience": "YouTube 受众",
     "Made for Kids": "是，面向儿童",
     "Not Made for Kids": "否，不面向儿童",
@@ -746,6 +746,15 @@
     "codex.image.invalid_result": "Codex 未返回唯一完整有效的图像。",
     "codex.image.uncertain": "请求可能已处理。已停止生成，不会自动重试。",
     "codex.image.save_failed": "无法保存 Codex 图像。已停止，不会自动重试。",
-    "codex.image.render_failed": "无法渲染 Codex 图像。已停止，不会自动重试。"
+    "codex.image.render_failed": "无法渲染 Codex 图像。已停止，不会自动重试。",
+    "General Settings Tab": "常规",
+    "General Providers Title": "选择服务商",
+    "General Providers Help": "选择已配置的服务商，然后点击使用。请在对应设置中管理凭据。",
+    "Configured Providers": "已配置的服务商",
+    "Use Provider": "使用",
+    "Configure Providers": "配置",
+    "Active Provider": "正在使用：{provider}",
+    "No Configured Providers": "尚未配置服务商。",
+    "Provider Configuration Changed": "配置已更改，请检查该服务商的设置。"
   }
 }

@@ -5,7 +5,13 @@ import streamlit as st
 from app.services import chatgpt_models, chatgpt_oauth
 
 
-def render_chatgpt_model_selector(current_model, tr):
+def _notify_model_change(on_change):
+    selected = st.session_state.get("openai_chatgpt_model_name_select")
+    if selected and on_change is not None:
+        on_change(selected)
+
+
+def render_chatgpt_model_selector(current_model, tr, *, on_change=None):
     try:
         if not chatgpt_oauth.account_status():
             st.caption(tr("chatgpt.oauth.not_connected"))
@@ -45,6 +51,8 @@ def render_chatgpt_model_selector(current_model, tr):
         key="openai_chatgpt_model_name_select",
         placeholder=tr("chatgpt.models.choose"),
         disabled=not choices,
+        on_change=_notify_model_change,
+        args=(on_change,),
     )
     st.caption(tr("chatgpt.models.source"))
     result = selected or current_model

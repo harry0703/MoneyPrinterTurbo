@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Batas penggunaan Codex Anda tercapai. Tunggu sebelum mencoba lagi.",
     "codex.models.refresh": "Perbarui model",
     "codex.models.choose": "Pilih model",
-    "codex.models.source": "Katalog models.dev difilter untuk Codex seperti di Jarvys. Ketersediaan bergantung pada akun Anda.",
+    "codex.models.source": "Katalog models.dev difilter untuk Codex. Ketersediaan bergantung pada akun Anda.",
     "codex.models.failed": "Katalog tidak dapat diambil. Pertahankan atau masukkan ID model Anda dan perbarui lagi.",
     "codex.models.stale": "Katalog tidak dapat diperbarui; daftar terakhir yang disimpan ditampilkan.",
     "codex.models.saved": "Model tersimpan Anda tidak ada dalam katalog saat ini. Model tetap dipertahankan tanpa perubahan otomatis.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex tidak mengembalikan satu gambar lengkap yang valid.",
     "codex.image.uncertain": "Permintaan mungkin telah diproses. Dihentikan tanpa mencoba lagi.",
     "codex.image.save_failed": "Gagal menyimpan gambar Codex. Dihentikan tanpa mencoba lagi.",
-    "codex.image.render_failed": "Gagal merender gambar Codex. Dihentikan tanpa mencoba lagi."
+    "codex.image.render_failed": "Gagal merender gambar Codex. Dihentikan tanpa mencoba lagi.",
+    "General Settings Tab": "Umum",
+    "General Providers Title": "Pilih penyedia Anda",
+    "General Providers Help": "Pilih penyedia yang sudah dikonfigurasi, lalu klik Gunakan. Kelola kredensial di pengaturannya.",
+    "Configured Providers": "Penyedia yang dikonfigurasi",
+    "Use Provider": "Gunakan",
+    "Configure Providers": "Konfigurasi",
+    "Active Provider": "Sedang digunakan: {provider}",
+    "No Configured Providers": "Belum ada penyedia yang dikonfigurasi.",
+    "Provider Configuration Changed": "Konfigurasi berubah. Periksa pengaturan penyedia ini."
   }
 }

@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Votre limite d'utilisation de Codex est atteinte. Patientez avant de réessayer.",
     "codex.models.refresh": "Actualiser les modèles",
     "codex.models.choose": "Sélectionner un modèle",
-    "codex.models.source": "Catalogue models.dev filtré pour Codex comme dans Jarvys. La disponibilité dépend de votre compte.",
+    "codex.models.source": "Catalogue models.dev filtré pour Codex. La disponibilité dépend de votre compte.",
     "codex.models.failed": "Impossible de charger le catalogue. Conservez ou saisissez l'identifiant du modèle, puis actualisez à nouveau.",
     "codex.models.stale": "Impossible d'actualiser le catalogue ; la dernière liste enregistrée est affichée.",
     "codex.models.saved": "Votre modèle enregistré ne figure pas dans le catalogue actuel. Il est conservé sans changement automatique.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex n’a pas renvoyé une seule image complète et valide.",
     "codex.image.uncertain": "La demande a peut-être été traitée. Génération arrêtée sans nouvelle tentative.",
     "codex.image.save_failed": "Impossible d’enregistrer l’image Codex. Arrêt sans nouvelle tentative.",
-    "codex.image.render_failed": "Impossible de rendre l’image Codex. Arrêt sans nouvelle tentative."
+    "codex.image.render_failed": "Impossible de rendre l’image Codex. Arrêt sans nouvelle tentative.",
+    "General Settings Tab": "Général",
+    "General Providers Title": "Choisissez vos fournisseurs",
+    "General Providers Help": "Choisissez un fournisseur configuré, puis cliquez sur Utiliser. Gérez ses identifiants dans ses paramètres.",
+    "Configured Providers": "Fournisseurs configurés",
+    "Use Provider": "Utiliser",
+    "Configure Providers": "Configurer",
+    "Active Provider": "En cours d’utilisation : {provider}",
+    "No Configured Providers": "Aucun fournisseur configuré pour le moment.",
+    "Provider Configuration Changed": "La configuration a changé. Vérifiez les paramètres de ce fournisseur."
   }
 }

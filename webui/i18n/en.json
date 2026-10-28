@@ -21,12 +21,12 @@
     "codex.oauth.rate_limit": "Your Codex usage limit was reached. Wait before trying again.",
     "codex.models.refresh": "Refresh models",
     "codex.models.choose": "Select a model",
-    "codex.models.source": "models.dev catalog, filtered for Codex as in Jarvys. Availability depends on your account.",
+    "codex.models.source": "models.dev catalog filtered for Codex. Availability depends on your account.",
     "codex.models.failed": "Could not fetch the catalog. Keep or enter your model ID and refresh again.",
     "codex.models.stale": "Could not refresh the catalog; showing the last saved list.",
     "codex.models.saved": "Your saved model is absent from the current catalog. It is preserved without automatically switching models.",
     "codex.oauth.http_error": "OpenAI - Codex returned HTTP {status}. Check the selected model and your account access.",
-    "llm_provider_tips.openai_codex": "##### OpenAI - Codex\n- **API Key**: not required; sign in with your ChatGPT account using a device code below.\n- **Base Url**: not required.\n- **Model Name**: select from the dynamic models.dev catalog, as in Jarvys.\n- Uses Codex subscription limits. Voice and video generation are configured separately.\n- Credentials are stored locally, encrypted with Windows DPAPI on Windows.",
+    "llm_provider_tips.openai_codex": "##### OpenAI - Codex\n- **API Key**: not required; sign in with your ChatGPT account using a device code below.\n- **Base Url**: not required.\n- **Model Name**: select from the dynamic models.dev catalog.\n- Uses Codex subscription limits. Voice and video generation are configured separately.\n- Credentials are stored locally, encrypted with Windows DPAPI on Windows.",
     "YouTube Audience": "YouTube audience",
     "Made for Kids": "Yes, made for kids",
     "Not Made for Kids": "No, not made for kids",
@@ -746,6 +746,15 @@
     "codex.image.invalid_result": "Codex did not return one complete valid image.",
     "codex.image.uncertain": "The image request may have been processed. Generation stopped without retrying.",
     "codex.image.save_failed": "Could not save the Codex image. Generation stopped without retrying.",
-    "codex.image.render_failed": "Could not render the Codex image. Generation stopped without retrying."
+    "codex.image.render_failed": "Could not render the Codex image. Generation stopped without retrying.",
+    "General Settings Tab": "General",
+    "General Providers Title": "Choose your providers",
+    "General Providers Help": "Choose a configured provider, then select Use. Manage credentials in its settings.",
+    "Configured Providers": "Configured providers",
+    "Use Provider": "Use",
+    "Configure Providers": "Configure",
+    "Active Provider": "In use: {provider}",
+    "No Configured Providers": "No providers configured yet.",
+    "Provider Configuration Changed": "Configuration changed. Review this provider in its settings."
   }
 }

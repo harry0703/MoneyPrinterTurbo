@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Has arribat al límit d'ús de Codex. Espera abans de tornar-ho a provar.",
     "codex.models.refresh": "Actualitza els models",
     "codex.models.choose": "Selecciona un model",
-    "codex.models.source": "Catàleg de models.dev filtrat per a Codex com a Jarvys. La disponibilitat depèn del teu compte.",
+    "codex.models.source": "Catàleg de models.dev filtrat per a Codex. La disponibilitat depèn del teu compte.",
     "codex.models.failed": "No s'ha pogut consultar el catàleg. Conserva o introdueix l'ID del model i torna a actualitzar.",
     "codex.models.stale": "No s'ha pogut actualitzar el catàleg; es mostra l'última llista desada.",
     "codex.models.saved": "El model desat no apareix al catàleg actual. Es conserva sense canviar-lo automàticament.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex no ha retornat una única imatge completa i vàlida.",
     "codex.image.uncertain": "La sol·licitud pot haver-se processat. Generació aturada sense reintentar.",
     "codex.image.save_failed": "No s’ha pogut desar la imatge Codex. Aturat sense reintentar.",
-    "codex.image.render_failed": "No s’ha pogut renderitzar la imatge Codex. Aturat sense reintentar."
+    "codex.image.render_failed": "No s’ha pogut renderitzar la imatge Codex. Aturat sense reintentar.",
+    "General Settings Tab": "General",
+    "General Providers Title": "Tria els proveïdors",
+    "General Providers Help": "Tria un proveïdor configurat i prem Utilitza. Gestiona les credencials a la seva configuració.",
+    "Configured Providers": "Proveïdors configurats",
+    "Use Provider": "Utilitza",
+    "Configure Providers": "Configura",
+    "Active Provider": "En ús: {provider}",
+    "No Configured Providers": "Encara no hi ha proveïdors configurats.",
+    "Provider Configuration Changed": "La configuració ha canviat. Revisa aquest proveïdor a la seva configuració."
   }
 }
