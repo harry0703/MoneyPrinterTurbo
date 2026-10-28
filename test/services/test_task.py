@@ -2613,7 +2613,7 @@ class TestTaskService(unittest.TestCase):
             paragraph_number=1,
         )
         result = tm.start(task_id=task_id, params=params)
-        print(result)
+        self.assertTrue(result.get("videos"))
 
 
 if __name__ == "__main__":
