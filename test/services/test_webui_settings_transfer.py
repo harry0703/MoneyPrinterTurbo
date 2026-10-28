@@ -223,18 +223,21 @@ def test_settings_preset_accepts_file_without_video_subject():
 
 
 def test_settings_preset_rejects_foreign_or_outdated_files():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as foreign_schema:
         parse_settings_preset(_encode({"schema": "something-else", "version": 1}))
-    with pytest.raises(ValueError):
+    assert "unexpected schema" in str(foreign_schema.value)
+    with pytest.raises(ValueError) as outdated_version:
         parse_settings_preset(
             _encode({"schema": SETTINGS_PRESET_SCHEMA, "version": 999})
         )
-    with pytest.raises(ValueError):
+    assert "unsupported version" in str(outdated_version.value)
+    with pytest.raises(ValueError) as missing_params:
         parse_settings_preset(
             _encode(
                 {"schema": SETTINGS_PRESET_SCHEMA, "version": SETTINGS_PRESET_VERSION}
             )
         )
+    assert "no params object" in str(missing_params.value)
     with pytest.raises(json.JSONDecodeError):
         parse_settings_preset(b"not json at all")
 
