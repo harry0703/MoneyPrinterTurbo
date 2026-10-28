@@ -428,7 +428,6 @@ class TestVoiceService(unittest.TestCase):
 
         voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
         voice_name = vs.parse_voice_name(voice_name)
-        print(voice_name)
 
         async def _do():
             voice_file = f"{temp_dir}/tts-azure-v2-{voice_name}.mp3"
