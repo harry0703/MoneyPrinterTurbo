@@ -49,12 +49,22 @@ def test_ofox_settings_order_and_saved_values(language):
         app.session_state["ui_language"] = language
         app.run()
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "video"
+        app.session_state["settings_material_providers"] = {"ai_video": "ofox"}
         app.run()
         assert not app.exception
-        keys = [item.key for item in app.text_input]
-        assert keys.index("metaso_minimax_api_key_input") < keys.index("ofox_api_key_input")
-        assert keys.index("ofox_api_key_input") < keys.index("loomloom_api_token_input")
-        # 获取密钥入口也要携带同一组跟踪参数，防止切换语言后丢失推广来源。
+        messages = json.loads((WEBUI.parent / "i18n" / f"{language}.json").read_text(encoding="utf-8"))["Translation"]
+        english = json.loads((WEBUI.parent / "i18n" / "en.json").read_text(encoding="utf-8"))["Translation"]
+        providers = app.selectbox(key=f"settings_material_provider_ai_video_select_{language}")
+        assert providers.options == [messages.get(key, english.get(key, key)) for key in (
+            "Metaso MiniMax H3", "OFox AI Video", "Shengsuan Cloud AI Video",
+            "Volcano Engine Seedance", "Infistar AI Video", "Jalapeno Cloud AI Video",
+            "WaveSpeed AI Video", "MuAPI AI Video",
+        )]
+        assert providers.value == "ofox"
+        assert not any(item.key in {
+            "metaso_minimax_api_key_input", "loomloom_api_token_input"
+        } for item in app.text_input)
         api_key_input = next(item for item in app.text_input if item.key == "ofox_api_key_input")
         assert "https://ofox.ai/?utm_source=github&utm_medium=sponsorship&utm_content=moneyprinterturbo" in api_key_input.label
         assert any(item.value == "**OfoxAI**" for item in app.markdown)

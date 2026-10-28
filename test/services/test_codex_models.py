@@ -157,6 +157,7 @@ def test_real_settings_select_and_refresh_preserve_saved_model():
     ):
         app = AppTest.from_file("webui/Main.py", default_timeout=60)
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
         assert (
@@ -193,6 +194,7 @@ def test_ui_outage_preserves_manual_model_then_recovers():
     ):
         app = AppTest.from_file("webui/Main.py", default_timeout=60)
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
         assert (

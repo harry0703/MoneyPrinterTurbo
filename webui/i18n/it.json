@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Hai raggiunto il limite di utilizzo di Codex. Attendi prima di riprovare.",
     "codex.models.refresh": "Aggiorna modelli",
     "codex.models.choose": "Seleziona un modello",
-    "codex.models.source": "Catalogo models.dev filtrato per Codex come in Jarvys. La disponibilità dipende dal tuo account.",
+    "codex.models.source": "Catalogo models.dev filtrato per Codex. La disponibilità dipende dal tuo account.",
     "codex.models.failed": "Impossibile caricare il catalogo. Mantieni o inserisci l'ID del modello e aggiorna di nuovo.",
     "codex.models.stale": "Impossibile aggiornare il catalogo; viene mostrato l'ultimo elenco salvato.",
     "codex.models.saved": "Il modello salvato non è nel catalogo attuale. Viene mantenuto senza cambiarlo automaticamente.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex non ha restituito una sola immagine completa e valida.",
     "codex.image.uncertain": "La richiesta potrebbe essere stata elaborata. Generazione fermata senza riprovare.",
     "codex.image.save_failed": "Impossibile salvare l’immagine Codex. Arresto senza riprovare.",
-    "codex.image.render_failed": "Impossibile renderizzare l’immagine Codex. Arresto senza riprovare."
+    "codex.image.render_failed": "Impossibile renderizzare l’immagine Codex. Arresto senza riprovare.",
+    "General Settings Tab": "Generale",
+    "General Providers Title": "Scegli i fornitori",
+    "General Providers Help": "Scegli un fornitore configurato e premi Usa. Gestisci le credenziali nelle sue impostazioni.",
+    "Configured Providers": "Fornitori configurati",
+    "Use Provider": "Usa",
+    "Configure Providers": "Configura",
+    "Active Provider": "In uso: {provider}",
+    "No Configured Providers": "Nessun fornitore ancora configurato.",
+    "Provider Configuration Changed": "La configurazione è cambiata. Controlla le impostazioni di questo fornitore."
   }
 }

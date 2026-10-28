@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Codex 사용 한도에 도달했습니다. 잠시 기다린 후 다시 시도하세요.",
     "codex.models.refresh": "모델 새로고침",
     "codex.models.choose": "모델 선택",
-    "codex.models.source": "Jarvys와 같은 방식으로 Codex용으로 필터링한 models.dev 카탈로그입니다. 사용 가능 여부는 계정에 따라 다릅니다.",
+    "codex.models.source": "Codex용으로 필터링한 models.dev 카탈로그입니다. 사용 가능 여부는 계정에 따라 다릅니다.",
     "codex.models.failed": "카탈로그를 가져올 수 없습니다. 모델 ID를 유지하거나 입력한 후 다시 새로고침하세요.",
     "codex.models.stale": "카탈로그를 새로고침할 수 없어 마지막으로 저장한 목록을 표시합니다.",
     "codex.models.saved": "저장한 모델이 현재 카탈로그에 없습니다. 모델을 자동으로 변경하지 않고 유지합니다.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex가 완전하고 유효한 이미지 하나를 반환하지 않았습니다.",
     "codex.image.uncertain": "요청이 처리되었을 수 있습니다. 재시도 없이 중단했습니다.",
     "codex.image.save_failed": "Codex 이미지를 저장하지 못했습니다. 재시도 없이 중단했습니다.",
-    "codex.image.render_failed": "Codex 이미지를 렌더링하지 못했습니다. 재시도 없이 중단했습니다."
+    "codex.image.render_failed": "Codex 이미지를 렌더링하지 못했습니다. 재시도 없이 중단했습니다.",
+    "General Settings Tab": "일반",
+    "General Providers Title": "제공업체 선택",
+    "General Providers Help": "설정된 제공업체를 선택한 후 사용을 누르세요. 인증 정보는 해당 설정에서 관리하세요.",
+    "Configured Providers": "설정된 제공업체",
+    "Use Provider": "사용",
+    "Configure Providers": "설정",
+    "Active Provider": "사용 중: {provider}",
+    "No Configured Providers": "아직 설정된 제공업체가 없습니다.",
+    "Provider Configuration Changed": "설정이 변경되었습니다. 이 제공업체의 설정을 확인하세요."
   }
 }

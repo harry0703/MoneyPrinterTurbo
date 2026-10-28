@@ -5,7 +5,14 @@ import streamlit as st
 from app.services import codex_models
 
 
-def render_codex_model_selector(current_model, tr, *, prefix="openai_codex"):
+def _notify_model_change(widget_key, on_change):
+    if on_change is not None:
+        on_change(str(st.session_state.get(widget_key) or "").strip())
+
+
+def render_codex_model_selector(
+    current_model, tr, *, prefix="openai_codex", on_change=None
+):
     refresh_key = (
         "codex_models_refresh"
         if prefix == "openai_codex"
@@ -18,7 +25,11 @@ def render_codex_model_selector(current_model, tr, *, prefix="openai_codex"):
         st.warning(tr("codex.models.failed"))
         # A catalog outage must not erase or replace a previously selected model.
         return st.text_input(
-            tr("Model Name"), value=current_model, key=f"{prefix}_model_name_input"
+            tr("Model Name"),
+            value=current_model,
+            key=f"{prefix}_model_name_input",
+            on_change=_notify_model_change,
+            args=(f"{prefix}_model_name_input", on_change),
         ).strip()
     if catalog.stale:
         st.caption(tr("codex.models.stale"))
@@ -34,6 +45,8 @@ def render_codex_model_selector(current_model, tr, *, prefix="openai_codex"):
         format_func=choices.get,
         key=f"{prefix}_model_name_select",
         placeholder=tr("codex.models.choose"),
+        on_change=_notify_model_change,
+        args=(f"{prefix}_model_name_select", on_change),
     )
     st.caption(tr("codex.models.source"))
     return selected or ""
