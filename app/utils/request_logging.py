@@ -104,6 +104,9 @@ def sanitize_payload(value):
                     "token",
                     "headers",
                     "cookies",
+                    "code",
+                    "codeverifier",
+                    "nonce",
                 } or _SECRET_KEY.search(normalized):
                     result[_safe_string(key)] = _REDACTED
                 elif normalized in {"params", "extraquery", "queryparams"}:

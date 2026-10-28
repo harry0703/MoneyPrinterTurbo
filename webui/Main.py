@@ -2344,18 +2344,23 @@ def get_llm_provider_tips(provider_id, **kwargs):
 def format_llm_connection_error(provider_id, base_url, error):
     """为可明确定位的鉴权错误补充配置检查建议，同时保留原始响应。"""
     error_text = str(error or "").strip()
-    if provider_id == "openai_codex":
-        from app.services.codex_oauth import ERROR_MESSAGES
+    if provider_id in {"openai_codex", "openai_chatgpt"}:
+        if provider_id == "openai_chatgpt":
+            from app.services.chatgpt_oauth import ERROR_MESSAGES
+            message_prefix = "chatgpt.oauth"
+        else:
+            from app.services.codex_oauth import ERROR_MESSAGES
+            message_prefix = "codex.oauth"
 
         for key, message in ERROR_MESSAGES.items():
             if error_text == message:
-                return tr(f"codex.oauth.{key}")
+                return tr(f"{message_prefix}.{key}")
         status_match = re.fullmatch(
-            r"OpenAI - Codex returned HTTP (\d+)\. Check the selected model and your account access\.",
+            r"OpenAI - (?:Codex|ChatGPT \(Native OAuth\)) returned HTTP (\d+)\. Check the selected model and your account access\.",
             error_text,
         )
         if status_match:
-            return tr("codex.oauth.http_error").format(status=status_match[1])
+            return tr(f"{message_prefix}.http_error").format(status=status_match[1])
     normalized_error = error_text.lower()
     authentication_markers = (
         "401",
@@ -3657,6 +3662,17 @@ def _render_settings_dialog():
 
                 with llm_form_panel:
                     st_llm_model_name = render_codex_model_selector(llm_model_name, tr)
+            elif llm_provider == "openai_chatgpt":
+                from webui.chatgpt_login import render_chatgpt_login
+                from webui.chatgpt_models import render_chatgpt_model_selector
+
+                with llm_form_panel:
+                    if middle_config_panel.open:
+                        # Keep the nested polling fragment's delta paths separate
+                        # from the model selector and connection-test controls.
+                        with st.container(key="chatgpt_login_panel"):
+                            render_chatgpt_login(tr)
+                    st_llm_model_name = render_chatgpt_model_selector(llm_model_name, tr)
             elif llm_provider == "groq":
                 effective_api_key = st_llm_api_key or llm_api_key
                 effective_base_url = st_llm_base_url or llm_base_url
