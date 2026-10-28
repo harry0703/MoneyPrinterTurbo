@@ -1105,6 +1105,7 @@ class TestTaskService(unittest.TestCase):
     def test_generate_audio_falls_back_to_sub_maker_when_file_duration_is_zero(self):
         task_id = "test-tts-audio-fallback"
         task_dir = utils.task_dir(task_id)
+        self.addCleanup(shutil.rmtree, task_dir, ignore_errors=True)
         audio_path = os.path.join(task_dir, "audio.mp3")
         params = VideoParams(
             video_subject="tts audio",
@@ -1119,18 +1120,15 @@ class TestTaskService(unittest.TestCase):
             # SubMaker word-boundary duration be used.
             return 0.0 if isinstance(target, str) else 7.8375
 
-        try:
-            with (
-                patch.object(tm.voice, "tts", return_value=sub_maker),
-                patch.object(
-                    tm.voice, "get_audio_duration", side_effect=fake_duration
-                ) as get_duration,
-            ):
-                audio_file, audio_duration, result_sub_maker = tm.generate_audio(
-                    task_id, params, "script"
-                )
-        finally:
-            shutil.rmtree(task_dir, ignore_errors=True)
+        with (
+            patch.object(tm.voice, "tts", return_value=sub_maker),
+            patch.object(
+                tm.voice, "get_audio_duration", side_effect=fake_duration
+            ) as get_duration,
+        ):
+            audio_file, audio_duration, result_sub_maker = tm.generate_audio(
+                task_id, params, "script"
+            )
 
         self.assertEqual(audio_file, audio_path)
         self.assertEqual(audio_duration, 8)
