@@ -1,5 +1,5 @@
 version = 1
-revision = 1
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -1535,6 +1535,7 @@ dependencies = [
     { name = "edge-tts" },
     { name = "fastapi" },
     { name = "faster-whisper" },
+    { name = "filelock" },
     { name = "google-genai" },
     { name = "imageio-ffmpeg" },
     { name = "litellm" },
@@ -1543,6 +1544,7 @@ dependencies = [
     { name = "openai" },
     { name = "packaging" },
     { name = "pydub" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "redis" },
@@ -1576,6 +1578,7 @@ requires-dist = [
     { name = "edge-tts", specifier = "==7.3.1" },
     { name = "fastapi", specifier = "==0.136.3" },
     { name = "faster-whisper", specifier = "==1.1.0" },
+    { name = "filelock", specifier = ">=3.20,<4" },
     { name = "google-genai", specifier = "==2.11.0" },
     { name = "imageio-ffmpeg", specifier = "==0.6.0" },
     { name = "litellm", specifier = "==1.86.2" },
@@ -1584,6 +1587,7 @@ requires-dist = [
     { name = "openai", specifier = "==2.24.0" },
     { name = "packaging", specifier = "==24.2" },
     { name = "pydub", specifier = "==0.25.1" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.1,<3" },
     { name = "python-multipart", specifier = "==0.0.27" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "redis", specifier = "==5.2.0" },
@@ -2369,6 +2373,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151 },
+]
+
+[[package]]
+name = "pyjwt"
+version = "2.15.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/ea/5194e52748b0da83d71e082d75496eaec6e58f419f5e184786ded517e6a9/pyjwt-2.15.1.tar.gz", hash = "sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8", size = 121252 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/ca/44de4e75f8aadc457f0634be3b542815078ded46dca30efb960edeecad6e/pyjwt-2.15.1-py3-none-any.whl", hash = "sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193", size = 33860 },
+]
+
+[package.optional-dependencies]
+crypto = [
+    { name = "cryptography" },
 ]
 
 [[package]]

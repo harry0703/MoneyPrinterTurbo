@@ -83,11 +83,13 @@ RECOMMENDED_LLM_PROVIDERS = {
 # ``claude_code`` consumes the Claude subscription through the locally
 # logged-in ``claude`` CLI, and ``kimi_code`` consumes the Kimi Code plan
 # through the OAuth credentials the WebUI sign-in stores in config.toml.
-# ``openai_codex`` uses its own local OAuth credential file after WebUI sign-in.
+# ``openai_codex`` and ``openai_chatgpt`` use separate local credential files.
 # Keep this set aligned with the ``requires_api_key=False`` entries of
 # ``app/models/llm_provider.py``; asking the user for a key that the provider
 # never reads leaves the Skill stuck.
-KEYLESS_LLM_PROVIDERS = {"ollama", "litellm", "claude_code", "kimi_code", "openai_codex"}
+KEYLESS_LLM_PROVIDERS = {
+    "ollama", "litellm", "claude_code", "kimi_code", "openai_codex", "openai_chatgpt"
+}
 CUSTOM_OPENAI_PROVIDER = "oneapi"
 
 # Hidden providers such as Qwen, Azure, and Grok remain usable when already
