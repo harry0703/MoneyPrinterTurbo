@@ -380,7 +380,6 @@ project.render(on_stage=crash)
 
 
 def test_command_deadline_and_active_cancellation(tmp_path):
-    import sys
     import time
 
     project = VideoProject(tmp_path)
@@ -395,9 +394,7 @@ def test_command_deadline_and_active_cancellation(tmp_path):
     timer.start()
     try:
         with pytest.raises(RenderCancelled):
-            project._run(
-                [sys.executable, "-c", "import time; time.sleep(60)"], cancellation, 30
-            )
+            project._run(HANGING_COMMAND, cancellation, 30)
     finally:
         timer.join(timeout=3)
 
