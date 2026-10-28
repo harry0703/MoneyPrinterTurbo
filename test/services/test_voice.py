@@ -442,7 +442,7 @@ class TestVoiceService(unittest.TestCase):
                 self.fail("azure tts v2 failed")
             vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
             audio_duration = vs.get_audio_duration(sub_maker)
-            print(f"voice: {voice_name}, audio duration: {audio_duration}s")
+            self.assertGreater(audio_duration, 0)
 
         self.loop.run_until_complete(_do())
 
