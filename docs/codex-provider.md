@@ -55,6 +55,12 @@ rotating refresh tokens. The provider never imports or changes the credentials
 used by the Codex desktop app or CLI. **Disconnect ChatGPT** removes this app's
 local credentials; it does not revoke other sessions.
 
+Image work is bound to the submitting account and a persistent login revision.
+Processes sharing the runtime directory coordinate credential changes and refresh
+with a file lock. Disconnecting or signing in again invalidates older image work,
+including a new login to the same account; normal refresh preserves the revision.
+Existing credentials are migrated atomically without requiring another login.
+
 Requests are restricted to the OpenAI authorization and Codex Responses endpoints,
 without following redirects. Only completed Responses output is accepted; partial
 streams and raw provider error bodies are not exposed as generated text. A 401
@@ -121,3 +127,19 @@ prompts, image base64, or raw provider/transport exception messages.
 Share the JSON report after inspection; keep credentials and generated media out
 of commits. A successful report establishes that model/account combination at
 that time, not availability for every account or model.
+
+### Recorded live image acceptance
+
+The normal image material path was tested with an existing Codex device-code
+session and a self-reported Pro plan. These reports record successful generation,
+response/tool IDs, decoded PNG hashes and dimensions, and decoded two-second
+static/zoom renders. They contain no credentials or account identifiers:
+
+- [gpt-5.6-luna acceptance](validation/codex-image-gpt-5.6-luna-2026-10-28.json)
+- [gpt-6-luna acceptance](validation/codex-image-gpt-6-luna-2026-10-28.json)
+
+Each report identifies the clean source commit and relevant runtime versions.
+Neither response supplied a request-ID header. Success on this account does not
+establish access for every account or explain a different installation's HTTP
+400. The acceptance script preserves a bounded, sanitized failure classification
+when an endpoint rejects the same request; it never switches models automatically.
