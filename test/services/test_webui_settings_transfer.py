@@ -204,8 +204,9 @@ def test_settings_preset_rejects_unsafe_or_missing_builtin_bgm():
             },
         }
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError) as exc_info:
             parse_settings_preset(_encode(payload))
+        assert "preset background music" in str(exc_info.value)
 
 
 def test_settings_preset_accepts_file_without_video_subject():
