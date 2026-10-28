@@ -929,6 +929,7 @@ class TestTaskService(unittest.TestCase):
     def test_generate_audio_rejects_server_side_custom_file_by_default(self):
         task_id = "test-custom-audio-untrusted-server-side"
         task_dir = utils.task_dir(task_id)
+        self.addCleanup(shutil.rmtree, task_dir, ignore_errors=True)
         state = MemoryState()
 
         with tempfile.NamedTemporaryFile(suffix=".mp3") as server_audio:
@@ -941,17 +942,14 @@ class TestTaskService(unittest.TestCase):
                 voice_name="test-voice",
             )
 
-            try:
-                with (
-                    patch.object(tm.voice, "tts") as tts,
-                    patch.object(tm.voice, "get_audio_duration") as get_duration,
-                    patch.object(tm.sm, "state", state),
-                ):
-                    audio_file, audio_duration, result_sub_maker = tm.generate_audio(
-                        task_id, params, "script"
-                    )
-            finally:
-                shutil.rmtree(task_dir, ignore_errors=True)
+            with (
+                patch.object(tm.voice, "tts") as tts,
+                patch.object(tm.voice, "get_audio_duration") as get_duration,
+                patch.object(tm.sm, "state", state),
+            ):
+                audio_file, audio_duration, result_sub_maker = tm.generate_audio(
+                    task_id, params, "script"
+                )
 
         self.assertIsNone(audio_file)
         self.assertIsNone(audio_duration)
