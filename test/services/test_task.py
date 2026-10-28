@@ -901,6 +901,7 @@ class TestTaskService(unittest.TestCase):
     def test_generate_audio_uses_custom_file_inside_task_directory(self):
         task_id = "test-custom-audio-safe"
         task_dir = utils.task_dir(task_id)
+        self.addCleanup(shutil.rmtree, task_dir, ignore_errors=True)
         custom_audio_file = os.path.join(task_dir, "custom-audio.mp3")
         with open(custom_audio_file, "wb") as audio:
             audio.write(b"fake audio")
@@ -912,16 +913,13 @@ class TestTaskService(unittest.TestCase):
             voice_name="test-voice",
         )
 
-        try:
-            with (
-                patch.object(tm.voice, "tts") as tts,
-                patch.object(tm.voice, "get_audio_duration", return_value=7),
-            ):
-                audio_file, audio_duration, sub_maker = tm.generate_audio(
-                    task_id, params, "script"
-                )
-        finally:
-            shutil.rmtree(task_dir, ignore_errors=True)
+        with (
+            patch.object(tm.voice, "tts") as tts,
+            patch.object(tm.voice, "get_audio_duration", return_value=7),
+        ):
+            audio_file, audio_duration, sub_maker = tm.generate_audio(
+                task_id, params, "script"
+            )
 
         self.assertEqual(audio_file, os.path.realpath(custom_audio_file))
         self.assertEqual(audio_duration, 7)
