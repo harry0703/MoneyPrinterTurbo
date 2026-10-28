@@ -2,7 +2,7 @@
 
 import base64
 import binascii
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import math
 import time
@@ -38,6 +38,7 @@ class CodexImageContext:
     model: str
     timeout: float
     generation: int
+    session: codex_oauth.CodexSessionBinding | None = field(default=None, repr=False)
 
 
 def capture_context(app_config=None):
@@ -53,11 +54,10 @@ def capture_context(app_config=None):
         raise CodexImageError("codex.image.invalid_timeout") from None
     generation = codex_oauth.authorization_generation()
     try:
-        if not codex_oauth.account_status():
-            raise CodexImageError("codex.oauth.not_connected")
+        session = codex_oauth.capture_session_binding()
     except codex_oauth.CodexError as error:
         raise CodexImageError(error.key, **error.params) from None
-    context = CodexImageContext(model, timeout, generation)
+    context = CodexImageContext(model, timeout, generation, session)
     assert_current(context)
     return context
 
@@ -65,6 +65,10 @@ def capture_context(app_config=None):
 def assert_current(context):
     if context.generation != codex_oauth.authorization_generation():
         raise CodexImageError("codex.oauth.changed")
+    try:
+        codex_oauth.assert_session_binding(context.session)
+    except codex_oauth.CodexError as error:
+        raise CodexImageError(error.key, **error.params) from None
 
 
 def _final_image(payload):
@@ -138,6 +142,12 @@ def _event(data, final_items=None):
                 raise CodexImageError("codex.image.invalid_result")
             if item.get("type") == "image_generation_call":
                 _remember_image(final_items, item, done=True)
+                codex_oauth._record_image_diagnostic(
+                    kind="image_tool",
+                    event=kind,
+                    tool_id=item.get("id"),
+                    status="completed",
+                )
         if kind == "response.completed":
             payload = event.get("response")
             if not isinstance(payload, dict) or payload.get("status") != "completed":
@@ -156,7 +166,22 @@ def _event(data, final_items=None):
                 # A final response may repeat the already completed tool item.
                 # Its identity and result must agree, never choose one silently.
                 _remember_image(final_items, images[0])
-            return _final_image(dict(payload, output=final_items))
+            result = _final_image(dict(payload, output=final_items))
+            codex_oauth._record_image_diagnostic(
+                kind="response",
+                event=kind,
+                response_id=payload.get("id"),
+                response_model=payload.get("model"),
+                status="completed",
+            )
+            codex_oauth._record_image_diagnostic(
+                kind="image_tool",
+                event=kind,
+                tool_id=final_items[0].get("id"),
+                status="completed",
+                result_bytes=len(result),
+            )
+            return result
     except (ValueError, TypeError, UnicodeError):
         raise CodexImageError("codex.image.invalid_result") from None
     return None
@@ -215,6 +240,7 @@ def generate_image(prompt, context):
         result = codex_oauth.request_image(
             payload,
             generation=context.generation,
+            session=context.session,
             timeout=context.timeout,
             read_result=_read_stream,
         )

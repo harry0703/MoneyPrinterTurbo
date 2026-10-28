@@ -29,6 +29,33 @@ def test_queue_snapshots_context_and_deduplicates_by_account():
         assert enqueue.call_count == 3
 
 
+def test_queue_dedup_distinguishes_persistent_sessions_with_same_generation():
+    from dataclasses import replace
+
+    params = VideoParams(video_subject="Pyramids", video_source="codex_image")
+    first = replace(
+        context(0), session=codex_oauth.CodexSessionBinding("account-a", "login-a")
+    )
+    other_account = replace(
+        first, session=codex_oauth.CodexSessionBinding("account-b", "login-b")
+    )
+    same_account_reconnected = replace(
+        first, session=codex_oauth.CodexSessionBinding("account-a", "new-login-a")
+    )
+    with (
+        patch.dict(webui_task._active_submissions, {}, clear=True),
+        patch.object(webui_task, "_enqueue_generation") as enqueue,
+        patch.object(codex_image, "capture_context", return_value=first) as capture,
+    ):
+        assert webui_task.submit_generation("first", params) == "first"
+        assert webui_task.submit_generation("duplicate", params) == "first"
+        capture.return_value = other_account
+        assert webui_task.submit_generation("different-account", params) == "different-account"
+        capture.return_value = same_account_reconnected
+        assert webui_task.submit_generation("reconnected", params) == "reconnected"
+        assert enqueue.call_count == 3
+
+
 def test_queued_account_change_fails_before_script_or_voice():
     params = VideoParams(
         video_subject="Pyramids", video_source="codex_image", subtitle_enabled=False

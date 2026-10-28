@@ -73,3 +73,51 @@ concurrent token refresh, retry after 401, complete and incomplete SSE responses
 catalog filtering, cache persistence, refresh and outage recovery, and translated
 Streamlit controls. Real-account sign-in was also confirmed by the user during
 local testing. Automated tests use synthetic credentials.
+
+### Reproducible live-image acceptance
+
+Image access is separate from text access: the selected Responses model and the
+connected account must be allowed to use `image_generation` on the Codex route.
+A model's presence in the public catalog, a successful text request, or a plan
+name alone does not establish that access. The separate **ChatGPT (Native OAuth)**
+provider does not supply the Codex session used by this image source.
+
+Sign in once through **OpenAI - Codex** in the WebUI, then run the acceptance
+script from the same installation and runtime directory. If using `MPT_HOME`,
+keep the same value for the WebUI and the script. Install the locked dependencies
+first with `uv sync --frozen`; FFmpeg must be available through the application's
+normal FFmpeg configuration.
+
+```sh
+uv run python scripts/accept_codex_image.py --model "<exact Responses model ID>" --output storage/acceptance/codex-image.json --plan pro --confirm-image-generation
+```
+
+`--model` is required and is sent unchanged. For example, to reproduce the
+reported rejection for `gpt-5.6-luna`, supply that exact ID. The script does not
+try other models or providers. `--plan` is optional, self-reported context; it is
+not a verified entitlement and does not guarantee image access.
+
+`--confirm-image-generation` explicitly requests one real image using the shared
+account's allowance. There is no extra image generation for the static/zoom
+checks: both render the received PNG. The normal transport may refresh and retry
+once after an explicit HTTP 401. Other failures stop the run without regenerating.
+The request timeout defaults to 300 seconds (`--timeout`), and each render plus
+its decoding check is bounded to 120 seconds.
+
+The script uses `capture_context` → `generate_images_codex` → `request_image`.
+It reports success only after observing a completed response and completed image
+tool result, decoding the returned PNG, and decoding frames from both rendered
+two-second clips. The generated assets are written beside the JSON report.
+
+The report contains the exact requested model, OS/Python/package/FFmpeg versions,
+source revision, HTTP status and request IDs where available, response/tool IDs
+and completion state, image size/hash/dimensions, and static/zoom decoding and
+duration evidence. Missing server IDs remain absent or null. A failed request
+produces a nonzero exit status and a sanitized report; the known HTTP 400
+`tool_choice`/missing-image-tool rejection is identified without copying its raw
+body. Reports never include tokens, account IDs, authorization URLs, arbitrary
+prompts, image base64, or raw provider/transport exception messages.
+
+Share the JSON report after inspection; keep credentials and generated media out
+of commits. A successful report establishes that model/account combination at
+that time, not availability for every account or model.

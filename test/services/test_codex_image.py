@@ -435,3 +435,136 @@ def test_missing_status_in_conflicting_final_payload_still_rejected():
     }
     with pytest.raises(image.CodexImageError):
         image._read_stream(stream_events(image_done(), final), time.monotonic() + 10)
+
+
+def test_opt_in_diagnostics_are_selected_metadata_not_credentials_or_content():
+    event = completed()
+    event["response"].update(id="resp_synthetic", model="selected-model")
+    event["response"]["output"][0]["id"] = "ig_synthetic"
+    response = reply(event=event)
+    response.headers = {
+        "x-request-id": "req_synthetic",
+        "Authorization": "private-header",
+    }
+    with oauth.capture_image_diagnostics() as records:
+        with patch.object(oauth, "_post", return_value=response):
+            assert image.generate_image("private prompt", context()) == b"image bytes"
+    assert records[0] == {
+        "kind": "http",
+        "attempt": 1,
+        "status": 200,
+        "requested_model": "selected-model",
+        "request_id": "req_synthetic",
+    }
+    assert {
+        "kind": "response",
+        "event": "response.completed",
+        "response_id": "resp_synthetic",
+        "response_model": "selected-model",
+        "status": "completed",
+    } in records
+    assert {
+        "kind": "image_tool",
+        "event": "response.completed",
+        "tool_id": "ig_synthetic",
+        "status": "completed",
+        "result_bytes": 11,
+    } in records
+    serialized = json.dumps(records)
+    for secret in (
+        "private prompt",
+        "private-header",
+        "refresh",
+        "test-account",
+        "aW1hZ2UgYnl0ZXM=",
+    ):
+        assert secret not in serialized
+    oauth._record_image_diagnostic(kind="http", status=200)
+    assert len(records) == 3
+
+
+def test_provider_diagnostic_classifies_maintainer_400_without_recording_body():
+    response = reply(
+        status=400,
+        payload={
+            "error": {
+                "type": "invalid_request_error",
+                "param": "tool_choice",
+                "code": "unknown-private-code",
+                "message": "Tool choice 'image_generation' must be specified with 'tools' parameter.",
+                "secret": "do not retain",
+            }
+        },
+    )
+    response.headers = {}
+    with oauth.capture_image_diagnostics() as records:
+        with patch.object(oauth, "_post", return_value=response) as post:
+            with pytest.raises(image.CodexImageError):
+                image.generate_image("private prompt", context())
+    assert post.call_count == 1
+    assert records[-1] == {
+        "kind": "provider_error",
+        "error_type": "invalid_request_error",
+        "error_code": "other",
+        "error_param": "tool_choice",
+        "reason": "tool_choice_missing_image_tool",
+    }
+    assert "do not retain" not in json.dumps(records)
+    assert "unknown-private-code" not in json.dumps(records)
+
+
+def test_legacy_credentials_migrate_without_refresh_or_new_login():
+    original = oauth._load()
+    original.pop("session_revision")
+    oauth._credential_path().write_bytes(oauth._protect(json.dumps(original).encode()))
+    with patch.object(oauth, "_post") as post:
+        captured = context()
+        assert captured.session == oauth.capture_session_binding()
+        assert oauth._load()["access_token"] == original["access_token"]
+    assert captured.session.account_id == "test-account"
+    assert captured.session.revision
+    assert "test-account" not in repr(captured)
+    post.assert_not_called()
+
+
+def test_refresh_cannot_silently_replace_bound_account():
+    captured = context()
+    prior = oauth._load()
+    claims = {
+        "https://api.openai.com/auth": {"chatgpt_account_id": "different-account"}
+    }
+    encoded = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+    response = reply(
+        payload={"access_token": "new", "id_token": "header." + encoded + ".sig"}
+    )
+    with patch.object(oauth, "_post", return_value=response):
+        with pytest.raises(oauth.CodexError) as error:
+            oauth._credentials(force=True, session=captured.session)
+    assert error.value.key == "codex.oauth.changed"
+    assert oauth._load() == prior
+
+
+def test_unbound_image_transport_never_sends():
+    with patch.object(oauth, "_post") as post:
+        with pytest.raises(oauth.CodexError):
+            oauth.request_image(
+                {},
+                generation=oauth.authorization_generation(),
+                session=None,
+                timeout=30,
+                read_result=lambda *_: b"unused",
+            )
+    post.assert_not_called()
+
+
+def test_binding_is_checked_on_loaded_credentials_before_dispatch():
+    captured = context()
+    wrong = dict(oauth._load(), account_id="different-account")
+    with (
+        patch.object(oauth, "_credentials", return_value=wrong),
+        patch.object(oauth, "_post") as post,
+    ):
+        with pytest.raises(image.CodexImageError) as error:
+            image.generate_image("private prompt", captured)
+    assert error.value.key == "codex.oauth.changed"
+    post.assert_not_called()
