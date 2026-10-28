@@ -1063,9 +1063,7 @@ class TestCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             audio_file = Path(temp_dir) / "voiceover.mp3"
             audio_file.write_bytes(b"audio")
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(temp_dir)
+            with chdir(temp_dir):
                 args = cli.parse_args(
                     [
                         "--video-subject",
@@ -1078,8 +1076,6 @@ class TestCli(unittest.TestCase):
                 )
                 params = cli.build_video_params(args)
                 cli.prepare_cli_files(params, stop_at="audio")
-            finally:
-                os.chdir(old_cwd)
 
             self.assertEqual(params.custom_audio_file, str(audio_file.resolve()))
 
