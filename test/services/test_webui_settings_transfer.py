@@ -263,8 +263,9 @@ def test_settings_preset_rejects_invalid_parameter_values():
         "params": {"video_subject": "a cat", "paragraph_number": 99},
     }
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception) as exc_info:
         parse_settings_preset(_encode(payload))
+    assert "paragraph_number" in str(exc_info.value)
 
 
 def test_key_backup_collects_credentials_and_their_companion_settings():
