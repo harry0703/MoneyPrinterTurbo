@@ -252,7 +252,7 @@ class TestVoiceService(unittest.TestCase):
                     self.fail("siliconflow tts failed")
                 vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
                 audio_duration = vs.get_audio_duration(sub_maker)
-                print(f"voice: {voice_name}, audio duration: {audio_duration}s")
+                self.assertGreater(audio_duration, 0)
             else:
                 self.fail("siliconflow invalid voice name")
 
