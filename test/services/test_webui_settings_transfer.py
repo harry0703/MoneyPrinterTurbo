@@ -367,8 +367,9 @@ def test_key_backup_import_rejects_files_without_any_key():
         "keys": {"app": {"openai_api_key": ""}},
     }
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc_info:
         parse_key_backup(_encode(payload), _sample_config_sections())
+    assert "no restorable keys" in str(exc_info.value)
 
 
 def test_key_backup_import_tolerates_utf8_bom_written_by_windows_editors():
