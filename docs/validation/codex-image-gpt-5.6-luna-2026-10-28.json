@@ -1,0 +1,83 @@
+{
+  "timestamp_utc": "2026-10-28T03:03:11.278628+00:00",
+  "environment": {
+    "os": "Windows",
+    "release": "11",
+    "architecture": "AMD64",
+    "python": "3.13.1",
+    "ffmpeg": "7.1-essentials_build-www.gyan.dev",
+    "packages": {
+      "requests": "2.33.1",
+      "Pillow": "11.3.0",
+      "moviepy": "2.2.1",
+      "imageio-ffmpeg": "0.6.0"
+    },
+    "commit": "fbe81aab75b4e0bfc65ae855676c2742f46531d8",
+    "dirty": false
+  },
+  "provider": "codex_image",
+  "endpoint": "https://chatgpt.com/backend-api/codex/responses",
+  "requested_model": "gpt-5.6-luna",
+  "self_reported_plan": "pro",
+  "account_access_verified": true,
+  "normal_material_path": "capture_context -> generate_images_codex -> request_image",
+  "trace": [
+    {
+      "kind": "http",
+      "attempt": 1,
+      "status": 200,
+      "requested_model": "gpt-5.6-luna"
+    },
+    {
+      "kind": "image_tool",
+      "event": "response.output_item.done",
+      "tool_id": "ig_0e92a2f29d02a5a9016ae165f2296887d099356aa09d43efa2",
+      "status": "completed"
+    },
+    {
+      "kind": "response",
+      "event": "response.completed",
+      "response_id": "resp_0e92a2f29d02a5a9016ae165f16ae087d0a95f5c47e464252b",
+      "response_model": "gpt-5.6-luna",
+      "status": "completed"
+    },
+    {
+      "kind": "image_tool",
+      "event": "response.completed",
+      "tool_id": "ig_0e92a2f29d02a5a9016ae165f2296887d099356aa09d43efa2",
+      "status": "completed",
+      "result_bytes": 2635211
+    }
+  ],
+  "status": "passed",
+  "timeout_seconds": 300.0,
+  "image": {
+    "file": "openai-image-97c25c075e0e.png",
+    "bytes": 2512738,
+    "sha256": "57d4d4857a727988d19b739ad08534b1f8a53dc3150305aba9d97ff782dabb27",
+    "format": "PNG",
+    "width": 1672,
+    "height": 941,
+    "decoded": true
+  },
+  "renders": {
+    "static": {
+      "file": "2ad1db72f71d4625d883cd4f4903731c7c467c7042590d56f4a5dee937c4a1c3.static-d4735e3a265e16ee.mp4",
+      "bytes": 367631,
+      "sha256": "af42e6af3c6fcba240a8b4a59f0fa25971f3a9d8e5938a6935d60311d9948b38",
+      "duration_seconds": 2.0,
+      "width": 1672,
+      "height": 941,
+      "first_frame_decoded": true
+    },
+    "zoom": {
+      "file": "2ad1db72f71d4625d883cd4f4903731c7c467c7042590d56f4a5dee937c4a1c3.zoom-d4735e3a265e16ee.mp4",
+      "bytes": 655396,
+      "sha256": "a8c35feab0f0f934a75c1f48bbe81b778daaef5405bbdcd25f1be794a8846f4d",
+      "duration_seconds": 2.0,
+      "width": 1672,
+      "height": 941,
+      "first_frame_decoded": true
+    }
+  }
+}

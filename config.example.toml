@@ -11,7 +11,33 @@ log_level = "DEBUG"
 listen_host = "0.0.0.0"
 listen_port = 8080
 
+[diagnostics]
+# Optional override for the top-level log_level, shared by API, CLI and WebUI.
+# log_level = "INFO"
+# Request tracing is independent of log level and disabled by default.
+# It logs redacted request parameters and response status/timing, never response
+# bodies. Prompts may be visible; only enable while troubleshooting.
+# WebUI: Settings > Interface > Diagnostic logging; Apply takes effect immediately
+# in that process. Other processes / manual file edits require a restart.
+# 请求追踪独立于日志等级，默认关闭；提示词可能出现在日志中。
+# WebUI 设置中的诊断日志可立即生效；其它进程及手工修改配置后需要重启。
+log_requests = false
+
 [app]
+# OpenAI - Codex: existing device-code provider; upgrades preserve this connection.
+# Uses ChatGPT subscription limits; no API key. Credentials live in storage/auth.
+openai_codex_model_name = ""
+openai_codex_timeout = ""
+# Codex image source: reuses the same ChatGPT login, with an independent Responses
+# model selection. Catalog candidates do not guarantee image-tool access.
+codex_image_model_name = ""
+codex_image_timeout = 300
+
+# OpenAI - ChatGPT (Native OAuth): separately selected, account/workspace eligibility required.
+# Browser and Python runtime must be on the same computer. Remote/Docker sign-in is not supported.
+# Uses public /v1/models and /v1/responses; never falls back to another billing path.
+openai_chatgpt_model_name = ""
+openai_chatgpt_timeout = ""
 
 # Optional protection for API routes and generated files under /tasks.
 # Leave empty for local backward-compatible access. When configured, clients
@@ -64,7 +90,7 @@ tls_verify = true
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
 # "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "loomloom",
-# "openai_image", "local".
+# "openai_image", "infistar", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
 # "loomloom" is a paid Shengsuan Cloud source and requires explicit
@@ -189,6 +215,7 @@ metaso_minimax_run_timeout = 1800
 # Images are generated on demand (one per script keyword, billed per image by
 # your provider) and rendered into short zoom-effect video clips.
 # Example: "https://api.openai.com/v1" or "http://127.0.0.1:8080/v1"
+# For a free local SDXL server, see docs/local-image-server/README.md.
 openai_image_base_url = ""
 # Optional for local gateways that need no auth. Leave empty to send requests
 # without an Authorization header; provide one or more keys for cloud relays.
@@ -244,6 +271,39 @@ llm_provider = "moonshot"
 moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""
+
+# 无限星河 AI（Infistar），项目赞助商，提供 OpenAI 兼容接口。
+# 密钥：https://infistar.cc/keys；模型列表：https://infistar.cc/pricing
+# 地址和模型留空时使用 https://infistar.cc/v1 和 gpt-6-luna。
+infistar_api_key = ""
+infistar_base_url = ""
+infistar_model_name = ""
+
+# 视频素材源 infistar 独立配置，不要求使用 Infistar LLM。
+# Base URL 留空使用 https://infistar.cc/v1；也可通过 INFISTAR_VIDEO_API_KEY 设置密钥。
+# 可选模型：doubao-seedance-2-0-fast-260128（5 秒）、MiniMax-H3（6 秒）、
+# kling-v2-6（5 秒，取决于账号线路可用性）。视频按付费任务计费。
+# MiniMax 当前线路返回横屏素材；竖屏成片沿用画面适配设置裁剪或留边。
+infistar_video_api_key = ""
+infistar_video_base_url = ""
+infistar_video_model = "doubao-seedance-2-0-fast-260128"
+infistar_video_poll_interval = 5
+infistar_video_run_timeout = 1800
+
+# Jalapeno Cloud：活动页 https://www.jalapeno-cloud.ai/MoneyPrinterTurbo
+# 模型广场 https://www.jalapeno-cloud.ai/models
+jalapeno_api_key = ""
+jalapeno_base_url = ""
+jalapeno_model_name = ""
+# 视频 Key 留空复用 jalapeno_api_key；独立视频 Key 或环境变量
+# JALAPENO_VIDEO_API_KEY 优先。视频地址不复用 LLM 的 /v1 地址。
+# 地址支持 https://api.jalapeno-cloud.ai/api/v3 或完整 /contents/generations/tasks。
+jalapeno_video_api_key = ""
+jalapeno_video_base_url = ""
+jalapeno_video_model = "Doubao-Seedance-2-5-260628"
+jalapeno_video_resolution = "480p"
+jalapeno_video_poll_interval = 5
+jalapeno_video_run_timeout = 1800
 
 # Shengsuan Cloud, OpenAI-compatible multi-model API.
 # API docs: https://lean.shengsuanyun.com/apidocs/api/openai-api
@@ -301,6 +361,20 @@ opper_api_key = ""
 opper_base_url = ""
 opper_model_name = ""
 
+# onomeo, a small OpenAI-compatible LLM gateway with a free model tier.
+# API key: https://onomeo.com/dashboard
+# Model list: https://onomeo.com/models
+onomeo_api_key = ""
+onomeo_base_url = ""
+onomeo_model_name = ""
+
+# EmpirioLabs AI, an OpenAI-compatible API for open and proprietary models.
+# API key: https://platform.empiriolabs.ai/dashboard/api-keys
+# Model list: https://docs.empiriolabs.ai/models-pricing
+empiriolabs_api_key = ""
+empiriolabs_base_url = ""
+empiriolabs_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
@@ -317,6 +391,12 @@ anthropic_model_name = ""
 # API key: https://aistudio.google.com/app/apikey
 gemini_api_key = ""
 gemini_model_name = ""
+
+# Muse Spark (Meta Model API, OpenAI Chat Completions-compatible).
+# API key: https://dev.meta.ai/docs/authentication
+muse_spark_api_key = ""
+muse_spark_base_url = ""
+muse_spark_model_name = ""
 
 # DeepSeek
 # API key: https://platform.deepseek.com/api_keys
@@ -623,6 +703,8 @@ model_id = "speech-2.8-hd"
 voice_id = "English_expressive_narrator"
 sample_rate = 32000
 bitrate = 128000
+# Container formats supported by local validation: mp3, wav, flac.
+# Headerless PCM is rejected before synthesis.
 audio_format = "mp3"
 channel = 1
 pitch = 0

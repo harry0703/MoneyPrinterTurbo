@@ -35,7 +35,7 @@ class TestVideoControllerHelpers(unittest.TestCase):
         headers = {"x-task-id": "request-123"}
         if range_header is not None:
             headers["Range"] = range_header
-        return SimpleNamespace(headers=headers)
+        return SimpleNamespace(headers=headers, method="GET")
 
     def test_sanitize_upload_filename_removes_client_path(self):
         """Windows 和 POSIX 客户端路径都只能保留最后一段安全文件名。"""
@@ -181,10 +181,10 @@ class TestVideoControllerHelpers(unittest.TestCase):
 class TestVideoControllerTasks(unittest.TestCase):
     @staticmethod
     def _request():
-        return SimpleNamespace(headers={"x-task-id": "request-123"})
+        return SimpleNamespace(headers={"x-task-id": "request-123"}, method="GET")
 
     def test_video_task_rejects_font_outside_font_directory_before_queueing(self):
-        """非法字体路径必须在任务入队前返回 400，不产生付费后台任务。"""
+        """非法字体路径必须在任务入队前返回 403，不产生付费后台任务。"""
         with tempfile.TemporaryDirectory() as temp_dir:
             font_dir = Path(temp_dir, "fonts")
             font_dir.mkdir()
@@ -202,7 +202,7 @@ class TestVideoControllerTasks(unittest.TestCase):
                     with self.assertRaises(HttpException) as raised:
                         video_controller.create_task(self._request(), body, stop_at="video")
 
-                    self.assertEqual(raised.exception.status_code, 400)
+                    self.assertEqual(raised.exception.status_code, 403)
                     update_task.assert_not_called()
                     add_task.assert_not_called()
 
@@ -227,7 +227,7 @@ class TestVideoControllerTasks(unittest.TestCase):
                 with self.assertRaises(HttpException) as raised:
                     video_controller.create_task(self._request(), body, stop_at="video")
 
-            self.assertEqual(raised.exception.status_code, 400)
+            self.assertEqual(raised.exception.status_code, 403)
             update_task.assert_not_called()
             add_task.assert_not_called()
 
@@ -562,7 +562,13 @@ class TestVideoControllerTasks(unittest.TestCase):
 
 
 class TestVideoControllerCreateHTTP(unittest.TestCase):
-    """验证越界字体在真实 HTTP 入口返回 400，而不是创建后台任务。"""
+    """验证越界字体在真实 HTTP 入口返回 403/404，而不是创建后台任务。
+
+    行为变更（PR #1664）：create_task 的字体预检改走文件服务包装
+    `_resolve_path_within_directory`，越界/穿越返回 403、字体缺失返回
+    404，与同一文件里任务产物端点的错误码保持一致；400 只留给请求体
+    数值校验等 ValueError 场景。
+    """
 
     def setUp(self):
         self.original_app_config = dict(config.app)
@@ -580,7 +586,7 @@ class TestVideoControllerCreateHTTP(unittest.TestCase):
                 json={"video_subject": "Coffee", "font_name": "../../README.md"},
             )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 403)
         add_task.assert_not_called()
 
 
@@ -676,7 +682,7 @@ class TestVideoControllerFiles(unittest.TestCase):
         headers = {"x-task-id": "request-123"}
         if range_header is not None:
             headers["Range"] = range_header
-        return SimpleNamespace(headers=headers)
+        return SimpleNamespace(headers=headers, method="GET")
 
     def test_upload_video_material_validates_complete_extension(self):
         """大写合法扩展名应接受，无点号伪扩展名应拒绝。"""

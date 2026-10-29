@@ -18,7 +18,12 @@ from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
+    codex_image,
+    codex_oauth,
     elevenlabs_music,
+    generation_progress,
+    infistar_video,
+    jalapeno_video,
     llm,
     loomloom,
     material,
@@ -97,7 +102,7 @@ _VIDEO_MUSIC_PROVIDERS = {
 _SUPPORTED_VIDEO_SOURCES = frozenset({
     "pexels", "pixabay", "coverr", "local", "wavespeed",
     "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
-    "loomloom", "openai_image",
+    "loomloom", "openai_image", "codex_image", "infistar", "jalapeno",
 })
 
 
@@ -123,7 +128,13 @@ def is_task_busy(task: dict | None) -> bool:
     try:
         state = int(state)
     except (TypeError, ValueError):
-        pass
+        # The function's own docstring promises to treat unparseable
+        # states as busy, so the delete API keeps a task that we
+        # cannot reason about. Returning False here would let
+        # delete_video() cancel a task that is still running or
+        # cross-posting whenever an older Redis snapshot or a
+        # legacy call site stored the state as a string.
+        return True
 
     # 视频生成和跨平台发布都可能继续读取任务目录。统一视为忙碌状态，
     # 可以避免 API 与 WebUI 分别维护规则后出现一个允许删除、另一个禁止
@@ -289,7 +300,8 @@ def _mark_task_failed(
     # return value used by the CLI. These fields are reset before a new attempt.
     failure_details = {
         key: existing_task[key]
-        for key in ("videos", "combined_videos", "warnings", "failed_video_index")
+        for key in ("error_key", "error_params", "videos", "combined_videos", "warnings", "failed_video_index",
+                    "generation_activity", "generation_started_at", "generation_submitted_at")
         if existing_task and key in existing_task
     }
     failure_details.update({
@@ -720,11 +732,15 @@ def get_video_materials(
     video_terms,
     audio_duration,
     loomloom_video_request: loomloom.LoomLoomConfirmedVideoRequest | None = None,
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
+    codex_image_context: codex_image.CodexImageContext | None = None,
 ):
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
-            materials=params.video_materials, clip_duration=params.video_clip_duration
+            materials=params.video_materials,
+            clip_duration=params.video_clip_duration,
+            image_motion=params.image_motion,
         )
         if not materials:
             _mark_task_failed(
@@ -754,6 +770,7 @@ def get_video_materials(
         try:
             request.validate()
             backend = loomloom.LoomLoomVideoBackend(request.settings)
+            generation_progress.submitting("loomloom")
             execution = backend.execute(
                 request.batch,
                 client_request_id=request.client_request_id,
@@ -797,6 +814,13 @@ def get_video_materials(
             return None
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
+        generation_options = (
+            {"jalapeno_video_endpoint": jalapeno_video_endpoint}
+            if params.video_source == "jalapeno" and jalapeno_video_endpoint is not None
+            else {}
+        )
+        if params.video_source == "codex_image":
+            generation_options["codex_image_context"] = codex_image_context
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
         # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
         try:
@@ -813,9 +837,11 @@ def get_video_materials(
                 audio_duration=audio_duration * params.video_count,
                 max_clip_duration=params.video_clip_duration,
                 match_script_order=params.match_materials_to_script,
+                image_motion=params.image_motion,
                 # 素材阶段占用 40%~50%：每下完一个文件推进一次，慢速网络下
                 # 进度条不再长时间停在 40%。
                 progress_callback=_stage_progress_reporter(task_id, 40, 50),
+                **generation_options,
             )
         except volcengine_seedance.VolcEngineSeedanceError as exc:
             # 未确认状态和已生成但下载失败都对应一个可在方舟控制台恢复的远端
@@ -823,7 +849,8 @@ def get_video_materials(
             # 各自维护恢复信息并在后续扩展时再次遗漏。
             remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
             details = (
-                {"volcengine_seedance_task_id": remote_task_id}
+                {("jalapeno_task_id" if params.video_source == "jalapeno"
+                  else "volcengine_seedance_task_id"): remote_task_id}
                 if remote_task_id
                 else None
             )
@@ -848,7 +875,12 @@ def get_video_materials(
         except material.OpenAIImagePaidResultError as exc:
             # A paid request with an uncertain response, failed result download,
             # or failed local render must stop before another image order.
-            _mark_task_failed(task_id, "materials", str(exc))
+            details = (
+                {"error_key": exc.key, "error_params": exc.params}
+                if isinstance(exc, material.CodexImageMaterialError)
+                else None
+            )
+            _mark_task_failed(task_id, "materials", str(exc), details=details)
             return None
         except ofox.OFoxError as exc:
             # 与方舟同一恢复语义：未确认状态和已生成但下载失败都对应一个可在
@@ -877,6 +909,13 @@ def get_video_materials(
                 "materials",
                 str(exc),
                 details=details,
+            )
+            return None
+        except infistar_video.InfistarVideoError as exc:
+            remote_task_id = str(exc.task_id or "").strip()
+            _mark_task_failed(
+                task_id, "materials", str(exc),
+                details={"infistar_task_id": remote_task_id} if remote_task_id else None,
             )
             return None
         except muapi.MuAPIError as exc:
@@ -1517,13 +1556,18 @@ def _run_pipeline(
     voxcpm_reference_audio: bytes | None = None,
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
+    codex_image_context: codex_image.CodexImageContext | None = None,
 ):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(
         task_id, state=const.TASK_STATE_PROCESSING, progress=5,
-        failed_stage=None, error=None,
+        failed_stage=None, error=None, error_key=None, error_params=None,
         videos=[], combined_videos=[], warnings=None, failed_video_index=None,
+        generation_started_at=time.time(),
     )
+
+    generation_progress.stage("preparing")
 
     if stop_at == "video" and params.subtitle_enabled:
         try:
@@ -1546,6 +1590,38 @@ def _run_pipeline(
             "preflight",
             "Volcano Engine Seedance requires an Ark API key",
         )
+
+    if stop_at in {"materials", "video"} and params.video_source == "codex_image":
+        try:
+            if codex_image_context is None:
+                codex_image_context = codex_image.capture_context()
+            codex_image.assert_current(codex_image_context)
+        except codex_oauth.CodexError as exc:
+            return _mark_task_failed(
+                task_id,
+                "preflight",
+                str(exc),
+                details={"error_key": exc.key, "error_params": exc.params},
+            )
+
+    if stop_at in {"materials", "video"} and params.video_source == "jalapeno":
+        try:
+            # WebUI 已确认的配置跟随任务；其它入口在预检时冻结一次，避免
+            # 后续素材提交重新读取被别的请求改写的 Key、模型或规格。
+            if jalapeno_video_endpoint is None:
+                jalapeno_video_endpoint = jalapeno_video.endpoint()
+        except jalapeno_video.JalapenoVideoError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
+
+    if stop_at in {"materials", "video"} and params.video_source == "infistar":
+        try:
+            if not infistar_video.is_enabled():
+                raise infistar_video.InfistarVideoError("Infistar video generation requires an API key")
+            infistar_video.model_id()
+            if params.video_aspect not in {"16:9", "9:16"}:
+                raise infistar_video.InfistarVideoError("Infistar video currently supports 16:9 and 9:16")
+        except infistar_video.InfistarVideoError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
 
     if (
         stop_at in {"materials", "video"}
@@ -1647,6 +1723,7 @@ def _run_pipeline(
         )
 
     # 1. Generate script
+    generation_progress.stage("script")
     video_script = generate_script(task_id, params)
     # The LLM adapter uses a leading "Error: " as its failure sentinel. A
     # user-provided script may legitimately quote that text anywhere, including
@@ -1672,6 +1749,7 @@ def _run_pipeline(
         )
         return {"script": video_script}
 
+    generation_progress.stage("terms")
     # 2. Generate terms
     video_terms = ""
     if stop_at in {"terms", "materials", "video"} and params.video_source != "local":
@@ -1693,6 +1771,7 @@ def _run_pipeline(
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
 
+    generation_progress.stage("audio")
     # 3. Generate audio
     generate_audio_kwargs = {
         "voice_preview": voice_preview,
@@ -1747,6 +1826,7 @@ def _run_pipeline(
         )
         return {"audio_file": audio_file, "audio_duration": audio_duration}
 
+    generation_progress.stage("subtitle")
     # 4. Generate subtitle
     subtitle_path = generate_subtitle(
         task_id, params, video_script, sub_maker, audio_file
@@ -1769,6 +1849,7 @@ def _run_pipeline(
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
+    generation_progress.stage("materials")
     # 5. Get video materials
     downloaded_videos = get_video_materials(
         task_id,
@@ -1776,6 +1857,10 @@ def _run_pipeline(
         video_terms,
         audio_duration,
         loomloom_video_request=loomloom_video_request,
+        **({"codex_image_context": codex_image_context}
+           if codex_image_context is not None else {}),
+        **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+           if jalapeno_video_endpoint is not None else {}),
     )
     if not downloaded_videos:
         return _mark_task_failed(
@@ -1800,6 +1885,7 @@ def _run_pipeline(
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
 
+    generation_progress.stage("rendering")
     # 6. Generate final videos
     partial_results = {}
     try:
@@ -1905,6 +1991,8 @@ def start(
     voxcpm_reference_audio: bytes | None = None,
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
+    jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
+    codex_image_context: codex_image.CodexImageContext | None = None,
 ):
     """
     执行任务流水线，并确保未预期异常也会转换成可查询的失败状态。
@@ -1912,27 +2000,32 @@ def start(
     ``allow_server_file_input`` 只供本机 CLI 使用。HTTP API 和 WebUI 必须保持
     默认值，让自定义音频始终受当前任务目录约束。
     """
-    try:
-        return _run_pipeline(
-            task_id,
-            params,
-            stop_at=stop_at,
-            voice_preview=voice_preview,
-            loomloom_video_request=loomloom_video_request,
-            allow_server_file_input=allow_server_file_input,
-            voxcpm_reference_audio=voxcpm_reference_audio,
-            voxcpm_prompt_audio=voxcpm_prompt_audio,
-            voxcpm_prompt_text=voxcpm_prompt_text,
-        )
-    except Exception as exc:
-        logger.exception(
-            f"unexpected task pipeline failure, task_id: {task_id}, error: {exc}"
-        )
-        return _mark_task_failed(
-            task_id,
-            "pipeline",
-            f"{type(exc).__name__}: {exc}",
-        )
+    with generation_progress.task_scope(task_id):
+        try:
+            return _run_pipeline(
+                task_id,
+                params,
+                stop_at=stop_at,
+                voice_preview=voice_preview,
+                loomloom_video_request=loomloom_video_request,
+                allow_server_file_input=allow_server_file_input,
+                voxcpm_reference_audio=voxcpm_reference_audio,
+                voxcpm_prompt_audio=voxcpm_prompt_audio,
+                voxcpm_prompt_text=voxcpm_prompt_text,
+                **({"codex_image_context": codex_image_context}
+                   if codex_image_context is not None else {}),
+                **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+                   if jalapeno_video_endpoint is not None else {}),
+            )
+        except Exception as exc:
+            logger.exception(
+                f"unexpected task pipeline failure, task_id: {task_id}, error: {exc}"
+            )
+            return _mark_task_failed(
+                task_id,
+                "pipeline",
+                f"{type(exc).__name__}: {exc}",
+            )
 
 
 if __name__ == "__main__":

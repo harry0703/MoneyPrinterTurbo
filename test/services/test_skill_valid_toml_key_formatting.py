@@ -20,3 +20,17 @@ def test_valid_toml_assignment_formatting_can_update_provider(assignment):
     assert agent._plain_config_value(text, "llm_provider") == "ollama"
     updated = agent._replace_config_value(text, "llm_provider", "openai")
     assert tomllib.loads(updated)["app"]["llm_provider"] == "openai"
+
+
+@pytest.mark.parametrize("key", [
+    "pexels_api_keys",
+    '"pexels_api_keys"',
+    "'pexels_api_keys'",
+    "  pexels_api_keys",
+])
+def test_formatted_key_replacement_retains_current_multiline_handling(key):
+    text = f'[app]\n{key} = [\n  "old-key",\n]\nllm_provider = "ollama"\n'
+    updated = agent._replace_config_value(text, "pexels_api_keys", ["new-key"])
+    parsed = tomllib.loads(updated)
+    assert parsed["app"]["pexels_api_keys"] == ["new-key"]
+    assert parsed["app"]["llm_provider"] == "ollama"

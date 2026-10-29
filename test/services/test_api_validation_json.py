@@ -1,4 +1,6 @@
 import json
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -64,3 +66,74 @@ def test_normal_error_details_remain_available():
     assert error['type'] == 'greater_than_equal'
     assert error['input'] == 0
     assert error['ctx'] == {'ge': 1}
+
+
+def test_unsafe_font_name_returns_403_not_400():
+    """create_task pre-checks font_name via the file-serving wrapper.
+
+    Path-escaping attempts must be rejected with the same 403 that the
+    artifact endpoints already use, instead of the generic 400 returned
+    for value errors such as invalid subtitle colors.
+    """
+    payload = {
+        'video_subject': 'unsafe font test',
+        'video_script': 'demo',
+        'subtitle_enabled': True,
+        'font_name': '../etc/passwd',
+    }
+    with (
+        patch.dict(config.app, {'api_key': ''}),
+        patch('app.controllers.v1.video.task_manager.add_task') as schedule,
+        TestClient(asgi.get_application(), raise_server_exceptions=False) as client,
+    ):
+        response = client.post('/api/v1/videos', json=payload)
+    assert response.status_code == 403, response.text
+    schedule.assert_not_called()
+
+
+def test_unknown_font_name_returns_404():
+    """A font_name that is well-formed but missing on disk is a 404, not a 400."""
+    payload = {
+        'video_subject': 'unknown font test',
+        'video_script': 'demo',
+        'subtitle_enabled': True,
+        'font_name': 'this-font-does-not-exist.ttf',
+    }
+    with (
+        patch.dict(config.app, {'api_key': ''}),
+        patch('app.controllers.v1.video.task_manager.add_task') as schedule,
+        TestClient(asgi.get_application(), raise_server_exceptions=False) as client,
+    ):
+        response = client.post('/api/v1/videos', json=payload)
+    assert response.status_code == 404, response.text
+    schedule.assert_not_called()
+
+
+def test_valid_font_name_still_reaches_scheduler():
+    """A safe font_name must still pass through to the task scheduler.
+
+    The fixture writes a real file into a temp font directory and points
+    ``utils.font_dir`` at it, so the pre-check passes because the font
+    actually exists on disk — not because the check was bypassed or the
+    repo's bundled fonts happen to be present.
+    """
+    payload = {
+        'video_subject': 'safe font test',
+        'video_script': 'demo',
+        'subtitle_enabled': True,
+        'font_name': 'custom.ttf',
+    }
+    with tempfile.TemporaryDirectory() as temp_dir:
+        font_dir = Path(temp_dir, 'fonts')
+        font_dir.mkdir()
+        (font_dir / 'custom.ttf').write_bytes(b'font file')
+        with (
+            patch.dict(config.app, {'api_key': ''}),
+            patch('app.controllers.v1.video.utils.font_dir', return_value=str(font_dir)),
+            patch('app.controllers.v1.video.task_manager.add_task') as schedule,
+            TestClient(asgi.get_application(), raise_server_exceptions=False) as client,
+        ):
+            response = client.post('/api/v1/videos', json=payload)
+    assert response.status_code == 200, response.text
+    assert response.json()['status'] == 200
+    schedule.assert_called_once()

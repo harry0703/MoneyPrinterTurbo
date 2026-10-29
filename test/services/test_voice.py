@@ -1227,6 +1227,93 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(sub_items), len(script_lines))
         self.assertIn("1,000 years", sub_items[-1])
 
+    def test_script_split_keeps_clock_time_colon(self):
+        """
+        Edge TTS returns a clock time such as "10:30" as one word, so the script split
+        must not break a line at its colon.
+        """
+        text = "The class starts at 10:30 every morning. We film everything in 16:9."
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            ["The class starts at 10:30 every morning", "We film everything in 16:9"],
+        )
+
+    def test_edge_cue_aggregation_handles_clock_time(self):
+        """
+        The word boundaries edge-tts 7.3.1 returns for this script with en-US-JennyNeural:
+        "10:30" is one word, "16:9" is three. Both lines must still get a subtitle each,
+        without falling back to Whisper.
+        """
+        text = "We film everything in 16:9. The class starts at 10:30 every morning."
+        script_lines = utils.split_string_by_punctuations(text)
+        words = "We film everything in 16 : 9 The class starts at 10:30 every morning".split()
+        cues = [
+            SimpleNamespace(
+                content=word,
+                start=timedelta(seconds=index * 0.3),
+                end=timedelta(seconds=index * 0.3 + 0.25),
+            )
+            for index, word in enumerate(words)
+        ]
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(
+            SimpleNamespace(cues=cues), script_lines
+        )
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("10:30 every morning", sub_items[-1])
+
+    def test_script_split_keeps_dots_inside_abbreviations_and_names(self):
+        """A dot between two letters belongs to "U.S.", "e.g." or "example.com", not a line break."""
+        text = (
+            "The U.S. economy grew. Visit example.com for the details, e.g. the prices."
+        )
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            [
+                "The U.S",
+                "economy grew",
+                "Visit example.com for the details",
+                "e.g",
+                "the prices",
+            ],
+        )
+
+    def test_edge_cue_aggregation_handles_dotted_abbreviations(self):
+        """
+        The word boundaries edge-tts 7.3.1 returns for each of these sentences with
+        en-US-AriaNeural: "U.S.", "9 a.m." and "example.com" are one word each. Every line
+        must still get its own subtitle, without falling back to Whisper.
+        """
+        text = (
+            "The U.S. economy grew last year. Dr. Smith arrives at 9 a.m. sharp. "
+            "Visit example.com for the details."
+        )
+        script_lines = utils.split_string_by_punctuations(text)
+        words = [
+            *"The U.S. economy grew last year Dr. Smith arrives at".split(),
+            "9 a.m.",
+            *"sharp Visit example.com for the details".split(),
+        ]
+        cues = [
+            SimpleNamespace(
+                content=word,
+                start=timedelta(seconds=index * 0.3),
+                end=timedelta(seconds=index * 0.3 + 0.25),
+            )
+            for index, word in enumerate(words)
+        ]
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(
+            SimpleNamespace(cues=cues), script_lines
+        )
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("Smith arrives at 9 a.m", sub_items[-3])
+        self.assertIn("Visit example.com for the details", sub_items[-1])
+
     def test_script_split_supports_arabic_punctuation(self):
         """
         阿拉伯语脚本常用 ، ؛ ؟ 作为自然断句标点。断句阶段必须识别这些
@@ -1243,6 +1330,75 @@ class TestVoiceService(unittest.TestCase):
                 "يعمل بشكل جيد",
             ],
         )
+
+    def test_script_split_supports_native_full_stops(self):
+        """
+        Hindi and Bengali (danda), Urdu, Burmese, Khmer and Amharic end sentences
+        with their own full stop. Without them the whole script stays one line.
+        """
+        cases = {
+            "यह पहला वाक्य है। यह दूसरा वाक्य है॥ और यह तीसरा वाक्य है।": [
+                "यह पहला वाक्य है",
+                "यह दूसरा वाक्य है",
+                "और यह तीसरा वाक्य है",
+            ],
+            "یہ پہلا جملہ ہے۔ یہ دوسرا جملہ ہے۔": [
+                "یہ پہلا جملہ ہے",
+                "یہ دوسرا جملہ ہے",
+            ],
+            "ဒါက ပထမ စာကြောင်း ဖြစ်ပါတယ်။ ဒါက ဒုတိယ စာကြောင်း ဖြစ်ပါတယ်။": [
+                "ဒါက ပထမ စာကြောင်း ဖြစ်ပါတယ်",
+                "ဒါက ဒုတိယ စာကြောင်း ဖြစ်ပါတယ်",
+            ],
+            "នេះជាប្រយោគទីមួយ។ នេះជាប្រយោគទីពីរ។": ["នេះជាប្រយោគទីមួយ", "នេះជាប្រយោគទីពីរ"],
+            "ይህ የመጀመሪያው ዓረፍተ ነገር ነው። ይህ ሁለተኛው ዓረፍተ ነገር ነው።": [
+                "ይህ የመጀመሪያው ዓረፍተ ነገር ነው",
+                "ይህ ሁለተኛው ዓረፍተ ነገር ነው",
+            ],
+        }
+        for text, expected_lines in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(
+                    utils.split_string_by_punctuations(text), expected_lines
+                )
+
+    def test_edge_cue_aggregation_splits_sentences_at_native_full_stops(self):
+        """
+        Word boundaries edge-tts 7.3.1 returns for these scripts: hi-IN-SwaraNeural
+        leaves the danda out, am-ET-MekdesNeural attaches "።" to the last word.
+        Each sentence must still get its own subtitle.
+        """
+        cases = [
+            (
+                "यह पहला वाक्य है। यह दूसरा वाक्य है। और यह तीसरा वाक्य है।",
+                "यह पहला वाक्य है यह दूसरा वाक्य है और यह तीसरा वाक्य है".split(),
+                ["यह पहला वाक्य है", "यह दूसरा वाक्य है", "और यह तीसरा वाक्य है"],
+            ),
+            (
+                "ይህ የመጀመሪያው ዓረፍተ ነገር ነው። ይህ ሁለተኛው ዓረፍተ ነገር ነው።",
+                "ይህ የመጀመሪያው ዓረፍተ ነገር ነው። ይህ ሁለተኛው ዓረፍተ ነገር ነው።".split(),
+                ["ይህ የመጀመሪያው ዓረፍተ ነገር ነው", "ይህ ሁለተኛው ዓረፍተ ነገር ነው"],
+            ),
+        ]
+        for text, words, expected_lines in cases:
+            with self.subTest(text=text):
+                script_lines = utils.split_string_by_punctuations(text)
+                cues = [
+                    SimpleNamespace(
+                        content=word,
+                        start=timedelta(seconds=index * 0.4),
+                        end=timedelta(seconds=index * 0.4 + 0.3),
+                    )
+                    for index, word in enumerate(words)
+                ]
+
+                sub_items = vs._build_subtitle_items_from_edge_cues(
+                    SimpleNamespace(cues=cues), script_lines
+                )
+
+                self.assertEqual(len(sub_items), len(expected_lines))
+                for item, line in zip(sub_items, expected_lines):
+                    self.assertIn(line, item)
 
     def test_match_script_line_normalizes_arabic_letter_forms(self):
         """
@@ -1898,6 +2054,29 @@ class TestElevenLabsVoice(unittest.TestCase):
         self.assertNotIn("[pausa", flex_cleaned)
         self.assertNotIn("(pausa", flex_cleaned)
         self.assertNotIn("[pause", flex_cleaned)
+
+    def test_pause_tags_accept_duration_directly_after_cjk_keyword(self):
+        """中日文习惯不写冒号或空格，`[停顿3秒]` 也必须识别为停顿而不是被朗读。"""
+        script = "大家好。[停顿3秒]今天聊聊理财。[ポーズ2秒]最後。[pause2s]End."
+
+        self.assertTrue(utils.has_pause_tags("[暂停2秒]"))
+        self.assertEqual(
+            utils.parse_script_with_pauses(script),
+            [
+                ("speech", "大家好。"),
+                ("pause", 3.0),
+                ("speech", "今天聊聊理财。"),
+                ("pause", 2.0),
+                ("speech", "最後。"),
+                ("pause", 2.0),
+                ("speech", "End."),
+            ],
+        )
+        self.assertNotIn("停顿", utils.remove_pause_tags(script))
+
+        # 关键词后紧跟字母的普通文字仍不是停顿标签。
+        for text in ("[paused]", "(pauses)", "[暂停一下]"):
+            self.assertFalse(utils.has_pause_tags(text), text)
 
     def test_concat_audio_files_reads_pcm_in_bounded_chunks(self):
         """Long pause-aware narration should not load each WAV into memory."""
