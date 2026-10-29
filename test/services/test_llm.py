@@ -664,6 +664,8 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "moonshot",
                 "kimi_code",
                 "openai",
+                "openai_codex",
+                "openai_chatgpt",
                 "anthropic",
                 "gemini",
                 "muse_spark",
@@ -675,6 +677,8 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "minimax",
                 "mimo",
                 "iflytek",
+                "jalapeno",
+                "infistar",
                 "shengsuanyun",
                 "apimart",
                 "cloudflare",
@@ -2607,12 +2611,22 @@ class TestSocialMetadata(unittest.TestCase):
 
         self.assertEqual(tags, ["#fyp", "#trending"])
 
+    def test_normalize_hashtags_from_string_splits_cjk_separators(self):
+        tags = llm._normalize_hashtags("#旅行，#美食、#日常；#東京#グルメ", count=5)
+
+        self.assertEqual(tags, ["#旅行", "#美食", "#日常", "#東京", "#グルメ"])
+
     def test_normalize_hashtags_from_list_keeps_unicode_letters(self):
         tags = llm._normalize_hashtags(
             ["上海 旅行", "#việt nam", "  ", "@bad!chars"], count=5
         )
 
         self.assertEqual(tags, ["#上海旅行", "#việtnam", "#badchars"])
+
+    def test_normalize_hashtags_keeps_combining_marks(self):
+        tags = llm._normalize_hashtags(["#भारत", "#বাংলা", "#தமிழ்", "#ท่องเที่ยว"], count=5)
+
+        self.assertEqual(tags, ["#भारत", "#বাংলা", "#தமிழ்", "#ท่องเที่ยว"])
 
     def test_parse_social_metadata_recovers_embedded_json(self):
         raw = 'Sure: {"title":"T","caption":"C","hashtags":["#x"]} thanks'

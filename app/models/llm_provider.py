@@ -278,6 +278,30 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.openai.com/v1",
     ),
     LLMProviderSpec(
+        "openai_codex",
+        "OpenAI - Codex",
+        adapter="openai_codex",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        extra_fields=(
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
+        ),
+    ),
+    LLMProviderSpec(
+        "openai_chatgpt",
+        "OpenAI - ChatGPT (Native OAuth)",
+        adapter="openai_chatgpt",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        extra_fields=(
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
+        ),
+    ),
+    LLMProviderSpec(
         "anthropic",
         "Anthropic Claude",
         api_key_url="https://platform.claude.com/settings/keys",
@@ -374,6 +398,22 @@ LLM_PROVIDER_REGISTRY = (
         model_docs_url="https://maas.xfyun.cn/modelSquare",
     ),
     # 聚合与统一接入平台
+    LLMProviderSpec(
+        "jalapeno",
+        "Jalapeno Cloud",
+        api_key_url="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo",
+        default_model="DeepSeek-V4.1-Flash",
+        default_base_url="https://api.jalapeno-cloud.ai/v1",
+        model_docs_url="https://www.jalapeno-cloud.ai/models",
+    ),
+    LLMProviderSpec(
+        "infistar",
+        "Infistar",
+        api_key_url="https://infistar.cc/keys",
+        default_model="gpt-6-luna",
+        default_base_url="https://infistar.cc/v1",
+        model_docs_url="https://infistar.cc/pricing",
+    ),
     LLMProviderSpec(
         "shengsuanyun",
         "Shengsuan Cloud",

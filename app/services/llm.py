@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 from time import perf_counter
 from typing import List
 
@@ -541,6 +542,22 @@ def _generate_response(
                 raise Exception(
                     f"[{llm_provider}] returned an empty response, please check your network connection and try again."
                 )
+
+        if adapter in {"openai_codex", "openai_chatgpt"}:
+            if adapter == "openai_chatgpt":
+                from app.services import chatgpt_oauth as subscription_provider
+            else:
+                from app.services import codex_oauth as subscription_provider
+
+            timeout_seconds = coerce_claude_code_timeout(
+                extra_values.get("timeout"), provider.config_key("timeout")
+            )
+            if request_timeout is not None:
+                timeout_seconds = min(timeout_seconds, request_timeout)
+            return _normalize_text_response(
+                subscription_provider.generate_text(prompt, model_name, timeout_seconds),
+                llm_provider,
+            )
 
         if adapter == "claude_code":
             # Claude 订阅（Pro / Max / Team）不签发 API Key，其凭证只能由
@@ -1229,7 +1246,8 @@ def _normalize_hashtags(raw, count: int) -> List[str]:
     重复标签或不符合常见格式的 hashtag。
     """
     if isinstance(raw, str):
-        candidates = re.split(r"[\s,]+", raw)
+        # CJK text separates tags with ，、； and no spaces; # starts a new tag.
+        candidates = re.split(r"[\s,，、;；#]+", raw)
     elif isinstance(raw, (list, tuple)):
         # 数组里的每一项视为一个完整标签，因此 "du lich" 会变成
         # "#dulich"，而不是拆成两个标签。
@@ -1240,7 +1258,24 @@ def _normalize_hashtags(raw, count: int) -> List[str]:
     seen = set()
     result: List[str] = []
     for item in candidates:
-        tag = re.sub(r"[^\w]", "", item, flags=re.UNICODE)
+        # 印地语、泰语等依赖组合符，不能像 \w 那样直接删除。但组合符必须
+        # 附着于保留的字符；emoji 被删除后，其变体选择符也应丢弃，否则
+        # #☕️ 会留下只有不可见字符的标签，#coffee☕️ 也无法与 #coffee 去重。
+        # 数字本身会保留，因此还需清理 emoji 展示选择符和键帽组合符，
+        # 让 #1️⃣ 与 #1 一致；其它语言组合符和 CJK 字形变体仍按附着规则保留。
+        characters = []
+        can_attach_mark = False
+        for character in item:
+            if character in {"\ufe0e", "\ufe0f", "\u20e3"}:
+                can_attach_mark = False
+            elif character.isalnum() or character == "_":
+                characters.append(character)
+                can_attach_mark = True
+            elif can_attach_mark and unicodedata.category(character).startswith("M"):
+                characters.append(character)
+            else:
+                can_attach_mark = False
+        tag = "".join(characters)
         if not tag:
             continue
         key = tag.lower()

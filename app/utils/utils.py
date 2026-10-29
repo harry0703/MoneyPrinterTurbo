@@ -155,7 +155,21 @@ def get_ffmpeg_binary() -> str:
     """
     configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
     if configured_ffmpeg:
-        return configured_ffmpeg
+        # Expand the home-directory shorthand ("~") and any
+        # environment-variable references ("$VAR" / "${VAR}") before
+        # handing the value to subprocess. The check_ffmpeg_ready
+        # probe and every FFmpeg call would otherwise fail on the
+        # first run for any user who set the variable to a path
+        # under their home directory. Absolute paths are unaffected.
+        expanded_ffmpeg = os.path.expanduser(os.path.expandvars(configured_ffmpeg))
+        if expanded_ffmpeg != configured_ffmpeg:
+            # MoviePy/imageio-ffmpeg read IMAGEIO_FFMPEG_EXE directly
+            # from os.environ, so write the expanded path back before
+            # MoviePy resolves it; otherwise the pre-check passes but
+            # ColorClip.write_videofile() still fails with
+            # FileNotFoundError on the raw value (issue #1662).
+            os.environ["IMAGEIO_FFMPEG_EXE"] = expanded_ffmpeg
+        return expanded_ffmpeg
 
     system_ffmpeg = shutil.which("ffmpeg")
     if system_ffmpeg:
@@ -294,6 +308,16 @@ def split_string_by_punctuations(s):
 
         if char == "." and previous_char.isdigit() and next_char.isdigit():
             # # In the case of "withdraw 10,000, charged at 2.5% fee", the dot in "2.5" should not be treated as a line break marker
+            txt += char
+            continue
+
+        if char == "." and previous_char.isalpha() and next_char.isalpha():
+            # Edge TTS reads "U.S.", "e.g.", "9 a.m." and "example.com" as one word each.
+            txt += char
+            continue
+
+        if char == ":" and previous_char.isdigit() and next_char.isdigit():
+            # Edge TTS returns a clock time such as "10:30" as one word, so it is no line break.
             txt += char
             continue
 
@@ -465,7 +489,8 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
         line = line.strip()
         # Markdown 分隔符或强调符号单独成行时不会被 TTS 朗读，必须从
         # 脚本行里移除，避免字幕聚合卡在这类“不可发声”的目标行上。
-        if re.fullmatch(r"[-*_]{3,}", line):
+        # Neither is a line without a letter or digit: "* * *", "———", "• • •".
+        if line and not re.sub(r"[_\W]+", "", line):
             removed_separator_lines += 1
             continue
         cleaned_lines.append(line)

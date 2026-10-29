@@ -1227,6 +1227,93 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(sub_items), len(script_lines))
         self.assertIn("1,000 years", sub_items[-1])
 
+    def test_script_split_keeps_clock_time_colon(self):
+        """
+        Edge TTS returns a clock time such as "10:30" as one word, so the script split
+        must not break a line at its colon.
+        """
+        text = "The class starts at 10:30 every morning. We film everything in 16:9."
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            ["The class starts at 10:30 every morning", "We film everything in 16:9"],
+        )
+
+    def test_edge_cue_aggregation_handles_clock_time(self):
+        """
+        The word boundaries edge-tts 7.3.1 returns for this script with en-US-JennyNeural:
+        "10:30" is one word, "16:9" is three. Both lines must still get a subtitle each,
+        without falling back to Whisper.
+        """
+        text = "We film everything in 16:9. The class starts at 10:30 every morning."
+        script_lines = utils.split_string_by_punctuations(text)
+        words = "We film everything in 16 : 9 The class starts at 10:30 every morning".split()
+        cues = [
+            SimpleNamespace(
+                content=word,
+                start=timedelta(seconds=index * 0.3),
+                end=timedelta(seconds=index * 0.3 + 0.25),
+            )
+            for index, word in enumerate(words)
+        ]
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(
+            SimpleNamespace(cues=cues), script_lines
+        )
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("10:30 every morning", sub_items[-1])
+
+    def test_script_split_keeps_dots_inside_abbreviations_and_names(self):
+        """A dot between two letters belongs to "U.S.", "e.g." or "example.com", not a line break."""
+        text = (
+            "The U.S. economy grew. Visit example.com for the details, e.g. the prices."
+        )
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            [
+                "The U.S",
+                "economy grew",
+                "Visit example.com for the details",
+                "e.g",
+                "the prices",
+            ],
+        )
+
+    def test_edge_cue_aggregation_handles_dotted_abbreviations(self):
+        """
+        The word boundaries edge-tts 7.3.1 returns for each of these sentences with
+        en-US-AriaNeural: "U.S.", "9 a.m." and "example.com" are one word each. Every line
+        must still get its own subtitle, without falling back to Whisper.
+        """
+        text = (
+            "The U.S. economy grew last year. Dr. Smith arrives at 9 a.m. sharp. "
+            "Visit example.com for the details."
+        )
+        script_lines = utils.split_string_by_punctuations(text)
+        words = [
+            *"The U.S. economy grew last year Dr. Smith arrives at".split(),
+            "9 a.m.",
+            *"sharp Visit example.com for the details".split(),
+        ]
+        cues = [
+            SimpleNamespace(
+                content=word,
+                start=timedelta(seconds=index * 0.3),
+                end=timedelta(seconds=index * 0.3 + 0.25),
+            )
+            for index, word in enumerate(words)
+        ]
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(
+            SimpleNamespace(cues=cues), script_lines
+        )
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("Smith arrives at 9 a.m", sub_items[-3])
+        self.assertIn("Visit example.com for the details", sub_items[-1])
+
     def test_script_split_supports_arabic_punctuation(self):
         """
         阿拉伯语脚本常用 ، ؛ ؟ 作为自然断句标点。断句阶段必须识别这些
@@ -1243,6 +1330,75 @@ class TestVoiceService(unittest.TestCase):
                 "يعمل بشكل جيد",
             ],
         )
+
+    def test_script_split_supports_native_full_stops(self):
+        """
+        Hindi and Bengali (danda), Urdu, Burmese, Khmer and Amharic end sentences
+        with their own full stop. Without them the whole script stays one line.
+        """
+        cases = {
+            "यह पहला वाक्य है। यह दूसरा वाक्य है॥ और यह तीसरा वाक्य है।": [
+                "यह पहला वाक्य है",
+                "यह दूसरा वाक्य है",
+                "और यह तीसरा वाक्य है",
+            ],
+            "یہ پہلا جملہ ہے۔ یہ دوسرا جملہ ہے۔": [
+                "یہ پہلا جملہ ہے",
+                "یہ دوسرا جملہ ہے",
+            ],
+            "ဒါက ပထမ စာကြောင်း ဖြစ်ပါတယ်။ ဒါက ဒုတိယ စာကြောင်း ဖြစ်ပါတယ်။": [
+                "ဒါက ပထမ စာကြောင်း ဖြစ်ပါတယ်",
+                "ဒါက ဒုတိယ စာကြောင်း ဖြစ်ပါတယ်",
+            ],
+            "នេះជាប្រយោគទីមួយ។ នេះជាប្រយោគទីពីរ។": ["នេះជាប្រយោគទីមួយ", "នេះជាប្រយោគទីពីរ"],
+            "ይህ የመጀመሪያው ዓረፍተ ነገር ነው። ይህ ሁለተኛው ዓረፍተ ነገር ነው።": [
+                "ይህ የመጀመሪያው ዓረፍተ ነገር ነው",
+                "ይህ ሁለተኛው ዓረፍተ ነገር ነው",
+            ],
+        }
+        for text, expected_lines in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(
+                    utils.split_string_by_punctuations(text), expected_lines
+                )
+
+    def test_edge_cue_aggregation_splits_sentences_at_native_full_stops(self):
+        """
+        Word boundaries edge-tts 7.3.1 returns for these scripts: hi-IN-SwaraNeural
+        leaves the danda out, am-ET-MekdesNeural attaches "።" to the last word.
+        Each sentence must still get its own subtitle.
+        """
+        cases = [
+            (
+                "यह पहला वाक्य है। यह दूसरा वाक्य है। और यह तीसरा वाक्य है।",
+                "यह पहला वाक्य है यह दूसरा वाक्य है और यह तीसरा वाक्य है".split(),
+                ["यह पहला वाक्य है", "यह दूसरा वाक्य है", "और यह तीसरा वाक्य है"],
+            ),
+            (
+                "ይህ የመጀመሪያው ዓረፍተ ነገር ነው። ይህ ሁለተኛው ዓረፍተ ነገር ነው።",
+                "ይህ የመጀመሪያው ዓረፍተ ነገር ነው። ይህ ሁለተኛው ዓረፍተ ነገር ነው።".split(),
+                ["ይህ የመጀመሪያው ዓረፍተ ነገር ነው", "ይህ ሁለተኛው ዓረፍተ ነገር ነው"],
+            ),
+        ]
+        for text, words, expected_lines in cases:
+            with self.subTest(text=text):
+                script_lines = utils.split_string_by_punctuations(text)
+                cues = [
+                    SimpleNamespace(
+                        content=word,
+                        start=timedelta(seconds=index * 0.4),
+                        end=timedelta(seconds=index * 0.4 + 0.3),
+                    )
+                    for index, word in enumerate(words)
+                ]
+
+                sub_items = vs._build_subtitle_items_from_edge_cues(
+                    SimpleNamespace(cues=cues), script_lines
+                )
+
+                self.assertEqual(len(sub_items), len(expected_lines))
+                for item, line in zip(sub_items, expected_lines):
+                    self.assertIn(line, item)
 
     def test_match_script_line_normalizes_arabic_letter_forms(self):
         """

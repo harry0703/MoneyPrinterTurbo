@@ -128,6 +128,18 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><img src="docs/sponsors/jalapeno-logo.png" alt="Jalapeno Cloud" width="56"></a><br>
+      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><strong>Jalapeno Cloud</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Jalapeno Cloud</a> for sponsoring this project!<br>
+      Access multiple AI models through OpenAI- and Anthropic-compatible APIs for application development and content creation.<br>
+      New users receive free credits, with <strong>up to 20% bonus credits on top-ups</strong>. Get <strong>up to 50% off</strong> models including DeepSeek-V4.1-flash and GLM-5.3-flash, plus an <strong>ongoing 10% discount on Doubao-Seedance-2.5</strong>. Official model sources with quality assurance.<br>
+      👉 <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Sign up and claim exclusive trial credits</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>
@@ -179,6 +191,8 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 
 ### Scripts and Model Providers
 
+- [x] Use a ChatGPT subscription through [OpenAI - Codex](docs/codex-provider.md), with device-code sign-in and a dynamic model selector
+- [x] Explicitly choose [ChatGPT Native OAuth](docs/chatgpt-provider.md) for official app authorization and account-specific models; account/workspace eligibility and a local browser/runtime are required
 - [x] Generate or rewrite **multilingual video scripts** with AI, or supply a complete custom script
 - [x] Use leading providers including [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo), [OpenAI](https://platform.openai.com/api-keys), [Anthropic Claude](https://platform.claude.com/settings/keys), [Google Gemini](https://aistudio.google.com/app/apikey), [DeepSeek](https://platform.deepseek.com/api_keys), [Alibaba Cloud Qwen](https://qwen.ai/apiplatform), [Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI), [ByteDance VolcEngine Ark](https://console.volcengine.com/ark), [xAI Grok](https://console.x.ai/), [MiniMax](https://platform.minimax.io/), and [Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
 - [x] Connect through [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
@@ -345,11 +359,11 @@ The application creates `config.toml` on first launch. Add the required API keys
 for online models, footage, or speech services in the WebUI basic settings.
 The installed application stores configuration and generated files here by default:
 
-| System | Data directory |
-| --- | --- |
-| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
-| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
-| Linux | `~/.local/share/MoneyPrinterTurbo`, or `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+| System  | Data directory                                                            |
+| ------- | ------------------------------------------------------------------------- |
+| macOS   | `~/Library/Application Support/MoneyPrinterTurbo`                         |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo`                                        |
+| Linux   | `~/.local/share/MoneyPrinterTurbo`, or `$XDG_DATA_HOME/MoneyPrinterTurbo` |
 
 Set `MPT_HOME` before launch to choose another directory. Generated videos are under
 `storage/tasks` in that directory. To upgrade, activate your virtual environment and

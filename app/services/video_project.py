@@ -830,7 +830,7 @@ class VideoProject:
                 shutil.copyfile(results["assembly"]["path"], output)
             if cancel.exists():
                 raise RenderCancelled("revision cancelled")
-            with output.open("rb") as completed:
+            with output.open("r+b") as completed:
                 os.fsync(completed.fileno())
             record = {
                 "fingerprint": stage.fingerprint,

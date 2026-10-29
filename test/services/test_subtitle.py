@@ -332,6 +332,43 @@ class TestSubtitleService(unittest.TestCase):
         self.assertNotIn("---", corrected_srt)
         self.assertNotIn("00:00:00,000 --> 00:00:00,000", corrected_srt)
 
+    def test_correct_ignores_symbol_only_scene_break_lines(self):
+        """
+        Scene breaks made only of symbols, such as `* * *` or `———`, are never
+        spoken either. Kept as script lines, they took the next caption's time
+        and pushed that caption to `00:00:00,000 --> 00:00:00,000`.
+        """
+        original_srt = (
+            "1\n00:00:00,100 --> 00:00:01,000\nWelcome to the show\n\n"
+            "2\n00:00:01,100 --> 00:00:02,000\nLet us begin\n\n"
+        )
+
+        for separator in [
+            "* * *",
+            "\u2014\u2014\u2014",
+            "\u2022 \u2022 \u2022",
+            "= = =",
+        ]:
+            with self.subTest(separator=separator):
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    subtitle_file = Path(tmp_dir) / "subtitle.srt"
+                    subtitle_file.write_text(original_srt, encoding="utf-8")
+
+                    subtitle.correct(
+                        subtitle_file=str(subtitle_file),
+                        video_script=f"Welcome to the show.\n{separator}\nLet us begin.",
+                    )
+
+                    items = subtitle.file_to_subtitles(str(subtitle_file))
+
+                self.assertEqual(
+                    [(item[1], item[2]) for item in items],
+                    [
+                        ("00:00:00,100 --> 00:00:01,000", "Welcome to the show"),
+                        ("00:00:01,100 --> 00:00:02,000", "Let us begin"),
+                    ],
+                )
+
     def test_correct_merges_adjacent_subtitles_for_one_script_sentence(self):
         """
         Whisper 可能把一句文案拆成多个时间块。校正逻辑应合并时间范围并恢复

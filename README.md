@@ -132,6 +132,18 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><img src="docs/sponsors/jalapeno-logo.png" alt="Jalapeno Cloud" width="56"></a><br>
+      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><strong>Jalapeno Cloud</strong></a>
+    </td>
+    <td align="left">
+      感谢 <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Jalapeno Cloud</a> 赞助本项目！<br>
+      一站式接入多种 AI 模型，兼容 OpenAI 与 Anthropic API，满足 AI 应用开发与内容创作需求。<br>
+      新用户注册领免费额度，充值<strong>额外赠送最高 20%</strong>；DeepSeek-V4.1-flash、GLM-5.3-flash 等模型<strong>低至 5 折</strong>，Doubao-Seedance-2.5 <strong>长期 9 折</strong>。官方源头，品质保证。<br>
+      👉 <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">立即注册，领取专属体验金</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn">录咖 AI</a>
     </td>
@@ -343,11 +355,11 @@ WebUI 会自动打开浏览器。指定端口且不自动打开浏览器时，�
 首次启动会自动创建 `config.toml`。使用在线模型、素材或语音服务前，请在 WebUI
 基础设置中填写相应的 API Key。安装版默认将配置和生成文件保存在：
 
-| 系统 | 数据目录 |
-| --- | --- |
-| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
-| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
-| Linux | `~/.local/share/MoneyPrinterTurbo`，或 `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+| 系统    | 数据目录                                                                  |
+| ------- | ------------------------------------------------------------------------- |
+| macOS   | `~/Library/Application Support/MoneyPrinterTurbo`                         |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo`                                        |
+| Linux   | `~/.local/share/MoneyPrinterTurbo`，或 `$XDG_DATA_HOME/MoneyPrinterTurbo` |
 
 可在启动前设置 `MPT_HOME` 更改目录，生成的视频位于其中的 `storage/tasks` 下。
 后续升级时，在已激活的虚拟环境中运行 `python -m pip install --upgrade mpt`。

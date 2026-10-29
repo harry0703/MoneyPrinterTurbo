@@ -54,6 +54,8 @@ from app.services import (
     material,
     metaso_minimax,
     muapi,
+    infistar_video,
+    jalapeno_video,
     ofox,
     subtitle,
     video,
@@ -128,8 +130,8 @@ VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
 LOOMLOOM_MAX_POLL_FAILURES = 5
 # WebUI 按素材能力分组展示视频来源，但底层仍保存原有 video_source 值。
-# AI 视频组与设置页共用同一业务顺序：合作服务商优先，并按秘塔、OFox、
-# 胜算云、火山引擎排列；其余服务随后展示。这样两个入口的顺序一致，同时
+# AI 视频组与设置页共用同一业务顺序：合作服务商优先，并按秘塔、OFox、胜算云、
+# 火山引擎、无限星河排列；其余服务随后展示。这样两个入口的顺序一致，同时
 # 不改变 config.toml、历史任务和 API 请求中的字段语义，旧用户无需迁移配置。
 VIDEO_SOURCE_GROUPS = {
     "stock_video": ("pexels", "pixabay", "coverr"),
@@ -138,10 +140,12 @@ VIDEO_SOURCE_GROUPS = {
         "ofox",
         "loomloom",
         "volcengine_seedance",
+        "infistar",
+        "jalapeno",
         "wavespeed",
         "muapi",
     ),
-    "ai_image": ("openai_image",),
+    "ai_image": ("openai_image", "codex_image"),
     "local": ("local",),
 }
 # Upload-Post 的 API Key 与发布用户分别在两个页面管理，并且发布用户名称
@@ -770,6 +774,8 @@ def _initialize_session_state():
         "loomloom_video_scene_autofill_digest": "",
         "wavespeed_confirm_charge": False,
         "volcengine_seedance_confirm_charge": False,
+        "infistar_confirm_charge": False,
+        "jalapeno_confirm_charge": False,
         "ofox_confirm_charge": False,
         "metaso_minimax_confirm_charge": False,
         "muapi_confirm_charge": False,
@@ -955,6 +961,10 @@ def _remove_active_generation_task(task_id):
 def _prepare_generation_task():
     # st.button 的 on_click 会在页面脚本重新执行前触发。这里提前生成任务 ID，
     # 顶部任务管理入口就能在同一次 rerun 中显示“生成中”数量。
+    current_id = _current_generation_task_id()
+    if current_id and webui_task.is_generation_active(current_id):
+        st.session_state["pending_generation_task_id"] = current_id
+        return
     task_id = str(uuid4())
     st.session_state["pending_generation_task_id"] = task_id
     subject = st.session_state.get("video_subject") or st.session_state.get(
@@ -2029,6 +2039,71 @@ def _render_generation_logs(task_id):
     st.code("\n".join(log_records))
 
 
+def _current_generation_task_id():
+    """URL 只保存本地任务 ID，让刷新/重连恢复原任务，不保存配置或凭据。"""
+    task_id = st.session_state.get("current_generation_task_id", "")
+    if not task_id:
+        try:
+            task_id = str(UUID(st.query_params.get("generation_task", "")))
+        except (ValueError, TypeError, AttributeError):
+            return ""
+        st.session_state["current_generation_task_id"] = task_id
+    return task_id
+
+
+def _generation_is_busy(task_id):
+    if not task_id:
+        return False
+    if webui_task.is_generation_active(task_id):
+        return True
+    try:
+        task = sm.state.get_task(task_id)
+    except Exception:
+        # 查询异常时不能把“状态未知”当作已完成而放开重复提交。
+        return True
+    return _normalize_task_state((task or {}).get("state")) == const.TASK_STATE_PROCESSING
+
+
+def _render_generation_activity(task):
+    activity = task.get("generation_activity") or {}
+    phase = activity.get("phase", "")
+    labels = {
+        "queued": "Generation Waiting In Queue",
+        "preparing": "Generation Preparing",
+        "script": "Generation Writing Script",
+        "terms": "Generation Preparing Terms",
+        "audio": "Generation Preparing Audio",
+        "subtitle": "Generation Preparing Subtitles",
+        "materials": "Generation Preparing Materials",
+        "submitting": "Generation Submitting",
+        "checking": "Generation Checking",
+        "remote_queued": "Generation Remote Queued",
+        "generating": "Generation Remote Running",
+        "generated": "Generation Remote Completed",
+        "downloading": "Generation Downloading",
+        "verifying": "Generation Verifying",
+        "rendering": "Generation Rendering",
+    }
+    st.info(tr(labels.get(phase, "Generating Video")))
+    now = time.time()
+    started = (task.get("generation_submitted_at") or task.get("generation_started_at")
+               or activity.get("started_at") or now)
+    elapsed = max(0, int(now - float(started)))
+    st.caption(tr("Generation Elapsed").format(time=f"{elapsed // 60:02d}:{elapsed % 60:02d}"))
+    if phase in {"submitting", "remote_queued", "generating", "checking"}:
+        st.caption(tr("Generation Long Wait Hint"))
+        if activity.get("retrying"):
+            st.warning(tr("Generation Poll Retry Hint"))
+        if activity.get("confirmed_at"):
+            age = max(0, int(now - float(activity["confirmed_at"])))
+            st.caption(tr("Generation Last Checked").format(seconds=age))
+    if phase == "downloading" and activity.get("downloaded_bytes"):
+        downloaded = activity["downloaded_bytes"] / (1024 * 1024)
+        st.caption(tr("Generation Downloaded").format(size=f"{downloaded:.1f}"))
+    if activity.get("remote_id"):
+        st.caption(tr("Generation Remote Task").format(task_id=activity["remote_id"]))
+
+
 def _render_generation_task_snapshot(task_id, task):
     """根据状态存储中的快照渲染进度、失败原因或最终成片。"""
     if not task:
@@ -2039,7 +2114,7 @@ def _render_generation_task_snapshot(task_id, task):
     state = _normalize_task_state(task.get("state"))
     progress = max(0, min(100, int(task.get("progress", 0) or 0)))
     if state == const.TASK_STATE_PROCESSING:
-        st.info(tr("Generating Video"))
+        _render_generation_activity(task)
         st.progress(
             progress,
             text=f"{tr('Task Progress')}: {progress}%",
@@ -2050,8 +2125,19 @@ def _render_generation_task_snapshot(task_id, task):
     video_files = task.get("videos") or []
     if state == const.TASK_STATE_FAILED:
         error = str(task.get("error") or "").strip()
+        error_key = task.get("error_key")
+        error_params = task.get("error_params") or {}
+        if (
+            isinstance(error_key, str)
+            and error_key.startswith("codex.")
+            and isinstance(error_params, Mapping)
+        ):
+            error = tr(error_key).format(**error_params)
         message = tr("Video Generation Failed")
         st.error(f"{message}: {error}" if error else message)
+        activity = task.get("generation_activity") or {}
+        if activity.get("remote_id"):
+            st.warning(tr("Generation Existing Task Hint").format(task_id=activity["remote_id"]))
         if not video_files:
             _render_generation_logs(task_id)
             return
@@ -2155,9 +2241,12 @@ def _render_running_generation_task(task_id):
         logger.exception(
             f"failed to query WebUI generation task: task_id={task_id}, error={exc}"
         )
-        st.error(tr("Video Generation Failed"))
+        st.warning(tr("Generation Status Unavailable"))
         return
 
+    if not task and not webui_task.is_generation_active(task_id):
+        st.warning(tr("Generation Task Unavailable"))
+        return
     state = _normalize_task_state((task or {}).get("state"))
     if state in {const.TASK_STATE_COMPLETE, const.TASK_STATE_FAILED}:
         _remove_active_generation_task(task_id)
@@ -2166,11 +2255,20 @@ def _render_running_generation_task(task_id):
         st.rerun(scope="app")
 
     _render_generation_task_snapshot(task_id, task)
+    if not webui_task.is_generation_active(task_id):
+        # 持久状态可能属于重启前或另一服务进程，不能断言远端任务已停止。
+        # 只允许解除当前页面的跟踪，不取消任务、不改写其真实状态。
+        st.warning(tr("Generation Untracked Worker Hint"))
+        if st.button(tr("Stop Tracking Generation"), key=f"stop_tracking_generation_{task_id}"):
+            _remove_active_generation_task(task_id)
+            st.session_state["current_generation_task_id"] = ""
+            st.query_params.pop("generation_task", None)
+            st.rerun(scope="app")
 
 
 def _render_current_generation_task():
     """在生成按钮下方恢复当前页面最近提交任务的可查询 UI。"""
-    task_id = st.session_state.get("current_generation_task_id", "")
+    task_id = _current_generation_task_id()
     if not task_id:
         return
 
@@ -2180,9 +2278,13 @@ def _render_current_generation_task():
         logger.exception(
             f"failed to query current WebUI task: task_id={task_id}, error={exc}"
         )
-        st.error(tr("Video Generation Failed"))
+        # 即使首次读取失败，也要注册 Fragment，让状态后端恢复后自动继续。
+        _render_running_generation_task(task_id)
         return
 
+    if not task and not webui_task.is_generation_active(task_id):
+        st.warning(tr("Generation Task Unavailable"))
+        return
     state = _normalize_task_state((task or {}).get("state"))
     if state in {const.TASK_STATE_COMPLETE, const.TASK_STATE_FAILED}:
         _remove_active_generation_task(task_id)
@@ -2250,6 +2352,23 @@ def get_llm_provider_tips(provider_id, **kwargs):
 def format_llm_connection_error(provider_id, base_url, error):
     """为可明确定位的鉴权错误补充配置检查建议，同时保留原始响应。"""
     error_text = str(error or "").strip()
+    if provider_id in {"openai_codex", "openai_chatgpt"}:
+        if provider_id == "openai_chatgpt":
+            from app.services.chatgpt_oauth import ERROR_MESSAGES
+            message_prefix = "chatgpt.oauth"
+        else:
+            from app.services.codex_oauth import ERROR_MESSAGES
+            message_prefix = "codex.oauth"
+
+        for key, message in ERROR_MESSAGES.items():
+            if error_text == message:
+                return tr(f"{message_prefix}.{key}")
+        status_match = re.fullmatch(
+            r"OpenAI - (?:Codex|ChatGPT \(Native OAuth\)) returned HTTP (\d+)\. Check the selected model and your account access\.",
+            error_text,
+        )
+        if status_match:
+            return tr(f"{message_prefix}.http_error").format(status=status_match[1])
     normalized_error = error_text.lower()
     authentication_markers = (
         "401",
@@ -3546,7 +3665,23 @@ def _render_settings_dialog():
                     disabled=selected_service_endpoint is not None,
                 )
             st_llm_model_name = ""
-            if llm_provider == "groq":
+            if llm_provider == "openai_codex":
+                from webui.codex_models import render_codex_model_selector
+
+                with llm_form_panel:
+                    st_llm_model_name = render_codex_model_selector(llm_model_name, tr)
+            elif llm_provider == "openai_chatgpt":
+                from webui.chatgpt_login import render_chatgpt_login
+                from webui.chatgpt_models import render_chatgpt_model_selector
+
+                with llm_form_panel:
+                    if middle_config_panel.open:
+                        # Keep the nested polling fragment's delta paths separate
+                        # from the model selector and connection-test controls.
+                        with st.container(key="chatgpt_login_panel"):
+                            render_chatgpt_login(tr)
+                    st_llm_model_name = render_chatgpt_model_selector(llm_model_name, tr)
+            elif llm_provider == "groq":
                 effective_api_key = st_llm_api_key or llm_api_key
                 effective_base_url = st_llm_base_url or llm_base_url
                 groq_models = get_groq_model_ids(
@@ -3625,6 +3760,12 @@ def _render_settings_dialog():
                         field.default_value,
                     ),
                 )
+
+            if llm_provider == "openai_codex" and middle_config_panel.open:
+                from webui.codex_login import render_codex_login
+
+                with llm_form_panel.container():
+                    render_codex_login(tr)
 
             if llm_provider == "kimi_code" and middle_config_panel.open:
                 from app.services import kimi_code_oauth
@@ -3714,7 +3855,7 @@ def _render_settings_dialog():
                 st.caption(tr("AI Video Generation APIs Help"))
 
                 # 视频生成 Provider 按赞助商优先展示，赞助商内部顺序
-                # 与 VIDEO_SOURCE_GROUPS 一致：秘塔、OFox、胜算云、火山引擎。
+                # 与 VIDEO_SOURCE_GROUPS 一致：秘塔、OFox、胜算云、火山引擎、无限星河。
                 st.markdown(f"**{tr('Metaso MiniMax H3')}**")
                 metaso_api_key = st.text_input(
                     tr("Metaso MiniMax API Key"),
@@ -3973,6 +4114,30 @@ def _render_settings_dialog():
                 )
 
                 st.divider()
+                st.markdown(f"**{tr('Infistar AI Video')}**")
+                st.caption(tr("Infistar Video Key Help"))
+                infistar_video_key = st.text_input(
+                    tr("Infistar Video API Key"),
+                    value=str(config.app.get("infistar_video_api_key", "") or ""),
+                    type="password", key="infistar_video_api_key_input",
+                )
+                _set_runtime_config(
+                    "app", "infistar_video_api_key", infistar_video_key.strip()
+                )
+                infistar_video_base_url = st.text_input(
+                    tr("Infistar Video Base URL"),
+                    value=str(config.app.get("infistar_video_base_url", "") or ""),
+                    placeholder=infistar_video.DEFAULT_BASE_URL,
+                    key="infistar_video_base_url_input",
+                )
+                _set_runtime_config(
+                    "app", "infistar_video_base_url", infistar_video_base_url.strip()
+                )
+
+                st.divider()
+                _render_jalapeno_provider_settings()
+
+                st.divider()
                 wavespeed_api_key = _get_material_api_keys("wavespeed_api_keys")
                 st.markdown("**WaveSpeed**")
                 wavespeed_api_key = st.text_input(
@@ -4059,6 +4224,30 @@ def _render_settings_dialog():
             with st.container(border=True):
                 st.markdown(f"#### {tr('AI Image Generation APIs')}")
                 st.caption(tr("AI Image Generation APIs Help"))
+                st.markdown(f"**{tr('codex.image.label')}**")
+                st.caption(tr("codex.image.help"))
+                from webui.codex_models import render_codex_model_selector
+
+                codex_image_model = render_codex_model_selector(
+                    str(config.app.get("codex_image_model_name", "") or ""),
+                    tr,
+                    prefix="codex_image",
+                )
+                _set_runtime_config("app", "codex_image_model_name", codex_image_model)
+                codex_image_timeout = st.text_input(
+                    tr("codex.image.timeout"),
+                    value=str(config.app.get("codex_image_timeout") or "300"),
+                    placeholder="300",
+                    key="codex_image_timeout_input",
+                )
+                _set_runtime_config(
+                    "app", "codex_image_timeout", codex_image_timeout.strip()
+                )
+                if right_config_panel.open:
+                    from webui.codex_login import render_codex_login
+
+                    with st.container():
+                        render_codex_login(tr)
                 st.markdown(f"**{tr('OpenAI Compatible Text-to-Image')}**")
 
                 openai_image_base_url = st.text_input(
@@ -4581,7 +4770,8 @@ def _render_loomloom_video_settings(params):
         st.session_state["loomloom_video_quote_error"] = ""
     quote_failed = bool(st.session_state.get("loomloom_video_quote_error"))
     # Quote 不创建付费任务，真正执行仍需用户明确勾选确认。
-    if token and batch is not None and not quote_is_current and not quote_failed:
+    if (token and batch is not None and not quote_is_current and not quote_failed
+            and not _generation_is_busy(_current_generation_task_id())):
         st.session_state["loomloom_video_confirm_charge"] = False
         try:
             quote_result = _create_loomloom_video_backend().quote(batch)
@@ -5234,11 +5424,14 @@ def _render_video_settings(panel, params):
                 "coverr": tr("Coverr"),
                 "wavespeed": tr("WaveSpeed AI Video"),
                 "volcengine_seedance": tr("Volcano Engine Seedance"),
+                "infistar": tr("Infistar AI Video"),
+                "jalapeno": tr("Jalapeno Cloud AI Video"),
                 "ofox": tr("OFox AI Video"),
                 "metaso_minimax": tr("Metaso MiniMax H3"),
                 "muapi": tr("MuAPI AI Video"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
+                "codex_image": tr("codex.image.label"),
                 "local": tr("Local file"),
             }
             saved_video_source_name = str(
@@ -5268,6 +5461,16 @@ def _render_video_settings(panel, params):
                     _effective_loomloom_api_token()
                 )
 
+            if params.video_source == "infistar":
+                st.caption(tr("Infistar AI Video Help"))
+                selected_infistar_model = _render_infistar_model_selector()
+            if params.video_source == "jalapeno":
+                st.caption(tr("Jalapeno Cloud Video Help"))
+                snapshot = config.snapshot_config_with_pending(config.app)
+                st.caption(tr("Jalapeno Cloud Video Specification").format(
+                    model=str(snapshot.get("jalapeno_video_model", "") or jalapeno_video.DEFAULT_MODEL),
+                    resolution=str(snapshot.get("jalapeno_video_resolution", "") or jalapeno_video.DEFAULT_RESOLUTION),
+                ))
             if params.video_source == "wavespeed":
                 st.caption(tr("WaveSpeed AI Video Help"))
             if params.video_source == "volcengine_seedance":
@@ -5421,7 +5624,7 @@ def _render_video_settings(panel, params):
                 "ui", "video_fit_mode", params.video_fit_mode.value
             )
 
-            if params.video_source in {"local", "openai_image"}:
+            if params.video_source in {"local", "openai_image", "codex_image"}:
                 image_motion_labels = {
                     ImageMotion.static.value: tr("Static Image"),
                     ImageMotion.zoom.value: tr("Slow Zoom"),
@@ -5445,7 +5648,10 @@ def _render_video_settings(panel, params):
 
             # MiniMax H3 的远端时长范围是 4～15 秒。选择秘塔时使用完整能力
             # 范围，既避免 2/3 秒被按 4 秒计费，也让 WebUI 与 CLI、服务层一致。
-            if params.video_source == "metaso_minimax":
+            if params.video_source == "infistar":
+                # 每种模型先提供实测的固定规格；不把被 API 拒绝的时长发往付费接口。
+                video_clip_durations = [infistar_video.MODELS.get(selected_infistar_model, {"seconds": 5})["seconds"]]
+            elif params.video_source == "metaso_minimax":
                 video_clip_durations = list(
                     range(
                         metaso_minimax.DEFAULT_MIN_DURATION_SECONDS,
@@ -5576,6 +5782,13 @@ def _render_video_settings(panel, params):
                 _render_wavespeed_video_settings(params)
             if params.video_source == "volcengine_seedance":
                 _render_seedance_video_settings(params)
+            if params.video_source == "infistar":
+                st.warning(tr("Infistar Video Billing Notice"))
+                st.checkbox(tr("Confirm Infistar Charge"), key="infistar_confirm_charge")
+            if params.video_source == "jalapeno":
+                _sync_jalapeno_charge_confirmation(params)
+                st.warning(tr("Jalapeno Cloud Video Billing Notice"))
+                st.checkbox(tr("Confirm Jalapeno Cloud Charge"), key="jalapeno_confirm_charge")
             if params.video_source == "ofox":
                 _render_ofox_video_settings(params)
             if params.video_source == "metaso_minimax":
@@ -5641,6 +5854,87 @@ def _render_seedance_video_settings(params):
         key="volcengine_seedance_confirm_charge",
         help=tr("Confirm Volcano Engine Seedance Charge Help"),
     )
+
+
+def _render_jalapeno_provider_settings():
+    """默认值直接填入；独立视频配置不依赖当前选择的大模型 Provider。"""
+    snapshot = config.snapshot_config_with_pending(config.app)
+    st.markdown(f"**{tr('Jalapeno Cloud AI Video')}**")
+    key = st.text_input(
+        tr("Jalapeno Cloud Video API Key"),
+        value=str(snapshot.get("jalapeno_video_api_key", "") or ""),
+        type="password", key="jalapeno_video_api_key_input",
+        help=tr("Jalapeno Cloud Video Key Help"),
+    ).strip()
+    _set_runtime_config("app", "jalapeno_video_api_key", key)
+    if (not key and not os.getenv("JALAPENO_VIDEO_API_KEY", "").strip()
+            and str(snapshot.get("jalapeno_api_key", "") or "").strip()):
+        st.caption(tr("Jalapeno Cloud Video Key Reused"))
+    model = st.text_input(
+        tr("Jalapeno Cloud Video Model"),
+        value=str(snapshot.get("jalapeno_video_model", "") or jalapeno_video.DEFAULT_MODEL),
+        key="jalapeno_video_model_input",
+    ).strip()
+    _set_runtime_config("app", "jalapeno_video_model", model)
+    base = st.text_input(
+        tr("Jalapeno Cloud Video Base URL"),
+        value=str(snapshot.get("jalapeno_video_base_url", "") or jalapeno_video.DEFAULT_TASKS_URL),
+        help=tr("Jalapeno Cloud Video Base URL Help"),
+        key="jalapeno_video_base_url_input",
+    ).strip()
+    _set_runtime_config("app", "jalapeno_video_base_url", base)
+    resolution = stable_selectbox(
+        tr("Jalapeno Cloud Video Resolution"),
+        options=sorted(volcengine_seedance.SUPPORTED_RESOLUTIONS, key=lambda value: int(value[:-1])),
+        default_value=str(snapshot.get("jalapeno_video_resolution", "") or jalapeno_video.DEFAULT_RESOLUTION),
+        key="jalapeno_video_resolution_select",
+    )
+    _set_runtime_config("app", "jalapeno_video_resolution", resolution)
+
+
+def _sync_jalapeno_charge_confirmation(params):
+    """接入地址、模型、规格或有效 Key 变化后重新确认，避免沿用过期授权。"""
+    snapshot = config.snapshot_config_with_pending(config.app)
+    signature = _jalapeno_charge_signature(params, snapshot)
+    if st.session_state.get("jalapeno_charge_signature") != signature:
+        st.session_state["jalapeno_confirm_charge"] = False
+        st.session_state["jalapeno_charge_signature"] = signature
+
+
+def _jalapeno_charge_signature(params, snapshot):
+    """使用同一快照检查费用确认，避免渲染与点击提交之间读取不同配置。"""
+    return hashlib.sha256(json.dumps([
+        jalapeno_video.get_api_key(snapshot),
+        snapshot.get("jalapeno_video_base_url", ""),
+        snapshot.get("jalapeno_video_model", ""),
+        snapshot.get("jalapeno_video_resolution", ""),
+        str(params.video_aspect), params.video_clip_duration, params.video_count,
+    ]).encode()).hexdigest()
+
+
+def _render_infistar_model_selector():
+    """模型顺序固定为 Seedance、MiniMax、可灵；切换模型后重新确认费用。"""
+    snapshot = config.snapshot_config_with_pending(config.app)
+    configured = str(snapshot.get("infistar_video_model", "") or infistar_video.DEFAULT_MODEL)
+    options = list(infistar_video.MODELS)
+    if configured not in options:
+        options.append(configured)
+        st.error(tr("Infistar Video Invalid Model"))
+    model = stable_selectbox(
+        tr("Infistar Video Model"), options=options,
+        default_value=configured, key="infistar_video_model_select",
+        format_func=lambda value: infistar_video.MODELS.get(value, {"label": value})["label"],
+    )
+    if st.session_state.get("infistar_previous_video_model") != model:
+        st.session_state["infistar_confirm_charge"] = False
+        st.session_state["infistar_previous_video_model"] = model
+    _set_runtime_config("app", "infistar_video_model", model)
+    profile = infistar_video.MODELS.get(model)
+    if profile:
+        st.caption(tr("Infistar Video Specification").format(seconds=profile["seconds"], size=profile["size"]))
+        if model == "MiniMax-H3":
+            st.info(tr("Infistar MiniMax Landscape Help"))
+    return model
 
 
 def _render_ofox_video_settings(params):
@@ -6430,6 +6724,7 @@ def _get_reusable_full_voice_preview(params, voice_mode: str) -> dict | None:
 
     return {
         "audio_bytes": bytes(cached_preview["audio_bytes"]),
+        "audio_digest": hashlib.sha256(cached_preview["audio_bytes"]).hexdigest(),
         "duration": float(duration),
         "sub_maker": cached_preview["sub_maker"],
         "script": script_content,
@@ -8039,12 +8334,14 @@ def _render_generation_controls(
 
     _render_settings_transfer(params)
 
+    generation_busy = _generation_is_busy(_current_generation_task_id())
     start_button = st.button(
-        tr("Generate Video"),
+        tr("Generating Video") if generation_busy else tr("Generate Video"),
         use_container_width=True,
         type="primary",
         key="generate_video_button",
         on_click=_prepare_generation_task,
+        disabled=generation_busy,
     )
     render_onboarding_tour()
     if start_button:
@@ -8088,6 +8385,8 @@ def _render_generation_controls(
             voxcpm_prompt_text = _get_voxcpm_prompt_text()
 
         if params.video_source not in [
+            "infistar",
+            "jalapeno",
             "pexels",
             "pixabay",
             "coverr",
@@ -8098,6 +8397,7 @@ def _render_generation_controls(
             "muapi",
             "loomloom",
             "openai_image",
+            "codex_image",
             "local",
         ]:
             _remove_active_generation_task(task_id)
@@ -8155,6 +8455,32 @@ def _render_generation_controls(
             st.error(tr("Confirm Volcano Engine Seedance Charge Required"))
             st.stop()
 
+        if params.video_source == "jalapeno":
+            try:
+                snapshot = config.snapshot_config_with_pending(config.app)
+                jalapeno_video_endpoint = jalapeno_video.endpoint(snapshot)
+                if (not st.session_state.get("jalapeno_confirm_charge", False)
+                        or _jalapeno_charge_signature(params, snapshot)
+                        != st.session_state.get("jalapeno_charge_signature")):
+                    raise jalapeno_video.JalapenoVideoError(tr("Confirm Jalapeno Cloud Charge Required"))
+            except jalapeno_video.JalapenoVideoError as exc:
+                _remove_active_generation_task(task_id)
+                st.error(str(exc))
+                st.stop()
+
+        if params.video_source == "infistar":
+            try:
+                snapshot = config.snapshot_config_with_pending(config.app)
+                if not infistar_video.is_enabled(snapshot):
+                    raise infistar_video.InfistarVideoError(tr("Please Enter the Infistar API Key"))
+                infistar_video.model_id(snapshot)
+                if not st.session_state.get("infistar_confirm_charge", False):
+                    raise infistar_video.InfistarVideoError(tr("Confirm Infistar Charge Required"))
+            except infistar_video.InfistarVideoError as exc:
+                _remove_active_generation_task(task_id)
+                st.error(str(exc))
+                st.stop()
+
         if params.video_source == "ofox" and not (
             ofox.is_enabled(config.snapshot_config_with_pending(config.app))
         ):
@@ -8198,6 +8524,18 @@ def _render_generation_controls(
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm MuAPI Charge Required"))
             st.stop()
+
+        if params.video_source == "codex_image":
+            from app.services import codex_image, codex_oauth
+
+            try:
+                codex_image.capture_context(
+                    config.snapshot_config_with_pending(config.app)
+                )
+            except codex_oauth.CodexError as error:
+                _remove_active_generation_task(task_id)
+                st.error(tr(error.key).format(**error.params))
+                st.stop()
 
         if params.video_source == "openai_image" and not material.is_openai_image_enabled(
             config.snapshot_config_with_pending(config.app)
@@ -8406,7 +8744,7 @@ def _render_generation_controls(
             st.toast(tr("Generating Video"))
             logger.info(tr("Start Generating Video"))
             logger.info(utils.to_json(params))
-            webui_task.submit_generation(
+            submitted_task_id = webui_task.submit_generation(
                 task_id=task_id,
                 params=params,
                 capture_logs=not config.ui.get("hide_log", False),
@@ -8415,6 +8753,8 @@ def _render_generation_controls(
                 voxcpm_reference_audio=voxcpm_reference_audio,
                 voxcpm_prompt_audio=voxcpm_prompt_audio,
                 voxcpm_prompt_text=voxcpm_prompt_text,
+                **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+                   if params.video_source == "jalapeno" else {}),
             )
             if loomloom_video_request is not None:
                 # 一个报价只允许提交一次。后台请求自带稳定幂等 ID；提交成功后
@@ -8428,8 +8768,15 @@ def _render_generation_controls(
             st.error(tr("Video Generation Failed"))
             st.stop()
 
+        if isinstance(submitted_task_id, str) and submitted_task_id != task_id:
+            _remove_active_generation_task(task_id)
+            task_id = submitted_task_id
+            _add_active_generation_task(task_id, subject=params.video_subject)
         st.session_state["current_generation_task_id"] = task_id
+        st.query_params["generation_task"] = task_id
         logger.info(f"WebUI generation task submitted: task_id={task_id}")
+        if webui_task.is_generation_active(task_id):
+            st.rerun()
 
     _render_current_generation_task()
     return start_button

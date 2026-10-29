@@ -10,6 +10,7 @@ from loguru import logger
 from app.utils.request_logging import trace_http_call
 
 from app.config import config
+from app.services import generation_progress
 from app.models.schema import MaterialInfo, VideoAspect
 
 
@@ -264,6 +265,7 @@ def generate_videos(
 
     # 提交接口不做自动重试：超时或 5xx 可能发生在付费任务已经创建之后，
     # 盲目重试会造成重复扣费。只有拿到明确拒绝响应时才判定为确定性失败。
+    generation_progress.submitting('ofox')
     try:
         response = trace_http_call(
             "POST", requests.post,
@@ -382,6 +384,7 @@ def _wait_for_task(
         0.5,
         60.0,
     )
+    generation_progress.remote('ofox', task_id)
     consecutive_failures = 0
     while True:
         remaining = deadline - time.monotonic()
@@ -442,6 +445,7 @@ def _wait_for_task(
                     task_id=task_id,
                 ) from exc
             consecutive_failures += 1
+            generation_progress.remote('ofox', task_id, retrying=True)
             if consecutive_failures > MAX_POLL_RETRIES:
                 raise OFoxUnconfirmedTaskError(
                     "OFox polling failed after retries; the paid task may still "
@@ -459,6 +463,7 @@ def _wait_for_task(
 
         consecutive_failures = 0
         status = str(body.get("status") or "").strip().lower()
+        generation_progress.remote('ofox', task_id, status)
         if status in TERMINAL_SUCCESS_STATUSES:
             return body
         if status in TERMINAL_FAILURE_STATUSES:
