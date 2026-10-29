@@ -26,6 +26,7 @@ import jwt
 import requests
 
 from app import paths
+from app.utils.request_logging import trace_http_call
 
 ISSUER = "https://auth.openai.com"
 AUTHORIZE_URL = ISSUER + "/api/accounts/authorize"
@@ -220,7 +221,12 @@ def import_preview_credentials():
 def _request_json(method, url, *, deadline=None, **kwargs):
     remaining = _remaining(deadline) if deadline is not None else 30
     try:
-        with requests.request(
+        # The opt-in request tracer covers the OpenAI sign-in exchange as well.
+        # The token, its verifier and the refresh token live in the payload and
+        # are redacted by the tracer; the request headers stay untraced.
+        with trace_http_call(
+            "REQUEST",
+            requests.request,
             method,
             url,
             timeout=(min(10, remaining), min(30, remaining)),
@@ -708,7 +714,9 @@ def disconnect():
                 endpoint = _issuer_endpoint(
                     _metadata(deadline=deadline).get("revocation_endpoint")
                 )
-                with requests.post(
+                with trace_http_call(
+                    "POST",
+                    requests.post,
                     endpoint,
                     data={
                         "token": profile["refresh_token"],
