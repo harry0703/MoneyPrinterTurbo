@@ -284,6 +284,8 @@
     "llm_provider_tips.empiriolabs": "##### EmpirioLabs AI 配置说明\n- **API Key**: 在 [EmpirioLabs AI 控制台]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nEmpirioLabs AI 是兼容 OpenAI 接口的模型 API，可调用 Qwen、DeepSeek、GLM、Kimi、MiniMax 等开源与闭源模型。",
     "llm_provider_label.runcrate": "Runcrate",
     "llm_provider_tips.runcrate": "##### Runcrate 配置说明\n- **API Key**: 登录后在 [Runcrate API Keys 页面]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nRuncrate 是 GPU 云平台，提供兼容 OpenAI 接口的开源模型 API，可调用 DeepSeek、GLM、Qwen、Kimi、gpt-oss 等模型。\n\n**免费额度**：工作区所有者使用注册满 30 天的 GitHub 账号登录后，可免费调用 DeepSeek V4.1 Flash、GLM 5.3 Flash、GLM 5.3、Qwen3.8 Flash 和 gpt-oss 120B。免费用量按会话（从第一次免费请求开始）和按周（每周一重置）限制，可在 API Keys 页面查看剩余用量和重置时间。免费请求使用空闲算力：算力繁忙（`free_capacity_busy`）或免费用量用完（`free_allowance_used`）时，有余额的工作区会自动按优惠后的付费价格继续调用；没有余额时会返回该错误，需等待算力空闲或用量重置。其它模型从余额扣费。详见 [免费推理说明](https://www.runcrate.ai/inference/free?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing)。",
+    "llm_provider_label.cloudgpu": "CloudGPU",
+    "llm_provider_tips.cloudgpu": "##### CloudGPU 配置说明\n- **API Key**: 登录后在 [CloudGPU]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nCloudGPU 是 GPU 云平台，提供兼容 OpenAI 接口的模型 API。默认模型为 deepseek-v4-flash。接口说明见 [CloudGPU API 文档](https://cloudgpu.app/api/docs)。",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
