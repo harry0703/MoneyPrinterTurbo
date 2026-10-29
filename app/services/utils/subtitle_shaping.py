@@ -13,28 +13,66 @@ Pillow 只有在带 Raqm 构建时才会整形，而 Windows 等常见安装没�
 
 from __future__ import annotations
 
-import re
+import unicodedata
+from collections.abc import Iterable
 
 import khatt
 from khatt.fonts import font_path as khatt_font_path
 from khatt.video import TextClip as ShapedTextClip
 from loguru import logger
 
-# 阿拉伯字母相关的 Unicode 区块：基本区、补充区、扩展 A/B/C 以及表现形式 A/B。
-_ARABIC_SCRIPT = re.compile(
-    "[؀-ۿݐ-ݿࡰ-࢟ࢠ-ࣿﭐ-﷿ﹰ-﻿]"
+# 阿拉伯字母相关的 Unicode 区块：基本区、补充区、扩展 A/B 以及表现形式 A/B
+# （不含 U+FEFF 字节顺序标记）。
+_ARABIC_SCRIPT_RANGES = (
+    (0x0600, 0x06FF),
+    (0x0750, 0x077F),
+    (0x0870, 0x089F),
+    (0x08A0, 0x08FF),
+    (0xFB50, 0xFDFF),
+    (0xFE70, 0xFEFC),
 )
+
+# 方向标记：不可见，只决定一行文字作为段落的方向。
+RLM = "‏"
+LRM = "‎"
 
 # 项目自带字体都不含阿拉伯字形。所选字体缺字时改用 khatt 自带的
 # Noto Naskh Arabic（SIL OFL 1.1），它同时覆盖阿拉伯文、波斯文和乌尔都文。
 FALLBACK_FONT = "noto-naskh"
 
-FONT_FALLBACK_NOTICE = "subtitle_font_fallback"
+
+def _is_arabic_char(char: str) -> bool:
+    # 只看字母、标记和符号（L/M/S 类）：阿拉伯逗号、问号和阿拉伯-印度数字
+    # 也被迪维希语（Thaana）、叙利亚文和 N'Ko 共用，不能据此判定为阿拉伯字母。
+    return unicodedata.category(char)[0] in "LMS" and any(
+        start <= ord(char) <= end for start, end in _ARABIC_SCRIPT_RANGES
+    )
 
 
 def needs_shaping(text: str | None) -> bool:
     """文本是否包含需要整形的阿拉伯字母。"""
-    return bool(text) and _ARABIC_SCRIPT.search(text) is not None
+    return any(_is_arabic_char(char) for char in text or "")
+
+
+def is_rtl_paragraph(text: str) -> bool:
+    """按第一个强方向字符判断段落方向（Unicode 双向算法 P2/P3 规则）。"""
+    for char in text:
+        direction = unicodedata.bidirectional(char)
+        if direction in ("R", "AL"):
+            return True
+        if direction == "L":
+            return False
+    return False
+
+
+def direction_mark(text: str) -> str:
+    """与 ``text`` 段落方向一致的方向标记。
+
+    khatt 把每一行当作独立段落，按行首第一个强方向字符判断方向。自动折出的
+    行必须沿用原段落的方向，否则以英文或数字开头的行词序会颠倒，所以每行
+    前面都加上这个标记。
+    """
+    return RLM if is_rtl_paragraph(text) else LRM
 
 
 def resolve_font(font_path: str, text: str) -> tuple[str, bool]:
@@ -49,9 +87,40 @@ def resolve_font(font_path: str, text: str) -> tuple[str, bool]:
         # 字体文件不存在或 khatt 无法读取时，仍然保证字幕可读。
         logger.warning(f"cannot check subtitle font glyphs, using {FALLBACK_FONT}: {exc}")
         return str(khatt_font_path(FALLBACK_FONT)), True
-    if any(_ARABIC_SCRIPT.match(char) for char in missing):
+    if any(_is_arabic_char(char) for char in missing):
         return str(khatt_font_path(FALLBACK_FONT)), True
     return font_path, False
+
+
+def video_font(font_path: str, subtitles: Iterable[str]) -> str:
+    """为一条视频的全部阿拉伯字母字幕确定同一个字体。
+
+    逐条字幕各自选择字体时，同一视频中的字幕可能在两种字体之间来回切换，
+    因此按全部字幕一次确定；字体回退和无法绘制的字符各提示一次。
+    """
+    text = "".join(subtitle for subtitle in subtitles if needs_shaping(subtitle))
+    if not text:
+        return font_path
+    font, fell_back = resolve_font(font_path, text)
+    if fell_back:
+        logger.warning(
+            f"subtitle font has no Arabic-script glyphs, using {FALLBACK_FONT} "
+            f"for Arabic-script subtitles: {font_path}"
+        )
+    skipped = khatt.missing_characters(text, font)
+    if skipped:
+        # 例如阿拉伯字幕中夹杂的中文：后备字体没有这些字形，绘制时会被跳过。
+        logger.warning(
+            "characters in Arabic-script subtitles that the subtitle font cannot "
+            f"draw are skipped: {''.join(skipped[:20])}"
+        )
+    return font
+
+
+def supports_text(font_path: str, text: str) -> bool:
+    """实际绘制 ``text`` 的字体（必要时为后备字体）能否画出其中全部字符。"""
+    font, _ = resolve_font(font_path, text)
+    return not khatt.missing_characters(text, font)
 
 
 def text_width(text: str, font_path: str, font_size: int) -> int:
@@ -60,24 +129,17 @@ def text_width(text: str, font_path: str, font_size: int) -> int:
     return right - left
 
 
-def text_clip(native, *, notices: set[str] | None = None, **kwargs):
+def text_clip(native, *, shaped_font: str | None = None, **kwargs):
     """创建字幕 TextClip：阿拉伯字母文本由 khatt 绘制，其余交给 ``native``。
 
     ``native`` 是调用方使用的 MoviePy ``TextClip``，非阿拉伯字母文本原样
     交给它，与改动前完全相同。其余参数与 MoviePy 2.2 的 ``TextClip`` 一致。
-    ``notices`` 用于在一次视频生成任务内去重提示，使字体回退的警告每个
-    任务只出现一次。
+    ``shaped_font`` 是绘制阿拉伯字母文本的字体（见 :func:`video_font`），
+    省略时按 ``font`` 和本段文本确定。
     """
     text = kwargs.get("text")
     if not needs_shaping(text):
         return native(**kwargs)
-
-    font, fell_back = resolve_font(kwargs.get("font") or "", text)
-    if fell_back and (notices is None or FONT_FALLBACK_NOTICE not in notices):
-        if notices is not None:
-            notices.add(FONT_FALLBACK_NOTICE)
-        logger.warning(
-            f"subtitle font has no Arabic-script glyphs, using {FALLBACK_FONT} "
-            f"for Arabic-script subtitles: {kwargs.get('font')}"
-        )
-    return ShapedTextClip(**{**kwargs, "font": font})
+    if shaped_font is None:
+        shaped_font, _ = resolve_font(kwargs.get("font") or "", text)
+    return ShapedTextClip(**{**kwargs, "font": shaped_font})
