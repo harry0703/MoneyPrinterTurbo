@@ -1966,20 +1966,25 @@ def gemini_tts(
                 config=generation_config,
             )
 
-        # 检查响应
-        if not response.candidates or not response.candidates[0].content:
-            logger.error("No audio content received from Gemini TTS")
-            return None
-            
-        # 获取音频数据
+        # A blocked prompt can have no candidates; a stopped candidate can
+        # have no content or parts. All are empty-audio responses, not decoder
+        # errors. Preserve the provider's reason without logging its text.
+        candidate = response.candidates[0] if response.candidates else None
+        content = getattr(candidate, "content", None)
         audio_data = None
-        for part in response.candidates[0].content.parts:
+        for part in getattr(content, "parts", None) or []:
             if hasattr(part, 'inline_data') and part.inline_data:
                 audio_data = part.inline_data.data
                 break
                 
         if not audio_data:
-            logger.error("No audio data found in response")
+            feedback = getattr(response, "prompt_feedback", None)
+            logger.error(
+                "No audio data received from Gemini TTS: "
+                "finish_reason={}, prompt_block_reason={}",
+                getattr(candidate, "finish_reason", None),
+                getattr(feedback, "block_reason", None),
+            )
             return None
             
         # 音频数据已经是原始字节，不需要base64解码

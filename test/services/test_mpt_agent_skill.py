@@ -36,6 +36,9 @@ volcengine_seedance_api_key = ""
 ofox_api_key = ""
 metaso_minimax_api_key = ""
 muapi_api_key = ""
+infistar_video_api_key = ""
+jalapeno_api_key = ""
+jalapeno_video_api_key = ""
 openai_image_base_url = ""
 openai_image_model = ""
 openai_image_api_keys = []
@@ -623,6 +626,137 @@ class TestMptAgentSkill(unittest.TestCase):
                 )
             self.assertEqual(missing, [])
 
+    def test_infistar_source_uses_video_credentials_and_charge_confirmation(self):
+        """预检与实际视频服务使用相同凭据，不能误用 Infistar 大模型 Key。"""
+        from app.services import infistar_video
+
+        cases = (
+            ("", "", False, ["infistar_video_api_key", "confirm_infistar_charge"]),
+            ("", "", True, ["infistar_video_api_key"]),
+            ("video-key", "", False, ["confirm_infistar_charge"]),
+            ("video-key", "", True, []),
+            ("", "environment-video-key", True, []),
+            ("  ", "environment-video-key", True, []),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            for key, environment_key, confirmed, expected in cases:
+                settings = {
+                    "llm_provider": "ollama",
+                    "infistar_api_key": "llm-only-key",
+                    "infistar_video_api_key": key,
+                }
+                config_path.write_text(
+                    "[app]\n" + "\n".join(
+                        f"{field} = {json.dumps(value)}"
+                        for field, value in settings.items()
+                    ),
+                    encoding="utf-8",
+                )
+                args = ["--video-source", "infistar"]
+                if confirmed:
+                    args.append("--confirm-infistar-charge")
+                with (
+                    self.subTest(key=key, environment_key=environment_key, confirmed=confirmed),
+                    patch.dict(os.environ, {"INFISTAR_VIDEO_API_KEY": environment_key}, clear=True),
+                ):
+                    provider, missing = mpt_agent.missing_config(config_path, args)
+                    self.assertEqual(provider, "ollama")
+                    self.assertEqual(missing, expected)
+                    self.assertEqual(
+                        "infistar_video_api_key" not in missing,
+                        infistar_video.is_enabled(settings),
+                    )
+
+    def test_infistar_environment_key_is_written_without_leaking_to_output(self):
+        """Agent 专用环境变量应写入独立视频配置，日志不能包含密钥。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(MINIMAL_CONFIG, encoding="utf-8")
+            secret = "secret-infistar-video-key"
+            output = io.StringIO()
+            with (
+                patch.dict(os.environ, {"MPT_INFISTAR_VIDEO_API_KEY": secret}, clear=True),
+                redirect_stdout(output),
+            ):
+                mpt_agent.apply_environment_config(config_path)
+            self.assertEqual(
+                mpt_agent._plain_config_value(config_path.read_text(), "infistar_video_api_key"),
+                secret,
+            )
+            self.assertNotIn(secret, output.getvalue())
+            self.assertIn("infistar_video_api_key", output.getvalue())
+
+    def test_missing_infistar_inputs_report_video_key_and_charge_flag(self):
+        """只缺视频接入信息时，不应误提示更换大模型 Provider。"""
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "ollama", ["infistar_video_api_key", "confirm_infistar_charge"]
+            )
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn("INFISTAR_VIDEO_API_KEY_URL=https://infistar.cc/keys", text)
+        self.assertIn("INFISTAR_VIDEO_API_KEY_ENV=MPT_INFISTAR_VIDEO_API_KEY", text)
+        self.assertIn(
+            "INFISTAR_CHARGE_CONFIRMATION_REQUIRED=--confirm-infistar-charge", text
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_jalapeno_source_uses_same_shared_or_independent_key_as_runtime(self):
+        from app.services import jalapeno_video
+
+        cases = (
+            ("ollama", "", "", "", False, ["jalapeno_video_api_key", "confirm_jalapeno_charge"]),
+            ("openai", "video", "", "", True, []),
+            ("openai", "", "environment", "", True, []),
+            ("openai", "", "", "shared", True, []),
+            ("jalapeno", "", "", "", True, ["jalapeno_api_key"]),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            for provider, dedicated, environment, shared, confirmed, expected in cases:
+                settings = {
+                    "llm_provider": provider,
+                    "openai_api_key": "unrelated",
+                    "jalapeno_api_key": shared,
+                    "jalapeno_video_api_key": dedicated,
+                }
+                path.write_text("[app]\n" + "\n".join(
+                    f"{name} = {json.dumps(value)}" for name, value in settings.items()
+                ), encoding="utf-8")
+                args = ["--video-source", "jalapeno"]
+                if confirmed:
+                    args.append("--confirm-jalapeno-charge")
+                with (
+                    self.subTest(provider=provider, dedicated=dedicated, environment=environment, shared=shared),
+                    patch.dict(os.environ, {"JALAPENO_VIDEO_API_KEY": environment}, clear=True),
+                ):
+                    self.assertEqual(mpt_agent.missing_config(path, args), (provider, expected))
+                    self.assertEqual(jalapeno_video.is_enabled(settings), bool(dedicated or environment or shared))
+
+    def test_jalapeno_environment_key_and_missing_input_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text(MINIMAL_CONFIG, encoding="utf-8")
+            output = io.StringIO()
+            secret = "secret-jalapeno-test-key"
+            with (
+                patch.dict(os.environ, {"MPT_JALAPENO_VIDEO_API_KEY": secret}, clear=True),
+                redirect_stdout(output),
+            ):
+                mpt_agent.apply_environment_config(path)
+                code = mpt_agent.report_missing_config(
+                    "ollama", ["jalapeno_video_api_key", "confirm_jalapeno_charge"]
+                )
+            self.assertEqual(mpt_agent._plain_config_value(path.read_text(), "jalapeno_video_api_key"), secret)
+            self.assertNotIn(secret, output.getvalue())
+            self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+            self.assertIn("JALAPENO_API_KEY_URL=https://www.jalapeno-cloud.ai/MoneyPrinterTurbo", output.getvalue())
+            self.assertIn("JALAPENO_VIDEO_API_KEY_ENV=MPT_JALAPENO_VIDEO_API_KEY", output.getvalue())
+            self.assertIn("JALAPENO_CHARGE_CONFIRMATION_REQUIRED=--confirm-jalapeno-charge", output.getvalue())
+            self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", output.getvalue())
+
     def test_existing_provider_key_is_reused_without_asking_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
@@ -686,6 +820,25 @@ class TestMptAgentSkill(unittest.TestCase):
                 'llm_provider = "claude_code"',
                 config_path.read_text(encoding="utf-8"),
             )
+
+    def test_codex_subscription_provider_needs_no_api_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "openai_codex"'
+                ).replace(
+                    'deepseek_api_key = ""', 'deepseek_api_key = "other-provider-key"'
+                ).replace("pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]')
+                + 'openai_codex_model_name = "selected-model"\n',
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()):
+                provider = mpt_agent.reuse_existing_llm_provider(config_path)
+            active, missing = mpt_agent.missing_config(config_path, [])
+            self.assertEqual(provider, "openai_codex")
+            self.assertEqual(active, "openai_codex")
+            self.assertEqual(missing, [])
 
     def test_kimi_code_signed_in_provider_needs_no_api_key(self):
         """

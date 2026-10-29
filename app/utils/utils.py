@@ -155,7 +155,21 @@ def get_ffmpeg_binary() -> str:
     """
     configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
     if configured_ffmpeg:
-        return configured_ffmpeg
+        # Expand the home-directory shorthand ("~") and any
+        # environment-variable references ("$VAR" / "${VAR}") before
+        # handing the value to subprocess. The check_ffmpeg_ready
+        # probe and every FFmpeg call would otherwise fail on the
+        # first run for any user who set the variable to a path
+        # under their home directory. Absolute paths are unaffected.
+        expanded_ffmpeg = os.path.expanduser(os.path.expandvars(configured_ffmpeg))
+        if expanded_ffmpeg != configured_ffmpeg:
+            # MoviePy/imageio-ffmpeg read IMAGEIO_FFMPEG_EXE directly
+            # from os.environ, so write the expanded path back before
+            # MoviePy resolves it; otherwise the pre-check passes but
+            # ColorClip.write_videofile() still fails with
+            # FileNotFoundError on the raw value (issue #1662).
+            os.environ["IMAGEIO_FFMPEG_EXE"] = expanded_ffmpeg
+        return expanded_ffmpeg
 
     system_ffmpeg = shutil.which("ffmpeg")
     if system_ffmpeg:
@@ -297,11 +311,21 @@ def split_string_by_punctuations(s):
             txt += char
             continue
 
-        if char == "," and previous_char.isdigit() and next_char.isdigit():
-            # 英文数字里的千分位逗号不是断句符，例如 "1,000 years"。
+        if char == "." and previous_char.isalpha() and next_char.isalpha():
+            # Edge TTS reads "U.S.", "e.g.", "9 a.m." and "example.com" as one word each.
+            txt += char
+            continue
+
+        if char in (":", "：") and previous_char.isdigit() and next_char.isdigit():
+            # Edge TTS returns a clock time such as "10:30" or "10：30" as one word, so it is no line break.
+            txt += char
+            continue
+
+        if char in (",", "，", "、") and previous_char.isdigit() and next_char.isdigit():
+            # 数字中间的逗号和顿号不是断句符，例如 "1,000 years"、"1，299元"、"第1、2名"。
             # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
             # 如果这里拆成 "1" 和 "000 years"，后续字幕聚合会无法匹配脚本原文，
-            # 进而错误回退到 Whisper。
+            # 整段字幕都不会生成。
             txt += char
             continue
 
@@ -465,7 +489,8 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
         line = line.strip()
         # Markdown 分隔符或强调符号单独成行时不会被 TTS 朗读，必须从
         # 脚本行里移除，避免字幕聚合卡在这类“不可发声”的目标行上。
-        if re.fullmatch(r"[-*_]{3,}", line):
+        # Neither is a line without a letter or digit: "* * *", "———", "• • •".
+        if line and not re.sub(r"[_\W]+", "", line):
             removed_separator_lines += 1
             continue
         cleaned_lines.append(line)

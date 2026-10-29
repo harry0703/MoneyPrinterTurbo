@@ -20,6 +20,15 @@ PUNCTUATIONS = [
     "،",
     "؛",
     "؟",
+    # Full stops of scripts that do not use ".": Devanagari and Bengali danda,
+    # Urdu, Burmese, Khmer and Ethiopic. Edge TTS word boundaries leave these
+    # out or attach them to the last word, so they must end script lines too.
+    "।",
+    "॥",
+    "۔",
+    "။",
+    "។",
+    "።",
 ]
 
 TASK_STATE_FAILED = -1

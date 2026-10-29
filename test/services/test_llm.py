@@ -614,6 +614,19 @@ class TestLiteLLMProvider(unittest.TestCase):
             empiriolabs.model_docs_url,
             "https://docs.empiriolabs.ai/models-pricing",
         )
+        runcrate = get_llm_provider("runcrate")
+        self.assertEqual(runcrate.default_model, "deepseek-ai/DeepSeek-V4.1-Flash")
+        self.assertEqual(runcrate.default_base_url, "https://api.runcrate.ai/v1")
+        self.assertEqual(runcrate.adapter, "openai_compatible")
+        self.assertTrue(runcrate.requires_api_key)
+        self.assertEqual(
+            runcrate.api_key_url,
+            "https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        )
+        self.assertEqual(
+            runcrate.model_docs_url,
+            "https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -664,6 +677,8 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "moonshot",
                 "kimi_code",
                 "openai",
+                "openai_codex",
+                "openai_chatgpt",
                 "anthropic",
                 "gemini",
                 "muse_spark",
@@ -675,6 +690,8 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "minimax",
                 "mimo",
                 "iflytek",
+                "jalapeno",
+                "infistar",
                 "shengsuanyun",
                 "apimart",
                 "cloudflare",
@@ -692,6 +709,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "opper",
                 "onomeo",
                 "empiriolabs",
+                "runcrate",
                 "ollama",
                 "claude_code",
                 "oneapi",
@@ -2607,12 +2625,22 @@ class TestSocialMetadata(unittest.TestCase):
 
         self.assertEqual(tags, ["#fyp", "#trending"])
 
+    def test_normalize_hashtags_from_string_splits_cjk_separators(self):
+        tags = llm._normalize_hashtags("#旅行，#美食、#日常；#東京#グルメ", count=5)
+
+        self.assertEqual(tags, ["#旅行", "#美食", "#日常", "#東京", "#グルメ"])
+
     def test_normalize_hashtags_from_list_keeps_unicode_letters(self):
         tags = llm._normalize_hashtags(
             ["上海 旅行", "#việt nam", "  ", "@bad!chars"], count=5
         )
 
         self.assertEqual(tags, ["#上海旅行", "#việtnam", "#badchars"])
+
+    def test_normalize_hashtags_keeps_combining_marks(self):
+        tags = llm._normalize_hashtags(["#भारत", "#বাংলা", "#தமிழ்", "#ท่องเที่ยว"], count=5)
+
+        self.assertEqual(tags, ["#भारत", "#বাংলা", "#தமிழ்", "#ท่องเที่ยว"])
 
     def test_parse_social_metadata_recovers_embedded_json(self):
         raw = 'Sure: {"title":"T","caption":"C","hashtags":["#x"]} thanks'

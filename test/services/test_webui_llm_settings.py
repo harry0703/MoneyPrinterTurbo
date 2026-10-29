@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 from unittest.mock import patch
 
 import requests
@@ -59,6 +60,7 @@ def test_fluxionai_settings_defaults_and_connection_button():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "zh"
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
         assert _widget_by_key(app.selectbox, "llm_provider_select").value == "fluxionai"
@@ -90,6 +92,57 @@ def test_fluxionai_settings_defaults_and_connection_button():
         assert not app.exception
 
 
+def test_infistar_settings_defaults_and_custom_configuration():
+    """真实运行设置页，确认默认模型、赞助商说明及可保存的自定义配置。"""
+    app_config = dict(
+        config.app,
+        llm_provider="infistar",
+        infistar_api_key="",
+        infistar_base_url="",
+        infistar_model_name="",
+    )
+    with (
+        patch.object(config, "app", app_config),
+        patch.object(config, "ui", dict(config.ui, language="zh")),
+        patch.object(config, "try_save_config", return_value=True),
+        patch.object(llm, "test_connection", return_value=(True, "", 0.1)) as connection,
+    ):
+        app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
+        app.session_state["ui_language"] = "zh"
+        app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
+        app.run()
+        assert not app.exception
+        assert _widget_by_key(app.selectbox, "llm_provider_select").value == "infistar"
+        assert (
+            _widget_by_key(app.text_input, "infistar_base_url_custom_input").value
+            == "https://infistar.cc/v1"
+        )
+        assert (
+            _widget_by_key(app.text_input, "infistar_model_name_input").value
+            == "gpt-6-luna"
+        )
+        assert app_config["infistar_base_url"] == ""
+        assert app_config["infistar_model_name"] == ""
+        assert any("项目赞助商" in str(item.value) for item in app.info)
+
+        _widget_by_key(app.text_input, "infistar_api_key_input").set_value(
+            "test-ui-key"
+        ).run()
+        _widget_by_key(app.text_input, "infistar_model_name_input").set_value(
+            "custom-model"
+        ).run()
+        _widget_by_key(app.text_input, "infistar_base_url_custom_input").set_value(
+            "https://gateway.example.com/v1"
+        ).run()
+        assert app_config["infistar_api_key"] == "test-ui-key"
+        assert app_config["infistar_model_name"] == "custom-model"
+        assert app_config["infistar_base_url"] == "https://gateway.example.com/v1"
+        _widget_by_key(app.button, "test_llm_connection_button").click().run()
+        connection.assert_called_once()
+        assert not app.exception
+
+
 def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
     """Kimi 平台切换必须同步 Base URL，并只允许自定义模式编辑地址。"""
     app_config = dict(
@@ -114,6 +167,7 @@ def test_kimi_platform_selection_keeps_endpoint_configuration_consistent():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "en"
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
 
         assert [str(item.value) for item in app.exception] == []
@@ -237,26 +291,19 @@ def test_ai_video_settings_prioritize_sponsors_and_own_shengsuan_key():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "en"
         app.session_state["settings_dialog_open"] = True
-        app.session_state["settings_dialog_target_tab"] = "material"
+        app.session_state["settings_dialog_target_tab"] = "video"
+        app.session_state["settings_material_providers"] = {"ai_video": "loomloom"}
         app.run()
 
-        markdown_values = [str(item.value) for item in app.markdown]
-        provider_titles = [
-            "**Metaso · MiniMax H3**",
-            "**OfoxAI**",
-            "**Shengsuan Cloud AI Video**",
-            "**Volcano Engine Ark · Seedance**",
-            "**WaveSpeed**",
-        ]
-        provider_positions = [
-            next(
-                index
-                for index, value in enumerate(markdown_values)
-                if value.startswith(title)
-            )
-            for title in provider_titles
-        ]
-        assert provider_positions == sorted(provider_positions)
+        messages = json.loads((ROOT_DIR / "webui/i18n" / "en.json").read_text(encoding="utf-8"))["Translation"]
+        english = json.loads((ROOT_DIR / "webui/i18n" / "en.json").read_text(encoding="utf-8"))["Translation"]
+        providers = app.selectbox(key="settings_material_provider_ai_video_select_en")
+        assert providers.options == [messages.get(key, english.get(key, key)) for key in (
+            "Metaso MiniMax H3", "OFox AI Video", "Shengsuan Cloud AI Video",
+            "Volcano Engine Seedance", "Infistar AI Video", "Jalapeno Cloud AI Video",
+            "WaveSpeed AI Video", "MuAPI AI Video",
+        )]
+        assert providers.value == "loomloom"
 
         settings_token = _widget_by_key(
             app.text_input,
@@ -300,6 +347,7 @@ def test_kimi_code_device_authorization_network_error_is_recoverable():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "en"
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
 
@@ -345,6 +393,7 @@ def test_kimi_code_poll_network_error_retries_then_offers_restart():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "en"
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
 
@@ -402,6 +451,7 @@ def test_kimi_code_pending_then_success_completes_flow():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "en"
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
 
@@ -455,6 +505,7 @@ def test_kimi_login_opens_selected_region_and_waits_until_clicked():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "en"
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         app.run()
         assert issue.call_count == 1
@@ -513,6 +564,7 @@ def test_kimi_poll_slow_down_and_cancel_do_not_busy_loop():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "en"
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         _click_kimi_login_link(app)
         _make_kimi_poll_due(app)
