@@ -1882,6 +1882,7 @@ support_locales = [
     "en-US",
     "es-ES",
     "fr-FR",
+    "id-ID",
     "it-IT",
     "ru-RU",
     "vi-VN",

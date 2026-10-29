@@ -245,6 +245,19 @@ def _load_translation(locale):
     return data.get("Translation", {})
 
 
+def _support_locales():
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "support_locales"
+            for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    return None
+
+
 def _duplicate_translation_keys(path):
     """返回 locale 原始文本中重复定义的键，JSON 解析只保留最后一个。"""
     duplicates = []
@@ -432,22 +445,27 @@ class TestWebuiI18n(unittest.TestCase):
                     )
 
     def test_script_language_options_include_russian_and_catalan(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-        support_locales = None
-
-        for node in tree.body:
-            if not isinstance(node, ast.Assign):
-                continue
-            if any(
-                isinstance(target, ast.Name) and target.id == "support_locales"
-                for target in node.targets
-            ):
-                support_locales = ast.literal_eval(node.value)
-                break
+        support_locales = _support_locales()
 
         self.assertIsNotNone(support_locales)
         self.assertIn("ru-RU", support_locales)
         self.assertIn("ca-ES", support_locales)
+
+    def test_script_language_options_include_indonesian_with_builtin_voices(self):
+        """印尼语必须可选且内置音色覆盖 id-ID，避免界面已翻译却无法生成印尼语视频。"""
+        support_locales = _support_locales()
+        self.assertIsNotNone(support_locales)
+        self.assertIn("id-ID", support_locales)
+
+        voices = json.loads(
+            (ROOT_DIR / "app" / "services" / "data" / "azure_voices.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        indonesian_voices = {
+            item["name"] for item in voices if item["name"].startswith("id-ID-")
+        }
+        self.assertGreaterEqual(len(indonesian_voices), 2)
 
     def test_locale_files_do_not_redefine_a_translation_key(self):
         """
