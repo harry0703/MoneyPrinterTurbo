@@ -1381,6 +1381,8 @@ def _stream_edge_tts_sync_with_timeout(
     """
     stream_queue = queue.Queue(maxsize=1)
     stopped = threading.Event()
+    # Set on the producer loop each time the consumer takes an item.
+    item_taken = asyncio.Event()
     producer_loop = None
     producer_task = None
 
@@ -1395,13 +1397,26 @@ def _stream_edge_tts_sync_with_timeout(
 
     async def _put_async(item):
         while not stopped.is_set():
+            # Clear before the put, so a take right after it still wakes us.
+            item_taken.clear()
             try:
                 stream_queue.put_nowait(item)
                 return True
             except queue.Full:
-                # Keep the loop cancellable while waiting for the consumer.
-                await asyncio.sleep(0.01)
+                # Resume as soon as the consumer takes the pending item. The
+                # timeout only re-checks `stopped`; cancellation still works.
+                try:
+                    await asyncio.wait_for(item_taken.wait(), timeout=0.05)
+                except TimeoutError:
+                    pass
         return False
+
+    def _wake_producer():
+        if producer_loop is not None:
+            try:
+                producer_loop.call_soon_threadsafe(item_taken.set)
+            except RuntimeError:
+                pass  # The producer already finished and closed its loop.
 
     async def _produce_async():
         if stopped.is_set():
@@ -1470,6 +1485,7 @@ def _stream_edge_tts_sync_with_timeout(
                 )
             except queue.Empty:
                 continue
+            _wake_producer()
             if item_type == "chunk":
                 on_chunk(payload)
             elif item_type == "error":
