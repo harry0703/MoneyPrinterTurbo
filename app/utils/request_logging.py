@@ -17,10 +17,12 @@ from app.utils.logging_utils import get_logging_options
 _REDACTED = "[REDACTED]"
 _MAX_STRING = 1000
 _MAX_PAYLOAD = 12000
+# 凭据字段名一律遮盖。设备登录流程的会话标识同样是凭据：Kimi 用
+# ``device_code``，Codex 用 ``device_auth_id``，两者都必须留在日志之外。
 _SECRET_KEY = re.compile(
     r"authorization|cookie|password|passwd|secret|credential|signature|"
-    r"apikey|accesskey|privatekey|clientkey|devicecode|usercode|authorizationcode|"
-    r"(?:access|refresh|id|auth|api|bearer)token"
+    r"apikey|accesskey|privatekey|clientkey|devicecode|deviceauthid|usercode|"
+    r"authorizationcode|(?:access|refresh|id|auth|api|bearer)token"
 )
 _TOKEN = re.compile(
     r"\b(?:sk|rk|sess|ghp|github_pat)[-_][A-Za-z0-9_-]{8,}|"

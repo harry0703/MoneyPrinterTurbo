@@ -23,6 +23,7 @@ from filelock import FileLock, Timeout as FileLockTimeout
 import requests
 
 from app import paths
+from app.utils.request_logging import trace_http_call
 
 ISSUER = "https://auth.openai.com"
 CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
@@ -322,7 +323,20 @@ def disconnect():
 
 def _post(url, *, timeout=30, **kwargs):
     try:
-        return requests.post(url, timeout=timeout, allow_redirects=False, **kwargs)
+        # Route through the shared request tracer so the opt-in diagnostic
+        # switch also covers the Codex device flow, token exchange and
+        # Responses transport. The sibling OAuth provider already does this;
+        # without it a user who enables "Trace API Requests" sees nothing at
+        # all while the newest provider is failing. Credentials stay in the
+        # untraced headers and the payload keys are redacted by the tracer.
+        return trace_http_call(
+            "POST",
+            requests.post,
+            url,
+            timeout=timeout,
+            allow_redirects=False,
+            **kwargs,
+        )
     except requests.RequestException:
         raise CodexError("codex.oauth.network_error") from None
 

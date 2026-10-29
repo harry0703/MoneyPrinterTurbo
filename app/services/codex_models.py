@@ -13,6 +13,7 @@ import time
 import requests
 
 from app import paths
+from app.utils.request_logging import trace_http_call
 
 CATALOG_URL = "https://models.dev/api.json"
 CACHE_TTL = 24 * 60 * 60
@@ -93,7 +94,12 @@ def parse_catalog(payload):
 
 def _download():
     try:
-        with requests.get(
+        # The opt-in request tracer also covers the public catalog download, so
+        # a failed model refresh shows up in the same diagnostics as the other
+        # provider calls.
+        with trace_http_call(
+            "GET",
+            requests.get,
             CATALOG_URL,
             headers={"Accept": "application/json", "User-Agent": "MoneyPrinterTurbo"},
             stream=True,
