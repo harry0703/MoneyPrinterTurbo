@@ -614,6 +614,19 @@ class TestLiteLLMProvider(unittest.TestCase):
             empiriolabs.model_docs_url,
             "https://docs.empiriolabs.ai/models-pricing",
         )
+        runcrate = get_llm_provider("runcrate")
+        self.assertEqual(runcrate.default_model, "deepseek-ai/DeepSeek-V4.1-Flash")
+        self.assertEqual(runcrate.default_base_url, "https://api.runcrate.ai/v1")
+        self.assertEqual(runcrate.adapter, "openai_compatible")
+        self.assertTrue(runcrate.requires_api_key)
+        self.assertEqual(
+            runcrate.api_key_url,
+            "https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        )
+        self.assertEqual(
+            runcrate.model_docs_url,
+            "https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -696,6 +709,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "opper",
                 "onomeo",
                 "empiriolabs",
+                "runcrate",
                 "ollama",
                 "claude_code",
                 "oneapi",

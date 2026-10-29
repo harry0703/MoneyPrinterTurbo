@@ -563,6 +563,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.empiriolabs.ai/v1",
         model_docs_url="https://docs.empiriolabs.ai/models-pricing",
     ),
+    LLMProviderSpec(
+        "runcrate",
+        "Runcrate",
+        api_key_url="https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        default_model="deepseek-ai/DeepSeek-V4.1-Flash",
+        default_base_url="https://api.runcrate.ai/v1",
+        model_docs_url="https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

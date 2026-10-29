@@ -375,6 +375,13 @@ empiriolabs_api_key = ""
 empiriolabs_base_url = ""
 empiriolabs_model_name = ""
 
+# Runcrate, a GPU cloud with an OpenAI-compatible API for open models.
+# API key: https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing
+# Model list: https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing
+runcrate_api_key = ""
+runcrate_base_url = ""
+runcrate_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
