@@ -363,8 +363,9 @@ def test_only_arabic_subtitles_go_through_khatt(overrides):
     assert [call.kwargs["text"] for call in khatt_calls] == [RLM + "مرحبا بالعالم"]
     assert all(call.kwargs["font"] == FALLBACK_FONT for call in khatt_calls)
     # 其他语言的调用与修改前完全相同：原字体、原文本、没有方向标记。
+    # （Windows 上 generate_video 会把字体路径中的反斜杠换成正斜杠，所以按 Path 比较。）
     assert [call.kwargs["text"] for call in moviepy_calls] == ["Hello world", "你好世界"]
-    assert all(call.kwargs["font"] == str(FONT_DIR / "STHeitiMedium.ttc") for call in moviepy_calls)
+    assert all(Path(call.kwargs["font"]) == FONT_DIR / "STHeitiMedium.ttc" for call in moviepy_calls)
     assert (frame >= 250).all(axis=2).any()  # 阿拉伯字幕那一秒画出了白色文字
 
 
@@ -425,8 +426,8 @@ def test_user_font_with_arabic_glyphs_is_used():
     _, _, khatt_renderer = render_subtitled_video(
         ["مرحبا", "سلام"], font_dir=KHATT_FONT_DIR, font_name="Rubik-Regular.ttf"
     )
-    assert {call.kwargs["font"] for call in subtitle_calls(khatt_renderer)} == {
-        str(Path(KHATT_FONT_DIR) / "Rubik-Regular.ttf")
+    assert {Path(call.kwargs["font"]) for call in subtitle_calls(khatt_renderer)} == {
+        Path(KHATT_FONT_DIR) / "Rubik-Regular.ttf"
     }
 
 
