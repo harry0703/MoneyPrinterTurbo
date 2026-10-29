@@ -316,16 +316,16 @@ def split_string_by_punctuations(s):
             txt += char
             continue
 
-        if char == ":" and previous_char.isdigit() and next_char.isdigit():
-            # Edge TTS returns a clock time such as "10:30" as one word, so it is no line break.
+        if char in (":", "：") and previous_char.isdigit() and next_char.isdigit():
+            # Edge TTS returns a clock time such as "10:30" or "10：30" as one word, so it is no line break.
             txt += char
             continue
 
-        if char == "," and previous_char.isdigit() and next_char.isdigit():
-            # 英文数字里的千分位逗号不是断句符，例如 "1,000 years"。
+        if char in (",", "，", "、") and previous_char.isdigit() and next_char.isdigit():
+            # 数字中间的逗号和顿号不是断句符，例如 "1,000 years"、"1，299元"、"第1、2名"。
             # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
             # 如果这里拆成 "1" 和 "000 years"，后续字幕聚合会无法匹配脚本原文，
-            # 进而错误回退到 Whisper。
+            # 整段字幕都不会生成。
             txt += char
             continue
 
