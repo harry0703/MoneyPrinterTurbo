@@ -627,6 +627,13 @@ class TestLiteLLMProvider(unittest.TestCase):
             runcrate.model_docs_url,
             "https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
         )
+        cloudgpu = get_llm_provider("cloudgpu")
+        self.assertEqual(cloudgpu.default_model, "deepseek-v4-flash")
+        self.assertEqual(cloudgpu.default_base_url, "https://cloudgpu.app/v1")
+        self.assertEqual(cloudgpu.adapter, "openai_compatible")
+        self.assertTrue(cloudgpu.requires_api_key)
+        self.assertEqual(cloudgpu.api_key_url, "https://cloudgpu.app")
+        self.assertEqual(cloudgpu.model_docs_url, "https://cloudgpu.app/v1/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -710,6 +717,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "onomeo",
                 "empiriolabs",
                 "runcrate",
+                "cloudgpu",
                 "ollama",
                 "claude_code",
                 "oneapi",
