@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 import threading
 from typing import Any, Iterable
+import unicodedata
 from uuid import uuid4
 
 from loguru import logger
@@ -313,6 +314,17 @@ def split_string_by_punctuations(s):
 
         if char == "." and previous_char.isalpha() and next_char.isalpha():
             # Edge TTS reads "U.S.", "e.g.", "9 a.m." and "example.com" as one word each.
+            txt += char
+            continue
+
+        if (
+            char == "."
+            and previous_char.isalpha()
+            and next_char.isdigit()
+            and unicodedata.east_asian_width(previous_char) != "W"
+        ):
+            # Edge TTS usually returns "No.1", "Vol.2" and "Fig.3" as one word. After a Chinese,
+            # Japanese or Korean character the dot still ends the sentence, as in "很好.2025年".
             txt += char
             continue
 
