@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import chdir, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -1002,9 +1002,7 @@ class TestCli(unittest.TestCase):
             absolute_file = Path(source_dir) / "absolute.jpg"
             relative_file.write_bytes(b"relative-video")
             absolute_file.write_bytes(b"absolute-image")
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(source_dir)
+            with chdir(source_dir):
                 args = cli.parse_args(
                     [
                         "--video-subject",
@@ -1018,8 +1016,6 @@ class TestCli(unittest.TestCase):
                 params = cli.build_video_params(args)
                 with patch("app.utils.utils.storage_dir", return_value=managed_dir):
                     cli.prepare_cli_files(params, stop_at="video")
-            finally:
-                os.chdir(old_cwd)
 
             prepared_paths = [Path(item.url) for item in params.video_materials]
             self.assertTrue(all(path.parent == Path(managed_dir) for path in prepared_paths))
@@ -1067,9 +1063,7 @@ class TestCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             audio_file = Path(temp_dir) / "voiceover.mp3"
             audio_file.write_bytes(b"audio")
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(temp_dir)
+            with chdir(temp_dir):
                 args = cli.parse_args(
                     [
                         "--video-subject",
@@ -1082,8 +1076,6 @@ class TestCli(unittest.TestCase):
                 )
                 params = cli.build_video_params(args)
                 cli.prepare_cli_files(params, stop_at="audio")
-            finally:
-                os.chdir(old_cwd)
 
             self.assertEqual(params.custom_audio_file, str(audio_file.resolve()))
 
@@ -1606,9 +1598,7 @@ class TestCli(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(working_dir)
+            with chdir(working_dir):
                 with (
                     patch(
                         "app.services.task.start",
@@ -1620,8 +1610,6 @@ class TestCli(unittest.TestCase):
                     code = cli.run_cli(
                         ["--batch-file", str(manifest), "--stop-at", "audio"]
                     )
-            finally:
-                os.chdir(old_cwd)
 
         self.assertEqual(code, 0)
         self.assertEqual(
@@ -1656,9 +1644,7 @@ class TestCli(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(working_dir)
+            with chdir(working_dir):
                 with (
                     patch(
                         "app.services.task.start",
@@ -1671,8 +1657,6 @@ class TestCli(unittest.TestCase):
                     code = cli.run_cli(
                         ["--batch-file", str(manifest), "--stop-at", "materials"]
                     )
-            finally:
-                os.chdir(old_cwd)
 
             prepared_file = Path(
                 start.call_args.kwargs["params"].video_materials[0].url
@@ -1693,9 +1677,7 @@ class TestCli(unittest.TestCase):
                 json.dumps([{"video_subject": "global audio"}]),
                 encoding="utf-8",
             )
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(working_dir)
+            with chdir(working_dir):
                 with (
                     patch(
                         "app.services.task.start",
@@ -1714,8 +1696,6 @@ class TestCli(unittest.TestCase):
                             "audio",
                         ]
                     )
-            finally:
-                os.chdir(old_cwd)
 
         self.assertEqual(code, 0)
         self.assertEqual(
