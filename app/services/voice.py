@@ -1145,6 +1145,13 @@ def tts(
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
 ) -> Union[SubMaker, None]:
+    # Emoji are not narrated: Edge TTS reads their names aloud ("chart
+    # increasing"), and each one gets its own word boundary.
+    narration = utils.remove_emoji(text)
+    if narration != text and not narration.strip():
+        logger.warning("the script has no text to narrate once emoji are removed")
+        return None
+    text = narration
     # 无停顿标签时，原样直通原始文本，避免无意义的正则处理或空白截断
     if not utils.has_pause_tags(text):
         return _single_tts(
