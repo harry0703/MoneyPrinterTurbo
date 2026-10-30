@@ -8,10 +8,12 @@ from functools import lru_cache
 from pathlib import Path
 import threading
 from typing import Any, Iterable
+import unicodedata
 from uuid import uuid4
 
 from loguru import logger
 
+from app import paths
 from app.models import const
 
 
@@ -19,7 +21,7 @@ def get_response(status: int, data: Any = None, message: str = ""):
     obj = {
         "status": status,
     }
-    if data:
+    if data is not None:
         obj["data"] = data
     if message:
         obj["message"] = message
@@ -87,7 +89,7 @@ def normalize_clip_speed(value, default: float = 1.0) -> float:
 
 
 def root_dir():
-    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+    return str(paths.runtime_root())
 
 
 def storage_dir(sub_dir: str = "", create: bool = False):
@@ -101,10 +103,7 @@ def storage_dir(sub_dir: str = "", create: bool = False):
 
 
 def resource_dir(sub_dir: str = ""):
-    d = os.path.join(root_dir(), "resource")
-    if sub_dir:
-        d = os.path.join(d, sub_dir)
-    return d
+    return str(paths.resource_directory(sub_dir))
 
 
 def task_dir(sub_dir: str = ""):
@@ -157,7 +156,21 @@ def get_ffmpeg_binary() -> str:
     """
     configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
     if configured_ffmpeg:
-        return configured_ffmpeg
+        # Expand the home-directory shorthand ("~") and any
+        # environment-variable references ("$VAR" / "${VAR}") before
+        # handing the value to subprocess. The check_ffmpeg_ready
+        # probe and every FFmpeg call would otherwise fail on the
+        # first run for any user who set the variable to a path
+        # under their home directory. Absolute paths are unaffected.
+        expanded_ffmpeg = os.path.expanduser(os.path.expandvars(configured_ffmpeg))
+        if expanded_ffmpeg != configured_ffmpeg:
+            # MoviePy/imageio-ffmpeg read IMAGEIO_FFMPEG_EXE directly
+            # from os.environ, so write the expanded path back before
+            # MoviePy resolves it; otherwise the pre-check passes but
+            # ColorClip.write_videofile() still fails with
+            # FileNotFoundError on the raw value (issue #1662).
+            os.environ["IMAGEIO_FFMPEG_EXE"] = expanded_ffmpeg
+        return expanded_ffmpeg
 
     system_ffmpeg = shutil.which("ffmpeg")
     if system_ffmpeg:
@@ -244,11 +257,13 @@ def run_in_background(func, *args, **kwargs):
 
 
 def time_convert_seconds_to_hmsm(seconds) -> str:
-    hours = int(seconds // 3600)
-    seconds = seconds % 3600
-    minutes = int(seconds // 60)
-    milliseconds = int(seconds * 1000) % 1000
-    seconds = int(seconds % 60)
+    # Round once to whole milliseconds and derive every field from that value.
+    # Truncating float products such as 2.01 * 1000 == 2009.999... wrote cue
+    # boundaries one millisecond early.
+    total_milliseconds = int(round(seconds * 1000))
+    hours, remainder = divmod(total_milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, milliseconds = divmod(remainder, 1000)
     return "{:02d}:{:02d}:{:02d},{:03d}".format(hours, minutes, seconds, milliseconds)
 
 
@@ -297,11 +312,39 @@ def split_string_by_punctuations(s):
             txt += char
             continue
 
-        if char == "," and previous_char.isdigit() and next_char.isdigit():
-            # 英文数字里的千分位逗号不是断句符，例如 "1,000 years"。
+        if (
+            char == "."
+            and previous_char.isalpha()
+            and next_char.isalpha()
+            and unicodedata.east_asian_width(previous_char) != "W"
+            and unicodedata.east_asian_width(next_char) != "W"
+        ):
+            # Edge TTS reads "U.S.", "e.g.", "9 a.m." and "example.com" as one word each. Next to a
+            # Chinese, Japanese or Korean character the dot still ends the sentence, as in "很好.我们".
+            txt += char
+            continue
+
+        if (
+            char == "."
+            and previous_char.isalpha()
+            and next_char.isdigit()
+            and unicodedata.east_asian_width(previous_char) != "W"
+        ):
+            # Edge TTS usually returns "No.1", "Vol.2" and "Fig.3" as one word. After a Chinese,
+            # Japanese or Korean character the dot still ends the sentence, as in "很好.2025年".
+            txt += char
+            continue
+
+        if char in (":", "：") and previous_char.isdigit() and next_char.isdigit():
+            # Edge TTS returns a clock time such as "10:30" or "10：30" as one word, so it is no line break.
+            txt += char
+            continue
+
+        if char in (",", "，", "、") and previous_char.isdigit() and next_char.isdigit():
+            # 数字中间的逗号和顿号不是断句符，例如 "1,000 years"、"1，299元"、"第1、2名"。
             # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
             # 如果这里拆成 "1" 和 "000 years"，后续字幕聚合会无法匹配脚本原文，
-            # 进而错误回退到 Whisper。
+            # 整段字幕都不会生成。
             txt += char
             continue
 
@@ -321,9 +364,12 @@ PAUSE_TAG_KEYWORDS = (
     r"пауза|тишина|停顿|暂停|静音|ポーズ|一時停止|無音|일시중지|정지"
 )
 # 匹配所有包含停顿关键词的标签（方括号或圆括号），无论其参数合法与否均匹配，
-# 以确保非法标签（如 [pause: -2s]、[pause: nope]、[pause: 0s]）在合成前被彻底清除而不会泄漏给 TTS
+# 以确保非法标签（如 [pause: -2s]、[pause: nope]、[pause: 0s]）在合成前被彻底清除而不会泄漏给 TTS。
+# 关键词后不能用 `\b`：中日韩文字和数字都属于 `\w`，`[停顿3秒]` 这种不写冒号的
+# 常见写法会因为没有词边界而漏匹配，标签原文被直接朗读。这里只禁止关键词后
+# 紧跟字母（允许数字），`[paused]`、`[暂停一下]` 这类普通文字仍不会被误判。
 PAUSE_TAG_PATTERN = re.compile(
-    rf"[\[\(]\s*(?:{PAUSE_TAG_KEYWORDS})\b(?:\s*[:：]?\s*([^\]\)]*?))?\s*[\]\)]",
+    rf"[\[\(]\s*(?:{PAUSE_TAG_KEYWORDS})(?![^\W\d])(?:\s*[:：]?\s*([^\]\)]*?))?\s*[\]\)]",
     re.IGNORECASE,
 )
 
@@ -462,7 +508,8 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
         line = line.strip()
         # Markdown 分隔符或强调符号单独成行时不会被 TTS 朗读，必须从
         # 脚本行里移除，避免字幕聚合卡在这类“不可发声”的目标行上。
-        if re.fullmatch(r"[-*_]{3,}", line):
+        # Neither is a line without a letter or digit: "* * *", "———", "• • •".
+        if line and not re.sub(r"[_\W]+", "", line):
             removed_separator_lines += 1
             continue
         cleaned_lines.append(line)
@@ -536,7 +583,7 @@ def load_locales(i18n_dir):
         for file in files:
             if file.endswith(".json"):
                 lang = file.split(".")[0]
-                with open(os.path.join(root, file), "r", encoding="utf-8") as f:
+                with open(os.path.join(root, file), "r", encoding="utf-8-sig") as f:
                     _locales[lang] = json.loads(f.read())
     return _locales
 

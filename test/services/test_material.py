@@ -751,7 +751,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with patch(
                 "app.services.material.requests.get", return_value=fake_response
-            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip), patch("app.services.material.material_upload._validate_video"):
                 video_path = material.save_video(
                     "https://example.com/video.mp4?token=abc", save_dir=temp_dir
                 )
@@ -797,7 +797,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with patch(
                 "app.services.material.requests.get", return_value=response
-            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip), patch("app.services.material.material_upload._validate_video"):
                 video_path = material.save_video(
                     "https://example.com/large.mp4", save_dir=temp_dir
                 )
@@ -834,7 +834,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
                     "app.services.material.requests.get",
                     return_value=ChunkedResponse(),
                 ),
-                patch("app.services.material.VideoFileClip", FakeVideoFileClip),
+                patch("app.services.material.VideoFileClip", FakeVideoFileClip), patch("app.services.material.material_upload._validate_video"),
                 patch.object(material.logger, "info") as info,
             ):
                 video_path = material.save_video(
@@ -904,7 +904,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
                     _FakeVideoDownloadResponse(b"first generated scene"),
                     _FakeVideoDownloadResponse(b"second generated scene"),
                 ],
-            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip), patch("app.services.material.material_upload._validate_video"):
                 first_path = material.save_video(first_url, save_dir=temp_dir)
                 second_path = material.save_video(second_url, save_dir=temp_dir)
                 cached_path = material.save_video(first_url, save_dir=temp_dir)
@@ -998,12 +998,12 @@ class TestMaterialTlsVerification(unittest.TestCase):
                     _FakeVideoDownloadResponse(b"broken"),
                     _FakeVideoDownloadResponse(b"valid"),
                 ],
-            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+            ) as get, patch("app.services.material.VideoFileClip", FakeVideoFileClip), patch("app.services.material.material_upload._validate_video"):
                 self.assertEqual(material.save_video(url, save_dir=temp_dir), "")
                 self.assertFalse((Path(temp_dir) / cached_name).exists())
                 self.assertEqual(
-                    material.save_video(url, save_dir=temp_dir),
-                    str(Path(temp_dir) / cached_name),
+                    Path(material.save_video(url, save_dir=temp_dir)),
+                    Path(temp_dir) / cached_name,
                 )
 
             self.assertEqual(get.call_count, 2)
@@ -1024,7 +1024,7 @@ class TestMaterialTlsVerification(unittest.TestCase):
             with patch(
                 "app.services.material.requests.get",
                 return_value=_FakeVideoDownloadResponse(b"bad metadata"),
-            ), patch("app.services.material.VideoFileClip", FakeVideoFileClip):
+            ), patch("app.services.material.VideoFileClip", FakeVideoFileClip), patch("app.services.material.material_upload._validate_video"):
                 self.assertEqual(
                     material.save_video("https://example.com/nan.mp4", save_dir=temp_dir),
                     "",
@@ -2178,6 +2178,34 @@ class TestWaveSpeedProvider(unittest.TestCase):
 
         self.assertEqual(results, [])
         get.assert_not_called()
+
+    def test_generate_wavespeed_returns_empty_on_plain_text_client_error(self):
+        """
+        4xx 是明确拒绝,即使响应体是网关返回的纯文本也不能误报为"可能已计费"。
+        2xx 响应体无法解析时仍按状态不明处理。
+        """
+
+        def unreadable():
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+        for status in (401, 429):
+            with self.subTest(status=status):
+                rejected = SimpleNamespace(status_code=status, json=unreadable)
+                with (
+                    patch("app.services.material.requests.post", return_value=rejected),
+                    patch("app.services.material.requests.get") as get,
+                ):
+                    results = material.generate_videos_wavespeed(
+                        "sunrise", minimum_duration=5
+                    )
+
+                self.assertEqual(results, [])
+                get.assert_not_called()
+
+        accepted = SimpleNamespace(status_code=200, json=unreadable)
+        with patch("app.services.material.requests.post", return_value=accepted):
+            with self.assertRaises(material.WaveSpeedUnconfirmedTaskError):
+                material.generate_videos_wavespeed("sunrise", minimum_duration=5)
 
     def test_generate_wavespeed_never_retries_submission_on_network_error(self):
         """

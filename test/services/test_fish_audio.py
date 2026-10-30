@@ -140,6 +140,7 @@ class TestFishAudioDispatch(unittest.TestCase):
 class TestFishAudioTTSRequest(unittest.TestCase):
     """fish_audio_tts sends correct request payloads."""
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def _call_with_capture(self, voice_rate=1.0, voice_volume=1.0,
                            reference_id=None, model="s2.1-pro-free",
                            response=None):
@@ -222,6 +223,7 @@ class TestFishAudioTTSRequest(unittest.TestCase):
 class TestFishAudioErrorHandling(unittest.TestCase):
     """Error responses are handled gracefully."""
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def _call_with_status(self, status_code, text="error"):
         resp = _FakeResponse(status_code=status_code, content=b"", text=text)
 
@@ -256,6 +258,7 @@ class TestFishAudioErrorHandling(unittest.TestCase):
             result = vs.fish_audio_tts("Test.", voice_file)
         self.assertIsNone(result)
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_invalid_success_preserves_existing_audio_without_repeat_charge(self):
         response = _FakeResponse(content=b"invalid audio" * 20)
         with (
@@ -273,6 +276,7 @@ class TestFishAudioErrorHandling(unittest.TestCase):
             self.assertEqual(list(Path(tmp_dir).iterdir()), [voice_file])
             post.assert_called_once()
 
+    @patch("app.services.voice._validate_remote_tts_audio", new=lambda _path: None)
     def test_valid_audio_replaces_existing_file_after_decoding(self):
         response = _FakeResponse(content=b"new mp3" * 30)
         with tempfile.TemporaryDirectory() as tmp_dir:

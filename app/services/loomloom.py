@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import tempfile
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -18,6 +19,9 @@ from urllib.parse import quote, urlsplit
 
 import requests
 from loguru import logger
+
+from app.services import generation_progress
+from app.utils.request_logging import trace_http_call
 
 
 DEFAULT_RESULT_PORT_NAME = "output"
@@ -457,12 +461,18 @@ class LoomLoomScriptBackend:
         )
 
     def wait_for_run(self, run_id: str) -> LoomLoomRun:
+        generation_progress.remote("loomloom", run_id)
         deadline = self._clock() + self.settings.run_timeout_seconds
         started_at = self._clock()
         last_logged_status = None
         last_progress_log_at = started_at
         consecutive_poll_errors = 0
         while True:
+            if self._clock() >= deadline:
+                raise LoomLoomRunError(
+                    f"LoomLoom run {run_id} did not complete within "
+                    f"{self.settings.run_timeout_seconds:g} seconds"
+                )
             try:
                 run = self.get_run(run_id)
                 consecutive_poll_errors = 0
@@ -476,6 +486,7 @@ class LoomLoomScriptBackend:
                         f"{self.settings.run_timeout_seconds:g} seconds"
                     ) from exc
                 consecutive_poll_errors += 1
+                generation_progress.remote("loomloom", run_id, retrying=True)
                 retry_delay = min(
                     self.settings.poll_interval_seconds
                     * (2 ** min(consecutive_poll_errors - 1, 4)),
@@ -490,6 +501,7 @@ class LoomLoomScriptBackend:
                 self._sleep(retry_delay)
                 continue
             now = self._clock()
+            generation_progress.remote("loomloom", run_id, run.status)
             progress = run.completed_tasks + run.failed_tasks + run.cancelled_tasks
             # 远端视频任务可能持续数分钟。状态变化时立即记录，状态不变时每
             # 30 秒记录一次心跳，既能帮助定位卡住位置，也避免两秒一次刷屏。
@@ -513,7 +525,7 @@ class LoomLoomScriptBackend:
                     f"LoomLoom run {run.run_id} did not complete within "
                     f"{self.settings.run_timeout_seconds:g} seconds"
                 )
-            self._sleep(self.settings.poll_interval_seconds)
+            self._sleep(min(self.settings.poll_interval_seconds, deadline - now))
 
     def get_script_results(self, run_id: str) -> LoomLoomScriptBatchResult:
         normalized_run_id = self._required_identifier(run_id, "run_id")
@@ -621,8 +633,8 @@ class LoomLoomScriptBackend:
         if not isinstance(value, dict):
             raise LoomLoomAPIError("result artifact JSON must be an object")
 
-        script = str(value.get("script", "")).strip()
-        if not script:
+        script = value.get("script")
+        if not isinstance(script, str) or not script.strip():
             raise LoomLoomAPIError("result artifact script is required")
         video_terms = value.get("videoTerms")
         if not isinstance(video_terms, list) or not video_terms:
@@ -630,13 +642,13 @@ class LoomLoomScriptBackend:
                 "result artifact videoTerms must be a non-empty list"
             )
         normalized_terms = tuple(
-            str(term).strip() for term in video_terms if str(term).strip()
+            term.strip() for term in video_terms if isinstance(term, str) and term.strip()
         )
         if not normalized_terms:
             raise LoomLoomAPIError("result artifact videoTerms must not be empty")
         return LoomLoomScriptCandidate(
             row_index=row_index,
-            script=script,
+            script=script.strip(),
             video_terms=normalized_terms,
         )
 
@@ -655,7 +667,8 @@ class LoomLoomScriptBackend:
                 "a LoomLoom credential is required for this request"
             )
         try:
-            response = self._session.request(
+            response = trace_http_call(
+                "REQUEST", self._session.request,
                 method,
                 url,
                 headers={
@@ -936,7 +949,8 @@ class LoomLoomVideoBackend(LoomLoomScriptBackend):
         return {**matching[0], "accessUrl": access_url}
 
     def _download_video_artifact(self, access_url: str, destination: str) -> None:
-        temporary = destination + ".part"
+        generation_progress.downloading()
+        temporary = None
         downloaded_bytes = 0
         response = None
         try:
@@ -949,7 +963,11 @@ class LoomLoomVideoBackend(LoomLoomScriptBackend):
             content_length = int(response.headers.get("content-length", 0) or 0)
             if content_length > MAX_VIDEO_ARTIFACT_BYTES:
                 raise LoomLoomAPIError("video artifact exceeds the download limit")
-            with open(temporary, "wb") as output:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", dir=os.path.dirname(destination) or ".",
+                prefix=os.path.basename(destination) + ".", suffix=".part", delete=False,
+            ) as output:
+                temporary = output.name
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if not chunk:
                         continue
@@ -980,5 +998,5 @@ class LoomLoomVideoBackend(LoomLoomScriptBackend):
                         "failed to close LoomLoom video download response: "
                         f"error={type(exc).__name__}"
                     )
-            if os.path.exists(temporary):
+            if temporary is not None and os.path.exists(temporary):
                 os.remove(temporary)

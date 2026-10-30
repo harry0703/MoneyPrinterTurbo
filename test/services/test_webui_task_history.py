@@ -261,3 +261,11 @@ def test_history_scan_skips_non_object_script_payload(tmp_path, payload):
     assert len(history) == 1
     assert history[0]["task_id"] == "broken-task"
     assert history[0]["subject"] == "broken-task"
+
+
+def test_find_final_task_video_ignores_directories_and_broken_links(tmp_path):
+    (tmp_path / "final-1.mp4").mkdir()
+    (tmp_path / "final-2.mp4").symlink_to(tmp_path / "missing.mp4")
+    assert find_final_task_video(str(tmp_path)) == ""
+    (tmp_path / "final-3.mp4").touch()
+    assert find_final_task_video(str(tmp_path)) == str(tmp_path / "final-3.mp4")

@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -35,6 +36,9 @@ volcengine_seedance_api_key = ""
 ofox_api_key = ""
 metaso_minimax_api_key = ""
 muapi_api_key = ""
+infistar_video_api_key = ""
+jalapeno_api_key = ""
+jalapeno_video_api_key = ""
 openai_image_base_url = ""
 openai_image_model = ""
 openai_image_api_keys = []
@@ -45,6 +49,66 @@ oneapi_model_name = ""
 
 
 class TestMptAgentSkill(unittest.TestCase):
+    def test_repeated_source_options_follow_the_actual_cli_last_value(self):
+        import cli
+
+        for last_source in ("local", "pexels"):
+            first_source = "pexels" if last_source == "local" else "local"
+            for first_equals in (False, True):
+                for last_equals in (False, True):
+                    with self.subTest(last_source=last_source, first_equals=first_equals, last_equals=last_equals):
+                        forwarded = ([f"--video-source={first_source}"] if first_equals
+                                     else ["--video-source", first_source])
+                        forwarded += ([f"--video-source={last_source}"] if last_equals
+                                      else ["--video-source", last_source])
+                        if last_source == "local":
+                            forwarded += ["--video-materials", "./owned.mp4"]
+                        actual = cli.parse_args(["--video-subject", "owned topic", *forwarded])
+                        parsed = mpt_agent.parse_args(["--subject", "owned topic", "--", *forwarded])
+                        self.assertEqual(parsed.cli_args, forwarded)
+                        self.assertEqual(mpt_agent.selected_video_source(parsed.cli_args), actual.video_source)
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            config = Path(temp_dir) / "config.toml"
+                            text = '[app]\nllm_provider = "ollama"\n'
+                            if last_source == "pexels":
+                                text += 'pexels_api_keys = ["owned-fixture-key"]\n'
+                            config.write_text(text, encoding="utf-8")
+                            provider, missing = mpt_agent.missing_config(config, parsed.cli_args)
+                            self.assertEqual((provider, missing), ("ollama", []))
+
+    def test_helper_main_accepts_keyless_local_override_after_source_defaults(self):
+        for forwarded in (
+            ["--video-source", "pexels", "--video-source=local", "--video-materials", "./owned.mp4"],
+            ["--video-source=pexels", "--video-source", "local", "--video-materials", "./owned.mp4"],
+        ):
+            with self.subTest(forwarded=forwarded), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir) / "project"
+                self.create_project(root)
+                (root / "config.toml").write_text('[app]\nllm_provider = "ollama"\n', encoding="utf-8")
+                video, task, log = root / "owned.mp4", root / "task", root / "log"
+                video.write_bytes(b"owned output boundary fixture")
+                manifest = root / "result.json"
+                with (
+                    patch.dict(os.environ, {}, clear=True),
+                    patch.object(mpt_agent, "validate_pexels_config", wraps=mpt_agent.validate_pexels_config) as validation,
+                    patch.object(mpt_agent, "generate_video", return_value=([video], task, log, manifest)) as generate,
+                    patch.object(mpt_agent.urllib.request, "urlopen", side_effect=AssertionError("local source must not probe Pexels")),
+                    redirect_stdout(io.StringIO()),
+                ):
+                    status = mpt_agent.main(["--subject", "owned topic", "--root", str(root), "--", *forwarded])
+                self.assertEqual(status, 0)
+                validation.assert_called_once()
+                generate.assert_called_once_with(root.resolve(), "owned topic", forwarded)
+
+    def test_source_option_default_and_single_value_controls(self):
+        import cli
+
+        for forwarded in ([], ["--video-source", "pexels"], ["--video-source=pexels"],
+                          ["--video-source", "local", "--video-materials", "./owned.mp4"]):
+            with self.subTest(forwarded=forwarded):
+                actual = cli.parse_args(["--video-subject", "owned topic", *forwarded])
+                self.assertEqual(mpt_agent.selected_video_source(forwarded), actual.video_source)
+
     def create_project(self, root: Path) -> None:
         """创建足够完成安装和配置检查的最小项目结构。"""
         root.mkdir()
@@ -61,6 +125,33 @@ class TestMptAgentSkill(unittest.TestCase):
 
         def __exit__(self, exc_type, exc_value, traceback):
             return False
+
+    def test_toml_literal_provider_and_multiline_key_arrays(self):
+        # These are valid TOML configurations understood by the backend loader.
+        for text in (
+            "[app]\nllm_provider = 'ollama'\npexels_api_keys = [\n 'fixture#key', # comment\n]\n",
+            '[app]\n"llm_provider" = "ollama"\npexels_api_keys = ["fixture#key"]\n',
+        ):
+            with self.subTest(text=text), tempfile.TemporaryDirectory() as directory:
+                config_path = Path(directory) / "config.toml"
+                config_path.write_text(text, encoding="utf-8")
+                with patch.dict(os.environ, {}, clear=True):
+                    self.assertEqual(mpt_agent.reuse_existing_llm_provider(config_path), "ollama")
+                    self.assertEqual(mpt_agent.missing_config(config_path, ["--video-source", "local", "--video-materials", directory]), ("ollama", []))
+                    with patch.object(mpt_agent, "_validate_pexels_key", return_value="valid") as validate:
+                        self.assertTrue(mpt_agent.validate_pexels_config(config_path, []))
+                    validate.assert_called_once_with("fixture#key")
+                self.assertEqual(config_path.read_text(encoding="utf-8"), text)
+
+    def test_config_reader_uses_app_table_not_unrelated_provider_fields(self):
+        text = "[other]\nllm_provider = 'moonshot'\n[app]\nllm_provider = 'ollama'\n"
+        self.assertEqual(mpt_agent._plain_config_value(text, "llm_provider"), "ollama")
+
+    def test_config_reader_reports_invalid_toml_without_echoing_contents(self):
+        with self.assertRaises(mpt_agent.SkillError) as error:
+            mpt_agent._plain_config_value("[app]\nllm_provider = 'fixture\n", "llm_provider")
+        self.assertNotIn("fixture", str(error.exception))
+        self.assertIn("TOML", str(error.exception))
 
     def test_skill_runs_helper_from_its_working_directory(self):
         """确保 Windows Agent 不会在命令中嵌入易被破坏的绝对路径。"""
@@ -158,6 +249,33 @@ class TestMptAgentSkill(unittest.TestCase):
 
             self.assertEqual(default_missing, ["pexels_api_keys"])
             self.assertEqual(pixabay_missing, [])
+
+    def test_local_video_source_requires_video_materials(self):
+        """本地素材源必须提供 --video-materials，否则应提前报错。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                mpt_agent.SkillError, "--video-materials"
+            ):
+                mpt_agent.missing_config(config_path, ["--video-source", "local"])
+
+            _, missing = mpt_agent.missing_config(
+                config_path,
+                ["--video-source", "local", "--video-materials", "./clips"],
+            )
+            _, missing_eq = mpt_agent.missing_config(
+                config_path,
+                ["--video-source=local", "--video-materials=./clips"],
+            )
+            self.assertEqual(missing, [])
+            self.assertEqual(missing_eq, [])
 
     def test_openai_image_source_accepts_keyless_local_gateway(self):
         """文生图素材源只需要端点与模型名，本地网关允许不配置 API Key。"""
@@ -508,6 +626,137 @@ class TestMptAgentSkill(unittest.TestCase):
                 )
             self.assertEqual(missing, [])
 
+    def test_infistar_source_uses_video_credentials_and_charge_confirmation(self):
+        """预检与实际视频服务使用相同凭据，不能误用 Infistar 大模型 Key。"""
+        from app.services import infistar_video
+
+        cases = (
+            ("", "", False, ["infistar_video_api_key", "confirm_infistar_charge"]),
+            ("", "", True, ["infistar_video_api_key"]),
+            ("video-key", "", False, ["confirm_infistar_charge"]),
+            ("video-key", "", True, []),
+            ("", "environment-video-key", True, []),
+            ("  ", "environment-video-key", True, []),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            for key, environment_key, confirmed, expected in cases:
+                settings = {
+                    "llm_provider": "ollama",
+                    "infistar_api_key": "llm-only-key",
+                    "infistar_video_api_key": key,
+                }
+                config_path.write_text(
+                    "[app]\n" + "\n".join(
+                        f"{field} = {json.dumps(value)}"
+                        for field, value in settings.items()
+                    ),
+                    encoding="utf-8",
+                )
+                args = ["--video-source", "infistar"]
+                if confirmed:
+                    args.append("--confirm-infistar-charge")
+                with (
+                    self.subTest(key=key, environment_key=environment_key, confirmed=confirmed),
+                    patch.dict(os.environ, {"INFISTAR_VIDEO_API_KEY": environment_key}, clear=True),
+                ):
+                    provider, missing = mpt_agent.missing_config(config_path, args)
+                    self.assertEqual(provider, "ollama")
+                    self.assertEqual(missing, expected)
+                    self.assertEqual(
+                        "infistar_video_api_key" not in missing,
+                        infistar_video.is_enabled(settings),
+                    )
+
+    def test_infistar_environment_key_is_written_without_leaking_to_output(self):
+        """Agent 专用环境变量应写入独立视频配置，日志不能包含密钥。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(MINIMAL_CONFIG, encoding="utf-8")
+            secret = "secret-infistar-video-key"
+            output = io.StringIO()
+            with (
+                patch.dict(os.environ, {"MPT_INFISTAR_VIDEO_API_KEY": secret}, clear=True),
+                redirect_stdout(output),
+            ):
+                mpt_agent.apply_environment_config(config_path)
+            self.assertEqual(
+                mpt_agent._plain_config_value(config_path.read_text(), "infistar_video_api_key"),
+                secret,
+            )
+            self.assertNotIn(secret, output.getvalue())
+            self.assertIn("infistar_video_api_key", output.getvalue())
+
+    def test_missing_infistar_inputs_report_video_key_and_charge_flag(self):
+        """只缺视频接入信息时，不应误提示更换大模型 Provider。"""
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "ollama", ["infistar_video_api_key", "confirm_infistar_charge"]
+            )
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn("INFISTAR_VIDEO_API_KEY_URL=https://infistar.cc/keys", text)
+        self.assertIn("INFISTAR_VIDEO_API_KEY_ENV=MPT_INFISTAR_VIDEO_API_KEY", text)
+        self.assertIn(
+            "INFISTAR_CHARGE_CONFIRMATION_REQUIRED=--confirm-infistar-charge", text
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_jalapeno_source_uses_same_shared_or_independent_key_as_runtime(self):
+        from app.services import jalapeno_video
+
+        cases = (
+            ("ollama", "", "", "", False, ["jalapeno_video_api_key", "confirm_jalapeno_charge"]),
+            ("openai", "video", "", "", True, []),
+            ("openai", "", "environment", "", True, []),
+            ("openai", "", "", "shared", True, []),
+            ("jalapeno", "", "", "", True, ["jalapeno_api_key"]),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            for provider, dedicated, environment, shared, confirmed, expected in cases:
+                settings = {
+                    "llm_provider": provider,
+                    "openai_api_key": "unrelated",
+                    "jalapeno_api_key": shared,
+                    "jalapeno_video_api_key": dedicated,
+                }
+                path.write_text("[app]\n" + "\n".join(
+                    f"{name} = {json.dumps(value)}" for name, value in settings.items()
+                ), encoding="utf-8")
+                args = ["--video-source", "jalapeno"]
+                if confirmed:
+                    args.append("--confirm-jalapeno-charge")
+                with (
+                    self.subTest(provider=provider, dedicated=dedicated, environment=environment, shared=shared),
+                    patch.dict(os.environ, {"JALAPENO_VIDEO_API_KEY": environment}, clear=True),
+                ):
+                    self.assertEqual(mpt_agent.missing_config(path, args), (provider, expected))
+                    self.assertEqual(jalapeno_video.is_enabled(settings), bool(dedicated or environment or shared))
+
+    def test_jalapeno_environment_key_and_missing_input_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text(MINIMAL_CONFIG, encoding="utf-8")
+            output = io.StringIO()
+            secret = "secret-jalapeno-test-key"
+            with (
+                patch.dict(os.environ, {"MPT_JALAPENO_VIDEO_API_KEY": secret}, clear=True),
+                redirect_stdout(output),
+            ):
+                mpt_agent.apply_environment_config(path)
+                code = mpt_agent.report_missing_config(
+                    "ollama", ["jalapeno_video_api_key", "confirm_jalapeno_charge"]
+                )
+            self.assertEqual(mpt_agent._plain_config_value(path.read_text(), "jalapeno_video_api_key"), secret)
+            self.assertNotIn(secret, output.getvalue())
+            self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+            self.assertIn("JALAPENO_API_KEY_URL=https://www.jalapeno-cloud.ai/MoneyPrinterTurbo", output.getvalue())
+            self.assertIn("JALAPENO_VIDEO_API_KEY_ENV=MPT_JALAPENO_VIDEO_API_KEY", output.getvalue())
+            self.assertIn("JALAPENO_CHARGE_CONFIRMATION_REQUIRED=--confirm-jalapeno-charge", output.getvalue())
+            self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", output.getvalue())
+
     def test_existing_provider_key_is_reused_without_asking_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.toml"
@@ -571,6 +820,80 @@ class TestMptAgentSkill(unittest.TestCase):
                 'llm_provider = "claude_code"',
                 config_path.read_text(encoding="utf-8"),
             )
+
+    def test_codex_subscription_provider_needs_no_api_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "openai_codex"'
+                ).replace(
+                    'deepseek_api_key = ""', 'deepseek_api_key = "other-provider-key"'
+                ).replace("pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]')
+                + 'openai_codex_model_name = "selected-model"\n',
+                encoding="utf-8",
+            )
+            with redirect_stdout(io.StringIO()):
+                provider = mpt_agent.reuse_existing_llm_provider(config_path)
+            active, missing = mpt_agent.missing_config(config_path, [])
+            self.assertEqual(provider, "openai_codex")
+            self.assertEqual(active, "openai_codex")
+            self.assertEqual(missing, [])
+
+    def test_kimi_code_signed_in_provider_needs_no_api_key(self):
+        """
+        Kimi Code 走 OAuth 订阅凭证，已登录时辅助脚本不能要求 API Key，
+        也不能把订阅用户切到别的 Provider。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "kimi_code"'
+                ).replace(
+                    'deepseek_api_key = ""',
+                    'deepseek_api_key = "already-configured-key"',
+                ).replace(
+                    "pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]'
+                )
+                + 'kimi_code_refresh_token = "rt-1"\n',
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                provider = mpt_agent.reuse_existing_llm_provider(config_path)
+            active_provider, missing = mpt_agent.missing_config(config_path, [])
+
+            self.assertEqual(provider, "kimi_code")
+            self.assertEqual(active_provider, "kimi_code")
+            self.assertEqual(missing, [])
+
+    def test_kimi_code_without_sign_in_reports_sign_in_not_api_key(self):
+        """未登录的 Kimi Code 缺的是登录动作；脚本应报告 sign-in 而非 API Key。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'llm_provider = "moonshot"', 'llm_provider = "kimi_code"'
+                ).replace(
+                    'deepseek_api_key = ""',
+                    'deepseek_api_key = "already-configured-key"',
+                ).replace(
+                    "pexels_api_keys = []", 'pexels_api_keys = ["pexels-key"]'
+                ),
+                encoding="utf-8",
+            )
+
+            active_provider, missing = mpt_agent.missing_config(config_path, [])
+            output = io.StringIO()
+            with redirect_stdout(output):
+                mpt_agent.report_missing_config(active_provider, missing)
+
+            self.assertEqual(active_provider, "kimi_code")
+            self.assertEqual(missing, ["kimi_code_sign_in"])
+            self.assertNotIn("kimi_code_api_key", output.getvalue())
+            self.assertIn("KIMI_CODE_SIGN_IN_REQUIRED", output.getvalue())
 
     def test_only_missing_pexels_key_does_not_ask_for_llm_again(self):
         output = io.StringIO()
@@ -863,6 +1186,106 @@ class TestMptAgentSkill(unittest.TestCase):
             "utf-8",
             "piped output must be decoded as UTF-8, not the host locale",
         )
+
+    def test_dependency_sync_sets_default_lock_timeout_without_mutating_environment(self):
+        """默认值只作用于安装子进程，其他环境变量保持原样。"""
+        environment = {"UV_CACHE_DIR": "cache-fixture", "TOKEN": "private-fixture"}
+        with (
+            patch.dict(os.environ, environment, clear=True),
+            patch.object(
+                mpt_agent.subprocess, "run",
+                return_value=SimpleNamespace(returncode=0, stdout=""),
+            ) as run_mock,
+            redirect_stdout(io.StringIO()),
+        ):
+            mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+            child_env = run_mock.call_args.kwargs["env"]
+            self.assertEqual(child_env["UV_LOCK_TIMEOUT"], "1200")
+            self.assertEqual(child_env["UV_CACHE_DIR"], "cache-fixture")
+            self.assertEqual(child_env["TOKEN"], "private-fixture")
+            self.assertEqual(dict(os.environ), environment)
+            self.assertEqual(run_mock.call_args.args[0], ["uv", "sync", "--frozen"])
+
+    def test_dependency_sync_preserves_explicit_lock_timeout(self):
+        """用户自定义值包括空值或非法值，均交给 uv 自己校验。"""
+        for value in ("600", "2400", "0", "", "invalid"):
+            with (
+                self.subTest(value=value),
+                patch.dict(os.environ, {"UV_LOCK_TIMEOUT": value}, clear=True),
+                patch.object(
+                    mpt_agent.subprocess, "run",
+                    return_value=SimpleNamespace(returncode=0, stdout=""),
+                ) as run_mock,
+                redirect_stdout(io.StringIO()),
+            ):
+                mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+                self.assertEqual(run_mock.call_args.kwargs["env"]["UV_LOCK_TIMEOUT"], value)
+                self.assertEqual(os.environ["UV_LOCK_TIMEOUT"], value)
+
+    def test_dependency_sync_passes_timeout_to_real_child_process(self):
+        """不模拟 subprocess，真实验证默认值与用户覆盖能够传给子进程。"""
+        for configured, expected in ((None, "1200"), ("2400", "2400")):
+            with self.subTest(configured=configured), patch.dict(os.environ), redirect_stdout(io.StringIO()):
+                os.environ.pop("UV_LOCK_TIMEOUT", None)
+                if configured is not None:
+                    os.environ["UV_LOCK_TIMEOUT"] = configured
+                mpt_agent.run_checked(
+                    [sys.executable, "-c", "import os,sys; assert os.environ['UV_LOCK_TIMEOUT'] == sys.argv[1]", expected],
+                    cwd=Path.cwd(),
+                )
+                self.assertEqual(os.environ.get("UV_LOCK_TIMEOUT"), configured)
+
+    def test_dependency_lock_timeout_has_actionable_hint_and_bounded_log_tail(self):
+        """复用用户实际报错；匹配完整输出，但仍仅输出末尾 30 行。"""
+        output = "Timeout (300s) when waiting for lock on pyarrow.lock\n"
+        output += "\n".join(f"line-{index}" for index in range(35))
+        stderr = io.StringIO()
+        with (
+            patch.object(
+                mpt_agent.subprocess, "run",
+                return_value=SimpleNamespace(returncode=1, stdout=output),
+            ),
+            redirect_stdout(io.StringIO()), redirect_stderr(stderr),
+            self.assertRaisesRegex(mpt_agent.SkillError, "exit code 1"),
+        ):
+            mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+        text = stderr.getvalue()
+        self.assertNotIn("line-0\n", text)
+        self.assertNotIn("line-4\n", text)
+        self.assertIn("line-5\n", text)
+        self.assertIn("line-34\n", text)
+        self.assertIn("Wait for other uv installs", text)
+        self.assertIn("UV_LOCK_TIMEOUT", text)
+        self.assertIn("uv 0.9.4", text)
+
+    def test_dependency_errors_do_not_misreport_cache_lock_timeout(self):
+        """网络超时、普通缓存错误和空输出不得被误诊为锁超时。"""
+        for output in ("HTTP request timeout", "Could not acquire lock: permission denied", "", None):
+            with (
+                self.subTest(output=output),
+                patch.object(
+                    mpt_agent.subprocess, "run",
+                    return_value=SimpleNamespace(returncode=2, stdout=output),
+                ),
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaisesRegex(mpt_agent.SkillError, "exit code 2"),
+            ):
+                mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+            self.assertNotIn("UV_LOCK_TIMEOUT", stderr.getvalue())
+
+    def test_dependency_lock_wait_alternative_wording_has_hint(self):
+        """兼容不同 uv 版本使用的 timed out 表述。"""
+        stderr = io.StringIO()
+        with (
+            patch.object(
+                mpt_agent.subprocess, "run",
+                return_value=SimpleNamespace(returncode=1, stdout="Timed out waiting for cache lock"),
+            ),
+            redirect_stdout(io.StringIO()), redirect_stderr(stderr),
+            self.assertRaises(mpt_agent.SkillError),
+        ):
+            mpt_agent.run_checked(["uv", "sync", "--frozen"], cwd=Path.cwd())
+        self.assertIn("UV_LOCK_TIMEOUT", stderr.getvalue())
 
     def test_explicit_voice_is_not_overridden(self):
         self.assertTrue(

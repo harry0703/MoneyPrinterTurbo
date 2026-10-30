@@ -18,7 +18,10 @@ from urllib.parse import quote_plus, urlsplit
 import requests
 from loguru import logger
 
+from app.utils.request_logging import trace_http_call
+
 from app.config import config
+from app.services import generation_progress
 from app.models.schema import MaterialInfo, VideoAspect
 
 
@@ -122,7 +125,9 @@ def _duration_bounds() -> tuple[int, int]:
     def read(key: str, default: int) -> int:
         try:
             value = int(config.app.get(key, default))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            # TOML accepts `inf`; int(inf) raises OverflowError, which is not
+            # a provider error and would abort the task with a traceback.
             return default
         return value if value >= 1 else default
 
@@ -236,8 +241,10 @@ def generate_videos(
 
     # A timeout or 5xx after POST may mean that MuAPI accepted and billed the
     # job.  Retrying the submission could create a second paid generation.
+    generation_progress.submitting('muapi')
     try:
-        response = requests.post(
+        response = trace_http_call(
+            "POST", requests.post,
             videos_url,
             json=payload,
             headers=headers,
@@ -349,6 +356,7 @@ def _wait_for_task(
         60.0,
     )
     result_url = f"{base_url}/predictions/{task_id}/result"
+    generation_progress.remote('muapi', task_id)
     consecutive_failures = 0
 
     while True:
@@ -362,7 +370,8 @@ def _wait_for_task(
 
         phase_timeout = max(min(remaining / 2.0, 30.0), 0.001)
         try:
-            response = requests.get(
+            response = trace_http_call(
+                "GET", requests.get,
                 result_url,
                 headers=headers,
                 proxies=config.proxy,
@@ -414,6 +423,7 @@ def _wait_for_task(
                     task_id=task_id,
                 ) from exc
             consecutive_failures += 1
+            generation_progress.remote('muapi', task_id, retrying=True)
             if consecutive_failures > MAX_POLL_RETRIES:
                 raise MuAPIUnconfirmedTaskError(
                     "MuAPI polling failed after retries; the paid task may still "
@@ -431,6 +441,7 @@ def _wait_for_task(
 
         consecutive_failures = 0
         status = str(body.get("status") or "").strip().lower()
+        generation_progress.remote('muapi', task_id, status)
         if status in TERMINAL_SUCCESS_STATUSES:
             return body
         if status in TERMINAL_FAILURE_STATUSES:
