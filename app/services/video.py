@@ -986,8 +986,8 @@ def combine_videos(
     used_video_paths: List[str] | None = None,
     progress_callback: Callable[[float], None] | None = None,
 ) -> str:
-    # Pydantic leaves this optional default as the string "random" unless
-    # explicitly provided. Normalize it once for all downstream enum access.
+    # Direct callers and persisted tasks can still supply the raw string.
+    # Normalize it once for all downstream enum access.
     video_concat_mode = VideoConcatMode(video_concat_mode or VideoConcatMode.random)
     audio_clip = AudioFileClip(audio_file)
     try:
