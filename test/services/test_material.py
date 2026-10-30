@@ -1009,6 +1009,37 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertEqual(get.call_count, 2)
             self.assertEqual((Path(temp_dir) / cached_name).read_bytes(), b"valid")
 
+    def test_corrupt_existing_cache_is_redownloaded_and_replaced(self):
+        """A stale nonempty cache entry must repair itself on the next request."""
+        url = "https://example.com/corrupt-cache.mp4"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        class FakeVideoFileClip:
+            fps = 24
+
+            def __init__(self, path):
+                self.duration = 0 if Path(path).read_bytes() == b"corrupt" else 1
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"corrupt")
+            with (
+                patch(
+                    "app.services.material.requests.get",
+                    return_value=_FakeVideoDownloadResponse(b"valid"),
+                ) as get,
+                patch("app.services.material.VideoFileClip", FakeVideoFileClip),
+                patch("app.services.material.material_upload._validate_video"),
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"valid")
+            get.assert_called_once()
+
     def test_nonfinite_video_metadata_is_not_published(self):
         class FakeVideoFileClip:
             duration = float("nan")

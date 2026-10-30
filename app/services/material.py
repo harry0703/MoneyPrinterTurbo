@@ -1176,6 +1176,31 @@ def _describe_download_progress(
     return f"{downloaded_mb:.1f} MB, {speed:.2f} MB/s"
 
 
+def _is_valid_video_file(video_path: str) -> bool:
+    """Return whether a video satisfies the cache publication contract."""
+    clip = None
+    try:
+        clip = VideoFileClip(video_path)
+        duration = clip.duration
+        fps = clip.fps
+        # A readable header is not enough for a truncated faststart MP4. Keep
+        # cache-hit validation equivalent to validation before publication.
+        material_upload._validate_video(video_path)
+        return bool(duration > 0 and fps > 0)
+    except Exception as exc:
+        logger.warning(f"invalid video file: {video_path} => {str(exc)}")
+        return False
+    finally:
+        if clip is not None:
+            try:
+                clip.close()
+            except Exception as close_error:
+                logger.warning(
+                    f"failed to close video clip: {video_path}, "
+                    f"error: {str(close_error)}"
+                )
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     generation_progress.downloading()
     if not save_dir:
@@ -1191,10 +1216,40 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     video_id = f"vid-{url_hash}"
     video_path = f"{save_dir}/{video_id}.mp4"
 
-    # if video already exists, return the path
-    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
-        logger.info(f"video already exists: {video_path}")
-        return video_path
+    # A nonempty path can still be a truncated file left by an older release,
+    # a manual copy, or storage corruption. Validate it before declaring a hit
+    # so the cache can repair itself instead of failing on every later render.
+    try:
+        cached_stat = os.stat(video_path)
+    except FileNotFoundError:
+        cached_stat = None
+    if cached_stat is not None and cached_stat.st_size > 0:
+        generation_progress.verifying()
+        if _is_valid_video_file(video_path):
+            logger.info(f"video already exists: {video_path}")
+            return video_path
+
+        logger.warning(f"discarding invalid cached video: {video_path}")
+        try:
+            current_stat = os.stat(video_path)
+            cached_identity = (
+                cached_stat.st_dev,
+                cached_stat.st_ino,
+                cached_stat.st_size,
+                cached_stat.st_mtime_ns,
+            )
+            current_identity = (
+                current_stat.st_dev,
+                current_stat.st_ino,
+                current_stat.st_size,
+                current_stat.st_mtime_ns,
+            )
+            # Do not delete a valid replacement published by another worker
+            # while this process was validating the stale entry.
+            if current_identity == cached_identity:
+                os.remove(video_path)
+        except FileNotFoundError:
+            pass
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
@@ -1257,30 +1312,9 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         if os.path.getsize(temp_path) == 0:
             return ""
 
-        clip = None
-        try:
-            clip = VideoFileClip(temp_path)
-            duration = clip.duration
-            fps = clip.fps
-            # Container duration and an initial frame do not prove the rest of
-            # a faststart MP4 arrived. Validate every video packet before a
-            # nonempty cache entry becomes reusable by later tasks.
-            generation_progress.verifying()
-            material_upload._validate_video(temp_path)
-            if not (duration > 0 and fps > 0):
-                logger.warning(f"invalid video file: {temp_path} => invalid duration or fps")
-                return ""
-        except Exception as e:
-            logger.warning(f"invalid video file: {temp_path} => {str(e)}")
+        generation_progress.verifying()
+        if not _is_valid_video_file(temp_path):
             return ""
-        finally:
-            if clip is not None:
-                try:
-                    clip.close()
-                except Exception as close_error:
-                    logger.warning(
-                        f"failed to close video clip: {temp_path}, error: {str(close_error)}"
-                    )
 
         os.replace(temp_path, video_path)
         temp_path = ""
