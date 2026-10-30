@@ -82,28 +82,23 @@ class TestRedisQueueAdmission(unittest.TestCase):
         ))
 
     def test_simultaneous_managers_cannot_exceed_shared_capacity(self):
-        # Hold both callers after their real LLEN reads. Their local locks are
-        # independent, as they are in separate API processes sharing Redis.
+        # Start both process-local managers together without coupling the test
+        # to a particular Redis command inside add_task(). The Lua admission
+        # script is the synchronization boundary now, so mocking queue_size()
+        # would only test an obsolete implementation detail.
         barrier = threading.Barrier(2)
 
         def add(manager):
-            original = manager.queue_size
-
-            def synchronized_size():
-                size = original()
-                barrier.wait(timeout=5)
-                return size
-
-            with patch.object(manager, "queue_size", synchronized_size):
-                try:
-                    manager.add_task(
-                        tm.start,
-                        task_id=str(uuid4()),
-                        params=VideoParams(video_subject="Coffee"),
-                    )
-                except TaskQueueFullError:
-                    return "rejected"
-                return "queued"
+            barrier.wait(timeout=5)
+            try:
+                manager.add_task(
+                    tm.start,
+                    task_id=str(uuid4()),
+                    params=VideoParams(video_subject="Coffee"),
+                )
+            except TaskQueueFullError:
+                return "rejected"
+            return "queued"
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(add, self.managers))
