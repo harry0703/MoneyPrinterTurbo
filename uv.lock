@@ -1427,7 +1427,7 @@ wheels = [
 
 [[package]]
 name = "khatt"
-version = "0.3.0"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "freetype-py" },
@@ -1436,9 +1436,9 @@ dependencies = [
     { name = "typer" },
     { name = "uharfbuzz" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/2d/7536a24c890000fea89620250ddc85e93eefce64117e9cfb3077334ae724/khatt-0.3.0.tar.gz", hash = "sha256:e7b59303d80fc9f52f2d13033c0e04a19d20b56426fea96643492b2edbf90085", size = 1073003 }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/5a/cb0771767f91ac72d296e16df1a4b060435d71cf96a8d03c7a28387bec54/khatt-0.4.0.tar.gz", hash = "sha256:4ee39d25f4055d4573f1bd4d19d18a19c373865d883d7c10dd85fe2811d5d1b5", size = 1076742 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bb/38/7ee282ad1b8a878fd1507e51d57e59a1e904bdfc184618afe0f71b84d2d1/khatt-0.3.0-py3-none-any.whl", hash = "sha256:3e11eae78d0a974ff7bbafada5091e83364e9f55d01089e045605464f1998223", size = 856790 },
+    { url = "https://files.pythonhosted.org/packages/a5/a2/f0770999f067fc0f033b2c91ed18be2f6421a2d6eadd3bf343a390642175/khatt-0.4.0-py3-none-any.whl", hash = "sha256:9f8649f2d5edf1365176e419a7f0b1d6e0fb3c2062dad5a8ff3624d3e42df5d9", size = 859121 },
 ]
 
 [package.optional-dependencies]
@@ -1671,7 +1671,7 @@ requires-dist = [
     { name = "filelock", specifier = ">=4.2.1,<5" },
     { name = "google-genai", specifier = "==2.11.0" },
     { name = "imageio-ffmpeg", specifier = "==0.6.0" },
-    { name = "khatt", extras = ["video"], specifier = "==0.3.0" },
+    { name = "khatt", extras = ["video"], specifier = "==0.4.0" },
     { name = "litellm", specifier = "==1.103.1" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "moviepy", specifier = "==2.2.1" },

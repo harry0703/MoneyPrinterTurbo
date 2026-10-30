@@ -10,7 +10,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import khatt
 import numpy as np
 import pytest
 from khatt.fonts import font_path as khatt_font_path
@@ -26,6 +25,9 @@ from app.services.video import wrap_text
 FONT_DIR = Path(__file__).resolve().parents[2] / "resource/fonts"
 # 项目默认字幕字体，不含阿拉伯字形，用来覆盖字体回退路径。
 DEFAULT_FONT = str(FONT_DIR / "STHeitiMedium.ttc")
+# 维护者复现阿拉伯文与中文同在一条字幕时所用的字体。
+YAHEI_FONT = str(FONT_DIR / "MicrosoftYaHeiBold.ttc")
+MIXED_CUE = "مرحبا بالعالم 中文测试"
 ARABIC_FONT = str(khatt_font_path("amiri"))
 FALLBACK_FONT = str(khatt_font_path(subtitle_shaping.FALLBACK_FONT))
 # khatt 自带字体所在目录，用来让 generate_video 直接选用这些字体。
@@ -261,8 +263,8 @@ def test_non_arabic_wrapping_gets_no_direction_marks():
 def test_webui_font_check_judges_the_font_that_draws_arabic():
     # 纯阿拉伯文：后备字体会补上字形，不再误报字体不支持。
     assert vd.subtitle_font_supports_text(DEFAULT_FONT, "مرحبا بالعالم")
-    # 阿拉伯文夹中文：实际由后备字体绘制，它没有中文，应当提示。
-    assert not vd.subtitle_font_supports_text(DEFAULT_FONT, "مرحبا 你好")
+    # 阿拉伯文夹中文：后备字体画阿拉伯文，所选字体画中文，两者都能画出。
+    assert vd.subtitle_font_supports_text(DEFAULT_FONT, "مرحبا 你好")
     # 其他语言的检测保持不变。
     vietnamese_only = str(FONT_DIR / "BeVietnamPro-Medium.ttf")
     assert not vd.subtitle_font_supports_text(vietnamese_only, "你好世界")
@@ -408,9 +410,9 @@ def test_one_arabic_font_for_the_whole_video(monkeypatch):
     measured_fonts = set()
     original = subtitle_shaping.text_width
 
-    def spy(text, font, size):
+    def spy(text, font, size, *args):
         measured_fonts.add(font)
-        return original(text, font, size)
+        return original(text, font, size, *args)
 
     monkeypatch.setattr(subtitle_shaping, "text_width", spy)
     _, _, khatt_renderer = render_subtitled_video(
@@ -450,11 +452,63 @@ def test_font_fallback_is_logged_once_per_video():
 
 
 @pytest.mark.filterwarnings("ignore::khatt.UnsupportedCharacterWarning")
-def test_characters_the_font_cannot_draw_are_reported():
-    # 阿拉伯字幕中夹杂的中文后备字体画不出来，会被跳过：日志要说明。
-    assert khatt.missing_characters("你好", FALLBACK_FONT)
-    messages = warnings_while(lambda: render_subtitled_video(["مرحبا 你好"]))
-    assert any("skipped" in message and "你好" in message for message in messages)
+def test_characters_no_font_can_draw_are_reported():
+    # 后备字体和所选字体都没有的字符（这里是表情符号）会被跳过：日志要说明。
+    messages = warnings_while(lambda: render_subtitled_video(["مرحبا 😀 你好"]))
+    skipped = [message for message in messages if "skipped" in message]
+    assert skipped and all("😀" in message and "你" not in message for message in skipped)
+
+
+@pytest.mark.filterwarnings("error::khatt.UnsupportedCharacterWarning")
+def test_mixed_arabic_and_chinese_cue_keeps_the_chinese():
+    # 维护者在 #1698 中报告：同一条字幕里的中文被后备字体跳过。现在中文
+    # 由所选字体绘制，渲染结果中的中文与单独用该字体绘制的完全相同。
+    clip = shaped_clip(MIXED_CUE, font=YAHEI_FONT)
+    chinese = ShapedTextClip(text="中文测试", font=YAHEI_FONT, font_size=100, color="white")
+    chinese_width = ink_width(chinese)
+    # 从右到左的段落里，中文在阿拉伯文左边：画面最左侧就是这几个汉字。
+    left = clip.mask.get_frame(0)[:, :chinese_width] > 0.5
+    alone = chinese.mask.get_frame(0) > 0.5
+    rows = np.nonzero(left.any(axis=1))[0]
+    alone_rows = np.nonzero(alone.any(axis=1))[0]
+    assert np.array_equal(
+        left[rows.min() : rows.max() + 1],
+        alone[alone_rows.min() : alone_rows.max() + 1, :chinese_width],
+    )
+    # 阿拉伯文仍由后备字体整形，宽度不变，紧跟在中文右边。
+    arabic = shaped_clip("مرحبا بالعالم", font=YAHEI_FONT)
+    assert ink_width(clip) > chinese_width + ink_width(arabic)
+
+
+@pytest.mark.filterwarnings("error::khatt.UnsupportedCharacterWarning")
+@pytest.mark.parametrize("overrides", STYLES, ids=STYLE_IDS)
+def test_mixed_cue_in_a_video_draws_the_chinese_with_the_selected_font(overrides):
+    messages = []
+    sink = logger.add(lambda message: messages.append(str(message)), level="WARNING")
+    try:
+        frame, _, khatt_renderer = render_subtitled_video(
+            [MIXED_CUE], frame_at=0.5, font_name="MicrosoftYaHeiBold.ttc", **overrides
+        )
+    finally:
+        logger.remove(sink)
+    (call,) = subtitle_calls(khatt_renderer)
+    assert call.kwargs["font"] == FALLBACK_FONT
+    assert [Path(font) for font in call.kwargs["fallback_fonts"]] == [Path(YAHEI_FONT)]
+    assert not any("skipped" in message for message in messages)
+    assert (frame >= 250).all(axis=2).any()
+    if overrides.get("rounded_subtitle_background"):
+        # 圆角背景的宽度也计入了中文。
+        text_w = subtitle_shaping.text_width(
+            call.kwargs["text"], FALLBACK_FONT, 60, call.kwargs["fallback_fonts"]
+        )
+        assert call.kwargs["size"][0] == text_w + 2 * int(60 * 0.4)
+
+
+def test_wrapping_a_mixed_cue_measures_the_chinese():
+    wrapped, _ = wrap_text(MIXED_CUE * 3, 500, font=YAHEI_FONT, fontsize=60)
+    for line in wrapped.split("\n"):
+        width = subtitle_shaping.text_width(line, FALLBACK_FONT, 60, [YAHEI_FONT])
+        assert width <= 500
 
 
 def test_wrap_text_leaves_other_languages_alone(monkeypatch):

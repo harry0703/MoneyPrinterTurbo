@@ -92,6 +92,21 @@ def resolve_font(font_path: str, text: str) -> tuple[str, bool]:
     return font_path, False
 
 
+def fallback_fonts(shaped_font: str, font_path: str) -> list[str]:
+    """绘制阿拉伯字母字幕时，``shaped_font`` 画不出的字符改用哪些字体。
+
+    改用后备字体时，同一条字幕中后备字体没有的字符（例如阿拉伯文后面的
+    中文）仍由用户所选字体绘制，khatt 按字符逐段回退，不会丢字。
+    """
+    if not font_path or shaped_font == font_path:
+        return []
+    try:
+        khatt_font_path(font_path)
+    except (KeyError, ValueError):
+        return []  # 所选字体无法读取，resolve_font 已经提示过
+    return [font_path]
+
+
 def video_font(font_path: str, subtitles: Iterable[str]) -> str:
     """为一条视频的全部阿拉伯字母字幕确定同一个字体。
 
@@ -107,9 +122,11 @@ def video_font(font_path: str, subtitles: Iterable[str]) -> str:
             f"subtitle font has no Arabic-script glyphs, using {FALLBACK_FONT} "
             f"for Arabic-script subtitles: {font_path}"
         )
-    skipped = khatt.missing_characters(text, font)
+    skipped = khatt.missing_characters(
+        text, font, fallback_fonts=fallback_fonts(font, font_path)
+    )
     if skipped:
-        # 例如阿拉伯字幕中夹杂的中文：后备字体没有这些字形，绘制时会被跳过。
+        # 例如表情符号：后备字体和所选字体都没有这些字形，绘制时会被跳过。
         logger.warning(
             "characters in Arabic-script subtitles that the subtitle font cannot "
             f"draw are skipped: {''.join(skipped[:20])}"
@@ -118,14 +135,20 @@ def video_font(font_path: str, subtitles: Iterable[str]) -> str:
 
 
 def supports_text(font_path: str, text: str) -> bool:
-    """实际绘制 ``text`` 的字体（必要时为后备字体）能否画出其中全部字符。"""
+    """实际绘制 ``text`` 的字体（必要时为后备字体加所选字体）能否画出其中全部字符。"""
     font, _ = resolve_font(font_path, text)
-    return not khatt.missing_characters(text, font)
+    return not khatt.missing_characters(
+        text, font, fallback_fonts=fallback_fonts(font, font_path)
+    )
 
 
-def text_width(text: str, font_path: str, font_size: int) -> int:
-    """按整形后的实际字形测量单行文本宽度（像素）。"""
-    left, _, right, _ = khatt.text_bbox(text, font=font_path, size_px=int(font_size))
+def text_width(
+    text: str, font_path: str, font_size: int, fallbacks: Iterable[str] = ()
+) -> int:
+    """按整形后的实际字形测量单行文本宽度（像素）；``fallbacks`` 见 :func:`fallback_fonts`。"""
+    left, _, right, _ = khatt.text_bbox(
+        text, font=font_path, size_px=int(font_size), fallback_fonts=list(fallbacks)
+    )
     return right - left
 
 
@@ -135,11 +158,15 @@ def text_clip(native, *, shaped_font: str | None = None, **kwargs):
     ``native`` 是调用方使用的 MoviePy ``TextClip``，非阿拉伯字母文本原样
     交给它，与改动前完全相同。其余参数与 MoviePy 2.2 的 ``TextClip`` 一致。
     ``shaped_font`` 是绘制阿拉伯字母文本的字体（见 :func:`video_font`），
-    省略时按 ``font`` 和本段文本确定。
+    省略时按 ``font`` 和本段文本确定；它画不出的字符由 ``font`` 绘制。
     """
     text = kwargs.get("text")
     if not needs_shaping(text):
         return native(**kwargs)
+    font = kwargs.get("font") or ""
     if shaped_font is None:
-        shaped_font, _ = resolve_font(kwargs.get("font") or "", text)
-    return ShapedTextClip(**{**kwargs, "font": shaped_font})
+        shaped_font, _ = resolve_font(font, text)
+    return ShapedTextClip(
+        **{**kwargs, "font": shaped_font},
+        fallback_fonts=fallback_fonts(shaped_font, font),
+    )

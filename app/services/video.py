@@ -1293,7 +1293,7 @@ def combine_videos(
     return combined_video_path
 
 
-def wrap_text(text, max_width, font="Arial", fontsize=60, *, shaped=None):
+def wrap_text(text, max_width, font="Arial", fontsize=60, *, shaped=None, fallbacks=None):
     # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
     # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
     # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
@@ -1306,7 +1306,9 @@ def wrap_text(text, max_width, font="Arial", fontsize=60, *, shaped=None):
         # across a newline makes Pillow count both lines as one wide string,
         # then character wrapping can split an otherwise fitting word.
         wrapped_lines = [
-            wrap_text(line, max_width, font=font, fontsize=fontsize, shaped=shaped)
+            wrap_text(
+                line, max_width, font=font, fontsize=fontsize, shaped=shaped, fallbacks=fallbacks
+            )
             for line in text.split("\n")
         ]
         return "\n".join(line for line, _ in wrapped_lines), sum(
@@ -1317,10 +1319,14 @@ def wrap_text(text, max_width, font="Arial", fontsize=60, *, shaped=None):
     # 后备字体）测量，换行和高度才与最终字幕一致；Pillow 未整形时测得的是
     # 断开的独立字形宽度。手工换行的每一行本就是独立段落（如阿拉伯语下面
     # 跟一行英文翻译），自动折出的行则带上原段落的方向标记，测量时也带上
-    # 它，使测量与渲染方向一致。
+    # 它，使测量与渲染方向一致。后备字体画不出的字符（如夹杂的中文）由所选
+    # 字体绘制，测量时同样计入（见 subtitle_shaping.fallback_fonts）。
     direction_mark = ""
     if shaped:
+        selected_font = font
         font, _ = subtitle_shaping.resolve_font(font, text)
+        if fallbacks is None:
+            fallbacks = subtitle_shaping.fallback_fonts(font, selected_font)
         if text.strip():
             direction_mark = subtitle_shaping.direction_mark(text)
     shaped_font_path = font
@@ -1348,7 +1354,7 @@ def wrap_text(text, max_width, font="Arial", fontsize=60, *, shaped=None):
             return 0, line_height
         if shaped:
             width = subtitle_shaping.text_width(
-                direction_mark + inner_text, shaped_font_path, fontsize
+                direction_mark + inner_text, shaped_font_path, fontsize, fallbacks
             )
             return width, line_height
         left, top, right, bottom = font.getbbox(inner_text)
@@ -1655,6 +1661,7 @@ def generate_video(
         phrase = subtitle_item[1]
         shaped = subtitle_shaping.needs_shaping(phrase)
         clip_font = shaped_font if shaped else font_path
+        clip_fallbacks = subtitle_shaping.fallback_fonts(shaped_font, font_path) if shaped else []
         max_width = video_width * 0.9
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
@@ -1675,6 +1682,7 @@ def generate_video(
             max_width=text_max_width,
             font=clip_font,
             fontsize=params.font_size,
+            fallbacks=clip_fallbacks,
         )
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
@@ -1705,7 +1713,9 @@ def generate_video(
                 if shaped:
                     # 阿拉伯字母文本按整形后的字形和实际绘制字体测量。
                     text_w = max(
-                        subtitle_shaping.text_width(line, clip_font, params.font_size)
+                        subtitle_shaping.text_width(
+                            line, clip_font, params.font_size, clip_fallbacks
+                        )
                         for line in wrapped_txt.split("\n")
                     )
                 else:
