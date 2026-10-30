@@ -1332,6 +1332,26 @@ class TestVoiceService(unittest.TestCase):
             ],
         )
 
+    def test_script_split_breaks_cjk_sentences_at_half_width_full_stops(self):
+        """
+        A Chinese or Japanese sentence ended with "." instead of "。" is still a
+        sentence end, unlike the dot inside "U.S." or "example.com".
+        """
+        text = "今天天气很好.我们去公园散步.然后一起吃午饭.美国U.S.经济增长了.今日はいい天気です.公園に行きます."
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            [
+                "今天天气很好",
+                "我们去公园散步",
+                "然后一起吃午饭",
+                "美国U.S",
+                "经济增长了",
+                "今日はいい天気です",
+                "公園に行きます",
+            ],
+        )
+
     def test_edge_cue_aggregation_handles_dotted_abbreviations(self):
         """
         The word boundaries edge-tts 7.3.1 returns for each of these sentences with
@@ -1364,6 +1384,65 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(sub_items), len(script_lines))
         self.assertIn("Smith arrives at 9 a.m", sub_items[-3])
         self.assertIn("Visit example.com for the details", sub_items[-1])
+
+    def test_script_split_keeps_dots_between_letters_and_digits(self):
+        """
+        Edge TTS usually returns "No.1", "Vol.2", "Fig.3" and the full-width "ＮＯ.1" as one
+        word, so a dot between a letter and a digit is no line break. A dot followed by a
+        space still ends the sentence, and so does a dot right after a Chinese character, as
+        in "很好.2025年".
+        """
+        self.assertEqual(
+            utils.split_string_by_punctuations(
+                "这款手机销量No.1，值得购买。我们发布了Vol.2版本。全网销量ＮＯ.1。"
+                "今天天气很好.2025年会更好."
+            ),
+            [
+                "这款手机销量No.1",
+                "值得购买",
+                "我们发布了Vol.2版本",
+                "全网销量ＮＯ.1",
+                "今天天气很好",
+                "2025年会更好",
+            ],
+        )
+        self.assertEqual(
+            utils.split_string_by_punctuations(
+                "Our brand is No.1 in sales. 3 stores opened this year. "
+                "Fig.3 shows version 2.0 of the app."
+            ),
+            [
+                "Our brand is No.1 in sales",
+                "3 stores opened this year",
+                "Fig.3 shows version 2.0 of the app",
+            ],
+        )
+
+    def test_edge_cue_aggregation_handles_dots_between_letters_and_digits(self):
+        """
+        The word boundaries edge-tts 7.3.1 returns for this script with
+        zh-CN-XiaoxiaoNeural: "No.1" and "Vol.2" are one word each. Every line must
+        still get its own subtitle.
+        """
+        text = "这款手机销量No.1，值得购买。我们发布了Vol.2版本，欢迎体验。"
+        script_lines = utils.split_string_by_punctuations(text)
+        words = "这 款 手机 销量 No.1 值得 购买 我们 发布 了 Vol.2 版本 欢迎 体验".split()
+        cues = [
+            SimpleNamespace(
+                content=word,
+                start=timedelta(seconds=index * 0.3),
+                end=timedelta(seconds=index * 0.3 + 0.25),
+            )
+            for index, word in enumerate(words)
+        ]
+
+        sub_items = vs._build_subtitle_items_from_edge_cues(
+            SimpleNamespace(cues=cues), script_lines
+        )
+
+        self.assertEqual(len(sub_items), len(script_lines))
+        self.assertIn("这款手机销量No.1", sub_items[0])
+        self.assertIn("我们发布了Vol.2版本", sub_items[2])
 
     def test_script_split_supports_arabic_punctuation(self):
         """

@@ -106,3 +106,16 @@ class TestEdgeProducerShutdown(unittest.TestCase):
                 voice._stream_edge_tts_sync_with_timeout(communicate, lambda chunk: None, 0.05)
             self.assertTrue(started.is_set())
             self.assertTrue(closed.wait(0.1), "SDK read was not cancelled promptly")
+
+    def test_real_sdk_ready_chunks_are_not_throttled_into_a_timeout(self):
+        # Long narrations stream thousands of chunks; each one must be handed
+        # over as soon as the previous one is taken, not after a fixed sleep.
+        communicate = edge_tts.Communicate("Hello.", "en-US-AriaNeural")
+        expected = [index.to_bytes(2, "big") for index in range(500)]
+        async def network_stream():
+            for data in expected:
+                yield {"type": "audio", "data": data}
+        chunks = []
+        with patch.object(communicate, "stream", new=network_stream):
+            voice._stream_edge_tts_sync_with_timeout(communicate, chunks.append, 2)
+        self.assertEqual([chunk["data"] for chunk in chunks], expected)

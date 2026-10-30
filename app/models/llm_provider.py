@@ -571,6 +571,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.runcrate.ai/v1",
         model_docs_url="https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
     ),
+    LLMProviderSpec(
+        "cloudgpu",
+        "CloudGPU",
+        api_key_url="https://cloudgpu.app",
+        default_model="deepseek-v4-flash",
+        default_base_url="https://cloudgpu.app/v1",
+        model_docs_url="https://cloudgpu.app/v1/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

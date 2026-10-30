@@ -382,6 +382,14 @@ runcrate_api_key = ""
 runcrate_base_url = ""
 runcrate_model_name = ""
 
+# CloudGPU, a GPU cloud with an OpenAI-compatible API.
+# API key: https://cloudgpu.app
+# Model list: https://cloudgpu.app/v1/models
+# Docs: https://cloudgpu.app/api/docs
+cloudgpu_api_key = ""
+cloudgpu_base_url = ""
+cloudgpu_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
