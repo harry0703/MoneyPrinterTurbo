@@ -1332,6 +1332,26 @@ class TestVoiceService(unittest.TestCase):
             ],
         )
 
+    def test_script_split_breaks_cjk_sentences_at_half_width_full_stops(self):
+        """
+        A Chinese or Japanese sentence ended with "." instead of "。" is still a
+        sentence end, unlike the dot inside "U.S." or "example.com".
+        """
+        text = "今天天气很好.我们去公园散步.然后一起吃午饭.美国U.S.经济增长了.今日はいい天気です.公園に行きます."
+
+        self.assertEqual(
+            utils.split_string_by_punctuations(text),
+            [
+                "今天天气很好",
+                "我们去公园散步",
+                "然后一起吃午饭",
+                "美国U.S",
+                "经济增长了",
+                "今日はいい天気です",
+                "公園に行きます",
+            ],
+        )
+
     def test_edge_cue_aggregation_handles_dotted_abbreviations(self):
         """
         The word boundaries edge-tts 7.3.1 returns for each of these sentences with
