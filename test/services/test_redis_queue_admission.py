@@ -32,7 +32,54 @@ class TestRedisQueueAdmission(unittest.TestCase):
         for manager in self.managers:
             manager.queue = queue
             self.addCleanup(manager.redis_client.close)
-        self.addCleanup(self.managers[0].redis_client.delete, queue)
+        self.addCleanup(
+            self.managers[0].redis_client.delete,
+            queue,
+            f"{queue}:running",
+        )
+
+    def test_running_limit_is_shared_across_manager_instances(self):
+        for manager in self.managers:
+            manager.max_concurrent_tasks = 1
+
+        with (
+            patch.object(self.managers[0], "execute_task") as first_execute,
+            patch.object(self.managers[1], "execute_task") as second_execute,
+        ):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                list(
+                    pool.map(
+                        lambda item: item[0].add_task(
+                            tm.start,
+                            task_id=item[1],
+                            params=VideoParams(video_subject="Coffee"),
+                        ),
+                        zip(self.managers, ("first", "second")),
+                    )
+                )
+
+        self.assertEqual(first_execute.call_count + second_execute.call_count, 1)
+        self.assertEqual(self.managers[0].redis_client.zcard(
+            self.managers[0].running_slots_key
+        ), 1)
+        self.assertEqual(self.managers[0].queue_size(), 1)
+
+    def test_expired_running_slot_is_reclaimed(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        manager.redis_client.zadd(manager.running_slots_key, {"crashed": 0})
+
+        with patch.object(manager, "execute_task") as execute_task:
+            manager.add_task(
+                tm.start,
+                task_id="replacement",
+                params=VideoParams(video_subject="Coffee"),
+            )
+
+        execute_task.assert_called_once()
+        self.assertIsNone(manager.redis_client.zscore(
+            manager.running_slots_key, "crashed"
+        ))
 
     def test_simultaneous_managers_cannot_exceed_shared_capacity(self):
         # Hold both callers after their real LLEN reads. Their local locks are
