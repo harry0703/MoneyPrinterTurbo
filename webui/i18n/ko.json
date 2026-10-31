@@ -301,6 +301,7 @@
     "VoxCPM Model ID Placeholder": "ModelBest에서 speech_synthesis 모델 ID를 선택하세요",
     "VoxCPM Base URL": "VoxCPM Base URL",
     "Fish Audio Model": "Fish Audio 모델",
+    "Audexum API Key": "Audexum API Key ([audexum.com](https://audexum.com))",
     "Chatterbox Base URL": "Chatterbox Base URL",
     "Chatterbox API Key": "Chatterbox API 키 (선택; [설정 방법](https://github.com/travisvn/chatterbox-tts-api))",
     "Chatterbox Model": "Chatterbox 모델",
