@@ -2705,5 +2705,109 @@ class TestWaveSpeedProvider(unittest.TestCase):
         self.assertEqual(result, ["/tmp/wavespeed-2.mp4"])
 
 
+class TestStockGatewayBaseUrl(unittest.TestCase):
+    """库存素材源可指向 Sub2API 网关中继，默认仍直连上游。"""
+
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+        self.original_proxy_config = dict(config.proxy)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        config.proxy.clear()
+        config.proxy.update(self.original_proxy_config)
+
+    def test_stock_base_url_defaults_to_upstream(self):
+        config.app.pop("pexels_base_url", None)
+        config.app.pop("pixabay_base_url", None)
+        config.app.pop("coverr_base_url", None)
+        self.assertEqual(
+            material._stock_base_url("pexels_base_url", material.DEFAULT_PEXELS_BASE_URL),
+            "https://api.pexels.com",
+        )
+        self.assertEqual(
+            material._stock_base_url("pixabay_base_url", material.DEFAULT_PIXABAY_BASE_URL),
+            "https://pixabay.com",
+        )
+        self.assertEqual(
+            material._stock_base_url("coverr_base_url", material.DEFAULT_COVERR_BASE_URL),
+            "https://api.coverr.co",
+        )
+
+    def test_stock_base_url_strips_trailing_slash(self):
+        config.app["pexels_base_url"] = "http://192.168.31.252:18080/media/relay/pexels/"
+        self.assertEqual(
+            material._stock_base_url("pexels_base_url", material.DEFAULT_PEXELS_BASE_URL),
+            "http://192.168.31.252:18080/media/relay/pexels",
+        )
+
+    def test_stock_base_url_rejects_relative_url(self):
+        config.app["pexels_base_url"] = "/media/relay/pexels"
+        with self.assertRaises(ValueError):
+            material._stock_base_url("pexels_base_url", material.DEFAULT_PEXELS_BASE_URL)
+
+    def test_search_pexels_uses_gateway_base_url(self):
+        """配置网关前缀后，搜索请求必须打到网关中继而不是上游直连地址。"""
+        config.app["pexels_api_keys"] = ["gateway-key"]
+        config.app["pexels_base_url"] = "http://gateway.test/media/relay/pexels"
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            json=lambda: {"videos": []},
+            status_code=200,
+            headers={},
+        )
+        with patch("app.services.material.requests.get", return_value=fake_response) as get:
+            material.search_videos_pexels("cat", minimum_duration=1)
+
+        url = get.call_args.args[0]
+        self.assertTrue(
+            url.startswith("http://gateway.test/media/relay/pexels/v1/videos/search?"),
+            url,
+        )
+        self.assertNotIn("api.pexels.com", url)
+
+    def test_search_pixabay_uses_gateway_base_url(self):
+        config.app["pixabay_api_keys"] = ["gateway-key"]
+        config.app["pixabay_base_url"] = "http://gateway.test/media/relay/pixabay"
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            json=lambda: {"hits": []},
+            status_code=200,
+            headers={"content-type": "application/json"},
+        )
+        with patch("app.services.material.requests.get", return_value=fake_response) as get:
+            material.search_videos_pixabay("cat", minimum_duration=1)
+
+        url = get.call_args.args[0]
+        self.assertTrue(
+            url.startswith("http://gateway.test/media/relay/pixabay/api/videos/?"),
+            url,
+        )
+        self.assertNotIn("pixabay.com", url)
+
+    def test_search_coverr_uses_gateway_base_url(self):
+        config.app["coverr_api_keys"] = ["gateway-key"]
+        config.app["coverr_base_url"] = "http://gateway.test/media/relay/coverr"
+        config.proxy.clear()
+
+        fake_response = SimpleNamespace(
+            json=lambda: {"hits": []},
+            status_code=200,
+            headers={"content-type": "application/json"},
+        )
+        with patch("app.services.material.requests.get", return_value=fake_response) as get:
+            material.search_videos_coverr("cat", minimum_duration=1)
+
+        url = get.call_args.args[0]
+        self.assertTrue(
+            url.startswith("http://gateway.test/media/relay/coverr/videos?"),
+            url,
+        )
+        self.assertNotIn("api.coverr.co", url)
+
+
 if __name__ == "__main__":
     unittest.main()
