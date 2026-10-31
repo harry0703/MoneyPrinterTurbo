@@ -69,6 +69,7 @@ return 0
 
 _RUNNING_SLOT_LEASE_SECONDS = 90.0
 _RUNNING_SLOT_HEARTBEAT_SECONDS = 30.0
+_QUEUE_DISPATCH_RETRY_SECONDS = 5.0
 
 
 class RedisTaskManager(TaskManager):
@@ -81,6 +82,9 @@ class RedisTaskManager(TaskManager):
         self.redis_client = redis.Redis.from_url(redis_url)
         self._dispatch_context = threading.local()
         self._worker_context = threading.local()
+        self._dispatcher_stop = threading.Event()
+        self._dispatcher_thread = None
+        self._dispatcher_lock = threading.Lock()
         super().__init__(max_concurrent_tasks, max_queued_tasks=max_queued_tasks)
 
     def create_queue(self):
@@ -140,6 +144,64 @@ class RedisTaskManager(TaskManager):
         """
         for _ in range(max(0, self.max_concurrent_tasks)):
             self.check_queue()
+
+    def start_queue_dispatcher(self):
+        """Keep persisted work moving after a process restart.
+
+        A replacement process may start before a crashed worker's Redis lease
+        expires. The one-shot startup recovery cannot claim the queued task in
+        that case, so keep a lifecycle-owned dispatcher waiting for the next
+        lease deadline. Normal completions and new requests still dispatch
+        immediately through task_done() and add_task().
+        """
+        with self._dispatcher_lock:
+            if (
+                self._dispatcher_thread is not None
+                and self._dispatcher_thread.is_alive()
+            ):
+                return
+            self._dispatcher_stop.clear()
+            self._dispatcher_thread = threading.Thread(
+                target=self._dispatch_queued_until_stopped,
+                name="redis-queue-dispatcher",
+                daemon=True,
+            )
+            self._dispatcher_thread.start()
+
+    def stop_queue_dispatcher(self):
+        """Stop and join the lifecycle-owned queue dispatcher."""
+        with self._dispatcher_lock:
+            thread = self._dispatcher_thread
+            self._dispatcher_stop.set()
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=_QUEUE_DISPATCH_RETRY_SECONDS)
+        with self._dispatcher_lock:
+            if self._dispatcher_thread is thread:
+                self._dispatcher_thread = None
+
+    def _dispatch_queued_until_stopped(self):
+        while not self._dispatcher_stop.is_set():
+            try:
+                self.check_queue()
+                delay = self._next_queue_dispatch_delay()
+            except redis.RedisError as exc:
+                logger.error(f"Redis queue dispatcher failed: {exc}")
+                delay = _QUEUE_DISPATCH_RETRY_SECONDS
+            self._dispatcher_stop.wait(delay)
+
+    def _next_queue_dispatch_delay(self) -> float:
+        """Return when recovery should retry, preferring the next lease expiry."""
+        if self.queue_size() == 0:
+            return _QUEUE_DISPATCH_RETRY_SECONDS
+        earliest = self.redis_client.zrange(
+            self.running_slots_key, 0, 0, withscores=True
+        )
+        if not earliest:
+            # A queue entry appeared after check_queue() returned. Retry soon
+            # instead of waiting for unrelated traffic.
+            return 0.01
+        deadline_ms = earliest[0][1]
+        return max(0.01, (deadline_ms - self._now_ms()) / 1000)
 
     def check_queue(self):
         while True:

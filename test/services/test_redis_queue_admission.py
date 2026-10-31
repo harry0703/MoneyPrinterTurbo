@@ -2,6 +2,7 @@
 
 import os
 import threading
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
@@ -79,6 +80,34 @@ class TestRedisQueueAdmission(unittest.TestCase):
         execute_task.assert_called_once()
         self.assertIsNone(manager.redis_client.zscore(
             manager.running_slots_key, "crashed"
+        ))
+
+    def test_restart_dispatcher_claims_queue_when_crashed_lease_expires(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        manager.enqueue({"func": tm.start, "args": (), "kwargs": {
+            "task_id": "persisted", "params": VideoParams(video_subject="Coffee")
+        }})
+        manager.redis_client.zadd(
+            manager.running_slots_key,
+            {"crashed-worker": int(time.time() * 1000) + 200},
+        )
+        dispatched = threading.Event()
+
+        with patch.object(
+            manager,
+            "execute_task",
+            side_effect=lambda *args, **kwargs: dispatched.set(),
+        ):
+            manager.resume_queued_tasks()
+            self.assertFalse(dispatched.is_set())
+            manager.start_queue_dispatcher()
+            self.addCleanup(manager.stop_queue_dispatcher)
+            self.assertTrue(dispatched.wait(timeout=2))
+
+        self.assertEqual(manager.queue_size(), 0)
+        self.assertIsNone(manager.redis_client.zscore(
+            manager.running_slots_key, "crashed-worker"
         ))
 
     def test_simultaneous_managers_cannot_exceed_shared_capacity(self):
