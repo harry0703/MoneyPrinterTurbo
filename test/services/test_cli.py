@@ -17,6 +17,7 @@ import cli
 from app.config import config as app_config
 from app.models import schema as app_schema
 from app.models.schema import VideoTransitionMode
+from app.utils.logging_utils import force_utf8_console
 
 
 class TestCli(unittest.TestCase):
@@ -148,7 +149,7 @@ class TestCli(unittest.TestCase):
             patch("app.services.task.start", return_value=result),
             patch("app.utils.utils.get_uuid", return_value="task-unicode"),
         ):
-            cli._force_utf8_console()
+            force_utf8_console()
             code = cli.run_cli(
                 ["--video-subject", "Unicode test", "--stop-at", "script"]
             )
