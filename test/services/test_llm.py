@@ -1751,12 +1751,22 @@ class TestLiteLLMProvider(unittest.TestCase):
             patch.object(config, "is_running_in_container", return_value=True),
             patch.object(config, "_can_resolve_hostname", return_value=True),
         ):
-            openai_client, *_ = self._call_ollama_generate_response()
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
 
         self.assertEqual(
             openai_client.call_args.kwargs,
             {"api_key": "ollama", "base_url": "http://host.docker.internal:11434/v1"},
         )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_default_base_url_falls_back_to_container_gateway(self):
         """
@@ -1772,12 +1782,22 @@ class TestLiteLLMProvider(unittest.TestCase):
                 config, "get_container_default_gateway_ip", return_value="172.17.0.1"
             ),
         ):
-            openai_client, *_ = self._call_ollama_generate_response()
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
 
         self.assertEqual(
             openai_client.call_args.kwargs,
             {"api_key": "ollama", "base_url": "http://172.17.0.1:11434/v1"},
         )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_explicit_base_url_takes_precedence(self):
         """
@@ -1786,12 +1806,22 @@ class TestLiteLLMProvider(unittest.TestCase):
         self._use_ollama_provider(base_url="http://ollama:11434/v1")
 
         with patch.object(config, "is_running_in_container", return_value=True):
-            openai_client, *_ = self._call_ollama_generate_response()
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
 
         self.assertEqual(
             openai_client.call_args.kwargs,
             {"api_key": "ollama", "base_url": "http://ollama:11434/v1"},
         )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
