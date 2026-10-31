@@ -1009,6 +1009,96 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertEqual(get.call_count, 2)
             self.assertEqual((Path(temp_dir) / cached_name).read_bytes(), b"valid")
 
+    def test_corrupt_existing_cache_is_redownloaded_and_replaced(self):
+        """A stale nonempty cache entry must repair itself on the next request."""
+        url = "https://example.com/corrupt-cache.mp4"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        class FakeVideoFileClip:
+            fps = 24
+
+            def __init__(self, path):
+                self.duration = 0 if Path(path).read_bytes() == b"corrupt" else 1
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"corrupt")
+            with (
+                patch(
+                    "app.services.material.requests.get",
+                    return_value=_FakeVideoDownloadResponse(b"valid"),
+                ) as get,
+                patch("app.services.material.VideoFileClip", FakeVideoFileClip),
+                patch("app.services.material.material_upload._validate_video"),
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"valid")
+            get.assert_called_once()
+
+    def test_validation_service_failure_preserves_existing_cache(self):
+        """Validator outages must not turn a healthy cached asset into data loss."""
+        url = "https://example.com/signed-video.mp4?expires=soon"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        class FakeVideoFileClip:
+            duration = 1
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"healthy cached video")
+            with (
+                patch("app.services.material.requests.get") as get,
+                patch("app.services.material.VideoFileClip", FakeVideoFileClip),
+                patch(
+                    "app.services.material.material_upload._validate_video",
+                    side_effect=material.material_upload.MaterialServiceError(
+                        "FFmpeg material validation timed out"
+                    ),
+                ),
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"healthy cached video")
+            get.assert_not_called()
+
+    def test_metadata_probe_failure_preserves_existing_cache(self):
+        """MoviePy failing to start FFmpeg is not evidence of corrupt media."""
+        url = "https://example.com/signed-video.mp4?expires=soon"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"healthy cached video")
+            with (
+                patch("app.services.material.requests.get") as get,
+                patch(
+                    "app.services.material.VideoFileClip",
+                    side_effect=FileNotFoundError("MoviePy FFmpeg is unavailable"),
+                ),
+                patch(
+                    "app.services.material.material_upload._validate_video"
+                ) as validate,
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"healthy cached video")
+            validate.assert_called_once_with(str(cached_path))
+            get.assert_not_called()
+
     def test_nonfinite_video_metadata_is_not_published(self):
         class FakeVideoFileClip:
             duration = float("nan")

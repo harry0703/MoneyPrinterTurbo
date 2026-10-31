@@ -1176,6 +1176,47 @@ def _describe_download_progress(
     return f"{downloaded_mb:.1f} MB, {speed:.2f} MB/s"
 
 
+def _is_valid_video_file(video_path: str) -> bool:
+    """Return whether a video satisfies the cache publication contract."""
+    clip = None
+    try:
+        # Decode the complete stream first. Unlike MoviePy's metadata probe,
+        # this validator distinguishes confirmed bad media from an FFmpeg
+        # execution failure through MaterialUploadError/MaterialServiceError.
+        material_upload._validate_video(video_path)
+    except material_upload.MaterialServiceError:
+        raise
+    except material_upload.MaterialUploadError as exc:
+        logger.warning(f"invalid video file: {video_path} => {str(exc)}")
+        return False
+    except Exception as exc:
+        raise material_upload.MaterialServiceError(
+            "unexpected failure while validating video content"
+        ) from exc
+
+    try:
+        clip = VideoFileClip(video_path)
+        duration = clip.duration
+        fps = clip.fps
+        return bool(duration > 0 and fps > 0)
+    except Exception as exc:
+        # Complete decoding already succeeded. A MoviePy failure at this point
+        # is an unavailable metadata probe (for example, its configured FFmpeg
+        # executable is missing), not proof that the cached bytes are corrupt.
+        raise material_upload.MaterialServiceError(
+            "failed to probe video metadata"
+        ) from exc
+    finally:
+        if clip is not None:
+            try:
+                clip.close()
+            except Exception as close_error:
+                logger.warning(
+                    f"failed to close video clip: {video_path}, "
+                    f"error: {str(close_error)}"
+                )
+
+
 def save_video(video_url: str, save_dir: str = "") -> str:
     generation_progress.downloading()
     if not save_dir:
@@ -1191,10 +1232,52 @@ def save_video(video_url: str, save_dir: str = "") -> str:
     video_id = f"vid-{url_hash}"
     video_path = f"{save_dir}/{video_id}.mp4"
 
-    # if video already exists, return the path
-    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
-        logger.info(f"video already exists: {video_path}")
-        return video_path
+    # A nonempty path can still be a truncated file left by an older release,
+    # a manual copy, or storage corruption. Validate it before declaring a hit
+    # so the cache can repair itself instead of failing on every later render.
+    try:
+        cached_stat = os.stat(video_path)
+    except FileNotFoundError:
+        cached_stat = None
+    if cached_stat is not None and cached_stat.st_size > 0:
+        generation_progress.verifying()
+        try:
+            cached_video_is_valid = _is_valid_video_file(video_path)
+        except material_upload.MaterialServiceError as exc:
+            # Do not destroy the only local copy because the validation service
+            # is temporarily unavailable. Reusing the existing nonempty cache
+            # preserves the pre-validation behavior and avoids an unrecoverable
+            # download attempt when a signed source URL has expired.
+            logger.warning(
+                f"video cache validation unavailable; preserving existing file: "
+                f"{video_path} => {str(exc)}"
+            )
+            return video_path
+        if cached_video_is_valid:
+            logger.info(f"video already exists: {video_path}")
+            return video_path
+
+        logger.warning(f"discarding invalid cached video: {video_path}")
+        try:
+            current_stat = os.stat(video_path)
+            cached_identity = (
+                cached_stat.st_dev,
+                cached_stat.st_ino,
+                cached_stat.st_size,
+                cached_stat.st_mtime_ns,
+            )
+            current_identity = (
+                current_stat.st_dev,
+                current_stat.st_ino,
+                current_stat.st_size,
+                current_stat.st_mtime_ns,
+            )
+            # Do not delete a valid replacement published by another worker
+            # while this process was validating the stale entry.
+            if current_identity == cached_identity:
+                os.remove(video_path)
+        except FileNotFoundError:
+            pass
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
@@ -1257,30 +1340,9 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         if os.path.getsize(temp_path) == 0:
             return ""
 
-        clip = None
-        try:
-            clip = VideoFileClip(temp_path)
-            duration = clip.duration
-            fps = clip.fps
-            # Container duration and an initial frame do not prove the rest of
-            # a faststart MP4 arrived. Validate every video packet before a
-            # nonempty cache entry becomes reusable by later tasks.
-            generation_progress.verifying()
-            material_upload._validate_video(temp_path)
-            if not (duration > 0 and fps > 0):
-                logger.warning(f"invalid video file: {temp_path} => invalid duration or fps")
-                return ""
-        except Exception as e:
-            logger.warning(f"invalid video file: {temp_path} => {str(e)}")
+        generation_progress.verifying()
+        if not _is_valid_video_file(temp_path):
             return ""
-        finally:
-            if clip is not None:
-                try:
-                    clip.close()
-                except Exception as close_error:
-                    logger.warning(
-                        f"failed to close video clip: {temp_path}, error: {str(close_error)}"
-                    )
 
         os.replace(temp_path, video_path)
         temp_path = ""
