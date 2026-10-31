@@ -1,7 +1,7 @@
 @echo off
 setlocal
 set "CURRENT_DIR=%CD%"
-echo ***** Current directory: %CURRENT_DIR% *****
+echo ***** Current directory: "%CURRENT_DIR%" *****
 set "PYTHONPATH=%CURRENT_DIR%"
 
 rem set HF_ENDPOINT=https://hf-mirror.com
@@ -10,10 +10,11 @@ if not defined MPT_WEBUI_HOST set "MPT_WEBUI_HOST=127.0.0.1"
 if not defined MPT_WEBUI_PORT set "MPT_WEBUI_PORT=8501"
 
 set "STREAMLIT_CMD="
+rem Quote only the python.exe path: quoting the whole assignment leaves the path itself unquoted, and a ")" or "&" in it breaks this block.
 if exist "%CURRENT_DIR%\.venv\Scripts\python.exe" (
-    set "STREAMLIT_CMD="%CURRENT_DIR%\.venv\Scripts\python.exe" -m streamlit"
+    set STREAMLIT_CMD="%CURRENT_DIR%\.venv\Scripts\python.exe" -m streamlit
 ) else if exist "%CURRENT_DIR%\lib\python\python.exe" (
-    set "STREAMLIT_CMD="%CURRENT_DIR%\lib\python\python.exe" -m streamlit"
+    set STREAMLIT_CMD="%CURRENT_DIR%\lib\python\python.exe" -m streamlit
 ) else (
     where uv >nul 2>nul
     if not errorlevel 1 set "STREAMLIT_CMD=uv run streamlit"
