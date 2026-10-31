@@ -94,11 +94,9 @@ class TestVideoControllerHelpers(unittest.TestCase):
 
             async def run_lifespan():
                 async with asgi.application_lifespan(asgi.app):
-                    pass
+                    recover.assert_called_once_with()
 
             asyncio.run(run_lifespan())
-
-        recover.assert_called_once_with()
 
     def test_fastapi_startup_resumes_persisted_redis_queue(self):
         """A restart must dispatch queued Redis work before serving requests."""
@@ -116,11 +114,10 @@ class TestVideoControllerHelpers(unittest.TestCase):
         ):
             async def run_lifespan():
                 async with asgi.application_lifespan(asgi.app):
-                    pass
+                    self.assertEqual(check_queue.call_count, 2)
 
             asyncio.run(run_lifespan())
 
-        self.assertEqual(check_queue.call_count, 2)
         start_dispatcher.assert_called_once_with()
         stop_dispatcher.assert_called_once_with()
 

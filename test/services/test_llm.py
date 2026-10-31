@@ -1434,7 +1434,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def _patch_dashscope_generation(self, response):
         class FakeGenerationResponse(dict):
-            pass
+            """dict de resposta que também aceita atributos como status_code."""
 
         fake_response = FakeGenerationResponse(response)
         fake_response.status_code = response.get("status_code", 200)
@@ -1949,7 +1949,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["ollama_base_url"] = base_url
         config.app["ollama_model_name"] = "llama3"
 
-    def _assert_ollama_base_url(self, expected_base_url: str):
+    def _call_ollama_generate_response(self):
         class FakeCompletions:
             def create(self, **kwargs):
                 self.kwargs = kwargs
@@ -1968,9 +1968,22 @@ class TestLiteLLMProvider(unittest.TestCase):
         ):
             result = llm._generate_response("Say hello")
 
-        openai_client.assert_called_once_with(
-            api_key="ollama",
-            base_url=expected_base_url,
+        return openai_client, fake_completions, result
+
+    def test_ollama_default_base_url_uses_localhost_outside_container(self):
+        """
+        普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。
+        """
+        self._use_ollama_provider()
+
+        with patch.object(config, "is_running_in_container", return_value=False):
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://localhost:11434/v1"},
         )
         self.assertEqual(
             fake_completions.kwargs,
@@ -1980,15 +1993,6 @@ class TestLiteLLMProvider(unittest.TestCase):
             },
         )
         self.assertEqual(result, "hello\nollama")
-
-    def test_ollama_default_base_url_uses_localhost_outside_container(self):
-        """
-        普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。
-        """
-        self._use_ollama_provider()
-
-        with patch.object(config, "is_running_in_container", return_value=False):
-            self._assert_ollama_base_url("http://localhost:11434/v1")
 
     def test_ollama_default_base_url_uses_host_gateway_inside_container(self):
         """
@@ -2001,7 +2005,22 @@ class TestLiteLLMProvider(unittest.TestCase):
             patch.object(config, "is_running_in_container", return_value=True),
             patch.object(config, "_can_resolve_hostname", return_value=True),
         ):
-            self._assert_ollama_base_url("http://host.docker.internal:11434/v1")
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://host.docker.internal:11434/v1"},
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_default_base_url_falls_back_to_container_gateway(self):
         """
@@ -2017,7 +2036,22 @@ class TestLiteLLMProvider(unittest.TestCase):
                 config, "get_container_default_gateway_ip", return_value="172.17.0.1"
             ),
         ):
-            self._assert_ollama_base_url("http://172.17.0.1:11434/v1")
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://172.17.0.1:11434/v1"},
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_explicit_base_url_takes_precedence(self):
         """
@@ -2026,7 +2060,22 @@ class TestLiteLLMProvider(unittest.TestCase):
         self._use_ollama_provider(base_url="http://ollama:11434/v1")
 
         with patch.object(config, "is_running_in_container", return_value=True):
-            self._assert_ollama_base_url("http://ollama:11434/v1")
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://ollama:11434/v1"},
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
