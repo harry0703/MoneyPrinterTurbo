@@ -153,13 +153,9 @@ class TestConfigPersistence:
             with (
                 patch.object(config, "config_file", str(config_path)),
                 patch.object(config.logger, "error") as error_mock,
+                pytest.raises(toml.TomlDecodeError),
             ):
-                try:
-                    config.load_config()
-                except toml.TomlDecodeError:
-                    pass
-                else:
-                    raise AssertionError("expected invalid TOML to be rejected")
+                config.load_config()
 
             error_message = str(error_mock.call_args.args[0])
             assert str(config_path) in error_message
