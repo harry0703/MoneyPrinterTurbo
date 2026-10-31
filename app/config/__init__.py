@@ -1,11 +1,17 @@
 import sys
 
-from app.config import config
 from app.utils.logging_utils import (
     LOG_LEVELS,
     configure_terminal_logger,
+    force_utf8_console,
     set_logging_options,
 )
+
+# The API, the WebUI and the CLI all import this package first. Switch the
+# console streams before config.py logs anything while it loads.
+force_utf8_console()
+
+from app.config import config  # noqa: E402
 
 
 def __init_logger():
