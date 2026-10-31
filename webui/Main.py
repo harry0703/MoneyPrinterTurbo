@@ -7906,6 +7906,21 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
     return uploaded_bgm_file
 
 
+def _voice_rate_not_supported_help(tts_server, voice_name):
+    """
+    Return the help for the disabled speed selector when the provider has no
+    numeric speed parameter (Gemini TTS, MiMo TTS and VoxCPM), or "" when it
+    applies the speed. The disabled selector keeps the saved speed.
+    """
+    if tts_server == "gemini-tts" or (voice_name and voice.is_gemini_voice(voice_name)):
+        return tr("Gemini TTS Speed Not Supported")
+    if tts_server == "mimo-tts" or (voice_name and voice.is_mimo_voice(voice_name)):
+        return tr("MiMo TTS Speed Not Supported")
+    if tts_server == "voxcpm" or (voice_name and voice.is_voxcpm_voice(voice_name)):
+        return tr("VoxCPM Speed Not Supported")
+    return ""
+
+
 def _render_audio_settings(panel, params):
     """渲染音频设置并返回上传音频与当前配音模式。"""
     with panel:
@@ -8544,9 +8559,8 @@ def _render_audio_settings(panel, params):
                     )
 
                 with voice_control_cols[1]:
-                    is_voxcpm = bool(
-                        selected_tts_server == "voxcpm"
-                        or (voice_name and voice.is_voxcpm_voice(voice_name))
+                    speed_not_supported_help = _voice_rate_not_supported_help(
+                        selected_tts_server, voice_name
                     )
                     params.voice_rate = stable_selectbox(
                         tr("Voiceover Speed"),
@@ -8556,12 +8570,8 @@ def _render_audio_settings(panel, params):
                         ),
                         key="voice_rate_select",
                         format_func=lambda value: f"{value:.1f}×",
-                        help=(
-                            tr("VoxCPM Speed Not Supported")
-                            if is_voxcpm
-                            else tr("Voiceover Speed Help")
-                        ),
-                        disabled=is_voxcpm,
+                        help=speed_not_supported_help or tr("Voiceover Speed Help"),
+                        disabled=bool(speed_not_supported_help),
                     )
                 _set_runtime_config("ui", "voice_volume", params.voice_volume)
                 _set_runtime_config("ui", "voice_rate", params.voice_rate)
