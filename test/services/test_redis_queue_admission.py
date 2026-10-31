@@ -2,6 +2,7 @@
 
 import os
 import threading
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
@@ -32,31 +33,101 @@ class TestRedisQueueAdmission(unittest.TestCase):
         for manager in self.managers:
             manager.queue = queue
             self.addCleanup(manager.redis_client.close)
-        self.addCleanup(self.managers[0].redis_client.delete, queue)
+        self.addCleanup(
+            self.managers[0].redis_client.delete,
+            queue,
+            f"{queue}:running",
+        )
+
+    def test_running_limit_is_shared_across_manager_instances(self):
+        for manager in self.managers:
+            manager.max_concurrent_tasks = 1
+
+        with (
+            patch.object(self.managers[0], "execute_task") as first_execute,
+            patch.object(self.managers[1], "execute_task") as second_execute,
+        ):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                list(
+                    pool.map(
+                        lambda item: item[0].add_task(
+                            tm.start,
+                            task_id=item[1],
+                            params=VideoParams(video_subject="Coffee"),
+                        ),
+                        zip(self.managers, ("first", "second")),
+                    )
+                )
+
+        self.assertEqual(first_execute.call_count + second_execute.call_count, 1)
+        self.assertEqual(self.managers[0].redis_client.zcard(
+            self.managers[0].running_slots_key
+        ), 1)
+        self.assertEqual(self.managers[0].queue_size(), 1)
+
+    def test_expired_running_slot_is_reclaimed(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        manager.redis_client.zadd(manager.running_slots_key, {"crashed": 0})
+
+        with patch.object(manager, "execute_task") as execute_task:
+            manager.add_task(
+                tm.start,
+                task_id="replacement",
+                params=VideoParams(video_subject="Coffee"),
+            )
+
+        execute_task.assert_called_once()
+        self.assertIsNone(manager.redis_client.zscore(
+            manager.running_slots_key, "crashed"
+        ))
+
+    def test_restart_dispatcher_claims_queue_when_crashed_lease_expires(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        manager.enqueue({"func": tm.start, "args": (), "kwargs": {
+            "task_id": "persisted", "params": VideoParams(video_subject="Coffee")
+        }})
+        manager.redis_client.zadd(
+            manager.running_slots_key,
+            {"crashed-worker": int(time.time() * 1000) + 200},
+        )
+        dispatched = threading.Event()
+
+        with patch.object(
+            manager,
+            "execute_task",
+            side_effect=lambda *args, **kwargs: dispatched.set(),
+        ):
+            manager.resume_queued_tasks()
+            self.assertFalse(dispatched.is_set())
+            manager.start_queue_dispatcher()
+            self.addCleanup(manager.stop_queue_dispatcher)
+            self.assertTrue(dispatched.wait(timeout=2))
+
+        self.assertEqual(manager.queue_size(), 0)
+        self.assertIsNone(manager.redis_client.zscore(
+            manager.running_slots_key, "crashed-worker"
+        ))
 
     def test_simultaneous_managers_cannot_exceed_shared_capacity(self):
-        # Hold both callers after their real LLEN reads. Their local locks are
-        # independent, as they are in separate API processes sharing Redis.
+        # Start both process-local managers together without coupling the test
+        # to a particular Redis command inside add_task(). The Lua admission
+        # script is the synchronization boundary now, so mocking queue_size()
+        # would only test an obsolete implementation detail.
         barrier = threading.Barrier(2)
 
         def add(manager):
-            original = manager.queue_size
-
-            def synchronized_size():
-                size = original()
-                barrier.wait(timeout=5)
-                return size
-
-            with patch.object(manager, "queue_size", synchronized_size):
-                try:
-                    manager.add_task(
-                        tm.start,
-                        task_id=str(uuid4()),
-                        params=VideoParams(video_subject="Coffee"),
-                    )
-                except TaskQueueFullError:
-                    return "rejected"
-                return "queued"
+            barrier.wait(timeout=5)
+            try:
+                manager.add_task(
+                    tm.start,
+                    task_id=str(uuid4()),
+                    params=VideoParams(video_subject="Coffee"),
+                )
+            except TaskQueueFullError:
+                return "rejected"
+            return "queued"
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(add, self.managers))
