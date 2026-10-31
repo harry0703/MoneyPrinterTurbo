@@ -1040,6 +1040,40 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertEqual(cached_path.read_bytes(), b"valid")
             get.assert_called_once()
 
+    def test_validation_service_failure_preserves_existing_cache(self):
+        """Validator outages must not turn a healthy cached asset into data loss."""
+        url = "https://example.com/signed-video.mp4?expires=soon"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        class FakeVideoFileClip:
+            duration = 1
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"healthy cached video")
+            with (
+                patch("app.services.material.requests.get") as get,
+                patch("app.services.material.VideoFileClip", FakeVideoFileClip),
+                patch(
+                    "app.services.material.material_upload._validate_video",
+                    side_effect=material.material_upload.MaterialServiceError(
+                        "FFmpeg material validation timed out"
+                    ),
+                ),
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"healthy cached video")
+            get.assert_not_called()
+
     def test_nonfinite_video_metadata_is_not_published(self):
         class FakeVideoFileClip:
             duration = float("nan")

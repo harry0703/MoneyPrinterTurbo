@@ -1187,6 +1187,11 @@ def _is_valid_video_file(video_path: str) -> bool:
         # cache-hit validation equivalent to validation before publication.
         material_upload._validate_video(video_path)
         return bool(duration > 0 and fps > 0)
+    except material_upload.MaterialServiceError:
+        # A timeout or inability to start FFmpeg says nothing about the file's
+        # contents. Let callers distinguish an unavailable validator from a
+        # video that was actually confirmed invalid.
+        raise
     except Exception as exc:
         logger.warning(f"invalid video file: {video_path} => {str(exc)}")
         return False
@@ -1225,7 +1230,19 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         cached_stat = None
     if cached_stat is not None and cached_stat.st_size > 0:
         generation_progress.verifying()
-        if _is_valid_video_file(video_path):
+        try:
+            cached_video_is_valid = _is_valid_video_file(video_path)
+        except material_upload.MaterialServiceError as exc:
+            # Do not destroy the only local copy because the validation service
+            # is temporarily unavailable. Reusing the existing nonempty cache
+            # preserves the pre-validation behavior and avoids an unrecoverable
+            # download attempt when a signed source URL has expired.
+            logger.warning(
+                f"video cache validation unavailable; preserving existing file: "
+                f"{video_path} => {str(exc)}"
+            )
+            return video_path
+        if cached_video_is_valid:
             logger.info(f"video already exists: {video_path}")
             return video_path
 
