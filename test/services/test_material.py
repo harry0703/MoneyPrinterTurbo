@@ -1074,6 +1074,31 @@ class TestMaterialTlsVerification(unittest.TestCase):
             self.assertEqual(cached_path.read_bytes(), b"healthy cached video")
             get.assert_not_called()
 
+    def test_metadata_probe_failure_preserves_existing_cache(self):
+        """MoviePy failing to start FFmpeg is not evidence of corrupt media."""
+        url = "https://example.com/signed-video.mp4?expires=soon"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"healthy cached video")
+            with (
+                patch("app.services.material.requests.get") as get,
+                patch(
+                    "app.services.material.VideoFileClip",
+                    side_effect=FileNotFoundError("MoviePy FFmpeg is unavailable"),
+                ),
+                patch(
+                    "app.services.material.material_upload._validate_video"
+                ) as validate,
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"healthy cached video")
+            validate.assert_called_once_with(str(cached_path))
+            get.assert_not_called()
+
     def test_nonfinite_video_metadata_is_not_published(self):
         class FakeVideoFileClip:
             duration = float("nan")

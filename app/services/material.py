@@ -1180,21 +1180,32 @@ def _is_valid_video_file(video_path: str) -> bool:
     """Return whether a video satisfies the cache publication contract."""
     clip = None
     try:
+        # Decode the complete stream first. Unlike MoviePy's metadata probe,
+        # this validator distinguishes confirmed bad media from an FFmpeg
+        # execution failure through MaterialUploadError/MaterialServiceError.
+        material_upload._validate_video(video_path)
+    except material_upload.MaterialServiceError:
+        raise
+    except material_upload.MaterialUploadError as exc:
+        logger.warning(f"invalid video file: {video_path} => {str(exc)}")
+        return False
+    except Exception as exc:
+        raise material_upload.MaterialServiceError(
+            "unexpected failure while validating video content"
+        ) from exc
+
+    try:
         clip = VideoFileClip(video_path)
         duration = clip.duration
         fps = clip.fps
-        # A readable header is not enough for a truncated faststart MP4. Keep
-        # cache-hit validation equivalent to validation before publication.
-        material_upload._validate_video(video_path)
         return bool(duration > 0 and fps > 0)
-    except material_upload.MaterialServiceError:
-        # A timeout or inability to start FFmpeg says nothing about the file's
-        # contents. Let callers distinguish an unavailable validator from a
-        # video that was actually confirmed invalid.
-        raise
     except Exception as exc:
-        logger.warning(f"invalid video file: {video_path} => {str(exc)}")
-        return False
+        # Complete decoding already succeeded. A MoviePy failure at this point
+        # is an unavailable metadata probe (for example, its configured FFmpeg
+        # executable is missing), not proof that the cached bytes are corrupt.
+        raise material_upload.MaterialServiceError(
+            "failed to probe video metadata"
+        ) from exc
     finally:
         if clip is not None:
             try:
