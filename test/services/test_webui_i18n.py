@@ -190,6 +190,8 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Stop Tracking LoomLoom Run Help",
         "Unavailable AI Video Model",
         "VoxCPM Speed Not Supported",
+        "Gemini TTS Speed Not Supported",
+        "MiMo TTS Speed Not Supported",
         "VoxCPM Reference Audio",
         "VoxCPM Reference Audio Help",
         "VoxCPM Reference Audio Notice",

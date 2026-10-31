@@ -637,6 +637,23 @@ def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
     return _publish_tts_ffmpeg_output(command, output_file, "silent narration encode")
 
 
+def _warn_ignored_voice_rate(provider: str, voice_rate: float) -> None:
+    """
+    Gemini TTS, MiMo TTS and VoxCPM have no numeric speed parameter, so
+    voice_rate is not sent to them. Warn when a speed other than 1.0 is
+    requested instead of ignoring it silently.
+    """
+    try:
+        ignored = float(voice_rate) != 1.0
+    except (TypeError, ValueError, OverflowError):
+        return
+    if ignored:
+        logger.warning(
+            f"{provider} does not support numeric speed adjustment; "
+            f"voice_rate {voice_rate} is ignored"
+        )
+
+
 def _single_tts(
     text: str,
     voice_name: str,
@@ -688,6 +705,7 @@ def _single_tts(
         # 格式: gemini:voice-Style；也继续兼容旧的 gemini:voice-Gender。
         voice = parse_gemini_voice_name(voice_name)
         if voice:
+            _warn_ignored_voice_rate("Gemini TTS", voice_rate)
             return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
@@ -700,6 +718,7 @@ def _single_tts(
         if len(parts) >= 2:
             voice_with_gender = parts[1]
             voice = voice_with_gender.split("-")[0]
+            _warn_ignored_voice_rate("MiMo TTS", voice_rate)
             return mimo_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid mimo voice name format: {voice_name}")
@@ -754,6 +773,7 @@ def _single_tts(
     elif is_voxcpm_voice(voice_name):
         voice_id = voice_name.split(":", 1)[1].strip()
         if voice_id:
+            _warn_ignored_voice_rate("VoxCPM", voice_rate)
             if voxcpm_reference_audio is None:
                 return voxcpm_tts(text, voice_id, voice_file, voice_rate, voice_volume)
             return voxcpm_tts(
