@@ -49,11 +49,16 @@ async def application_lifespan(_: FastAPI):
     from app.controllers.manager.redis_manager import RedisTaskManager
     from app.controllers.v1 import video as video_controller
 
+    redis_task_manager = None
     if isinstance(video_controller.task_manager, RedisTaskManager):
-        video_controller.task_manager.resume_queued_tasks()
+        redis_task_manager = video_controller.task_manager
+        redis_task_manager.resume_queued_tasks()
+        redis_task_manager.start_queue_dispatcher()
     try:
         yield
     finally:
+        if redis_task_manager is not None:
+            redis_task_manager.stop_queue_dispatcher()
         logger.info("shutdown event")
 
 
@@ -74,11 +79,16 @@ def validation_exception_handler(request: Request, e: RequestValidationError):
             Exception: str,
         },
     )
+    # Describe the first rejected field instead of always claiming a missing
+    # field: out-of-range values and malformed JSON are not "field required".
+    message = "invalid request parameters"
+    if errors and isinstance(errors[0], dict):
+        location = ".".join(str(part) for part in errors[0].get("loc") or ())
+        detail = errors[0].get("msg") or message
+        message = f"{location}: {detail}" if location else str(detail)
     return JSONResponse(
         status_code=400,
-        content=utils.get_response(
-            status=400, data=errors, message="field required"
-        ),
+        content=utils.get_response(status=400, data=errors, message=message),
     )
 
 

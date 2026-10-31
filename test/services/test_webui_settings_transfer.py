@@ -158,6 +158,7 @@ def test_settings_preset_round_trip_preserves_generation_settings():
         video_subject="a cat",
         video_aspect="9:16",
         video_fit_mode="contain",
+        image_motion="static",
         font_size=48,
         stroke_width=2.5,
         voice_volume=0.8,
@@ -171,6 +172,7 @@ def test_settings_preset_round_trip_preserves_generation_settings():
     assert restored["video_subject"] == "a cat"
     assert restored["video_aspect"] == "9:16"
     assert restored["video_fit_mode"] == "contain"
+    assert restored["image_motion"] == "static"
     assert restored["font_size"] == 48
     assert restored["stroke_width"] == 2.5
     assert restored["voice_volume"] == 0.8

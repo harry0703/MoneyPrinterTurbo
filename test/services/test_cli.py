@@ -17,6 +17,7 @@ import cli
 from app.config import config as app_config
 from app.models import schema as app_schema
 from app.models.schema import VideoTransitionMode
+from app.utils.logging_utils import force_utf8_console
 
 
 class TestCli(unittest.TestCase):
@@ -148,7 +149,7 @@ class TestCli(unittest.TestCase):
             patch("app.services.task.start", return_value=result),
             patch("app.utils.utils.get_uuid", return_value="task-unicode"),
         ):
-            cli._force_utf8_console()
+            force_utf8_console()
             code = cli.run_cli(
                 ["--video-subject", "Unicode test", "--stop-at", "script"]
             )
@@ -191,6 +192,31 @@ class TestCli(unittest.TestCase):
         print_mock.assert_not_called()
         self.assertIn("stage=audio", log_error.call_args.args[0])
         self.assertIn("TTS request timed out", log_error.call_args.args[0])
+
+    def test_run_cli_prints_completed_videos_when_a_batch_fails(self):
+        """Partial video results remain machine-readable with a failed exit code."""
+        failure = {
+            "task_id": "partial-cli",
+            "state": -1,
+            "progress": 75,
+            "failed_stage": "video",
+            "failed_video_index": 2,
+            "error": "OSError: encoder failed",
+            "videos": ["final-1.mp4"],
+            "combined_videos": ["combined-1.mp4"],
+        }
+        with (
+            patch("app.services.task.start", return_value=failure),
+            patch("app.utils.utils.get_uuid", return_value="partial-cli"),
+            patch.object(cli, "prepare_cli_files"),
+            patch("builtins.print") as print_mock,
+        ):
+            code = cli.run_cli(["--video-subject", "Coffee", "--video-count", "3"])
+        self.assertEqual(code, 1)
+        print_mock.assert_called_once()
+        self.assertEqual(json.loads(print_mock.call_args.args[0]), {
+            "task_id": "partial-cli", "result": failure,
+        })
 
     def test_subtitle_enabled_by_default(self):
         args = cli.parse_args(["--video-subject", "test"])

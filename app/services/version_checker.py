@@ -8,6 +8,8 @@ from typing import Final
 
 import requests
 from loguru import logger
+
+from app.utils.request_logging import trace_http_call
 from packaging.version import InvalidVersion, Version
 
 
@@ -54,7 +56,8 @@ def get_available_update(current_version: str) -> str | None:
         return None
 
     try:
-        response = requests.get(
+        response = trace_http_call(
+            "GET", requests.get,
             LATEST_RELEASE_API_URL,
             headers=RELEASE_CHECK_HEADERS,
             timeout=RELEASE_CHECK_TIMEOUT,

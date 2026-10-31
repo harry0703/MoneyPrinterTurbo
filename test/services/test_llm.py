@@ -73,6 +73,21 @@ class TestScriptPromptOptions(unittest.TestCase):
         with self.assertRaises(ValueError):
             llm._normalize_text_response("<think>hidden reasoning", "minimax")
 
+    def test_normalize_text_response_removes_reasoning_before_unopened_close(self):
+        """
+        起始 `<think>` 位于对话模板中时，模型输出只包含推理和闭合标签。
+        闭合标签之前的推理不能进入脚本；只有推理时同样按空响应处理。
+        """
+        result = llm._normalize_text_response(
+            "The user wants a sea script. Let me plan.\n</think>\n\n"
+            "The ocean is vast.\n\nIt covers our planet.",
+            "deepseek",
+        )
+
+        self.assertEqual(result, "The ocean is vast.\n\nIt covers our planet.")
+        with self.assertRaises(ValueError):
+            llm._normalize_text_response("hidden reasoning\n</THINK>\n", "ollama")
+
     def test_build_script_prompt_appends_advanced_requirements(self):
         """
         高级文案要求只作为附加约束，不替换默认系统提示词。
@@ -301,6 +316,13 @@ class TestScriptPromptOptions(unittest.TestCase):
 
 
 class TestLLMConnection(unittest.TestCase):
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
     def test_connection_sends_one_minimal_request(self):
         """连接测试只发送一次固定最小请求，不触发脚本生成重试。"""
         with (
@@ -309,8 +331,59 @@ class TestLLMConnection(unittest.TestCase):
         ):
             result = llm.test_connection()
 
-        generate.assert_called_once_with(prompt="Reply with exactly: OK")
+        generate.assert_called_once_with(
+            prompt="Reply with exactly: OK",
+            request_timeout=llm.LLM_CONNECTION_TEST_TIMEOUT_SECONDS,
+            max_retries=llm.LLM_CONNECTION_TEST_MAX_RETRIES,
+        )
         self.assertEqual(result, (True, "", 0.25))
+
+    def test_connection_applies_bounded_timeout_and_disables_sdk_retries(self):
+        """连接测试的短超时与禁用重试必须作用到实际 SDK 客户端（issue #1642）。"""
+        config.app.update(
+            {
+                "llm_provider": "openai",
+                "openai_api_key": "test-key",
+                "openai_model_name": "test-model",
+                "openai_base_url": "https://example.test/v1",
+            }
+        )
+        captured = {}
+
+        def create(**kwargs):
+            captured.update(kwargs)
+            return types.SimpleNamespace(
+                chat=types.SimpleNamespace(
+                    completions=types.SimpleNamespace(create=lambda **kw: None)
+                )
+            )
+
+        with patch.object(llm, "OpenAI", side_effect=create):
+            llm.test_connection()
+
+        self.assertEqual(
+            captured.get("timeout"), llm.LLM_CONNECTION_TEST_TIMEOUT_SECONDS
+        )
+        self.assertEqual(
+            captured.get("max_retries"), llm.LLM_CONNECTION_TEST_MAX_RETRIES
+        )
+
+    def test_connection_failure_hint_for_timeout_errors(self):
+        """超时/连接失败要附上排查方向，而不是只显示 SDK 原始文案。"""
+        with (
+            patch.object(
+                llm, "_generate_response", return_value="Error: Request timed out."
+            ),
+            patch.object(llm, "perf_counter", side_effect=[0.0, 5.0]),
+        ):
+            ok, error, elapsed = llm.test_connection()
+
+        self.assertFalse(ok)
+        self.assertEqual(elapsed, 5.0)
+        self.assertIn("Request timed out.", error)
+        self.assertIn(f"{llm.LLM_CONNECTION_TEST_TIMEOUT_SECONDS:.0f}s", error)
+        self.assertIn("reachable", error)
+        self.assertIn("proxy", error)
 
     def test_connection_returns_provider_error(self):
         """Provider 返回错误时应保留可诊断信息，并报告本次请求耗时。"""
@@ -335,6 +408,106 @@ class TestLLMConnection(unittest.TestCase):
             result = llm.test_connection()
 
         self.assertEqual(result, (False, "LLM returned an empty response", 1.0))
+
+
+class TestGenerateResponseTransportLimits(unittest.TestCase):
+    def setUp(self):
+        self.original_app_config = dict(config.app)
+
+    def tearDown(self):
+        config.app.clear()
+        config.app.update(self.original_app_config)
+
+    @staticmethod
+    def _fake_client():
+        """返回一个最小可用客户端，让 `_generate_response` 走完请求分支。"""
+        message = types.SimpleNamespace(content="ok")
+        choice = types.SimpleNamespace(message=message)
+        completion = types.SimpleNamespace(choices=[choice])
+        return types.SimpleNamespace(
+            chat=types.SimpleNamespace(
+                completions=types.SimpleNamespace(create=lambda **kwargs: completion)
+            )
+        )
+
+    def test_transport_limits_forwarded_to_openai_compatible_clients(self):
+        """显式传入的超时/重试约束必须作用到全部 OpenAI 兼容客户端。"""
+        cases = [
+            (
+                "openai",
+                "OpenAI",
+                {
+                    "openai_api_key": "test-key",
+                    "openai_model_name": "test-model",
+                    "openai_base_url": "https://example.test/v1",
+                },
+            ),
+            (
+                "azure",
+                "AzureOpenAI",
+                {
+                    "azure_api_key": "test-key",
+                    "azure_model_name": "test-model",
+                    "azure_base_url": "https://example.test",
+                    "azure_api_version": "2024-02-15-preview",
+                },
+            ),
+            (
+                "cloudflare",
+                "OpenAI",
+                {
+                    "cloudflare_api_key": "test-key",
+                    "cloudflare_model_name": "test-model",
+                    "cloudflare_account_id": "test-account",
+                    "cloudflare_gateway_id": "test-gateway",
+                },
+            ),
+        ]
+        for provider, constructor, settings in cases:
+            with self.subTest(provider=provider):
+                config.app.update({"llm_provider": provider, **settings})
+                with (
+                    patch.object(
+                        llm,
+                        constructor,
+                        return_value=self._fake_client(),
+                    ) as client_constructor,
+                    patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+                ):
+                    result = llm._generate_response(
+                        "hello",
+                        request_timeout=12.5,
+                        max_retries=0,
+                    )
+
+                self.assertEqual(result, "ok", result)
+                kwargs = client_constructor.call_args.kwargs
+                self.assertEqual(kwargs.get("timeout"), 12.5)
+                self.assertEqual(kwargs.get("max_retries"), 0)
+
+    def test_default_generation_keeps_sdk_defaults(self):
+        """不传约束时客户端构造参数保持原样，生成链路行为不变。"""
+        config.app.update(
+            {
+                "llm_provider": "openai",
+                "openai_api_key": "test-key",
+                "openai_model_name": "test-model",
+                "openai_base_url": "https://example.test/v1",
+            }
+        )
+        with (
+            patch.object(
+                llm, "OpenAI", return_value=self._fake_client()
+            ) as client_constructor,
+            patch.object(llm, "ChatCompletion", types.SimpleNamespace),
+        ):
+            result = llm._generate_response("hello")
+
+        self.assertEqual(result, "ok", result)
+        client_constructor.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://example.test/v1",
+        )
 
 
 class TestLiteLLMProvider(unittest.TestCase):
@@ -414,6 +587,53 @@ class TestLiteLLMProvider(unittest.TestCase):
             "https://y-api.bestvirtualgoods.com/app/keys",
         )
         self.assertEqual(yapi.model_docs_url, "https://y-api.bestvirtualgoods.com/models")
+        opper = get_llm_provider("opper")
+        self.assertEqual(opper.default_model, "gpt-5.4-mini")
+        self.assertEqual(opper.default_base_url, "https://api.opper.ai/v3/compat")
+        self.assertEqual(opper.adapter, "openai_compatible")
+        self.assertTrue(opper.requires_api_key)
+        self.assertEqual(opper.api_key_url, "https://platform.opper.ai")
+        self.assertEqual(opper.model_docs_url, "https://opper.ai/models")
+        onomeo = get_llm_provider("onomeo")
+        self.assertEqual(onomeo.default_model, "auto")
+        self.assertEqual(onomeo.default_base_url, "https://onomeo.com/v1")
+        self.assertEqual(onomeo.adapter, "openai_compatible")
+        self.assertTrue(onomeo.requires_api_key)
+        self.assertEqual(onomeo.api_key_url, "https://onomeo.com/dashboard")
+        self.assertEqual(onomeo.model_docs_url, "https://onomeo.com/models")
+        empiriolabs = get_llm_provider("empiriolabs")
+        self.assertEqual(empiriolabs.default_model, "qwen3-8-flash")
+        self.assertEqual(empiriolabs.default_base_url, "https://api.empiriolabs.ai/v1")
+        self.assertEqual(empiriolabs.adapter, "openai_compatible")
+        self.assertTrue(empiriolabs.requires_api_key)
+        self.assertEqual(
+            empiriolabs.api_key_url,
+            "https://platform.empiriolabs.ai/dashboard/api-keys",
+        )
+        self.assertEqual(
+            empiriolabs.model_docs_url,
+            "https://docs.empiriolabs.ai/models-pricing",
+        )
+        runcrate = get_llm_provider("runcrate")
+        self.assertEqual(runcrate.default_model, "deepseek-ai/DeepSeek-V4.1-Flash")
+        self.assertEqual(runcrate.default_base_url, "https://api.runcrate.ai/v1")
+        self.assertEqual(runcrate.adapter, "openai_compatible")
+        self.assertTrue(runcrate.requires_api_key)
+        self.assertEqual(
+            runcrate.api_key_url,
+            "https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        )
+        self.assertEqual(
+            runcrate.model_docs_url,
+            "https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        )
+        cloudgpu = get_llm_provider("cloudgpu")
+        self.assertEqual(cloudgpu.default_model, "deepseek-v4-flash")
+        self.assertEqual(cloudgpu.default_base_url, "https://cloudgpu.app/v1")
+        self.assertEqual(cloudgpu.adapter, "openai_compatible")
+        self.assertTrue(cloudgpu.requires_api_key)
+        self.assertEqual(cloudgpu.api_key_url, "https://cloudgpu.app")
+        self.assertEqual(cloudgpu.model_docs_url, "https://cloudgpu.app/v1/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -462,9 +682,13 @@ class TestLiteLLMProvider(unittest.TestCase):
             [provider.provider_id for provider in LLM_PROVIDER_REGISTRY],
             [
                 "moonshot",
+                "kimi_code",
                 "openai",
+                "openai_codex",
+                "openai_chatgpt",
                 "anthropic",
                 "gemini",
+                "muse_spark",
                 "deepseek",
                 "qwen",
                 "azure",
@@ -473,6 +697,8 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "minimax",
                 "mimo",
                 "iflytek",
+                "jalapeno",
+                "infistar",
                 "shengsuanyun",
                 "apimart",
                 "cloudflare",
@@ -487,6 +713,11 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "requesty",
                 "futureinfra",
                 "yapi",
+                "opper",
+                "onomeo",
+                "empiriolabs",
+                "runcrate",
+                "cloudgpu",
                 "ollama",
                 "claude_code",
                 "oneapi",
@@ -519,6 +750,14 @@ class TestLiteLLMProvider(unittest.TestCase):
         )
         self.assertEqual(apimart.default_model, "gpt-5.6-terra")
         self.assertEqual(apimart.default_base_url, "https://api.apimart.ai/v1")
+        muse_spark = get_llm_provider("muse_spark")
+        self.assertEqual(
+            muse_spark.api_key_url,
+            "https://dev.meta.ai/docs/authentication",
+        )
+        self.assertEqual(muse_spark.default_model, "muse-spark-1.3")
+        self.assertEqual(muse_spark.default_base_url, "https://api.meta.ai/v1")
+        self.assertEqual(muse_spark.adapter, "openai_compatible")
         openrouter = get_llm_provider("openrouter")
         self.assertEqual(
             openrouter.api_key_url,
@@ -1125,6 +1364,21 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertNotIn("mypassword", result)
         self.assertNotIn("secret-key", result)
         self.assertNotIn("secret-token", result)
+
+    def test_sanitize_error_message_redacts_token_only_url_userinfo(self):
+        # Gateways commonly accept the API token as the URL username with no
+        # password, e.g. https://<token>@gateway/v1.
+        message = (
+            "Connection error to https://sk-live-SECRET@gw.example.com/v1/chat; "
+            "see https://gw.example.com/status?page=1 or ops@example.com"
+        )
+
+        result = llm._sanitize_error_message(message)
+
+        self.assertIn("https://***:***@gw.example.com/v1/chat", result)
+        self.assertNotIn("sk-live-SECRET", result)
+        self.assertIn("https://gw.example.com/status?page=1", result)
+        self.assertIn("ops@example.com", result)
 
     def test_openai_provider_error_redacts_embedded_base_url_credentials(self):
         """
@@ -2428,12 +2682,22 @@ class TestSocialMetadata(unittest.TestCase):
 
         self.assertEqual(tags, ["#fyp", "#trending"])
 
+    def test_normalize_hashtags_from_string_splits_cjk_separators(self):
+        tags = llm._normalize_hashtags("#旅行，#美食、#日常；#東京#グルメ", count=5)
+
+        self.assertEqual(tags, ["#旅行", "#美食", "#日常", "#東京", "#グルメ"])
+
     def test_normalize_hashtags_from_list_keeps_unicode_letters(self):
         tags = llm._normalize_hashtags(
             ["上海 旅行", "#việt nam", "  ", "@bad!chars"], count=5
         )
 
         self.assertEqual(tags, ["#上海旅行", "#việtnam", "#badchars"])
+
+    def test_normalize_hashtags_keeps_combining_marks(self):
+        tags = llm._normalize_hashtags(["#भारत", "#বাংলা", "#தமிழ்", "#ท่องเที่ยว"], count=5)
+
+        self.assertEqual(tags, ["#भारत", "#বাংলা", "#தமிழ்", "#ท่องเที่ยว"])
 
     def test_parse_social_metadata_recovers_embedded_json(self):
         raw = 'Sure: {"title":"T","caption":"C","hashtags":["#x"]} thanks'

@@ -95,14 +95,6 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO"><img src="docs/sponsors/fluxionai-logo.png" alt="Fluxion AI" width="120"></a>
-    </td>
-    <td align="left">
-      本プロジェクトを支援してくださっている <a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">Fluxion AI</a> に感謝します！ <strong>世界の主要 AI モデルへのアクセスと管理を、ひとつの窓口で。</strong>個人開発者、技術チーム、企業向けに、統一 API を通じて主要モデルを利用できるプラットフォームです。複数の接続経路を動的に切り替えることで可用性を高め、モデルの性能、応答時間、利用料金を透明に確認できます。モデルや接続経路によって、<strong>API 利用コストを公式料金や基準価格より 40%～98% 削減できます</strong>。<a href="https://fluxionai.space/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=MONEYPRINTERTURBO">専用リンクから登録</a>すると、<strong>3 米ドル分の API クレジット</strong>を受け取れます。
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>
@@ -156,7 +148,7 @@
 
 - [x] AI による**多言語動画台本**の生成・リライトに加え、独自台本の利用にも対応
 - [x] [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)、[OpenAI](https://platform.openai.com/api-keys)、[Anthropic Claude](https://platform.claude.com/settings/keys)、[Google Gemini](https://aistudio.google.com/app/apikey)、[DeepSeek](https://platform.deepseek.com/api_keys)、[Alibaba Cloud Qwen](https://qwen.ai/apiplatform)、[Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)、[ByteDance VolcEngine Ark](https://console.volcengine.com/ark)、[xAI Grok](https://console.x.ai/)、[MiniMax](https://platform.minimax.io/)、[Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call) などの主要なモデルサービスに対応
-- [x] [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[API Route](https://www.api-route.com/)、[Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO)、[Ollama](https://ollama.com/)、[Claude Code サブスクリプション](https://code.claude.com/docs)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys)、[Pollinations AI](https://enter.pollinations.ai/) などの統合ゲートウェイ、集約サービス、ローカルランタイムに対応
+- [x] [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[API Route](https://www.api-route.com/)、[Ollama](https://ollama.com/)、[Claude Code サブスクリプション](https://code.claude.com/docs)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys)、[Pollinations AI](https://enter.pollinations.ai/) などの統合ゲートウェイ、集約サービス、ローカルランタイムに対応
 
 ### 動画・画像素材
 
@@ -240,8 +232,9 @@
 ### おすすめの手順
 
 - 手動でのインストールや設定をしたくない場合: AI エージェントで動画を生成する
+- Python がインストール済みで、すぐに使いたい場合: [pip で公式パッケージをインストール](#pip-で公式パッケージをインストール)
 - Windows ユーザー: まずはワンクリックパッケージを使うのが最短で試せます
-- macOS / Linux ユーザー: ローカル環境の主要な手順として `uv` を使用します
+- ソースコードからのデプロイや開発: `uv` で環境と依存関係を管理します
 - より独立した実行環境が欲しい場合: Docker でデプロイします
 
 ### AI エージェントで動画を生成する
@@ -279,7 +272,57 @@ GitHub Releases から最新の Windows 用ワンクリックパッケージを�
 
 ## インストールとデプロイ 📥
 
-### 前提条件
+### pip で公式パッケージをインストール
+
+公式の PyPI パッケージ名は **[mpt](https://pypi.org/project/mpt/)** で、`harry0703` が管理しています。
+PyPI 上の `MoneyPrinterTurbo` という名前のパッケージは第三者が管理しています。
+
+リポジトリのクローンは不要です。Python 3.11 以降が必要で、Python 3.11 を推奨します。
+
+**① 仮想環境を作成して有効化する**
+
+macOS / Linux:
+
+```shell
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**② インストールして起動する**
+
+```shell
+python -m pip install mpt
+mpt webui
+```
+
+WebUI がブラウザーで自動的に開きます。
+ポートを指定し、ブラウザーを開かずに実行する場合は `mpt webui --port 8503 --headless` を使用してください。
+CLI での動画生成については `mpt cli --help` を参照してください。
+
+**③ サービスを設定し、保存先を確認する**
+
+初回起動時に `config.toml` が自動作成されます。
+オンラインのモデル、素材、音声サービスを利用する前に、WebUI の基本設定で必要な API キーを入力してください。
+インストール版の設定と生成ファイルは、既定では以下の場所に保存されます:
+
+| OS | データディレクトリ |
+| --- | --- |
+| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
+| Linux | `~/.local/share/MoneyPrinterTurbo` または `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+
+起動前に `MPT_HOME` を設定すると、保存先を変更できます。
+生成された動画は、そのディレクトリ内の `storage/tasks` に保存されます。
+更新するには仮想環境を有効化して `python -m pip install --upgrade mpt` を実行してください。
+
+### ソースコードからデプロイする場合の前提条件
 
 - ローカル環境へのデプロイには Python 3.11 以降が必要です
 - Windows では、プロジェクトのパスに非 ASCII 文字、特殊文字、スペースを含めないでください

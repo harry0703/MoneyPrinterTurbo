@@ -22,6 +22,39 @@ PROVIDER_TIPS_PREFIXES = (
 # 避免把完全相同的品牌名复制十份，也避免长说明后续只更新部分语言。
 ENGLISH_FALLBACK_KEYS = frozenset(
     {
+        "Generation Waiting In Queue",
+        "Generation Preparing",
+        "Generation Writing Script",
+        "Generation Preparing Terms",
+        "Generation Preparing Audio",
+        "Generation Preparing Subtitles",
+        "Generation Preparing Materials",
+        "Generation Submitting",
+        "Generation Checking",
+        "Generation Remote Queued",
+        "Generation Remote Running",
+        "Generation Remote Completed",
+        "Generation Downloading",
+        "Generation Verifying",
+        "Generation Rendering",
+        "Generation Elapsed",
+        "Generation Long Wait Hint",
+        "Generation Poll Retry Hint",
+        "Generation Last Checked",
+        "Generation Downloaded",
+        "Generation Remote Task",
+        "Generation Existing Task Hint",
+        "Generation Status Unavailable",
+        "Generation Task Unavailable",
+        "Generation Untracked Worker Hint",
+        "Stop Tracking Generation",
+        "Diagnostic Logging",
+        "Diagnostic Logging Help",
+        "Log Level",
+        "Trace API Requests",
+        "Trace API Requests Help",
+        "Apply Logging Settings",
+        "Logging Settings Applied",
         "AI Video Quote Required",
         "AI Video Quote Retained For Retry",
         "AI Video Quote Estimate Incomplete",
@@ -53,7 +86,42 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.requesty",
         "llm_provider_label.futureinfra",
         "llm_provider_label.yapi",
+        "llm_provider_label.opper",
+        "llm_provider_label.onomeo",
+        "llm_provider_label.empiriolabs",
+        "llm_provider_label.runcrate",
+        "llm_provider_label.cloudgpu",
         "llm_provider_label.shengsuanyun",
+        "llm_provider_label.infistar",
+        "llm_provider_label.jalapeno",
+        "Jalapeno Cloud AI Video",
+        "Jalapeno Cloud Video Help",
+        "Jalapeno Cloud Video API Key",
+        "Jalapeno Cloud Video Key Help",
+        "Jalapeno Cloud Video Key Reused",
+        "Jalapeno Cloud Video Model",
+        "Jalapeno Cloud Video Base URL",
+        "Jalapeno Cloud Video Base URL Help",
+        "Jalapeno Cloud Video Resolution",
+        "Jalapeno Cloud Video Specification",
+        "Jalapeno Cloud Video Billing Notice",
+        "Confirm Jalapeno Cloud Charge",
+        "Confirm Jalapeno Cloud Charge Required",
+        "llm_provider_label.muse_spark",
+        "llm_provider_label.kimi_code",
+        "kimi_code.oauth.login",
+        "kimi_code.oauth.pending",
+        "kimi_code.oauth.open_page",
+        "kimi_code.oauth.success",
+        "kimi_code.oauth.authorized",
+        "kimi_code.oauth.disconnect",
+        "kimi_code.oauth.expired",
+        "kimi_code.oauth.denied",
+        "kimi_code.oauth.reauth",
+        "kimi_code.oauth.region_mismatch",
+        "kimi_code.oauth.network_error",
+        "kimi_code.oauth.poll_retry",
+        "kimi_code.oauth.changed",
         "LoomLoom Poll Retry Pending",
         "LoomLoom Poll Retry Warning",
         "Resume LoomLoom Status Check",
@@ -93,6 +161,19 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Confirm MuAPI Charge",
         "Confirm MuAPI Charge Help",
         "Confirm MuAPI Charge Required",
+        "Infistar AI Video",
+        "Infistar AI Video Help",
+        "Infistar Video Key Help",
+        "Infistar Video Model",
+        "Infistar Video Specification",
+        "Infistar Video Invalid Model",
+        "Infistar Video Billing Notice",
+        "Confirm Infistar Charge",
+        "Please Enter the Infistar API Key",
+        "Confirm Infistar Charge Required",
+        "Infistar MiniMax Landscape Help",
+        "Infistar Video API Key",
+        "Infistar Video Base URL",
         "Script Generation Method",
         "Script Generation Method Help",
         "Shengsuan Cloud AI Video",
@@ -163,6 +244,19 @@ class _TrKeyVisitor(ast.NodeVisitor):
 def _load_translation(locale):
     data = json.loads((I18N_DIR / f"{locale}.json").read_text(encoding="utf-8"))
     return data.get("Translation", {})
+
+
+def _support_locales():
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "support_locales"
+            for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    return None
 
 
 def _duplicate_translation_keys(path):
@@ -352,22 +446,27 @@ class TestWebuiI18n(unittest.TestCase):
                     )
 
     def test_script_language_options_include_russian_and_catalan(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-        support_locales = None
-
-        for node in tree.body:
-            if not isinstance(node, ast.Assign):
-                continue
-            if any(
-                isinstance(target, ast.Name) and target.id == "support_locales"
-                for target in node.targets
-            ):
-                support_locales = ast.literal_eval(node.value)
-                break
+        support_locales = _support_locales()
 
         self.assertIsNotNone(support_locales)
         self.assertIn("ru-RU", support_locales)
         self.assertIn("ca-ES", support_locales)
+
+    def test_script_language_options_include_indonesian_with_builtin_voices(self):
+        """印尼语必须可选且内置音色覆盖 id-ID，避免界面已翻译却无法生成印尼语视频。"""
+        support_locales = _support_locales()
+        self.assertIsNotNone(support_locales)
+        self.assertIn("id-ID", support_locales)
+
+        voices = json.loads(
+            (ROOT_DIR / "app" / "services" / "data" / "azure_voices.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        indonesian_voices = {
+            item["name"] for item in voices if item["name"].startswith("id-ID-")
+        }
+        self.assertGreaterEqual(len(indonesian_voices), 2)
 
     def test_locale_files_do_not_redefine_a_translation_key(self):
         """

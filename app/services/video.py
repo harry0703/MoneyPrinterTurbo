@@ -1,4 +1,5 @@
 import itertools
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 import io
 import math
@@ -27,11 +28,12 @@ from moviepy import (
     afx,
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageColor, ImageDraw, ImageFont, ImageOps
 
 from app.config import config
 from app.models import const
 from app.models.schema import (
+    ImageMotion,
     MaterialInfo,
     VideoAspect,
     VideoConcatMode,
@@ -40,8 +42,9 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
-from app.services.utils import video_effects
+from app.services.utils import subtitle_shaping, video_effects
 from app.utils import file_security, logging_utils, utils
+from app.utils.subtitle_reader import moviepy_subtitles
 
 class SubClippedVideoClip:
     def __init__(
@@ -496,7 +499,9 @@ def _format_ffmpeg_concat_path(file_path: str) -> str:
     让 `C:\\Users\\...` 变成 `C:/Users/...`，再处理单引号，兼容 macOS/Linux。
     """
     absolute_path = os.path.abspath(file_path)
-    return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
+    # Normalize the native separator only. A backslash can be a literal
+    # component of a valid POSIX path and must still identify the same file.
+    return _escape_ffmpeg_concat_path(absolute_path.replace(os.sep, "/"))
 
 
 def _describe_concat_output_progress(output_file: str) -> str:
@@ -710,8 +715,10 @@ def concat_video_clips_with_ffmpeg(
 def _sanitize_image_file(image_path: str) -> str:
     # 某些本地图片虽然能被 Pillow 打开，但会因为损坏的 EXIF/eXIf 元数据导致
     # ImageClip 在解析阶段直接抛异常。这里重新导出一份“干净图片”，把坏元数据剥离掉。
-    image_root, _ = os.path.splitext(image_path)
-    sanitized_path = f"{image_root}.sanitized.png"
+    # Bound the intermediate basename while retaining complete source identity.
+    # Different extensions must not overwrite pixels, and valid long filenames
+    # must not exceed the filesystem's component limit after adding a suffix.
+    source_digest = hashlib.sha256(os.fsencode(os.path.abspath(image_path)))
 
     temp_path = ""
     try:
@@ -721,8 +728,21 @@ def _sanitize_image_file(image_path: str) -> str:
                 # Strip metadata after applying the camera's orientation.
                 # Palette transparency belongs to pixels, not removable metadata.
                 mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
-                cleaned_image = upright.convert(mode)
+                if upright.mode in {"I;16", "I;16B", "I;16L"}:
+                    # 16-bit grayscale samples span0..65535; an RGB cast either
+                    # clips them to white or wraps when MoviePy encodes them.
+                    with upright.convert("I").point(lambda value: value / 257 + 0.5) as byte_range:
+                        cleaned_image = byte_range.convert(mode)
+                else:
+                    cleaned_image = upright.convert(mode)
                 cleaned_image.info.clear()
+                source_digest.update(str(cleaned_image.size).encode())
+                source_digest.update(cleaned_image.mode.encode())
+                source_digest.update(cleaned_image.tobytes())
+                sanitized_path = os.path.join(
+                    os.path.dirname(image_path),
+                    f"{source_digest.hexdigest()}.sanitized.png",
+                )
                 descriptor, temp_path = tempfile.mkstemp(
                     prefix=".image-sanitize-", suffix=".png",
                     dir=os.path.dirname(os.path.abspath(sanitized_path)),
@@ -741,7 +761,9 @@ def _sanitize_image_file(image_path: str) -> str:
 
 def _open_image_clip_with_fallback(image_path: str):
     # MoviePy does not apply camera EXIF orientation while decoding an image.
-    # CMYK JPEG channels also must become RGB rather than an apparent alpha mask.
+    # CMYK JPEG channels must become RGB; LA must become RGBA so MoviePy
+    # creates a proper opacity mask rather than treating alpha as a color band.
+    # Bilevel pixels must become byte-range RGB rather than bool values0/1.
     # Ordinary RGB inputs retain the direct path.
     try:
         with Image.open(image_path) as image:
@@ -750,7 +772,7 @@ def _open_image_clip_with_fallback(image_path: str):
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode == "CMYK":
+    if orientation in range(2, 9) or image_mode in {"CMYK", "LA", "1", "I;16", "I;16B", "I;16L"}:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
@@ -964,8 +986,8 @@ def combine_videos(
     used_video_paths: List[str] | None = None,
     progress_callback: Callable[[float], None] | None = None,
 ) -> str:
-    # Pydantic leaves this optional default as the string "random" unless
-    # explicitly provided. Normalize it once for all downstream enum access.
+    # Direct callers and persisted tasks can still supply the raw string.
+    # Normalize it once for all downstream enum access.
     video_concat_mode = VideoConcatMode(video_concat_mode or VideoConcatMode.random)
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -1102,24 +1124,27 @@ def combine_videos(
                 )
 
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
+            # Short footage and faster playback can leave less than one second.
+            # Keep the chosen transition inside the rendered clip's timeline.
+            transition_duration = min(1.0, clip.duration)
             if transition_value == VideoTransitionMode.fade_in.value:
-                clip = video_effects.fadein_transition(clip, 1)
+                clip = video_effects.fadein_transition(clip, transition_duration)
             elif transition_value == VideoTransitionMode.fade_out.value:
-                clip = video_effects.fadeout_transition(clip, 1)
+                clip = video_effects.fadeout_transition(clip, transition_duration)
             elif transition_value == VideoTransitionMode.slide_in.value:
-                clip = video_effects.slidein_transition(clip, 1, shuffle_side)
+                clip = video_effects.slidein_transition(clip, transition_duration, shuffle_side)
             elif transition_value == VideoTransitionMode.slide_out.value:
-                clip = video_effects.slideout_transition(clip, 1, shuffle_side)
+                clip = video_effects.slideout_transition(clip, transition_duration, shuffle_side)
             elif transition_value == VideoTransitionMode.zoom_in.value:
                 clip = video_effects.zoomin_transition(clip, 1)
             elif transition_value == VideoTransitionMode.zoom_out.value:
                 clip = video_effects.zoomout_transition(clip, 1)
             elif transition_value == VideoTransitionMode.shuffle.value:
                 transition_funcs = [
-                    lambda c: video_effects.fadein_transition(c, 1),
-                    lambda c: video_effects.fadeout_transition(c, 1),
-                    lambda c: video_effects.slidein_transition(c, 1, shuffle_side),
-                    lambda c: video_effects.slideout_transition(c, 1, shuffle_side),
+                    lambda c: video_effects.fadein_transition(c, transition_duration),
+                    lambda c: video_effects.fadeout_transition(c, transition_duration),
+                    lambda c: video_effects.slidein_transition(c, transition_duration, shuffle_side),
+                    lambda c: video_effects.slideout_transition(c, transition_duration, shuffle_side),
                     lambda c: video_effects.zoomin_transition(c, 1),
                     lambda c: video_effects.zoomout_transition(c, 1),
                 ]
@@ -1268,22 +1293,43 @@ def combine_videos(
     return combined_video_path
 
 
-def wrap_text(text, max_width, font="Arial", fontsize=60):
+def wrap_text(text, max_width, font="Arial", fontsize=60, *, shaped=None, fallbacks=None):
     # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
     # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
     # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
+    # 含阿拉伯字母的字幕整段由 khatt 整形绘制（见 subtitle_shaping），手工
+    # 换行拆出的每一行（包括其中的英文翻译行）都要按 khatt 测量。
+    if shaped is None:
+        shaped = subtitle_shaping.needs_shaping(text)
     if "\n" in text:
         # Hard breaks in SRT text are separate layout lines. Measuring a token
         # across a newline makes Pillow count both lines as one wide string,
         # then character wrapping can split an otherwise fitting word.
         wrapped_lines = [
-            wrap_text(line, max_width, font=font, fontsize=fontsize)
+            wrap_text(
+                line, max_width, font=font, fontsize=fontsize, shaped=shaped, fallbacks=fallbacks
+            )
             for line in text.split("\n")
         ]
         return "\n".join(line for line, _ in wrapped_lines), sum(
             height for _, height in wrapped_lines
         )
 
+    # 阿拉伯字母文本必须按整形后的字形、并用实际绘制时的字体（缺字时的
+    # 后备字体）测量，换行和高度才与最终字幕一致；Pillow 未整形时测得的是
+    # 断开的独立字形宽度。手工换行的每一行本就是独立段落（如阿拉伯语下面
+    # 跟一行英文翻译），自动折出的行则带上原段落的方向标记，测量时也带上
+    # 它，使测量与渲染方向一致。后备字体画不出的字符（如夹杂的中文）由所选
+    # 字体绘制，测量时同样计入（见 subtitle_shaping.fallback_fonts）。
+    direction_mark = ""
+    if shaped:
+        selected_font = font
+        font, _ = subtitle_shaping.resolve_font(font, text)
+        if fallbacks is None:
+            fallbacks = subtitle_shaping.fallback_fonts(font, selected_font)
+        if text.strip():
+            direction_mark = subtitle_shaping.direction_mark(text)
+    shaped_font_path = font
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
@@ -1306,6 +1352,11 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         inner_text = inner_text.strip()
         if not inner_text:
             return 0, line_height
+        if shaped:
+            width = subtitle_shaping.text_width(
+                direction_mark + inner_text, shaped_font_path, fontsize, fallbacks
+            )
+            return width, line_height
         left, top, right, bottom = font.getbbox(inner_text)
         # bbox 仍适合测量换行所需的实际宽度；高度必须始终使用稳定字体行高。
         return right - left, line_height
@@ -1314,7 +1365,16 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     if width <= max_width:
         # SRT 条目允许作者手工换行。即使整段文本在宽度上不需要再次折行，
         # 画布高度仍必须按现有行数计算，否则第二行及后续行会被裁掉。
-        return text, (text.count("\n") + 1) * line_height
+        return direction_mark + text, (text.count("\n") + 1) * line_height
+
+    def attached_text_units(token):
+        units = []
+        for char in token:
+            if units and unicodedata.category(char).startswith("M"):
+                units[-1] += char
+            else:
+                units.append(char)
+        return units
 
     def split_long_token(token):
         # 当一个 token 本身就超宽时（常见于中文无空格长句，或英文超长单词），
@@ -1322,7 +1382,7 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         # 仍然合法的 current，再把当前字符放入下一行，不能把超宽字符塞回上一行。
         lines = []
         current = ""
-        for char in token:
+        for char in attached_text_units(token):
             candidate = f"{current}{char}"
             candidate_width, _ = get_text_size(candidate)
             if candidate_width <= max_width or not current:
@@ -1351,14 +1411,18 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if word_width <= max_width:
             current = word
         else:
-            lines.extend(split_long_token(word))
-            current = ""
+            # 最后一段仍未占满整行，后续单词应继续尝试接在它后面，
+            # 否则每个超长词之后都会多出一行。
+            pieces = split_long_token(word)
+            lines.extend(pieces[:-1])
+            current = pieces[-1] if pieces else ""
 
     if current:
         lines.append(current)
 
     line_start_punctuation = "，。！？；：、,.!?;:)]}）】》」』”’"
-    for index in range(1, len(lines)):
+    # 阿拉伯字母单词不能拆开（会破坏字母连写），不做下面的标点调整。
+    for index in range(1, 1 if shaped else len(lines)):
         # 中文长句按字符拆分时，最后一个句号、逗号等闭合标点可能被单独
         # 放到下一行，导致字幕背景被异常撑高，视觉上像一个小点掉在正文
         # 下方。这里在不重新设计换行算法的前提下，把上一行最后一个字
@@ -1368,13 +1432,19 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         if len(lines[index - 1]) <= 1:
             continue
 
-        candidate = f"{lines[index - 1][-1]}{lines[index]}"
+        previous_units = attached_text_units(lines[index - 1])
+        if len(previous_units) <= 1:
+            continue
+        last_unit = previous_units[-1]
+        candidate = f"{last_unit}{lines[index]}"
         candidate_width, _ = get_text_size(candidate)
         if candidate_width <= max_width:
             lines[index] = candidate
-            lines[index - 1] = lines[index - 1][:-1]
+            lines[index - 1] = lines[index - 1][:-len(last_unit)]
 
-    result = "\n".join(line.strip() for line in lines if line.strip()).strip()
+    result = "\n".join(
+        direction_mark + line.strip() for line in lines if line.strip()
+    ).strip()
     # 高度以最终结果为准。原文本中的显式换行可能保留在某个 token 内，
     # 此时临时 lines 列表的长度不等于 MoviePy 实际渲染的行数。
     height = (result.count("\n") + 1) * line_height
@@ -1382,12 +1452,12 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
 
 
 def _hex_to_rgb(color: str) -> tuple[int, int, int]:
-    # 字幕背景色来自 API/WebUI 参数，可能为空或格式不规范。这里统一只接受
-    # #RRGGBB 形式，非法值回退为黑色，避免 PIL 渲染阶段抛出异常中断任务。
-    if isinstance(color, str) and color.startswith("#") and len(color) == 7:
+    # Match the Pillow color syntax accepted by subtitle preflight.
+    # The background clip sets opacity separately from the color value.
+    if isinstance(color, str):
         try:
-            return (int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16))
-        except ValueError:
+            return ImageColor.getcolor(color, "RGB")
+        except (ValueError, TypeError):
             pass
     return (0, 0, 0)
 
@@ -1450,6 +1520,25 @@ def _get_visible_center_position(
     return x, y
 
 
+def validate_subtitle_colors(params: VideoParams) -> None:
+    """Reject colors Pillow cannot render, before generation services run."""
+    if not params.subtitle_enabled:
+        return
+    colors = [("text_fore_color", params.text_fore_color)]
+    # Rendering truncates the width to an integer; a zero-width stroke is unused.
+    if int(params.stroke_width) > 0:
+        colors.append(("stroke_color", params.stroke_color))
+    if isinstance(params.text_background_color, str):
+        colors.append(("text_background_color", params.text_background_color))
+    for field, value in colors:
+        if value is None:
+            continue
+        try:
+            ImageColor.getcolor(value, "RGBA")
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"invalid subtitle color: {field}") from exc
+
+
 def subtitle_colors_are_indistinguishable(params: VideoParams) -> bool:
     """判断字幕文字和背景是否同色，提醒用户可能无法看清字幕。"""
     if not params.subtitle_enabled or not params.text_background_color:
@@ -1503,6 +1592,10 @@ def subtitle_font_supports_text(font_path: str, text: str) -> bool:
     )[:64]
     if not sample:
         return True
+    if subtitle_shaping.needs_shaping(sample):
+        # 阿拉伯字母文本由 khatt 绘制，所选字体缺字时改用后备字体：
+        # 判断实际用来绘制的字体能否画出全部字母和数字。
+        return subtitle_shaping.supports_text(font_path, sample)
     return _subtitle_font_supports_sample(font_path, sample)
 
 
@@ -1558,10 +1651,17 @@ def generate_video(
             return "#000000" if params.text_background_color else None
         return params.text_background_color
 
+    # 阿拉伯字母字幕使用的字体按整条视频的全部字幕一次确定（见字幕加载处），
+    # 避免同一视频中逐条字幕在两种字体之间来回切换。
+    shaped_font = font_path
+
     def create_text_clip(subtitle_item):
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
+        shaped = subtitle_shaping.needs_shaping(phrase)
+        clip_font = shaped_font if shaped else font_path
+        clip_fallbacks = subtitle_shaping.fallback_fonts(shaped_font, font_path) if shaped else []
         max_width = video_width * 0.9
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
@@ -1580,8 +1680,9 @@ def generate_video(
         wrapped_txt, txt_height = wrap_text(
             phrase,
             max_width=text_max_width,
-            font=font_path,
+            font=clip_font,
             fontsize=params.font_size,
+            fallbacks=clip_fallbacks,
         )
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
@@ -1609,11 +1710,20 @@ def generate_video(
             # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
             # PIL 测量最长一行文字，再加水平内边距，避免短字幕出现过宽底板。
             try:
-                font = ImageFont.truetype(font_path, params.font_size)
-                text_w = max(
-                    int(font.getbbox(line)[2] - font.getbbox(line)[0])
-                    for line in wrapped_txt.split("\n")
-                )
+                if shaped:
+                    # 阿拉伯字母文本按整形后的字形和实际绘制字体测量。
+                    text_w = max(
+                        subtitle_shaping.text_width(
+                            line, clip_font, params.font_size, clip_fallbacks
+                        )
+                        for line in wrapped_txt.split("\n")
+                    )
+                else:
+                    font = ImageFont.truetype(font_path, params.font_size)
+                    text_w = max(
+                        int(font.getbbox(line)[2] - font.getbbox(line)[0])
+                        for line in wrapped_txt.split("\n")
+                    )
             except Exception as exc:
                 logger.warning(
                     f"failed to measure subtitle text width, fallback to max width: {str(exc)}"
@@ -1622,7 +1732,9 @@ def generate_video(
 
             box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
             radius = max(8, int(params.font_size * 0.4))
-            text_clip = TextClip(
+            text_clip = subtitle_shaping.text_clip(
+                TextClip,
+                shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1653,7 +1765,9 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            text_clip = TextClip(
+            text_clip = subtitle_shaping.text_clip(
+                TextClip,
+                shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1684,7 +1798,24 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            _clip = TextClip(
+            if shaped:
+                # khatt 让画布容纳全部墨迹（例如高出字体上沿的古兰经停顿符号），
+                # 按上面的公式固定高度可能把它们裁掉，所以先量出自然高度。
+                with subtitle_shaping.text_clip(
+                    TextClip,
+                    shaped_font=shaped_font,
+                    text=wrapped_txt,
+                    font=font_path,
+                    font_size=params.font_size,
+                    stroke_width=params.stroke_width,
+                    interline=interline,
+                    size=(size[0], None),
+                    text_align="center",
+                ) as natural:
+                    size = (size[0], max(size[1], natural.h))
+            _clip = subtitle_shaping.text_clip(
+                TextClip,
+                shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1738,20 +1869,26 @@ def generate_video(
         voice_source_clip = clip_stack.enter_context(AudioFileClip(audio_path))
         video_clip = source_video_clip
         audio_clip = voice_source_clip.with_effects(
-            [afx.MultiplyVolume(params.voice_volume)]
+            [afx.MultiplyVolume(1.0 if params.voice_volume is None else params.voice_volume)]
         )
 
         def make_textclip(text):
-            return TextClip(
+            return subtitle_shaping.text_clip(
+                TextClip,
+                shaped_font=shaped_font,
                 text=text,
                 font=font_path,
                 font_size=params.font_size,
             )
 
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
+            subtitles = moviepy_subtitles(subtitle_path)
+            shaped_font = subtitle_shaping.video_font(
+                font_path, (text for _, text in subtitles)
+            )
             sub = clip_stack.enter_context(
                 SubtitlesClip(
-                    subtitles=subtitle_path,
+                    subtitles=subtitles,
                     encoding="utf-8",
                     make_textclip=make_textclip,
                 )
@@ -1789,15 +1926,14 @@ def generate_video(
         bgm_mix_succeeded = True
         if bgm_file:
             try:
-                bgm_effects = [
-                    afx.MultiplyVolume(params.bgm_volume),
-                    afx.AudioFadeOut(3),
-                ]
+                bgm_effects = [afx.MultiplyVolume(params.bgm_volume)]
                 # 服务内解析的随机/自定义音乐可能比成片短，需要循环铺满；任务层
                 # 通过 override 传入的文件表示提供商已经完成时长适配。这里依据
                 # 文件来源决定是否循环，避免今后每增加一个提供商都修改名称白名单。
                 if bgm_file_override is None:
                     bgm_effects.append(afx.AudioLoop(duration=video_clip.duration))
+                # Fade the complete playback timeline, not each source loop.
+                bgm_effects.append(afx.AudioFadeOut(3))
                 bgm_source_clip = clip_stack.enter_context(AudioFileClip(bgm_file))
                 bgm_clip = bgm_source_clip.with_effects(bgm_effects)
                 audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
@@ -1832,36 +1968,47 @@ def generate_video(
         return bgm_mix_succeeded
 
 
-def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
+def render_image_zoom_video(
+    image_path: str, clip_duration: int = 5, image_motion: ImageMotion = ImageMotion.zoom
+) -> str:
     """
-    将单张本地图片渲染为带缓慢放大效果的 mp4 片段，返回输出文件路径。
+    将单张图片渲染为静止或缓慢放大的 mp4 片段，返回输出文件路径。
 
     local 素材预处理和 OpenAI 兼容文生图素材共用这段"图片 → 片段"渲染
-    逻辑：ImageClip 按 clip_duration 固定时长播放，并叠加每秒约 3% 的
-    动态放大，避免静态画面在成片中显得呆板。渲染异常由调用方按各自
-    素材源的失败约定处理。
+    逻辑：默认保留每秒约 3% 的动态放大，静止模式只固定播放时长。
+    此设置与片段转场独立。渲染异常由调用方按各自素材源的失败约定处理。
     """
+    motion = ImageMotion(image_motion)
     clip, _ = _open_image_clip_with_fallback(image_path)
     clip = clip.with_duration(clip_duration).with_position("center")
     temp_path = ""
     try:
-        # Apply a zoom effect using the resize method.
-        # A lambda function is used to make the zoom effect dynamic over time.
-        # The zoom effect starts from the original size and gradually scales up to 120%.
-        # t represents the current time, and clip.duration is the total duration of the clip.
-        # Note: 1 represents 100% size, so 1.2 represents 120%.
-        zoom_clip = clip.resized(
-            lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration)
+        # 只有放大模式改变画面尺寸，静止模式保留原始构图及透明背景处理。
+        image_clip = (
+            clip.resized(lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration))
+            if motion == ImageMotion.zoom
+            else clip
         )
 
         # Optionally, create a composite video clip containing the zoomed clip.
         # This is useful if you want to add other elements to the video.
-        final_clip = CompositeVideoClip([zoom_clip])
+        final_clip = CompositeVideoClip([image_clip], bg_color=(0, 0, 0))
         try:
             # The duration changes the rendered content, so it must be part of
             # the output identity. Different tasks may render the same image
             # concurrently; only publish a complete MP4 after MoviePy closes it.
-            video_file = f"{image_path}.zoom-{clip_duration}.mp4"
+            source_digest = hashlib.sha256(os.fsencode(os.path.abspath(image_path)))
+            source_frame = clip.get_frame(0)
+            source_digest.update(str(source_frame.shape).encode())
+            source_digest.update(source_frame.tobytes())
+            if clip.mask is not None:
+                source_digest.update(clip.mask.get_frame(0).tobytes())
+            source_identity = source_digest.hexdigest()
+            duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
+            video_file = os.path.join(
+                os.path.dirname(image_path),
+                f"{source_identity}.{motion.value}-{duration_identity}.mp4",
+            )
             descriptor, temp_path = tempfile.mkstemp(
                 prefix=".image-zoom-",
                 suffix=".mp4",
@@ -1882,7 +2029,9 @@ def render_image_zoom_video(image_path: str, clip_duration: int = 5) -> str:
             delete_files(temp_path)
 
 
-def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
+def preprocess_video(
+    materials: List[MaterialInfo], clip_duration=4, image_motion: ImageMotion = ImageMotion.zoom
+):
     # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
     if not materials:
         return []
@@ -1952,7 +2101,7 @@ def preprocess_video(materials: List[MaterialInfo], clip_duration=4):
                 # 用于导出的图片片段。
                 close_clip(clip)
                 video_file = render_image_zoom_video(
-                    material_source_path, clip_duration
+                    material_source_path, clip_duration, image_motion=image_motion
                 )
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")

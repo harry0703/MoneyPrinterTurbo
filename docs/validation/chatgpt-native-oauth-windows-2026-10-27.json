@@ -1,0 +1,151 @@
+{
+  "timestamp_utc": "2026-10-27T15:55:51.059473+00:00",
+  "environment": {
+    "os": "Windows",
+    "release": "10",
+    "python": "3.11.15",
+    "commit": "8bab424b4e2179925d2d1154612e348f54849148",
+    "dirty": true
+  },
+  "provider": "openai_chatgpt",
+  "stages": {
+    "authorization": {
+      "connected": true,
+      "plan_authorized": true,
+      "browser_flow_performed_this_run": true
+    },
+    "models": {
+      "trace": [
+        {
+          "method": "GET",
+          "endpoint": "https://api.openai.com/v1/models",
+          "http_status": 200,
+          "request_id": null
+        }
+      ],
+      "model_ids": [
+        "gpt-6.1-sol",
+        "gpt-6-astra",
+        "gpt-6.1-terra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna"
+      ]
+    },
+    "script": {
+      "response_completed": true,
+      "trace": [
+        {
+          "method": "POST",
+          "endpoint": "https://api.openai.com/v1/responses",
+          "http_status": 200,
+          "request_id": null
+        },
+        {
+          "event": "response.completed",
+          "status": "completed",
+          "response_id": "resp_0fc6e091ef62b07e016ae0c99c0c6087d0966f49fb53db6ba1",
+          "response_model": "gpt-6.1-sol"
+        }
+      ],
+      "output": "A short outdoor walk can boost your mood, support heart health, and break up long periods of sitting. Choose a safe route, wear comfortable shoes, and match your pace to your ability. Notice the sights and sounds around you—even a few minutes count."
+    },
+    "keywords": {
+      "response_completed": true,
+      "trace": [
+        {
+          "method": "POST",
+          "endpoint": "https://api.openai.com/v1/responses",
+          "http_status": 200,
+          "request_id": null
+        },
+        {
+          "event": "response.completed",
+          "status": "completed",
+          "response_id": "resp_03a711d2b85e3201016ae0c9a164a887d0a41edfceb845254b",
+          "response_model": "gpt-6.1-sol"
+        }
+      ],
+      "output": [
+        "Outdoor walking",
+        "Walking nature trail",
+        "Walking park path"
+      ]
+    },
+    "refresh": {
+      "succeeded": true,
+      "registration_preserved": true,
+      "session_preserved": true,
+      "refresh_token_rotated": true
+    },
+    "after_refresh": {
+      "response_completed": true,
+      "trace": [
+        {
+          "method": "POST",
+          "endpoint": "https://api.openai.com/v1/responses",
+          "http_status": 200,
+          "request_id": null
+        },
+        {
+          "event": "response.completed",
+          "status": "completed",
+          "response_id": "resp_01c507aaac444063016ae0c9a8fa9c87d0bc780273327fbc59",
+          "response_model": "gpt-6.1-sol"
+        }
+      ],
+      "output": "OAuth refresh OK"
+    },
+    "disconnect": {
+      "remote_revocation_confirmed": true,
+      "local_tokens_cleared": true,
+      "signed_out_request_blocked": true,
+      "inference_requests_after_signout": 0
+    }
+  },
+  "status": "passed",
+  "selected_model": "gpt-6.1-sol",
+  "source_sha256": {
+    "app/models/llm_provider.py": "6607c59d09e8679c73d60742b62d75b32e5c9a472a28d737ae81595702b61b4f",
+    "app/services/chatgpt_auth.py": "a09ee0239d2b9bbe175187832413f2cd820eeac01497427a37b278da2aa8948d",
+    "app/services/chatgpt_models.py": "867e08bb1240a9a0ba7ecb46e6b6231b085c6b07a1a99490fa6461f65578ce9b",
+    "app/services/chatgpt_oauth.py": "4971adca0a52b20c0dacba1bb151c15c676977d7a218378af807768bc5c5d529",
+    "app/services/llm.py": "d68193a5233feb3e822b4123d0d3bb75ac31385ef1cda7cd90997ec8987dc818",
+    "webui/Main.py": "f0ff98b9a8ea5792731e6f3c389fd0c757a2ab5d80642fe67ff01dcc556e495e",
+    "webui/chatgpt_login.py": "b6d07aa51a4d057d83eabfe1a7ddc7ba23d45c8dca90eeef65478f36a75d6d35",
+    "webui/chatgpt_models.py": "2f17bf9b19bee3f85fd7b1a56e7f444e861dd525ab126e4ac69c7bcb847b6437",
+    "scripts/accept_chatgpt_oauth.py": "5279ea8a4dc3db94d26c96ec6c8bcf18ecbe7371f1ad561c9c8daa1aba82fa4d"
+  },
+  "compatibility": {
+    "old_store_unchanged": true,
+    "same_host": true,
+    "same_registration": true,
+    "native_authorized": false
+  },
+  "validation_scope": {
+    "real_account": "native OAuth authorization, account models, script, keywords, refresh, disconnect",
+    "webui": "provider selection and native signed-out settings",
+    "external_tts_and_stock_media": false,
+    "earlier_authorization_attempt": "expired without user completion; subsequent fresh attempt passed"
+  },
+  "video_pipeline": {
+    "duration": 18.47,
+    "size": [
+      1920,
+      1080
+    ],
+    "audio_present": true,
+    "narration": "built-in no-voice mode",
+    "provider": "openai_chatgpt",
+    "model": "gpt-6.1-sol",
+    "decode_check": "passed",
+    "subtitles_enabled": true,
+    "subtitle_frame_visually_checked": true,
+    "material": "FFmpeg testsrc2 local fixture",
+    "external_tts_tested": false,
+    "external_stock_media_tested": false
+  },
+  "scope_note": "Live API acceptance used the checked-in acceptance script against the working tree. WebUI checks covered the two provider entries and signed-out native settings; connected model selection was covered by automated UI tests, not by this live browser session."
+}
