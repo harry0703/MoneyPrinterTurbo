@@ -1,9 +1,15 @@
-"""webui.bat must start the WebUI from folders with ( ) or & in their path.
+"""webui.bat must start the WebUI from any folder and on the host in MPT_WEBUI_HOST.
 
 A ")" in the path of the project folder, as in "MoneyPrinterTurbo-main (1)"
 from a second download of the source ZIP or "Program Files (x86)", stopped
 the launcher with a cmd syntax error before Python started, and a "&" made it
 miss the project Python.
+
+MPT_WEBUI_HOST=0.0.0.0, which the README gives for access from other devices
+on the LAN, stopped the launcher with "No available WebUI port found", because
+the port check looked the host up with Dns.GetHostAddresses(), which rejects
+0.0.0.0. Streamlit was also told to open http://0.0.0.0 in the browser, an
+address that Windows does not connect to.
 """
 
 import json
@@ -45,7 +51,13 @@ def _make_project(tmp_path, folder_name):
     return project
 
 
-def _run_webui_bat(project, record, extra_path=()):
+def _add_venv_with_streamlit_stub(project):
+    venv.create(project / ".venv", with_pip=False)
+    site_packages = project / ".venv" / "Lib" / "site-packages"
+    (site_packages / "streamlit.py").write_text(STREAMLIT_STUB, encoding="utf-8")
+
+
+def _run_webui_bat(project, record, extra_path=(), host="127.0.0.1"):
     """Run webui.bat from its own folder, as a double-click in Explorer does."""
     port = _free_port()
     system_root = os.environ["SYSTEMROOT"]
@@ -60,7 +72,7 @@ def _run_webui_bat(project, record, extra_path=()):
                 os.path.join(system_root, "System32", "WindowsPowerShell", "v1.0"),
             ]
         ),
-        MPT_WEBUI_HOST="127.0.0.1",
+        MPT_WEBUI_HOST=host,
         MPT_WEBUI_PORT=str(port),
         MPT_TEST_LAUNCH_RECORD=str(record),
     )
@@ -83,9 +95,7 @@ def _run_webui_bat(project, record, extra_path=()):
 )
 def test_webui_bat_starts_project_python_from_any_folder(tmp_path, folder_name):
     project = _make_project(tmp_path, folder_name)
-    venv.create(project / ".venv", with_pip=False)
-    site_packages = project / ".venv" / "Lib" / "site-packages"
-    (site_packages / "streamlit.py").write_text(STREAMLIT_STUB, encoding="utf-8")
+    _add_venv_with_streamlit_stub(project)
     record = tmp_path / "streamlit_args.json"
 
     result, port = _run_webui_bat(project, record)
@@ -119,4 +129,48 @@ def test_webui_bat_falls_back_to_uv_from_folder_with_parentheses(tmp_path):
         r".\webui\Main.py",
         "--server.address=127.0.0.1",
         f"--server.port={port}",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("host", "browser_host"),
+    [
+        ("127.0.0.1", "127.0.0.1"),
+        ("localhost", "localhost"),
+        # The README's setting for access from other devices on the LAN. The
+        # WebUI listens on every interface; the browser opens 127.0.0.1.
+        ("0.0.0.0", "127.0.0.1"),
+    ],
+)
+def test_webui_bat_listens_on_host_and_opens_browser_on_reachable_address(
+    tmp_path, host, browser_host
+):
+    project = _make_project(tmp_path, "MoneyPrinterTurbo")
+    _add_venv_with_streamlit_stub(project)
+    record = tmp_path / "streamlit_args.json"
+
+    result, port = _run_webui_bat(project, record, host=host)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"WebUI address: http://{browser_host}:{port} *****" in result.stdout
+    assert json.loads(record.read_text(encoding="utf-8"))[2:5] == [
+        f"--server.address={host}",
+        f"--server.port={port}",
+        f"--browser.serverAddress={browser_host}",
+    ]
+
+
+def test_webui_bat_drops_the_space_a_cmd_one_liner_leaves_in_the_host(tmp_path):
+    # "set MPT_WEBUI_HOST=0.0.0.0 && webui.bat" keeps the space before "&&".
+    project = _make_project(tmp_path, "MoneyPrinterTurbo")
+    _add_venv_with_streamlit_stub(project)
+    record = tmp_path / "streamlit_args.json"
+
+    result, port = _run_webui_bat(project, record, host="0.0.0.0 ")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(record.read_text(encoding="utf-8"))[2:5] == [
+        "--server.address=0.0.0.0",
+        f"--server.port={port}",
+        "--browser.serverAddress=127.0.0.1",
     ]
