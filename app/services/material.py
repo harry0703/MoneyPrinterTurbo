@@ -291,6 +291,51 @@ def _is_cloudflare_challenge(response: requests.Response) -> bool:
     return "just a moment" in body or "/cdn-cgi/challenge-platform/" in body
 
 
+def _stock_search_results(
+    provider: str, response: Any, results_key: str
+) -> list | None:
+    """
+    Return the result list of a Pexels or Coverr search response.
+
+    When the search failed, log why and return None. As in the Pixabay search,
+    the log gets the status and content type but not the response body, and a
+    401 names the setting that holds the rejected key.
+    """
+    status_code = int(getattr(response, "status_code", 200))
+    headers = getattr(response, "headers", {}) or {}
+    content_type = str(headers.get("content-type", "")) or "unknown"
+    if status_code == 401:
+        logger.error(
+            f"{provider} rejected the API key: status=401. "
+            f"Check {provider}_api_keys in config.toml."
+        )
+        return None
+    if status_code == 429:
+        logger.error(
+            f"{provider} API rate limit exceeded: "
+            f"status=429, retry_after={headers.get('retry-after') or 'unknown'}"
+        )
+        return None
+    if status_code >= 400:
+        logger.error(
+            f"{provider} search request failed: "
+            f"status={status_code}, content_type={content_type}"
+        )
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        logger.error(
+            f"{provider} returned an unexpected non-JSON response: "
+            f"status={status_code}, content_type={content_type}"
+        )
+        return None
+    if not isinstance(body, dict) or not isinstance(body.get(results_key), list):
+        logger.error(f"{provider} video search returned an unsupported response")
+        return None
+    return body[results_key]
+
+
 def _matches_video_aspect(
     width: Any,
     height: Any,
@@ -384,14 +429,10 @@ def search_videos_pexels(
             verify=_get_tls_verify(),
             timeout=(30, 60),
         )
-        response = r.json()
+        videos = _stock_search_results("pexels", r, "videos")
+        if videos is None:
+            return []
         video_items = []
-        if not isinstance(response, dict) or not isinstance(
-            response.get("videos"), list
-        ):
-            logger.error("pexels video search returned an unsupported response")
-            return video_items
-        videos = response["videos"]
         # loop through each video in the result
         for v in videos:
             if not isinstance(v, dict):
@@ -655,16 +696,12 @@ def search_videos_coverr(
             verify=_get_tls_verify(),
             timeout=(30, 60),
         )
-        response = r.json()
+        hits = _stock_search_results("coverr", r, "hits")
+        if hits is None:
+            return []
         video_items: List[MaterialInfo] = []
 
-        if not isinstance(response, dict) or not isinstance(
-            response.get("hits"), list
-        ):
-            logger.error("coverr video search returned an unsupported response")
-            return video_items
-
-        for v in response["hits"]:
+        for v in hits:
             if not isinstance(v, dict):
                 continue
             # duration 在不同响应里可能是 number(11.625) 或 string("10.500000")
@@ -2128,7 +2165,7 @@ def _search_terms_in_parallel(
                 logger.error(
                     "failed to search material videos: "
                     f"search_term={search_term!r}, "
-                    f"error={type(exc).__name__}"
+                    f"error={type(exc).__name__}, detail={exc}"
                 )
                 items = []
             logger.info(f"found {len(items)} videos for '{search_term}'")
