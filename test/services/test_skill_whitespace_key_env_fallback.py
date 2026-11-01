@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services import metaso_minimax, muapi, ofox, volcengine_seedance
+from app.services import genmagic, metaso_minimax, muapi, ofox, volcengine_seedance
 
 
 spec = importlib.util.spec_from_file_location("mpt_whitespace_keys_fixture", Path(__file__).parents[2] / "docs" / "skill" / "mpt_agent.py")
@@ -15,6 +15,7 @@ spec.loader.exec_module(helper)
 @pytest.mark.parametrize("source,key,environment,service,confirmation", [
     ("ofox", "ofox_api_key", "OFOX_API_KEY", ofox, "--confirm-ofox-charge"),
     ("muapi", "muapi_api_key", "MUAPI_API_KEY", muapi, "--confirm-muapi-charge"),
+    ("genmagic", "genmagic_api_key", "GENMAGIC_API_KEY", genmagic, "--confirm-genmagic-charge"),
     ("metaso_minimax", "metaso_minimax_api_key", "METASO_MINIMAX_API_KEY", metaso_minimax, "--confirm-metaso-minimax-charge"),
     ("volcengine_seedance", "volcengine_seedance_api_key", "VOLCENGINE_ARK_API_KEY", volcengine_seedance, "--confirm-seedance-charge"),
 ])

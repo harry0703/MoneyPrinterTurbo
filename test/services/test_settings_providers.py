@@ -15,6 +15,7 @@ GROUPS = {
         "jalapeno",
         "wavespeed",
         "muapi",
+        "genmagic",
     ),
     "ai_image": ("openai_image", "codex_image"),
     "stock_video": ("pexels", "pixabay", "coverr"),
@@ -139,6 +140,7 @@ MATERIAL_VALUES = {
     "jalapeno": {"jalapeno_video_api_key": "synthetic-key"},
     "wavespeed": {"wavespeed_api_keys": ["synthetic-key"]},
     "muapi": {"muapi_api_key": "synthetic-key"},
+    "genmagic": {"genmagic_api_key": "synthetic-key"},
     "openai_image": {
         "openai_image_api_keys": ["synthetic-key"],
         "openai_image_base_url": "https://images.example/v1",

@@ -32,7 +32,7 @@ def isolated_jobs(monkeypatch):
 
 @pytest.mark.parametrize("provider", [
     "jalapeno", "volcengine_seedance", "infistar", "ofox", "muapi",
-    "metaso_minimax", "wavespeed", "loomloom",
+    "metaso_minimax", "wavespeed", "loomloom", "genmagic",
 ])
 def test_remote_status_keeps_identity_and_last_confirmation_during_retry(isolated_jobs, provider):
     isolated_jobs.update_task("job")
@@ -93,14 +93,14 @@ def test_progress_never_publishes_url_or_arbitrary_remote_status(isolated_jobs):
     assert "secret" not in str(activity)
 
 
-@pytest.mark.parametrize("provider", ["jalapeno", "volcengine_seedance", "ofox", "muapi", "metaso_minimax", "infistar", "wavespeed"])
+@pytest.mark.parametrize("provider", ["jalapeno", "volcengine_seedance", "ofox", "muapi", "metaso_minimax", "infistar", "wavespeed", "genmagic"])
 def test_provider_pollers_publish_real_http_retry_and_completion(isolated_jobs, monkeypatch, provider):
     """真实本地 HTTP 查询验证协议接入；与外部服务实测分开计数。"""
-    from app.services import volcengine_seedance, ofox, muapi, metaso_minimax, infistar_video, material
+    from app.services import volcengine_seedance, ofox, muapi, metaso_minimax, infistar_video, material, genmagic
 
-    states = ["pending" if provider == "ofox" else "queued", "in_progress" if provider == "ofox" else "processing" if provider == "muapi" else "running", None,
-              "in_progress" if provider == "ofox" else "processing" if provider == "muapi" else "running",
-              "completed" if provider in {"ofox", "muapi", "infistar", "wavespeed"} else "succeeded"]
+    states = ["pending" if provider == "ofox" else "queued", "in_progress" if provider == "ofox" else "processing" if provider in {"muapi", "genmagic"} else "running", None,
+              "in_progress" if provider == "ofox" else "processing" if provider in {"muapi", "genmagic"} else "running",
+              "completed" if provider in {"ofox", "muapi", "infistar", "wavespeed", "genmagic"} else "succeeded"]
     requests_seen, activities = [], []
 
     class Handler(BaseHTTPRequestHandler):
@@ -143,6 +143,8 @@ def test_provider_pollers_publish_real_http_retry_and_completion(isolated_jobs, 
                 ofox._wait_for_task(videos_url=base, **args)
             elif provider == "muapi":
                 muapi._wait_for_task(base_url=base, **args)
+            elif provider == "genmagic":
+                genmagic._wait_for_task(base_url=base, **args)
             elif provider == "metaso_minimax":
                 metaso_minimax._wait_for_task(base_url=base, **args)
             elif provider == "infistar":

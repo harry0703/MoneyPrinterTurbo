@@ -206,6 +206,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Turn script keywords into original video footage with [WaveSpeed AI](https://wavespeed.ai)
 - [x] Access Seedance, Wan, and other text-to-video models through [OFox](https://ofox.ai) with a single API key
 - [x] Generate 3–12 second AI video materials through the asynchronous [MuAPI](https://muapi.ai) text-to-video API, with configurable endpoint, aspect ratio, resolution, and polling
+- [x] Access many text-to-video models through [GenMagic](https://genmagic.co) with a single API key, billed per completed clip, with a charge confirmation before generation
 - [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services or custom image gateways and turn generated images into animated video clips
 - [x] Adjust clip duration, frame fitting, and material order to suit different aspect ratios and storytelling styles
 

@@ -64,7 +64,7 @@ def test_infistar_video_models_specs_and_billing_confirmation(language):
         assert providers.options == [messages.get(key, english.get(key, key)) for key in (
             "Metaso MiniMax H3", "OFox AI Video", "Shengsuan Cloud AI Video",
             "Volcano Engine Seedance", "Infistar AI Video", "Jalapeno Cloud AI Video",
-            "WaveSpeed AI Video", "MuAPI AI Video",
+            "WaveSpeed AI Video", "MuAPI AI Video", "GenMagic AI Video",
         )]
         assert providers.value == "infistar"
         assert not any(item.key in {

@@ -22,6 +22,7 @@ from app.services import (
     codex_oauth,
     elevenlabs_music,
     generation_progress,
+    genmagic,
     infistar_video,
     jalapeno_video,
     llm,
@@ -103,6 +104,7 @@ _SUPPORTED_VIDEO_SOURCES = frozenset({
     "pexels", "pixabay", "coverr", "local", "wavespeed",
     "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
     "loomloom", "openai_image", "codex_image", "infistar", "jalapeno",
+    "genmagic",
 })
 
 
@@ -931,6 +933,19 @@ def get_video_materials(
                 details=details,
             )
             return None
+        except genmagic.GenMagicError as exc:
+            # GenMagic bills a clip when it completes. Keep the job id on any
+            # unconfirmed or post-completion failure so the user can look it up
+            # in their GenMagic account instead of paying for it twice.
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = {"genmagic_task_id": remote_task_id} if remote_task_id else None
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
         if not downloaded_videos:
             _mark_task_failed(
                 task_id,
@@ -1654,6 +1669,17 @@ def _run_pipeline(
             task_id,
             "preflight",
             "MuAPI video generation requires a MuAPI API key",
+        )
+
+    if (
+        stop_at in {"materials", "video"}
+        and params.video_source == "genmagic"
+        and not genmagic.is_enabled()
+    ):
+        return _mark_task_failed(
+            task_id,
+            "preflight",
+            "GenMagic video generation requires a GenMagic API key",
         )
 
     if (

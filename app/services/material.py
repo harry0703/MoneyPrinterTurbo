@@ -26,6 +26,7 @@ from app.models.schema import ImageMotion, MaterialInfo, VideoAspect, VideoConca
 from app.services import (
     codex_image,
     generation_progress,
+    genmagic,
     infistar_video,
     jalapeno_video,
     material_cache,
@@ -2461,6 +2462,18 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
+    if source == "genmagic":
+        # GenMagic jobs are billed per completed clip. Generate one script keyword
+        # at a time and stop once the narration duration is covered, so keywords
+        # that are never used are never sent to the remote API.
+        return _download_videos_genmagic_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
     if source == "metaso_minimax":
         # 秘塔 MiniMax 同样按远端异步任务计费。它与火山方舟的请求体相似，
         # 但任务查询路径和响应结构不同，因此只共享本地按需生成语义，不复用
@@ -3064,6 +3077,126 @@ def _download_videos_muapi_on_demand(
             break
 
     logger.success(f"generated and downloaded {len(video_paths)} MuAPI videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
+def _download_videos_genmagic_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """Generate GenMagic materials until the narration duration is covered."""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError) as exc:
+        raise genmagic.GenMagicError(
+            "GenMagic audio duration must be a finite number"
+        ) from exc
+    if not math.isfinite(required_duration):
+        raise genmagic.GenMagicError("GenMagic audio duration must be a finite number")
+    if required_duration <= 0:
+        logger.warning(
+            "skip GenMagic paid generation because required audio duration is "
+            f"not positive: duration={required_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    try:
+        clip_duration = int(max_clip_duration)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise genmagic.GenMagicError(
+            "GenMagic clip duration must be a positive integer"
+        ) from exc
+    if clip_duration <= 0:
+        raise genmagic.GenMagicError("GenMagic clip duration must be a positive integer")
+
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = genmagic.generate_videos(
+                search_term=search_term,
+                minimum_duration=clip_duration,
+                video_aspect=video_aspect,
+            )
+        except genmagic.GenMagicUnconfirmedTaskError as exc:
+            # An ambiguous paid submission must stop the loop: retrying with the
+            # next keyword could create a duplicate charge.  The task ID is kept
+            # for task-service recovery when the provider returned one.
+            logger.error(
+                "stop submitting new GenMagic tasks because the last paid task "
+                f"is unconfirmed: task_id={exc.task_id or 'unknown'}, "
+                f"detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except genmagic.GenMagicError as exc:
+            logger.error(f"GenMagic generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        for item in video_items:
+            saved_video_path = _save_generated_video_with_retry(
+                item.url, material_directory, "genmagic"
+            )
+            if not saved_video_path:
+                # The remote job completed and may already have incurred a
+                # charge.  Do not submit a replacement task after download
+                # failure; return the remote ID for manual recovery instead.
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise genmagic.GenMagicDownloadError(
+                    "GenMagic generated a paid video but the result could not be "
+                    f"downloaded: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                )
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=genmagic, error={type(source_error).__name__}, "
+                    f"detail={source_error}"
+                )
+            try:
+                downloaded_duration = _get_downloaded_video_duration(saved_video_path)
+            except Exception as duration_error:
+                source_info = (
+                    item.source_info if isinstance(item.source_info, dict) else {}
+                )
+                remote_task_id = str(source_info.get("asset_id") or "").strip()
+                _persist_material_sources(task_id, material_sources)
+                raise genmagic.GenMagicDownloadError(
+                    "GenMagic generated a paid video but its downloaded duration "
+                    "could not be measured: "
+                    f"id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                ) from duration_error
+            total_duration += min(clip_duration, downloaded_duration)
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated GenMagic materials cover the required duration; stop "
+                f"submitting paid tasks: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(f"generated and downloaded {len(video_paths)} GenMagic videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
 
