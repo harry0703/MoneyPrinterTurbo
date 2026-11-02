@@ -490,6 +490,129 @@ def parse_script_with_pauses(text: str) -> list[tuple[str, Any]]:
     return segments
 
 
+# Emoji are pictures, not words: Edge TTS reads their names aloud ("chart
+# increasing") and the subtitle fonts draw them as boxes. These are the code
+# points drawn as emoji even without U+FE0F (Emoji_Presentation in Unicode's
+# emoji-data.txt), with whole pictograph blocks so that new emoji are covered.
+_EMOJI_CHARACTERS = (
+    r"\U0001F1E6-\U0001F1FF"  # regional indicators: two of them make a flag
+    r"\U0001F300-\U0001F64F"  # pictographs, skin tones and smileys
+    r"\U0001F680-\U0001F6FF\U0001F7E0-\U0001F7EB\U0001F7F0"
+    r"\U0001F900-\U0001F9FF\U0001FA70-\U0001FAFF"
+    r"\U0001F004\U0001F0CF\U0001F18E\U0001F191-\U0001F19A\U0001F201\U0001F21A"
+    r"\U0001F22F\U0001F232-\U0001F236\U0001F238-\U0001F23A\U0001F250\U0001F251"
+    r"\u231A\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD\u25FE\u2614\u2615\u2648-\u2653"
+    r"\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA"
+    r"\u26F2\u26F3\u26F5\u26FA\u26FD\u2705\u270A\u270B\u2728\u274C\u274E"
+    r"\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B\u2B1C\u2B50\u2B55"
+)
+# One emoji: an emoji character, a symbol followed by the emoji variation
+# selector U+FE0F (a heart or an arrow drawn as emoji; Unicode counts the
+# information sign U+2139 as a letter), or a symbol such as a hand sign joined
+# to a skin tone or to another emoji. Then come its skin tone, selectors, flag
+# tags and zero-width-joined parts. A digit, # or * followed by U+FE0F is plain
+# text or a keycap, and a keycap keeps its digit: "1" + U+FE0F + U+20E3 is "1".
+_EMOJI = (
+    rf"(?:[{_EMOJI_CHARACTERS}]|(?:[^\w\s#*]|\u2139)\uFE0F"
+    rf"|[\u2600-\u27BF](?=[\u200D\U0001F3FB-\U0001F3FF]))"
+    rf"(?:[{_EMOJI_CHARACTERS}\uFE0E\uFE0F\U000E0020-\U000E007F]|\u200D[^\w\s]\uFE0F?)*"
+)
+# A row of emoji, spaces between them included, and the space or tab on each
+# side of it.
+_EMOJI_PATTERN = re.compile(rf"([ \t]?)(?:{_EMOJI})+(?:[ \t]+(?:{_EMOJI})+)*([ \t]?)")
+_EMOJI_KEYCAP_PATTERN = re.compile(r"([0-9#*])\uFE0F?\u20E3")
+# No space is left after an opening mark or before a closing mark.
+_OPENING_MARKS = "([{«¡¿（「『【《"
+_CLOSING_MARKS = ".,!?;:)]}”’»…，。！？；：、）」』】》"
+# Straight quotes open and close a quotation, and so do “ and ‘: they close a
+# German one, which opens with „ or ‚ („So gut“), and open an English one.
+_QUOTE_MARKS = "\"'„“‚‘"
+# A quote mark or a line break. An apostrophe in a word, as in don't, is not a
+# quote mark.
+_QUOTE_MARK_PATTERN = re.compile(r"[\n\"„“‚‘]|(?<!\w)'(?!(?i:s|t|m|d|ll|re|ve)\b)|'(?!\w)")
+_CLOSING_QUOTE = {'"': '"', "'": "'", "„": "“", "‚": "‘"}
+# Chinese and Japanese characters: these languages put no spaces between words.
+_CHINESE_OR_JAPANESE = re.compile(
+    r"[\u2E80-\u312F\u3190-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF\U00020000-\U0003FFFF]"
+)
+
+
+def _replace_keycap(match: re.Match) -> str:
+    # A keycap keeps its digit, and a letter or digit right after it stays
+    # apart: three keycaps in a row become "3 2 1", not "321".
+    following = match.string[match.end() : match.end() + 1]
+    if following.isalnum() and not _CHINESE_OR_JAPANESE.match(following):
+        return match.group(1) + " "
+    return match.group(1)
+
+
+def _find_opening_quotes(text: str) -> set[int]:
+    # The positions of the quote marks that open a quotation, pairing the quotes
+    # of each line from its start.
+    opening = set()
+    awaited = set()  # the marks that close the quotations still open
+    for match in _QUOTE_MARK_PATTERN.finditer(text):
+        mark, index = match.group(), match.start()
+        if mark == "\n":
+            awaited.clear()
+        elif mark in awaited:
+            awaited.remove(mark)
+        elif mark == "'" and text[index - 1 : index].isalnum():
+            continue  # an apostrophe after a word: "the dogs' toys"
+        else:
+            opening.add(index)
+            if mark in _CLOSING_QUOTE:
+                awaited.add(_CLOSING_QUOTE[mark])
+    return opening
+
+
+def _replace_emoji(match: re.Match, opening_quotes: set[int]) -> str:
+    # The words on each side of an emoji stay apart: "Let's go 👉 now",
+    # "Big news 🚀Launching" and "I love🍕pizza" keep one space where the emoji
+    # was. No space is left at the start or end of a line, after an opening
+    # mark or before a closing mark ("Ready to grow 📈?" becomes "Ready to
+    # grow?"), or between Chinese or Japanese characters. A quote mark is an
+    # opening or a closing mark depending on how the quotes of its line pair up.
+    text = match.string
+    previous = text[match.start() - 1] if match.start() else "\n"
+    following = text[match.end()] if match.end() < len(text) else "\n"
+    space_before, space_after = match.groups()
+    if space_before and space_after:
+        return space_after
+    after_opening = (
+        previous.isspace()
+        or previous in _OPENING_MARKS
+        or match.start() - 1 in opening_quotes
+    )
+    before_closing = (
+        following.isspace()
+        or following in _CLOSING_MARKS
+        or (following in _QUOTE_MARKS and match.end() not in opening_quotes)
+    )
+    if space_before:
+        return "" if before_closing else space_before
+    if space_after:
+        return "" if after_opening else space_after
+    if after_opening or before_closing:
+        return ""
+    if _CHINESE_OR_JAPANESE.search(previous + following):
+        return ""
+    return " "
+
+
+def remove_emoji(text: str) -> str:
+    """
+    Remove emoji from a script before it is spoken or turned into subtitles.
+
+    Symbols that are text by default, such as ★ ♪ → © ™, are kept.
+    """
+    if not text:
+        return ""
+    text = _EMOJI_KEYCAP_PATTERN.sub(_replace_keycap, text)
+    opening_quotes = _find_opening_quotes(text)
+    return _EMOJI_PATTERN.sub(lambda match: _replace_emoji(match, opening_quotes), text)
+
+
 def normalize_script_for_subtitle_matching(video_script: str) -> str:
     """
     清理字幕匹配前的脚本文本。
@@ -498,8 +621,9 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
     这些字符通常不会出现在 TTS/Whisper 的识别结果里；如果继续参与
     字幕逐行匹配，脚本行数量会大于真实字幕行数量，最终可能补出
     `00:00:00,000 --> 00:00:00,000`，导致剪辑软件无法导入 SRT。
+    Emoji are left out as well: tts() does not speak them.
     """
-    video_script = remove_pause_tags(video_script or "")
+    video_script = remove_emoji(remove_pause_tags(video_script or ""))
     underscore_count = video_script.count("_")
     video_script = video_script.replace("_", "")
     cleaned_lines = []

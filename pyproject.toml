@@ -42,6 +42,8 @@ dependencies = [
     "google-genai==2.11.0",
     "pyjwt[crypto]>=2.10.1,<3",
     "filelock>=4.2.1,<5",
+    # 阿拉伯字母字幕的整形与绘制（HarfBuzz + FreeType，wheel 自带，无需系统库）。
+    "khatt[video]==0.4.0",
 ]
 
 [project.scripts]

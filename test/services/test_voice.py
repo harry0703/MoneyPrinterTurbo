@@ -252,7 +252,7 @@ class TestVoiceService(unittest.TestCase):
                     self.fail("siliconflow tts failed")
                 vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
                 audio_duration = vs.get_audio_duration(sub_maker)
-                print(f"voice: {voice_name}, audio duration: {audio_duration}s")
+                self.assertGreater(audio_duration, 0)
             else:
                 self.fail("siliconflow invalid voice name")
 
@@ -265,8 +265,7 @@ class TestVoiceService(unittest.TestCase):
     def test_azure_tts_v1(self):
         voice_name = "zh-CN-XiaoyiNeural-Female"
         voice_name = vs.parse_voice_name(voice_name)
-        print(voice_name)
-        
+
         voice_file = f"{temp_dir}/tts-azure-v1-{voice_name}.mp3"
         subtitle_file = f"{temp_dir}/tts-azure-v1-{voice_name}.srt"
         sub_maker = vs.azure_tts_v1(
@@ -276,7 +275,7 @@ class TestVoiceService(unittest.TestCase):
             self.fail("azure tts v1 failed")
         vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
         audio_duration = vs.get_audio_duration(sub_maker)
-        print(f"voice: {voice_name}, audio duration: {audio_duration}s")
+        self.assertGreater(audio_duration, 0)
 
     def test_azure_tts_v1_supports_legacy_edge_tts_without_boundary(self):
         """
@@ -429,7 +428,6 @@ class TestVoiceService(unittest.TestCase):
 
         voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"
         voice_name = vs.parse_voice_name(voice_name)
-        print(voice_name)
 
         async def _do():
             voice_file = f"{temp_dir}/tts-azure-v2-{voice_name}.mp3"
@@ -444,7 +442,7 @@ class TestVoiceService(unittest.TestCase):
                 self.fail("azure tts v2 failed")
             vs.create_subtitle(sub_maker=sub_maker, text=text_zh, subtitle_file=subtitle_file)
             audio_duration = vs.get_audio_duration(sub_maker)
-            print(f"voice: {voice_name}, audio duration: {audio_duration}s")
+            self.assertGreater(audio_duration, 0)
 
         self.loop.run_until_complete(_do())
 

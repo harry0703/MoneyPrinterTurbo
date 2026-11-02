@@ -153,3 +153,18 @@ def test_not_a_directory_error_does_not_hide_an_unusable_config_path():
             with pytest.raises(IsADirectoryError):
                 config.load_config()
         assert target.is_dir()
+
+
+def test_busy_docker_bind_mount_stub_explains_the_host_fix():
+    with TemporaryDirectory() as directory:
+        target = Path(directory, 'config.toml')
+        target.mkdir()
+        with (
+            patch.object(config, 'root_dir', directory),
+            patch.object(config, 'config_file', str(target)),
+            # Linux refuses to remove a live mount point with EBUSY.
+            patch.object(config.os, 'rmdir', side_effect=OSError(errno.EBUSY, 'Device or resource busy')),
+        ):
+            with pytest.raises(IsADirectoryError, match='copy config.example.toml to config.toml'):
+                config.load_config()
+        assert target.is_dir()

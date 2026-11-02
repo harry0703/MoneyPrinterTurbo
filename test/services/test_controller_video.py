@@ -94,11 +94,9 @@ class TestVideoControllerHelpers(unittest.TestCase):
 
             async def run_lifespan():
                 async with asgi.application_lifespan(asgi.app):
-                    pass
+                    recover.assert_called_once_with()
 
             asyncio.run(run_lifespan())
-
-        recover.assert_called_once_with()
 
     def test_fastapi_startup_resumes_persisted_redis_queue(self):
         """A restart must dispatch queued Redis work before serving requests."""
@@ -110,15 +108,18 @@ class TestVideoControllerHelpers(unittest.TestCase):
         with (
             patch.object(video_controller, "task_manager", manager),
             patch.object(manager, "check_queue") as check_queue,
+            patch.object(manager, "start_queue_dispatcher") as start_dispatcher,
+            patch.object(manager, "stop_queue_dispatcher") as stop_dispatcher,
             patch.object(task_service, "recover_interrupted_cross_posts"),
         ):
             async def run_lifespan():
                 async with asgi.application_lifespan(asgi.app):
-                    pass
+                    self.assertEqual(check_queue.call_count, 2)
 
             asyncio.run(run_lifespan())
 
-        self.assertEqual(check_queue.call_count, 2)
+        start_dispatcher.assert_called_once_with()
+        stop_dispatcher.assert_called_once_with()
 
     def test_sanitize_upload_filename_rejects_empty_name(self):
         """空文件名和目录占位符不能进入服务端存储路径。"""
