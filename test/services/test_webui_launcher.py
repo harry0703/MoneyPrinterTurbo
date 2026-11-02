@@ -10,6 +10,10 @@ on the LAN, stopped the launcher with "No available WebUI port found", because
 the port check looked the host up with Dns.GetHostAddresses(), which rejects
 0.0.0.0. Streamlit was also told to open http://0.0.0.0 in the browser, an
 address that Windows does not connect to.
+
+With 0.0.0.0 the port check must also skip a port that another program, such
+as an earlier WebUI, listens on at 127.0.0.1: Windows lets a plain bind to
+0.0.0.0 share that port, and the browser would open the other program.
 """
 
 import json
@@ -57,9 +61,10 @@ def _add_venv_with_streamlit_stub(project):
     (site_packages / "streamlit.py").write_text(STREAMLIT_STUB, encoding="utf-8")
 
 
-def _run_webui_bat(project, record, extra_path=(), host="127.0.0.1"):
+def _run_webui_bat(project, record, extra_path=(), host="127.0.0.1", port=None):
     """Run webui.bat from its own folder, as a double-click in Explorer does."""
-    port = _free_port()
+    if port is None:
+        port = _free_port()
     system_root = os.environ["SYSTEMROOT"]
     env = dict(os.environ)
     env.update(
@@ -170,6 +175,41 @@ def test_webui_bat_drops_the_space_a_cmd_one_liner_leaves_in_the_host(tmp_path):
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(record.read_text(encoding="utf-8"))[2:5] == [
+        "--server.address=0.0.0.0",
+        f"--server.port={port}",
+        "--browser.serverAddress=127.0.0.1",
+    ]
+
+
+@pytest.mark.parametrize(
+    "held_on",
+    [
+        # An earlier WebUI that is still running on the default host.
+        "127.0.0.1",
+        # Only bound, not listening: listening on 0.0.0.0 can bring up the
+        # Windows Firewall prompt, and a bound socket already holds the port.
+        "0.0.0.0",
+    ],
+)
+def test_webui_bat_lan_host_skips_a_port_already_in_use(tmp_path, held_on):
+    project = _make_project(tmp_path, "MoneyPrinterTurbo")
+    _add_venv_with_streamlit_stub(project)
+    record = tmp_path / "streamlit_args.json"
+
+    with socket.socket() as other:
+        other.bind((held_on, 0))
+        if held_on == "127.0.0.1":
+            other.listen()
+        busy_port = other.getsockname()[1]
+        result, _ = _run_webui_bat(project, record, host="0.0.0.0", port=busy_port)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    args = json.loads(record.read_text(encoding="utf-8"))
+    port = int(args[3].removeprefix("--server.port="))
+    assert port != busy_port, result.stdout
+    assert f"Port {busy_port} is unavailable, using {port} instead." in result.stdout
+    assert f"WebUI address: http://127.0.0.1:{port} *****" in result.stdout
+    assert args[2:5] == [
         "--server.address=0.0.0.0",
         f"--server.port={port}",
         "--browser.serverAddress=127.0.0.1",
