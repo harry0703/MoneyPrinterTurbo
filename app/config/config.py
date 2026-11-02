@@ -540,6 +540,15 @@ def load_config():
             # Another initializer already removed this empty bind-mount stub.
             pass
         except OSError as exc:
+            if exc.errno == errno.EBUSY:
+                # The directory is the bind mount itself, so it cannot be
+                # removed from inside the container; it must be fixed on the host.
+                raise IsADirectoryError(
+                    f"{config_file} is a directory because config.toml did not exist "
+                    "on the host when Docker mounted it. Stop the containers, delete "
+                    "the empty config.toml folder next to the docker-compose file, "
+                    "copy config.example.toml to config.toml there, then start again"
+                ) from exc
             # Another initializer may already have replaced the empty Docker
             # stub with its complete regular file. Accept only that race, not
             # permission failures or a still-present/nonempty directory.
