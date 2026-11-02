@@ -634,6 +634,17 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(cloudgpu.requires_api_key)
         self.assertEqual(cloudgpu.api_key_url, "https://cloudgpu.app")
         self.assertEqual(cloudgpu.model_docs_url, "https://cloudgpu.app/v1/models")
+        cheapaimodel = get_llm_provider("cheapaimodel")
+        self.assertEqual(cheapaimodel.default_model, "deepseek-v4-1-flash")
+        self.assertEqual(cheapaimodel.default_base_url, "https://api.cheapaimodel.ai/v1")
+        self.assertEqual(cheapaimodel.adapter, "openai_compatible")
+        self.assertTrue(cheapaimodel.requires_api_key)
+        self.assertEqual(
+            cheapaimodel.api_key_url, "https://console.cheapaimodel.ai/keys"
+        )
+        self.assertEqual(
+            cheapaimodel.model_docs_url, "https://cheapaimodel.ai/models"
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -718,6 +729,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "empiriolabs",
                 "runcrate",
                 "cloudgpu",
+                "cheapaimodel",
                 "ollama",
                 "claude_code",
                 "oneapi",

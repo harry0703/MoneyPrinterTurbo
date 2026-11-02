@@ -579,6 +579,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://cloudgpu.app/v1",
         model_docs_url="https://cloudgpu.app/v1/models",
     ),
+    LLMProviderSpec(
+        "cheapaimodel",
+        "cheapaimodel",
+        api_key_url="https://console.cheapaimodel.ai/keys",
+        default_model="deepseek-v4-1-flash",
+        default_base_url="https://api.cheapaimodel.ai/v1",
+        model_docs_url="https://cheapaimodel.ai/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

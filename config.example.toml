@@ -390,6 +390,15 @@ cloudgpu_api_key = ""
 cloudgpu_base_url = ""
 cloudgpu_model_name = ""
 
+# cheapaimodel, an OpenAI-compatible, pay-per-token gateway for open-weight
+# models (DeepSeek, GLM, Kimi) and Grok, prepaid in USD.
+# API key: https://console.cheapaimodel.ai/keys
+# Model list: https://cheapaimodel.ai/models
+# Docs: https://cheapaimodel.ai/docs
+cheapaimodel_api_key = ""
+cheapaimodel_base_url = ""
+cheapaimodel_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
