@@ -33,12 +33,12 @@ English | [简体中文](README.md) | [日本語](README-ja.md) | [Releases](htt
 ## Special Thanks ❤️
 
 <div align="center">
-  <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
+  <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="docs/sponsors/kimi-k3.1-pro-banner-en.webp" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
 </div>
 
-Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo) for sponsoring this project! [Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) is Moonshot AI's most capable model and the world's first open 3T-class model. With native vision and a 1-million-token context window, K3 delivers frontier performance across knowledge work, reasoning, and long-horizon tasks. Within MoneyPrinterTurbo, K3 powers video creation by writing scripts and extracting the search keywords that determine the final footage—the better it understands the content, the more relevant the results.
+Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo) for sponsoring this project! [Kimi K3.1 Pro](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) is Moonshot AI's most capable 3T-class open-weight model to date. With native vision and a 1-million-token context window, K3.1 Pro delivers frontier performance across knowledge work, reasoning, and long-horizon tasks. Within MoneyPrinterTurbo, K3.1 Pro powers video creation by writing scripts and extracting the search keywords that determine the final footage—the better it understands the content, the more relevant the results.
 
-**Exclusive offer for MoneyPrinterTurbo users: new users who register through the dedicated link receive bonus API credit equal to 10% of their first successful top-up, up to CNY 1,000. The offer ends December 31, 2026. Visit the Kimi Open Platform ([中文站](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo) | [Global](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)) to try the API.**
+**Exclusive offer for MoneyPrinterTurbo users: new users who register through the dedicated link receive bonus API credit equal to 10% of their first successful top-up. The offer ends December 31, 2026. Visit the Kimi Open Platform ([中文站](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo) | [Global](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)) to try the API.**
 
 <br>
 <table align="center">
