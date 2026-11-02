@@ -1,5 +1,7 @@
 @echo off
 setlocal
+rem Work in this script's folder, the project, also when it is started elsewhere: Run as administrator starts batch files in C:\Windows\System32.
+cd /d "%~dp0"
 set "CURRENT_DIR=%CD%"
 echo ***** Current directory: "%CURRENT_DIR%" *****
 set "PYTHONPATH=%CURRENT_DIR%"
