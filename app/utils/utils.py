@@ -289,9 +289,26 @@ def str_contains_punctuation(word):
     return False
 
 
-def split_string_by_punctuations(s):
+# Thai and Lao letters, vowel signs and tone marks. The repetition marks ๆ and ໆ
+# and the abbreviation marks ฯ and ຯ are left out: a space next to them is inside
+# a sentence, as in "เด็ก ๆ ชอบ" and "กรุงเทพฯ เป็น".
+_THAI_OR_LAO_LETTER = (
+    r"[\u0E01-\u0E2E\u0E30-\u0E3A\u0E40-\u0E45\u0E47-\u0E4E"
+    r"\u0E81-\u0EAE\u0EB0-\u0EBD\u0EC0-\u0EC4\u0EC8-\u0ECE\u0EDC-\u0EDF]"
+)
+# Thai and Lao separate sentences with a space instead of a full stop. A space
+# next to a number or a word in Latin letters is part of the sentence.
+_THAI_OR_LAO_SENTENCE_SPACE = re.compile(
+    rf"(?<={_THAI_OR_LAO_LETTER})\s+(?={_THAI_OR_LAO_LETTER})"
+)
+
+
+def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
     result = []
     txt = ""
+    if split_thai_and_lao_sentences:
+        # A space that ends a Thai or Lao sentence ends the line like a line break.
+        s = _THAI_OR_LAO_SENTENCE_SPACE.sub("\n", s)
 
     previous_char = ""
     next_char = ""

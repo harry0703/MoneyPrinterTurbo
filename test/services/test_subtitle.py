@@ -426,6 +426,36 @@ class TestSubtitleService(unittest.TestCase):
         )
         self.assertEqual(items[1][1], "00:00:00,000 --> 00:00:00,000")
 
+    def test_correct_does_not_split_thai_script_at_sentence_spaces(self):
+        """
+        create() does not end a Whisper segment at the space that ends a Thai
+        sentence, so one segment can hold two sentences. Split there, the script
+        would have more lines than segments, and its last sentences would get the
+        00:00:00,000 placeholder.
+        """
+        sentences = [
+            "กาแฟเป็นเครื่องดื่มที่ได้รับความนิยมทั่วโลก",
+            "ทุกเช้าผู้คนนับล้านเริ่มต้นวันด้วยกาแฟหนึ่งแก้ว",
+            "กาแฟช่วยให้ร่างกายตื่นตัวและมีสมาธิมากขึ้น",
+            "แต่การดื่มมากเกินไปอาจทำให้นอนไม่หลับ",
+        ]
+        original_srt = (
+            f"1\n00:00:00,100 --> 00:00:04,650\n{sentences[0]} {sentences[1]}\n\n"
+            f"2\n00:00:04,650 --> 00:00:09,588\n{sentences[2]} {sentences[3]}\n\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+
+            subtitle.correct(str(subtitle_file), " ".join(sentences))
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+
+        self.assertEqual(
+            [(item[1], item[2]) for item in items],
+            [("00:00:00,100 --> 00:00:09,588", " ".join(sentences))],
+        )
+
     def test_file_to_subtitles_keeps_last_block_without_trailing_newline(self):
         """
         The final subtitle must be parsed even when the SRT file does not end
