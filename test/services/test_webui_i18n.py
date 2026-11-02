@@ -176,6 +176,8 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Infistar Video Base URL",
         "Script Generation Method",
         "Script Generation Method Help",
+        "Video Script Generation Failed",
+        "Video Keywords Generation Failed",
         "Shengsuan Cloud AI Video",
         "Shengsuan Cloud AI Video Help",
         "Shengsuan Cloud API Key",

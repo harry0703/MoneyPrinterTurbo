@@ -5493,6 +5493,9 @@ def _render_local_script_generation(params):
                 custom_system_prompt=params.custom_system_prompt,
                 app_config=app_config_snapshot,
             )
+            if not script:
+                # No keyword request for a script that was not generated.
+                return "", []
             terms = llm.generate_terms(
                 params.video_subject,
                 script,
@@ -5506,16 +5509,21 @@ def _render_local_script_generation(params):
             "generate_script_and_terms",
             generate_script_and_terms,
         )
-        if "Error: " in script:
-            st.error(tr(script))
-        elif "Error: " in terms:
-            st.error(tr(terms))
+        # generate_script() and generate_terms() log the provider error and
+        # return "" or [] when the model fails. A generated script may itself
+        # quote "Error: ", so only an empty result is a failure.
+        if not script:
+            st.error(tr("Video Script Generation Failed"))
         else:
             st.session_state["video_script"] = script
             st.session_state["video_terms"] = ", ".join(terms)
             st.session_state["loomloom_video_scene_autofill_digest"] = (
                 hashlib.sha256(script.strip().encode("utf-8")).hexdigest()
             )
+            if not terms:
+                # The generated script is kept; blank keywords are generated
+                # from it when the video is made.
+                st.error(tr("Video Keywords Generation Failed"))
 
 
 def _render_loomloom_candidates():
@@ -6004,8 +6012,8 @@ def _render_script_settings(panel, params):
                                 app_config=app_config_snapshot,
                             ),
                         )
-                        if "Error: " in terms:
-                            st.error(tr(terms))
+                        if not terms:
+                            st.error(tr("Video Keywords Generation Failed"))
                         else:
                             st.session_state["video_terms"] = ", ".join(terms)
 
