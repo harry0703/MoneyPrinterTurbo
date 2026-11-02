@@ -114,6 +114,8 @@
     "Open Task Folder": "Open Folder",
     "Generating Video Script and Keywords": "AI is generating video script and keywords...",
     "Generating Video Keywords": "AI is generating video keywords...",
+    "Video Script Generation Failed": "AI could not generate the video script. Try again, or in Settings, open LLM Settings and click Test Model Connection to check the model service.",
+    "Video Keywords Generation Failed": "AI could not generate the video keywords. Try again, or in Settings, open LLM Settings and click Test Model Connection to check the model service.",
     "Video Keywords": "Video Keywords (English, Optional)",
     "Video Keywords Help": "Leave blank to generate them with AI from the video script. Separate multiple keywords with English commas.",
     "Video Settings": "**Video Settings**",

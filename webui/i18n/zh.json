@@ -114,6 +114,8 @@
     "Open Task Folder": "打开目录",
     "Generating Video Script and Keywords": "AI正在生成视频文案和关键词...",
     "Generating Video Keywords": "AI正在生成视频关键词...",
+    "Video Script Generation Failed": "AI未能生成视频文案。请重试，或在“设置 → 大模型设置”中点击“测试模型连接”检查模型服务。",
+    "Video Keywords Generation Failed": "AI未能生成视频关键词。请重试，或在“设置 → 大模型设置”中点击“测试模型连接”检查模型服务。",
     "Video Keywords": "视频关键词（英文，可选）",
     "Video Keywords Help": "可留空，由 AI 根据视频文案生成。多个关键词请使用英文逗号分隔。",
     "Video Settings": "**视频设置**",
