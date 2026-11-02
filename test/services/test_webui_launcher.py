@@ -14,6 +14,12 @@ address that Windows does not connect to.
 With 0.0.0.0 the port check must also skip a port that another program, such
 as an earlier WebUI, listens on at 127.0.0.1: Windows lets a plain bind to
 0.0.0.0 share that port, and the browser would open the other program.
+
+Run as administrator starts batch files in the System32 folder of Windows, and
+a cmd window in another folder starts webui.bat in that folder. The launcher
+took the folder it was started in for the project, so it stopped with "Neither
+project Python, uv, nor streamlit was found" although the project had its
+.venv, or ran uv in the wrong folder.
 """
 
 import json
@@ -33,12 +39,16 @@ pytestmark = pytest.mark.skipif(
     sys.platform != "win32", reason="webui.bat runs on Windows only"
 )
 
-# Stands in for Streamlit and records the arguments webui.bat passed to it.
+# Stands in for Streamlit and records the arguments webui.bat passed to it, and
+# in a second file the folder it runs in.
 STREAMLIT_STUB = """\
 import json, os, sys
 
-with open(os.environ["MPT_TEST_LAUNCH_RECORD"], "w", encoding="utf-8") as f:
+record = os.environ["MPT_TEST_LAUNCH_RECORD"]
+with open(record, "w", encoding="utf-8") as f:
     json.dump(sys.argv[1:], f)
+with open(record + ".cwd", "w", encoding="utf-8") as f:
+    f.write(os.getcwd())
 """
 
 
@@ -61,8 +71,17 @@ def _add_venv_with_streamlit_stub(project):
     (site_packages / "streamlit.py").write_text(STREAMLIT_STUB, encoding="utf-8")
 
 
-def _run_webui_bat(project, record, extra_path=(), host="127.0.0.1", port=None):
-    """Run webui.bat from its own folder, as a double-click in Explorer does."""
+def _run_webui_bat(
+    project, record, extra_path=(), host="127.0.0.1", port=None, cwd=None
+):
+    """Run webui.bat from its own folder, as a double-click in Explorer does,
+    or by its full path from the folder cwd."""
+    if cwd is None:
+        cwd, command = project, ["cmd", "/d", "/c", r".\webui.bat"]
+    else:
+        # The doubled quotes keep the path quoted with spaces, ( ) or & in it;
+        # /s makes cmd strip only the outer pair.
+        command = f'cmd /d /s /c ""{project / "webui.bat"}""'
     if port is None:
         port = _free_port()
     system_root = os.environ["SYSTEMROOT"]
@@ -82,8 +101,8 @@ def _run_webui_bat(project, record, extra_path=(), host="127.0.0.1", port=None):
         MPT_TEST_LAUNCH_RECORD=str(record),
     )
     result = subprocess.run(
-        ["cmd", "/d", "/c", r".\webui.bat"],
-        cwd=project,
+        command,
+        cwd=cwd,
         env=env,
         stdin=subprocess.DEVNULL,
         capture_output=True,
@@ -135,6 +154,51 @@ def test_webui_bat_falls_back_to_uv_from_folder_with_parentheses(tmp_path):
         "--server.address=127.0.0.1",
         f"--server.port={port}",
     ]
+
+
+@pytest.mark.parametrize(
+    "folder_name",
+    ["MoneyPrinterTurbo", "MoneyPrinterTurbo (1)", "R&D MoneyPrinterTurbo"],
+)
+def test_webui_bat_starts_project_python_when_started_in_system32(
+    tmp_path, folder_name
+):
+    # Run as administrator starts batch files in C:\Windows\System32.
+    system32 = Path(os.environ["SYSTEMROOT"], "System32")
+    project = _make_project(tmp_path, folder_name)
+    _add_venv_with_streamlit_stub(project)
+    record = tmp_path / "streamlit_args.json"
+
+    result, port = _run_webui_bat(project, record, cwd=system32)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert folder_name in result.stdout  # the "Current directory" line
+    # Streamlit opens .\webui\Main.py from the folder it runs in.
+    streamlit_cwd = Path(f"{record}.cwd").read_text(encoding="utf-8")
+    assert Path(streamlit_cwd) == project
+    assert json.loads(record.read_text(encoding="utf-8"))[:4] == [
+        "run",
+        r".\webui\Main.py",
+        "--server.address=127.0.0.1",
+        f"--server.port={port}",
+    ]
+
+
+def test_webui_bat_runs_uv_in_project_folder_when_started_in_system32(tmp_path):
+    system32 = Path(os.environ["SYSTEMROOT"], "System32")
+    project = _make_project(tmp_path, "MoneyPrinterTurbo (1)")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    # Records the folder that uv runs in; cmd /u writes it as UTF-16, whatever the code page.
+    (bin_dir / "uv.bat").write_text(
+        '@echo off\n>"%MPT_TEST_LAUNCH_RECORD%" cmd /d /u /c cd\n', encoding="ascii"
+    )
+    record = tmp_path / "uv_cwd.txt"
+
+    result, _ = _run_webui_bat(project, record, extra_path=[str(bin_dir)], cwd=system32)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert Path(record.read_text(encoding="utf-16-le").strip()) == project
 
 
 @pytest.mark.parametrize(
