@@ -230,7 +230,11 @@ def similarity(a, b):
 def correct(subtitle_file, video_script):
     subtitle_items = file_to_subtitles(subtitle_file)
     normalized_script = utils.normalize_script_for_subtitle_matching(video_script)
-    script_lines = utils.split_string_by_punctuations(normalized_script)
+    # create() splits Whisper segments at punctuation but not at the space that ends
+    # a Thai or Lao sentence, so a segment can hold several of those sentences.
+    script_lines = utils.split_string_by_punctuations(
+        normalized_script, split_thai_and_lao_sentences=False
+    )
 
     corrected = False
     new_subtitle_items = []

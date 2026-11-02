@@ -1528,6 +1528,116 @@ class TestVoiceService(unittest.TestCase):
                 for item, line in zip(sub_items, expected_lines):
                     self.assertIn(line, item)
 
+    def test_script_split_supports_thai_and_lao_sentence_spaces(self):
+        """
+        Thai and Lao separate sentences with a space instead of a full stop. A space
+        next to a number, a word in Latin letters, the repetition mark ๆ or the
+        abbreviation mark ฯ is inside the sentence, and Korean keeps its lines.
+        """
+        coffee = (
+            "กาแฟเป็นเครื่องดื่มที่ได้รับความนิยมทั่วโลก ทุกเช้าผู้คนนับล้านเริ่มต้นวันด้วยกาแฟหนึ่งแก้ว "
+            "กาแฟช่วยให้ร่างกายตื่นตัวและมีสมาธิมากขึ้น แต่การดื่มมากเกินไปอาจทำให้นอนไม่หลับ"
+        )
+        cases = {
+            coffee: [
+                "กาแฟเป็นเครื่องดื่มที่ได้รับความนิยมทั่วโลก",
+                "ทุกเช้าผู้คนนับล้านเริ่มต้นวันด้วยกาแฟหนึ่งแก้ว",
+                "กาแฟช่วยให้ร่างกายตื่นตัวและมีสมาธิมากขึ้น",
+                "แต่การดื่มมากเกินไปอาจทำให้นอนไม่หลับ",
+            ],
+            "เด็ก ๆ ชอบเล่นฟุตบอล ทุกวันหลังเลิกเรียน": [
+                "เด็ก ๆ ชอบเล่นฟุตบอล",
+                "ทุกวันหลังเลิกเรียน",
+            ],
+            "ราคา 100 บาท ถูกมาก ฉันใช้ iPhone ทุกวัน มันดีมาก": [
+                "ราคา 100 บาท",
+                "ถูกมาก",
+                "ฉันใช้ iPhone ทุกวัน",
+                "มันดีมาก",
+            ],
+            "กรุงเทพฯ เป็นเมืองหลวงของประเทศไทย  มีประชากรมากกว่าสิบล้านคน": [
+                "กรุงเทพฯ เป็นเมืองหลวงของประเทศไทย",
+                "มีประชากรมากกว่าสิบล้านคน",
+            ],
+            "ສະບາຍດີ ມື້ນີ້ອາກາດດີຫຼາຍ ພວກເຮົາໄປທ່ຽວກັນ": [
+                "ສະບາຍດີ",
+                "ມື້ນີ້ອາກາດດີຫຼາຍ",
+                "ພວກເຮົາໄປທ່ຽວກັນ",
+            ],
+            "안녕하세요 오늘은 날씨가 좋네요": ["안녕하세요 오늘은 날씨가 좋네요"],
+        }
+        for text, expected_lines in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(
+                    utils.split_string_by_punctuations(text), expected_lines
+                )
+        self.assertEqual(
+            utils.split_string_by_punctuations(
+                coffee, split_thai_and_lao_sentences=False
+            ),
+            [coffee],
+        )
+
+    def test_edge_cue_aggregation_splits_thai_and_lao_sentences_at_spaces(self):
+        """
+        Word boundaries edge-tts 7.3.1 returns for these scripts with
+        th-TH-PremwadeeNeural and lo-LA-KeomanyNeural. The Thai words have no space
+        in them, except "เด็ก ๆ", and the Lao words are the parts between the
+        spaces. Each sentence must still get its own subtitle.
+        """
+        cases = [
+            (
+                "กาแฟเป็นเครื่องดื่มที่ได้รับความนิยมทั่วโลก ทุกเช้าผู้คนนับล้านเริ่มต้นวันด้วยกาแฟหนึ่งแก้ว "
+                "กาแฟช่วยให้ร่างกายตื่นตัวและมีสมาธิมากขึ้น แต่การดื่มมากเกินไปอาจทำให้นอนไม่หลับ",
+                [
+                    *"กาแฟ เป็น เครื่อง ดื่ม ที่ ได้ รับ ความ นิยม ทั่ว โลก".split(),
+                    *"ทุก เช้า ผู้คน นับ ล้าน เริ่มต้น วัน ด้วย กาแฟ หนึ่ง แก้ว".split(),
+                    *"กาแฟ ช่วย ให้ ร่างกาย ตื่นตัว และ มี สมาธิ มาก ขึ้น".split(),
+                    *"แต่ การ ดื่ม มาก เกิน ไป อาจ ทำ ให้ นอน ไม่ หลับ".split(),
+                ],
+                [
+                    "กาแฟเป็นเครื่องดื่มที่ได้รับความนิยมทั่วโลก",
+                    "ทุกเช้าผู้คนนับล้านเริ่มต้นวันด้วยกาแฟหนึ่งแก้ว",
+                    "กาแฟช่วยให้ร่างกายตื่นตัวและมีสมาธิมากขึ้น",
+                    "แต่การดื่มมากเกินไปอาจทำให้นอนไม่หลับ",
+                ],
+            ),
+            (
+                "เด็ก ๆ ชอบเล่นฟุตบอล ทุกวันหลังเลิกเรียน",
+                ["เด็ก ๆ", *"ชอบ เล่น ฟุตบอล ทุก วัน หลัง เลิก เรียน".split()],
+                ["เด็ก ๆ ชอบเล่นฟุตบอล", "ทุกวันหลังเลิกเรียน"],
+            ),
+            (
+                "ราคา 100 บาท ถูกมาก ฉันใช้ iPhone ทุกวัน มันดีมาก",
+                "ราคา 100 บาท ถูก มาก ฉัน ใช้ iPhone ทุก วัน มัน ดี มาก".split(),
+                ["ราคา 100 บาท", "ถูกมาก", "ฉันใช้ iPhone ทุกวัน", "มันดีมาก"],
+            ),
+            (
+                "ສະບາຍດີ ມື້ນີ້ອາກາດດີຫຼາຍ ພວກເຮົາໄປທ່ຽວກັນ",
+                "ສະບາຍດີ ມື້ນີ້ອາກາດດີຫຼາຍ ພວກເຮົາໄປທ່ຽວກັນ".split(),
+                ["ສະບາຍດີ", "ມື້ນີ້ອາກາດດີຫຼາຍ", "ພວກເຮົາໄປທ່ຽວກັນ"],
+            ),
+        ]
+        for text, words, expected_lines in cases:
+            with self.subTest(text=text):
+                script_lines = utils.split_string_by_punctuations(text)
+                cues = [
+                    SimpleNamespace(
+                        content=word,
+                        start=timedelta(seconds=index * 0.4),
+                        end=timedelta(seconds=index * 0.4 + 0.3),
+                    )
+                    for index, word in enumerate(words)
+                ]
+
+                sub_items = vs._build_subtitle_items_from_edge_cues(
+                    SimpleNamespace(cues=cues), script_lines
+                )
+
+                self.assertEqual(len(sub_items), len(expected_lines))
+                for item, line in zip(sub_items, expected_lines):
+                    self.assertIn(line, item)
+
     def test_match_script_line_normalizes_arabic_letter_forms(self):
         """
         edge-tts 可能把阿拉伯语中的不同字母形态归一化，或返回带变音符号、
