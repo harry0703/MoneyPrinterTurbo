@@ -652,6 +652,9 @@ def concat_video_clips_with_ffmpeg(
     def build_command(codec: str) -> list[str]:
         command = [
             utils.get_ffmpeg_binary(),
+            # Otherwise FFmpeg reads keys from the console it inherits: "q"
+            # ends the video early and "c" waits for Enter.
+            "-nostdin",
             "-y",
             "-f",
             "concat",
