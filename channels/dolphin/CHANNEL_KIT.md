@@ -64,8 +64,8 @@ On phone or desktop, go to **Create → Upload videos**. For each video:
   or a fake event, so *No* is normally correct here. Check YouTube's current policy if you're unsure.
 - **Visibility:** choose *Schedule*, and set Day 1, Day 2, … at the same time each day.
   Late afternoon in your main audience's time zone is a good starting point.
-- **Footage credits:** if you render with Pexels/Pixabay, credit isn't required, but
-  “Footage: Pexels” at the end of the description is good practice.
+- **Footage credits:** Pixabay doesn't require credit, but “Footage: Pixabay” at the
+  end of the description is good practice.
 
 Hashtags for every description: `#dolphins #dolphinfacts #oceanlife #animalfacts #shorts`
 
@@ -112,17 +112,26 @@ Hashtags for every description: `#dolphins #dolphinfacts #oceanlife #animalfacts
 
 ## Rendering the videos
 
-Requires a free Pexels API key (<https://www.pexels.com/api/>). Add it to `config.toml`:
+Footage comes from Pixabay. Pexels has paused new API keys, and Pixabay
+footage is also free to use in monetized YouTube videos.
 
-```toml
-pexels_api_keys = ["YOUR_KEY"]
-```
+1. Create a free account at <https://pixabay.com>, then open <https://pixabay.com/api/docs/>.
+   While you're logged in, your key is shown in the **Parameters → key** row.
+2. Add it to `config.toml`:
 
-Then render all 10 videos from the repository root:
+   ```toml
+   pixabay_api_keys = ["YOUR_KEY"]
+   ```
+
+3. Render all 10 videos from the repository root:
 
 ```bash
-uv run python cli.py --batch-file channels/dolphin/tasks.json --video-source pexels --video-language en-US --voice-name en-US-AndrewNeural-Male --font-name BeVietnamPro-Bold.ttf --subtitle-position two_thirds_bottom --video-aspect 9:16 --video-transition-mode fade-in --bgm-type random --bgm-volume 0.15
+uv run python cli.py --batch-file channels/dolphin/tasks.json --video-source pixabay --video-language en-US --voice-name en-US-AndrewNeural-Male --font-name BeVietnamPro-Bold.ttf --subtitle-position two_thirds_bottom --video-aspect 9:16 --video-transition-mode fade-in --bgm-type random --bgm-volume 0.15
 ```
 
 Each finished video is written to `storage/tasks/<task-id>/final-1.mp4`. The command prints a
 JSON summary that maps each manifest entry, in order, to its task ID.
+
+**No API key at all?** Download 20–30 dolphin clips by hand from pixabay.com or pexels.com
+(their websites still allow free downloads). Save them to a folder, then render with
+`--video-source local --video-materials "clips/1.mp4,clips/2.mp4,..."`.
