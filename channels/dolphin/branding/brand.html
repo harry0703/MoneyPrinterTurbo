@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#03203a}
+  .art{position:relative;overflow:hidden;font-family:'Fredoka',sans-serif;color:#fff}
+  #banner{width:2560px;height:1440px;background:linear-gradient(180deg,#0aa3c7 0%,#0b6f9e 45%,#06345a 100%)}
+  #avatar{width:800px;height:800px;background:radial-gradient(circle at 50% 35%,#16c1e0 0%,#0a77a6 55%,#053055 100%)}
+  .rays{position:absolute;inset:0;background:repeating-linear-gradient(100deg,rgba(255,255,255,.07) 0 60px,transparent 60px 190px);mask:linear-gradient(180deg,#000,transparent 70%);-webkit-mask:linear-gradient(180deg,#000,transparent 70%)}
+  .bubbles circle{fill:rgba(255,255,255,.18)}
+  /* YouTube safe area for banner: centered 1546x423 */
+  .safe{position:absolute;left:507px;top:508px;width:1546px;height:423px;display:flex;align-items:center;gap:56px;justify-content:center}
+  .title{font-size:148px;font-weight:700;line-height:1;letter-spacing:1px;text-shadow:0 6px 24px rgba(0,0,0,.25)}
+  .tag{font-size:58px;font-weight:500;opacity:.92;margin-top:18px}
+  .dolphin{fill:#e9fbff}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <path id="d" d="M24 50 C45 40 70 33 92 31 C92 22 88 12 80 6 C96 10 108 22 116 30 C140 28 162 28 174 34 C182 38 185 44 186 48 C194 49 202 51 206 53 C202 56 194 57 186 57 C174 62 150 70 132 72 C128 80 120 88 110 92 C112 84 114 78 114 72 C90 70 60 64 30 58 C22 66 14 74 2 80 C6 70 10 62 14 55 C10 48 6 40 0 30 C10 36 18 44 24 50 Z"/>
+</defs></svg>
+
+<div id="banner" class="art">
+  <div class="rays"></div>
+  <svg class="bubbles" width="2560" height="1440" style="position:absolute;inset:0">
+    <circle cx="420" cy="1180" r="22"/><circle cx="470" cy="1110" r="12"/><circle cx="2160" cy="1220" r="26"/><circle cx="2210" cy="1140" r="14"/><circle cx="2120" cy="1080" r="9"/><circle cx="1300" cy="1300" r="16"/>
+  </svg>
+  <div class="safe">
+    <svg width="420" height="230" viewBox="-4 0 214 96"><use href="#d" class="dolphin" transform="rotate(-12 100 50)"/></svg>
+    <div><div class="title">Dolphin Daily</div><div class="tag">One amazing dolphin fact, every day</div></div>
+  </div>
+</div>
+
+<div id="avatar" class="art">
+  <div class="rays"></div>
+  <svg width="800" height="800" viewBox="0 0 800 800" style="position:absolute;inset:0">
+    <g transform="translate(130 250) scale(2.7) rotate(-18 100 50)"><use href="#d" class="dolphin"/></g>
+    <circle cx="610" cy="250" r="18" fill="rgba(255,255,255,.35)"/><circle cx="645" cy="200" r="11" fill="rgba(255,255,255,.3)"/>
+  </svg>
+</div>
+</body></html>
