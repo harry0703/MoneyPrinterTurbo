@@ -456,6 +456,191 @@ class TestSubtitleService(unittest.TestCase):
             [("00:00:00,100 --> 00:00:09,588", " ".join(sentences))],
         )
 
+    def _correct_cues(self, cues, script):
+        original_srt = "".join(
+            f"{i}\n{times}\n{text}\n\n" for i, (times, text) in enumerate(cues, 1)
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+            subtitle.correct(str(subtitle_file), script)
+            items = subtitle.file_to_subtitles(str(subtitle_file))
+        return [(item[1], item[2]) for item in items]
+
+    def test_correct_shares_a_cue_that_holds_the_next_script_line(self):
+        """
+        Whisper can leave out a comma that the script has. One cue then holds
+        two script lines: the first line got the whole cue, every later line
+        the cue of the line after it, and the last lines 00:00:00,000.
+        """
+        cues = [
+            (
+                "00:00:00,000 --> 00:00:06,800",
+                "Risky calls are held before they run and reads pass straight through",
+            ),
+            ("00:00:07,000 --> 00:00:08,000", "That is the gate"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(
+                cues,
+                "Risky calls are held before they run, and reads pass straight "
+                "through. That is the gate.",
+            ),
+            [
+                ("00:00:00,000 --> 00:00:03,600", "Risky calls are held before they run"),
+                ("00:00:03,600 --> 00:00:06,800", "and reads pass straight through"),
+                ("00:00:07,000 --> 00:00:08,000", "That is the gate"),
+            ],
+        )
+
+    def test_correct_shares_a_cue_between_several_script_lines(self):
+        """Without the commas of the script, one cue can hold three lines."""
+        cues = [("00:00:00,000 --> 00:00:03,400", "今天天气很好我们去公园散步然后回家")]
+
+        self.assertEqual(
+            self._correct_cues(cues, "今天天气很好，我们去公园散步，然后回家。"),
+            [
+                ("00:00:00,000 --> 00:00:01,200", "今天天气很好"),
+                ("00:00:01,200 --> 00:00:02,600", "我们去公园散步"),
+                ("00:00:02,600 --> 00:00:03,400", "然后回家"),
+            ],
+        )
+
+    def test_correct_shares_a_cue_after_a_turkish_line_with_dotted_capital_i(self):
+        """
+        "İ".lower() has two characters. The cue is still cut where the line
+        ends, not one character later for each İ.
+        """
+        cues = [
+            (
+                "00:00:00,000 --> 00:00:04,700",
+                "İzmir'e İlknur ve İsmail ile gittik çok güzeldi",
+            )
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "İzmir'e İlknur ve İsmail ile gittik, çok güzeldi."),
+            [
+                ("00:00:00,000 --> 00:00:03,500", "İzmir'e İlknur ve İsmail ile gittik"),
+                ("00:00:03,500 --> 00:00:04,700", "çok güzeldi"),
+            ],
+        )
+
+    def test_correct_gives_the_next_line_the_rest_of_a_cue_and_its_own_cue(self):
+        """A cue can end inside the next line, which then goes on in the next cue."""
+        cues = [
+            (
+                "00:00:00,000 --> 00:00:05,100",
+                "Risky calls are held before they run and reads pass",
+            ),
+            ("00:00:05,200 --> 00:00:06,000", "straight through"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(
+                cues,
+                "Risky calls are held before they run, and reads pass straight through.",
+            ),
+            [
+                ("00:00:00,000 --> 00:00:03,600", "Risky calls are held before they run"),
+                ("00:00:03,600 --> 00:00:06,000", "and reads pass straight through"),
+            ],
+        )
+
+    def test_correct_keeps_a_cue_whose_extra_words_are_not_the_next_line(self):
+        """Words that Whisper added, and that do not start the next line, keep the cue."""
+        cues = [
+            ("00:00:00,000 --> 00:00:03,000", "Welcome back thank you for watching"),
+            ("00:00:03,500 --> 00:00:05,000", "Today we cook rice"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "Welcome back. Today we cook rice."),
+            [
+                ("00:00:00,000 --> 00:00:03,000", "Welcome back"),
+                ("00:00:03,500 --> 00:00:05,000", "Today we cook rice"),
+            ],
+        )
+
+    def test_correct_keeps_a_cue_whose_last_words_the_next_cue_repeats(self):
+        """
+        Whisper can write the start of the next line at the end of a cue and
+        again at the start of the next cue. The next line keeps its own cue.
+        """
+        cues = [
+            ("00:00:00,100 --> 00:00:01,500", "We went home and then we"),
+            ("00:00:01,600 --> 00:00:03,000", "and then we slept"),
+            ("00:00:03,200 --> 00:00:04,000", "Good night"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "We went home, and then we slept. Good night."),
+            [
+                ("00:00:00,100 --> 00:00:01,500", "We went home"),
+                ("00:00:01,600 --> 00:00:03,000", "and then we slept"),
+                ("00:00:03,200 --> 00:00:04,000", "Good night"),
+            ],
+        )
+
+    def test_correct_keeps_a_cue_whose_last_word_has_an_extra_letter(self):
+        """
+        "Hello worlds" for "Hello world" ends with the first letter of the next
+        line. That line has its own cue, so the cue is not cut before the "s".
+        """
+        cues = [
+            ("00:00:00,100 --> 00:00:01,300", "Hello worlds"),
+            ("00:00:01,700 --> 00:00:02,500", "So we went"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "Hello world. So we went."),
+            [
+                ("00:00:00,100 --> 00:00:01,300", "Hello world"),
+                ("00:00:01,700 --> 00:00:02,500", "So we went"),
+            ],
+        )
+
+    def test_correct_keeps_a_cue_whose_extra_line_the_next_cue_repeats(self):
+        """
+        Whisper can also write the whole next line twice: at the end of a cue
+        and as the next cue. The next line keeps its own cue.
+        """
+        cues = [
+            ("00:00:00,100 --> 00:00:01,500", "We went home and then we slept"),
+            ("00:00:01,600 --> 00:00:03,000", "and then we slept"),
+            ("00:00:03,200 --> 00:00:04,000", "Good night"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "We went home, and then we slept. Good night."),
+            [
+                ("00:00:00,100 --> 00:00:01,500", "We went home"),
+                ("00:00:01,600 --> 00:00:03,000", "and then we slept"),
+                ("00:00:03,200 --> 00:00:04,000", "Good night"),
+            ],
+        )
+
+    def test_correct_keeps_a_cue_whose_extra_short_line_the_next_cue_repeats(self):
+        """
+        The script is split at every comma, so a line that Whisper writes twice
+        can be two words long.
+        """
+        cues = [
+            ("00:00:00,000 --> 00:00:01,500", "I opened the door and saw"),
+            ("00:00:01,600 --> 00:00:02,200", "and saw"),
+            ("00:00:02,500 --> 00:00:03,000", "Then left"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "I opened the door, and saw. Then left."),
+            [
+                ("00:00:00,000 --> 00:00:01,500", "I opened the door"),
+                ("00:00:01,600 --> 00:00:02,200", "and saw"),
+                ("00:00:02,500 --> 00:00:03,000", "Then left"),
+            ],
+        )
+
     def test_file_to_subtitles_keeps_last_block_without_trailing_newline(self):
         """
         The final subtitle must be parsed even when the SRT file does not end
