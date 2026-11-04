@@ -1,0 +1,11 @@
+[project]
+name = "dashboard-compute"
+version = "1.0.0"
+description = "A compute/resource consumption dashboard with multiple metric breakdowns"
+requires-python = ">=3.11"
+dependencies = [
+    "altair>=5.5.0",
+    "numpy>=1.26.0",
+    "pandas>=2.2.3",
+    "streamlit",
+]

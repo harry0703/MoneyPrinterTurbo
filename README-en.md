@@ -183,6 +183,9 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 
 ## Features 🎯
 
+For setup and limitations of the opt-in scene-based workflow, see the
+[scene pipeline guide](docs/scene-pipeline.md).
+
 ### Creation Workflows
 
 - [x] Use **AI Agent, WebUI, API, or CLI** workflows for quick creation or automated production

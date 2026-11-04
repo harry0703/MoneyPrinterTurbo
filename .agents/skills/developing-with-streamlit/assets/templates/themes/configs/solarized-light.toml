@@ -1,0 +1,39 @@
+# Solarized Light Theme for Streamlit
+# Precision colors designed for readability and reduced eye strain
+[theme]
+base = "light"
+primaryColor = "#268bd2"
+backgroundColor = "#fdf6e3"
+secondaryBackgroundColor = "#eee8d5"
+codeBackgroundColor = "#eee8d5"
+textColor = "#657b83"
+linkColor = "#268bd2"
+borderColor = "#93a1a1"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "4px"
+buttonRadius = "4px"
+font = "'Source Sans 3':https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap"
+codeFont = "'Source Code Pro':https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500&display=swap"
+codeFontSize = "0.875rem"
+codeTextColor = "#586e75"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["32px", "24px", "20px", "16px", "14px", "12px"]
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+linkUnderline = false
+chartCategoricalColors = ["#268bd2", "#2aa198", "#859900", "#b58900", "#cb4b16", "#dc322f", "#d33682"]
+
+# Solarized color palette
+blueColor = "#268bd2"
+greenColor = "#859900"
+yellowColor = "#b58900"
+orangeColor = "#cb4b16"
+redColor = "#dc322f"
+violetColor = "#6c71c4"
+
+[theme.sidebar]
+backgroundColor = "#eee8d5"
+secondaryBackgroundColor = "#fdf6e3"
+codeBackgroundColor = "#fdf6e3"
+borderColor = "#93a1a1"

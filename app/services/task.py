@@ -15,7 +15,10 @@ from loguru import logger
 
 from app.config import config
 from app.models import const
-from app.models.schema import VideoConcatMode, VideoParams
+from app.models.schema import VideoAspect, VideoConcatMode, VideoParams
+from app.models.scene_media import SceneMediaManifest
+from app.models.scene_timeline import SceneTimeline
+from app.models.video_plan import VideoPlan
 from app.services import bgm as bgm_service
 from app.services import (
     codex_image,
@@ -25,9 +28,14 @@ from app.services import (
     infistar_video,
     jalapeno_video,
     llm,
+    scene_planner,
+    scene_timeline as scene_timeline_service,
+    scene_quality,
     loomloom,
     material,
     metaso_minimax,
+    scene_media,
+    subtitle_presets,
     muapi,
     ofox,
     sonilo,
@@ -682,7 +690,7 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         )
         return ""
 
-    is_word_level = getattr(params, "subtitle_display_mode", "sentence") == "word_by_word"
+    is_word_level = subtitle_presets.display_mode(params) == "word_by_word"
 
     # A failed retry must never reuse captions from an earlier narration.
     with staged_subtitle_file(final_subtitle_path) as subtitle_path:
@@ -1010,21 +1018,27 @@ def _get_material_source_groups(task_id: str, video_paths: list[str]) -> dict[st
 def generate_final_videos(
     task_id, params, downloaded_videos, audio_file, subtitle_path, audio_duration,
     *, partial_results: dict | None = None,
+    scene_timeline: SceneTimeline | None = None,
 ):
     """Record completed outputs even if a later clip raises before returning."""
     final_video_paths = []
     combined_video_paths = []
     warnings = []
+    quality_reports = []
+    render_reports = []
     if partial_results is not None:
         # The caller owns this snapshot so it can report completed files even
         # when the state backend fails during a progress/checkpoint write.
         partial_results.update(
             videos=final_video_paths, combined_videos=combined_video_paths,
-            warnings=warnings,
+            warnings=warnings, quality_reports=quality_reports,
+            render_metrics=render_reports,
         )
-    allocate_batch_materials = params.video_count > 1 and params.video_source in {
-        "pexels", "pixabay", "coverr", "local"
-    }
+    allocate_batch_materials = (
+        scene_timeline is None
+        and params.video_count > 1
+        and params.video_source in {"pexels", "pixabay", "coverr", "local"}
+    )
     source_usage = {}
     material_selections = []
     source_groups = (
@@ -1068,22 +1082,67 @@ def generate_final_videos(
         # 每条视频占 50% 进度中的一份，合成与最终编码各占一半。片段处理是
         # 合成里最耗时的部分，逐段推进这一半的进度。
         combine_share = 50 / params.video_count / 2
-        video.combine_videos(
-            combined_video_path=combined_video_path,
-            video_paths=downloaded_videos,
-            audio_file=audio_file,
-            video_aspect=params.video_aspect,
-            video_fit_mode=params.video_fit_mode,
-            video_concat_mode=video_concat_mode,
-            video_transition_mode=video_transition_mode,
-            max_clip_duration=params.video_clip_duration,
-            threads=params.n_threads,
-            clip_speed=params.video_clip_speed,
-            progress_callback=_stage_progress_reporter(
-                task_id, _progress, _progress + combine_share
-            ),
-            **batch_options,
-        )
+        if scene_timeline is not None:
+            try:
+                video.combine_scene_timeline(
+                    combined_video_path=combined_video_path,
+                    timeline=scene_timeline,
+                    video_aspect=params.video_aspect,
+                    video_transition_mode=video_transition_mode,
+                    threads=params.n_threads,
+                    show_scene_labels=getattr(params, "scene_graphics_enabled", False),
+                    font_name=params.font_name or "STHeitiMedium.ttc",
+                    progress_callback=_stage_progress_reporter(
+                        task_id, _progress, _progress + combine_share
+                    ),
+                )
+            except Exception as exc:
+                logger.exception(
+                    "scene timeline render failed; applying configured failure policy: "
+                    f"task_id={task_id}, video_index={index}, error={exc}"
+                )
+                if params.scene_plan_fallback == "fail":
+                    raise RuntimeError(
+                        f"scene timeline render failed for video {index}: {type(exc).__name__}: {exc}"
+                    ) from exc
+                warnings.append({
+                    "code": "scene_render_fallback_legacy",
+                    "video_index": index,
+                    "message": f"Scene render failed; legacy montage used: {type(exc).__name__}: {exc}",
+                })
+                video.combine_videos(
+                    combined_video_path=combined_video_path,
+                    video_paths=downloaded_videos,
+                    audio_file=audio_file,
+                    video_aspect=params.video_aspect,
+                    video_fit_mode=params.video_fit_mode,
+                    video_concat_mode=video_concat_mode,
+                    video_transition_mode=video_transition_mode,
+                    max_clip_duration=params.video_clip_duration,
+                    threads=params.n_threads,
+                    clip_speed=params.video_clip_speed,
+                    progress_callback=_stage_progress_reporter(
+                        task_id, _progress, _progress + combine_share
+                    ),
+                    **batch_options,
+                )
+        else:
+            video.combine_videos(
+                combined_video_path=combined_video_path,
+                video_paths=downloaded_videos,
+                audio_file=audio_file,
+                video_aspect=params.video_aspect,
+                video_fit_mode=params.video_fit_mode,
+                video_concat_mode=video_concat_mode,
+                video_transition_mode=video_transition_mode,
+                max_clip_duration=params.video_clip_duration,
+                threads=params.n_threads,
+                clip_speed=params.video_clip_speed,
+                progress_callback=_stage_progress_reporter(
+                    task_id, _progress, _progress + combine_share
+                ),
+                **batch_options,
+            )
         if allocate_batch_materials:
             selected_sources = list(dict.fromkeys(used_video_paths))
             reused_sources = [file for file in selected_sources if source_usage.get(file, 0)]
@@ -1141,14 +1200,33 @@ def generate_final_videos(
                 warnings.append({"code": warning_code, "video_index": index})
 
         logger.info(f"\n\n## generating video: {index} => {final_video_path}")
-        bgm_mix_succeeded = video.generate_video(
-            video_path=combined_video_path,
-            audio_path=audio_file,
-            subtitle_path=subtitle_path,
-            output_file=final_video_path,
-            params=params,
-            bgm_file_override=bgm_file_override,
-        )
+        render_metric = {"video_index": index, "status": "started"}
+        try:
+            bgm_mix_succeeded = video.generate_video(
+                video_path=combined_video_path,
+                audio_path=audio_file,
+                subtitle_path=subtitle_path,
+                output_file=final_video_path,
+                params=params,
+                bgm_file_override=bgm_file_override,
+                scene_timeline=scene_timeline,
+                render_metrics=render_metric,
+            )
+            render_metric["status"] = "complete"
+        except Exception as exc:
+            render_metric.update(status="failed", error=f"{type(exc).__name__}: {str(exc)[:500]}")
+            raise
+        finally:
+            render_reports.append(render_metric)
+            if partial_results is not None:
+                partial_results["render_metrics"] = render_reports
+            try:
+                task_artifacts.write_video_render_metrics(task_id, render_reports)
+            except Exception as exc:
+                logger.warning(
+                    "could not persist render metrics: task_id={}, error={}: {}",
+                    task_id, type(exc).__name__, exc,
+                )
         if (
             video_music_provider is not None
             and bgm_file_override
@@ -1163,6 +1241,51 @@ def generate_final_videos(
                     "video_index": index,
                 }
             )
+
+        if scene_timeline is not None:
+            try:
+                target_width, target_height = VideoAspect(params.video_aspect).to_resolution()
+                quality_report = scene_quality.inspect_media_file(
+                    final_video_path,
+                    target_width=target_width,
+                    target_height=target_height,
+                    expected_duration=(
+                        scene_timeline.audio_duration
+                        if scene_timeline.audio_duration > 0
+                        else audio_duration
+                    ),
+                    require_audio=True,
+                )
+                quality_payload = quality_report.model_dump(mode="json")
+                quality_payload["video_index"] = index
+                quality_reports.append(quality_payload)
+                if quality_report.result != "accepted":
+                    warnings.append({
+                        "code": "scene_final_quality_review",
+                        "video_index": index,
+                        "issues": quality_report.issues,
+                    })
+            except Exception as exc:
+                logger.exception(
+                    "final scene video quality scan failed: "
+                    f"task_id={task_id}, video_index={index}, error={exc}"
+                )
+                quality_reports.append({
+                    "video_index": index,
+                    "result": "review",
+                    "issues": [f"quality scan failed: {type(exc).__name__}: {exc}"],
+                })
+                warnings.append({
+                    "code": "scene_final_quality_unavailable",
+                    "video_index": index,
+                })
+            try:
+                task_artifacts.write_video_quality_reports(task_id, quality_reports)
+            except Exception as exc:
+                logger.warning(
+                    "could not persist final quality report: task_id={}, error={}: {}",
+                    task_id, type(exc).__name__, exc,
+                )
 
         final_video_paths.append(final_video_path)
         combined_video_paths.append(combined_video_path)
@@ -1743,9 +1866,90 @@ def _run_pipeline(
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
 
+    scene_plan_warnings = []
+    if params.video_pipeline == "scene":
+        generation_progress.stage("scene_plan")
+        scene_plan = None
+        try:
+            scene_plan = scene_planner.plan_script(
+                video_script,
+                subject=params.video_subject or "",
+                language=params.video_language,
+                app_config=config.snapshot_config_with_pending(config.app),
+            )
+            task_artifacts.write_video_plan(
+                task_id, scene_plan.model_dump(mode="json")
+            )
+        except Exception as exc:
+            logger.exception(
+                "scene planning failed; applying configured fallback: "
+                f"task_id={task_id}, fallback={params.scene_plan_fallback}, "
+                f"error={type(exc).__name__}: {exc}"
+            )
+            if params.scene_plan_fallback == "fail":
+                return _mark_task_failed(task_id, "scene_plan", str(exc))
+            scene_plan_warnings.append(
+                {
+                    "code": "scene_plan_fallback_legacy",
+                    "message": f"Scene planning failed; continued with legacy pipeline: {exc}",
+                }
+            )
+
+        if scene_plan is not None:
+            try:
+                generation_progress.stage("scene_media_search")
+                media_manifest = scene_media.select_plan_materials(
+                    task_id,
+                    scene_plan,
+                    video_aspect=params.video_aspect,
+                    visual_validation=params.scene_media_visual_validation,
+                )
+                pending_scenes = sum(
+                    assignment.status != "selected"
+                    for assignment in media_manifest.assignments
+                )
+                if pending_scenes:
+                    if params.scene_plan_fallback == "fail":
+                        return _mark_task_failed(
+                            task_id,
+                            "scene_media",
+                            f"scene material search left {pending_scenes} of "
+                            f"{len(media_manifest.assignments)} scenes unassigned",
+                        )
+                    scene_plan_warnings.append(
+                        {
+                            "code": "scene_media_pending",
+                            "message": (
+                                f"Scene media search left {pending_scenes} of "
+                                f"{len(media_manifest.assignments)} scenes unassigned; "
+                                "the legacy material pipeline will continue."
+                            ),
+                        }
+                    )
+            except Exception as exc:
+                logger.exception(
+                    "scene media search failed; applying configured failure policy: "
+                    f"task_id={task_id}, error={type(exc).__name__}: {exc}"
+                )
+                if params.scene_plan_fallback == "fail":
+                    return _mark_task_failed(task_id, "scene_media", str(exc))
+                scene_plan_warnings.append(
+                    {
+                        "code": "scene_media_search_failed_legacy",
+                        "message": (
+                            "Per-scene media search failed; continued with the "
+                            f"legacy pipeline: {type(exc).__name__}: {exc}"
+                        ),
+                    }
+                )
+
     if stop_at == "script":
         sm.state.update_task(
-            task_id, state=const.TASK_STATE_COMPLETE, progress=100, script=video_script
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            script=video_script,
+            warnings=scene_plan_warnings or None,
         )
         return {"script": video_script}
 
@@ -1765,7 +1969,11 @@ def _run_pipeline(
 
     if stop_at == "terms":
         sm.state.update_task(
-            task_id, state=const.TASK_STATE_COMPLETE, progress=100, terms=video_terms
+            task_id,
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            terms=video_terms,
+            warnings=scene_plan_warnings or None,
         )
         return {"script": video_script, "terms": video_terms}
 
@@ -1850,18 +2058,61 @@ def _run_pipeline(
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
 
     generation_progress.stage("materials")
-    # 5. Get video materials
-    downloaded_videos = get_video_materials(
-        task_id,
-        params,
-        video_terms,
-        audio_duration,
-        loomloom_video_request=loomloom_video_request,
-        **({"codex_image_context": codex_image_context}
-           if codex_image_context is not None else {}),
-        **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
-           if jalapeno_video_endpoint is not None else {}),
-    )
+    # 5. Use the selected per-scene resources only after their timed plan and
+    # manifest have passed validation. Any mismatch continues through the full
+    # legacy provider/material path.
+    scene_timeline = None
+    downloaded_videos = []
+    if params.video_pipeline == "scene":
+        try:
+            raw_plan = task_artifacts.read_video_plan(task_id)
+            raw_manifest = task_artifacts.read_scene_media_manifest(task_id)
+            if raw_plan is None or raw_manifest is None:
+                raise ValueError("scene plan or media manifest is missing")
+            plan = VideoPlan.model_validate(raw_plan)
+            manifest = SceneMediaManifest.model_validate(raw_manifest)
+            scene_timeline = scene_timeline_service.build_scene_timeline(
+                plan,
+                manifest,
+                audio_duration=voice.get_audio_duration(audio_file),
+                asset_root=utils.task_dir(task_id),
+                subtitle_path=subtitle_path,
+                sub_maker=sub_maker,
+                fps=int(config.app.get("fps", 30)),
+                video_fit_mode=params.video_fit_mode.value,
+                image_motion=params.image_motion.value,
+            )
+            task_artifacts.write_scene_timeline(
+                task_id, scene_timeline.model_dump(mode="json")
+            )
+            downloaded_videos = list(dict.fromkeys(
+                item.asset_path for item in scene_timeline.items
+            ))
+        except Exception as exc:
+            logger.warning(
+                "scene timeline unavailable; applying configured failure policy: "
+                f"task_id={task_id}, error={type(exc).__name__}: {exc}"
+            )
+            if params.scene_plan_fallback == "fail":
+                return _mark_task_failed(task_id, "scene_timeline", str(exc))
+            scene_timeline = None
+            scene_plan_warnings.append({
+                "code": "scene_timeline_fallback_legacy",
+                "message": f"Scene timeline could not be built; legacy materials used: {type(exc).__name__}: {exc}",
+            })
+
+    if scene_timeline is None:
+        downloaded_videos = get_video_materials(
+            task_id,
+            params,
+            video_terms,
+            audio_duration,
+            loomloom_video_request=loomloom_video_request,
+            **({"codex_image_context": codex_image_context}
+               if codex_image_context is not None else {}),
+            **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
+               if jalapeno_video_endpoint is not None else {}),
+        )
     if not downloaded_videos:
         return _mark_task_failed(
             task_id,
@@ -1897,6 +2148,7 @@ def _run_pipeline(
             subtitle_path,
             audio_duration,
             partial_results=partial_results,
+            scene_timeline=scene_timeline,
         )
     except Exception as exc:
         logger.exception(f"video batch failed, task_id: {task_id}, error: {exc}")
@@ -1950,7 +2202,7 @@ def _run_pipeline(
         "cross_post_results": None,
         "cross_post_error": None,
         "cross_post_owner": _cross_post_process_owner if should_cross_post else None,
-        "warnings": generation_warnings or None,
+        "warnings": scene_plan_warnings + (generation_warnings or []) or None,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
