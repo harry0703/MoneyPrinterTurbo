@@ -1,3 +1,110 @@
+:root {
+    --mpt-background-art: url("__MPT_BACKGROUND_ART__");
+}
+
+div[data-testid="stAppViewContainer"] {
+    position: relative;
+    isolation: isolate;
+}
+
+div[data-testid="stAppViewContainer"]::before {
+    position: fixed;
+    z-index: 0;
+    top: clamp(4.5rem, 12vh, 8rem);
+    right: clamp(0.5rem, 4vw, 4rem);
+    width: clamp(14rem, 21vw, 25rem);
+    aspect-ratio: 2 / 3;
+    content: "";
+    pointer-events: none;
+    background-image: var(--mpt-background-art);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    opacity: 0.14;
+    mix-blend-mode: screen;
+    filter: drop-shadow(0 0 2.5rem rgba(50, 245, 220, 0.22));
+    mask-image: radial-gradient(ellipse at center, #000 38%, transparent 76%);
+    animation: mpt-background-drift 24s ease-in-out infinite alternate;
+}
+
+div[data-testid="stAppViewContainer"]::after {
+    position: fixed;
+    z-index: 0;
+    top: clamp(15rem, 38vh, 24rem);
+    left: clamp(0.5rem, 2vw, 2rem);
+    width: clamp(12rem, 17vw, 20rem);
+    aspect-ratio: 2 / 3;
+    content: "";
+    pointer-events: none;
+    background-image: var(--mpt-background-art);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    opacity: 0.08;
+    mix-blend-mode: screen;
+    filter: drop-shadow(0 0 2rem rgba(50, 245, 220, 0.18));
+    mask-image: radial-gradient(ellipse at center, #000 38%, transparent 76%);
+    animation: mpt-background-drift-mirrored 28s ease-in-out infinite alternate;
+}
+
+div[data-testid="stMain"] {
+    position: relative;
+    z-index: 1;
+}
+
+div[data-testid="stAppViewContainer"] div[data-testid="stButton"] button {
+    transform: translateY(0);
+    transition:
+        transform 150ms ease,
+        box-shadow 150ms ease,
+        border-color 150ms ease,
+        filter 150ms ease;
+}
+
+div[data-testid="stAppViewContainer"] div[data-testid="stButton"] button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+div[data-testid="stAppViewContainer"] div[data-testid="stButton"] button[kind="primary"]:hover:not(:disabled) {
+    filter: brightness(1.04);
+    box-shadow: 0 5px 16px rgba(255, 75, 75, 0.24);
+}
+
+div[data-testid="stAppViewContainer"] div[data-testid="stButton"] button[kind="secondary"]:hover:not(:disabled) {
+    border-color: color-mix(in srgb, #ff4b4b 42%, transparent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+div[data-testid="stAppViewContainer"] div[data-testid="stButton"] button:active:not(:disabled) {
+    transform: translateY(0) scale(0.985);
+    box-shadow: none;
+}
+
+div[data-testid="stAppViewContainer"] div[data-testid="stButton"] button:focus-visible {
+    outline: 2px solid #ff4b4b !important;
+    outline-offset: 3px !important;
+}
+
+@keyframes mpt-background-drift {
+    from {
+        transform: translate3d(0, -0.5rem, 0) rotate(-1deg) scale(0.98);
+    }
+
+    to {
+        transform: translate3d(-0.5rem, 0.75rem, 0) rotate(1deg) scale(1.03);
+    }
+}
+
+@keyframes mpt-background-drift-mirrored {
+    from {
+        transform: translate3d(0, 0.5rem, 0) rotate(1deg) scaleX(-1) scale(0.98);
+    }
+
+    to {
+        transform: translate3d(0.5rem, -0.75rem, 0) rotate(-1deg) scaleX(-1) scale(1.03);
+    }
+}
+
 header[data-testid="stHeader"],
 div[data-testid="stToolbar"],
 div[data-testid="stDecoration"],
@@ -387,10 +494,105 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
     white-space: nowrap !important;
 }
 
+/* Main creation screen: treat the four settings groups as a quiet studio
+   workspace while keeping Streamlit's active light/dark theme in control. */
+div[class*="st-key-main_settings_grid"] {
+    --mpt-accent: #ff4b4b;
+    --mpt-border: color-mix(
+        in srgb,
+        var(--text-color, var(--st-text-color, #31333f)) 12%,
+        transparent
+    );
+    --mpt-surface: color-mix(
+        in srgb,
+        var(--secondary-background-color, var(--st-secondary-background-color, #ffffff)) 72%,
+        var(--background-color, var(--st-background-color, #f7f8fa))
+    );
+}
 
-/* 中等宽度下将四个设置面板调整为 2×2。主内容区还会扣除页面边距，因此
-   1200～1440px 的常见视口不足以稳定容纳四列英文标签；断点覆盖到 1500px，
-   避免下拉内容和标题被裁切，真正的宽屏才恢复四列。 */
+div[class*="st-key-main_settings_grid"]
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+    border: 1px solid var(--mpt-border) !important;
+    border-radius: 1rem !important;
+    background: var(--mpt-surface) !important;
+    box-shadow: 0 1px 2px color-mix(in srgb, #000 5%, transparent);
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+div[class*="st-key-main_settings_grid"]
+    div[data-testid="stVerticalBlockBorderWrapper"]:hover {
+    border-color: color-mix(in srgb, var(--mpt-accent) 34%, var(--mpt-border)) !important;
+    box-shadow: 0 5px 18px color-mix(in srgb, #000 7%, transparent);
+}
+
+div[class*="st-key-main_settings_grid"]
+    div[data-testid="stVerticalBlockBorderWrapper"] > div {
+    padding: 1.15rem !important;
+}
+
+div[class*="st-key-main_settings_grid"] h3 {
+    margin: 0.1rem 0 1rem !important;
+    padding-bottom: 0.7rem !important;
+    border-bottom: 1px solid var(--mpt-border) !important;
+    font-size: 1.05rem !important;
+    font-weight: 650 !important;
+    letter-spacing: -0.015em !important;
+}
+
+div[class*="st-key-main_settings_grid"] input,
+div[class*="st-key-main_settings_grid"] textarea,
+div[class*="st-key-main_settings_grid"] [data-baseweb="select"] > div {
+    border-radius: 0.7rem !important;
+    transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease;
+}
+
+div[class*="st-key-main_settings_grid"] input:focus,
+div[class*="st-key-main_settings_grid"] textarea:focus,
+div[class*="st-key-main_settings_grid"] [data-baseweb="select"] > div:focus-within {
+    border-color: var(--mpt-accent) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mpt-accent) 18%, transparent) !important;
+}
+
+div[class*="st-key-main_settings_grid"] button {
+    border-radius: 0.7rem !important;
+    transition:
+        border-color 140ms ease,
+        background-color 140ms ease,
+        box-shadow 140ms ease,
+        transform 140ms ease;
+}
+
+div[class*="st-key-main_settings_grid"] button:hover {
+    transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    div[data-testid="stAppViewContainer"]::before,
+    div[data-testid="stAppViewContainer"]::after {
+        animation: none !important;
+    }
+
+    div[data-testid="stAppViewContainer"] div[data-testid="stButton"] button {
+        transition: none !important;
+    }
+
+    div[class*="st-key-main_settings_grid"] *,
+    div[class*="st-key-main_settings_grid"] *::before,
+    div[class*="st-key-main_settings_grid"] *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}
+
+
+/* Keep the two-column workspace readable on medium screens, where the page
+   gutters and long translated labels can otherwise make each settings panel
+   feel cramped. */
 @media (min-width: 701px) and (max-width: 1500px) {
     .mpt-brand__name {
         font-size: 2.25rem;
@@ -400,10 +602,13 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
         font-size: 0.875rem;
     }
 
+}
+
+@media (min-width: 701px) and (max-width: 1000px) {
     div[class*="st-key-main_settings_grid"]
         > div[data-testid="stLayoutWrapper"]
         > div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
+        flex-direction: column !important;
         gap: 1rem !important;
     }
 
@@ -411,9 +616,9 @@ div[class*="st-key-task_row_"] button[kind="secondary"] p {
         > div[data-testid="stLayoutWrapper"]
         > div[data-testid="stHorizontalBlock"]
         > div[data-testid="stColumn"] {
-        flex: 1 1 calc(50% - 0.5rem) !important;
-        width: calc(50% - 0.5rem) !important;
-        min-width: calc(50% - 0.5rem) !important;
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        min-width: 100% !important;
     }
 }
 

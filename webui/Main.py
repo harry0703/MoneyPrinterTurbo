@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import html
 import json
@@ -96,7 +97,14 @@ st.set_page_config(
 # 也会让新用户误以为需要安装额外组件。这里统一隐藏 Streamlit 平台工具栏，
 # 并压缩主容器顶部留白，只保留项目自己的标题、语言选择和业务设置区域。
 style_file = Path(__file__).with_name("styles.css")
-streamlit_style = f"<style>{style_file.read_text(encoding='utf-8')}</style>"
+style_text = style_file.read_text(encoding="utf-8")
+background_art = Path(utils.public_dir()) / "ambient_hand.png"
+background_art_data = base64.b64encode(background_art.read_bytes()).decode("ascii")
+style_text = style_text.replace(
+    "__MPT_BACKGROUND_ART__",
+    f"data:image/png;base64,{background_art_data}",
+)
+streamlit_style = f"<style>{style_text}</style>"
 st.markdown(streamlit_style, unsafe_allow_html=True)
 # 定义资源目录
 font_dir = utils.font_dir()
@@ -5833,7 +5841,7 @@ def _render_script_settings(panel, params):
     """渲染文案设置并更新生成参数。"""
     with panel:
         with st.container(border=True):
-            st.write(tr("Video Script Settings"))
+            st.subheader(tr("Video Script Settings"))
             # 标签行需要容纳“配置大模型”入口，因此无法继续使用 text_area
             # 内置标签。把标签和输入框收进同一个字段容器后，可覆盖内部间距，
             # 同时让该字段与页面上的其它表单控件保持一致的外部节奏。
@@ -6029,7 +6037,7 @@ def _render_video_settings(panel, params):
     uploaded_files = []
     with panel:
         with st.container(border=True):
-            st.write(tr("Video Settings"))
+            st.subheader(tr("Video Settings"))
             video_concat_modes = [
                 (tr("Sequential"), "sequential"),
                 (tr("Random"), "random"),
@@ -7933,7 +7941,7 @@ def _render_audio_settings(panel, params):
     """渲染音频设置并返回上传音频与当前配音模式。"""
     with panel:
         with st.container(border=True):
-            st.write(tr("Audio Settings"))
+            st.subheader(tr("Audio Settings"))
 
             # 配音方式是音频设置的一级状态，负责明确区分自动配音、用户上传和无配音。
             # 旧配置没有 voice_mode 时，根据原 tts_server 的无配音哨兵保持兼容。
@@ -8632,7 +8640,7 @@ def _render_subtitle_settings(panel, params):
     """渲染字幕设置并更新生成参数。"""
     with panel:
         with st.container(border=True):
-            st.write(tr("Subtitle Settings"))
+            st.subheader(tr("Subtitle Settings"))
             st.session_state.setdefault(
                 "subtitle_enabled_checkbox",
                 _saved_ui_bool(
@@ -9470,24 +9478,20 @@ def _render_application():
         st.success(tr("Task Configuration Loaded"))
 
     with st.container(key="main_settings_grid"):
-        panel = st.columns(4)
-    left_panel = panel[0]
-    middle_panel = panel[1]
-    audio_panel = panel[2]
-    right_panel = panel[3]
+        content_panel, finishing_panel = st.columns(2, gap="large")
 
     params = VideoParams(video_subject="")
     params.match_materials_to_script = bool(
         st.session_state.get("match_materials_to_script", False)
     )
-    _render_script_settings(left_panel, params)
+    _render_script_settings(content_panel, params)
 
-    uploaded_files = _render_video_settings(middle_panel, params)
+    uploaded_files = _render_video_settings(content_panel, params)
     uploaded_audio_file, uploaded_bgm_file, voice_mode = _render_audio_settings(
-        audio_panel, params
+        finishing_panel, params
     )
 
-    _render_subtitle_settings(right_panel, params)
+    _render_subtitle_settings(finishing_panel, params)
 
     generation_submitted = _render_generation_controls(
         params,
