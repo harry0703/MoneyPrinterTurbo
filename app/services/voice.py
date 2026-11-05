@@ -2,6 +2,7 @@ import asyncio
 import base64
 import io
 import inspect
+import itertools
 import json
 import math
 import os
@@ -637,6 +638,23 @@ def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
     return _publish_tts_ffmpeg_output(command, output_file, "silent narration encode")
 
 
+def _warn_ignored_voice_rate(provider: str, voice_rate: float) -> None:
+    """
+    Gemini TTS, MiMo TTS and VoxCPM have no numeric speed parameter, so
+    voice_rate is not sent to them. Warn when a speed other than 1.0 is
+    requested instead of ignoring it silently.
+    """
+    try:
+        ignored = float(voice_rate) != 1.0
+    except (TypeError, ValueError, OverflowError):
+        return
+    if ignored:
+        logger.warning(
+            f"{provider} does not support numeric speed adjustment; "
+            f"voice_rate {voice_rate} is ignored"
+        )
+
+
 def _single_tts(
     text: str,
     voice_name: str,
@@ -688,6 +706,7 @@ def _single_tts(
         # 格式: gemini:voice-Style；也继续兼容旧的 gemini:voice-Gender。
         voice = parse_gemini_voice_name(voice_name)
         if voice:
+            _warn_ignored_voice_rate("Gemini TTS", voice_rate)
             return gemini_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid gemini voice name format: {voice_name}")
@@ -700,6 +719,7 @@ def _single_tts(
         if len(parts) >= 2:
             voice_with_gender = parts[1]
             voice = voice_with_gender.split("-")[0]
+            _warn_ignored_voice_rate("MiMo TTS", voice_rate)
             return mimo_tts(text, voice, voice_rate, voice_file, voice_volume)
         else:
             logger.error(f"Invalid mimo voice name format: {voice_name}")
@@ -754,6 +774,7 @@ def _single_tts(
     elif is_voxcpm_voice(voice_name):
         voice_id = voice_name.split(":", 1)[1].strip()
         if voice_id:
+            _warn_ignored_voice_rate("VoxCPM", voice_rate)
             if voxcpm_reference_audio is None:
                 return voxcpm_tts(text, voice_id, voice_file, voice_rate, voice_volume)
             return voxcpm_tts(
@@ -1145,6 +1166,13 @@ def tts(
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
 ) -> Union[SubMaker, None]:
+    # Emoji are not narrated: Edge TTS reads their names aloud ("chart
+    # increasing"), and each one gets its own word boundary.
+    narration = utils.remove_emoji(text)
+    if narration != text and not narration.strip():
+        logger.warning("the script has no text to narrate once emoji are removed")
+        return None
+    text = narration
     # 无停顿标签时，原样直通原始文本，避免无意义的正则处理或空白截断
     if not utils.has_pause_tags(text):
         return _single_tts(
@@ -1381,6 +1409,8 @@ def _stream_edge_tts_sync_with_timeout(
     """
     stream_queue = queue.Queue(maxsize=1)
     stopped = threading.Event()
+    # Set on the producer loop each time the consumer takes an item.
+    item_taken = asyncio.Event()
     producer_loop = None
     producer_task = None
 
@@ -1395,13 +1425,26 @@ def _stream_edge_tts_sync_with_timeout(
 
     async def _put_async(item):
         while not stopped.is_set():
+            # Clear before the put, so a take right after it still wakes us.
+            item_taken.clear()
             try:
                 stream_queue.put_nowait(item)
                 return True
             except queue.Full:
-                # Keep the loop cancellable while waiting for the consumer.
-                await asyncio.sleep(0.01)
+                # Resume as soon as the consumer takes the pending item. The
+                # timeout only re-checks `stopped`; cancellation still works.
+                try:
+                    await asyncio.wait_for(item_taken.wait(), timeout=0.05)
+                except TimeoutError:
+                    pass
         return False
+
+    def _wake_producer():
+        if producer_loop is not None:
+            try:
+                producer_loop.call_soon_threadsafe(item_taken.set)
+            except RuntimeError:
+                pass  # The producer already finished and closed its loop.
 
     async def _produce_async():
         if stopped.is_set():
@@ -1470,6 +1513,7 @@ def _stream_edge_tts_sync_with_timeout(
                 )
             except queue.Empty:
                 continue
+            _wake_producer()
             if item_type == "chunk":
                 on_chunk(payload)
             elif item_type == "error":
@@ -1966,20 +2010,25 @@ def gemini_tts(
                 config=generation_config,
             )
 
-        # 检查响应
-        if not response.candidates or not response.candidates[0].content:
-            logger.error("No audio content received from Gemini TTS")
-            return None
-            
-        # 获取音频数据
+        # A blocked prompt can have no candidates; a stopped candidate can
+        # have no content or parts. All are empty-audio responses, not decoder
+        # errors. Preserve the provider's reason without logging its text.
+        candidate = response.candidates[0] if response.candidates else None
+        content = getattr(candidate, "content", None)
         audio_data = None
-        for part in response.candidates[0].content.parts:
+        for part in getattr(content, "parts", None) or []:
             if hasattr(part, 'inline_data') and part.inline_data:
                 audio_data = part.inline_data.data
                 break
                 
         if not audio_data:
-            logger.error("No audio data found in response")
+            feedback = getattr(response, "prompt_feedback", None)
+            logger.error(
+                "No audio data received from Gemini TTS: "
+                "finish_reason={}, prompt_block_reason={}",
+                getattr(candidate, "finish_reason", None),
+                getattr(feedback, "block_reason", None),
+            )
             return None
             
         # 音频数据已经是原始字节，不需要base64解码
@@ -3676,6 +3725,46 @@ def _build_subtitle_items_from_legacy_submaker_words(sub_maker: SubMaker) -> lis
     return sub_items
 
 
+def _join_lines_split_inside_words(
+    text: str, script_lines: list[str], words: list[str]
+) -> list[str]:
+    """
+    Join each script line that ends inside a TTS word with the line after it.
+
+    Edge TTS returns "July 20, 1969", "Washington, D.C.", "No. 1" and
+    "Am 9. November 1989" as one word each, but the script split ends a line
+    at their comma or full stop. No run of words can match such a line, and
+    without it no subtitle file is written at all. A joined line keeps the
+    script text between its parts, as in "On July 20, 1969". Lines are only
+    joined when the words spell the script exactly, compared as in
+    _match_script_line().
+    """
+
+    def comparable(value: str) -> str:
+        return re.sub(r"[_\W]+", "", unicodedata.normalize("NFC", value))
+
+    word_texts = [comparable(unescape(word)) for word in words]
+    line_texts = [comparable(line) for line in script_lines]
+    if "".join(word_texts) != "".join(line_texts):
+        return script_lines
+
+    word_ends = set(itertools.accumulate(map(len, word_texts)))
+    line_ends = itertools.accumulate(map(len, line_texts))
+    joined_lines = []
+    start = None
+    position = 0
+    for line, line_end in zip(script_lines, line_ends):
+        # Each script line is a part of text, in order.
+        line_start = text.find(line, position)
+        position = line_start + len(line)
+        if start is None:
+            start = line_start
+        if line_end in word_ends:
+            joined_lines.append(text[start:position])
+            start = None
+    return joined_lines
+
+
 def create_subtitle(
     sub_maker: SubMaker,
     text: str,
@@ -3709,8 +3798,14 @@ def create_subtitle(
             if re.sub(r"[_\W]+", "", line)
         ]
         if hasattr(sub_maker, "cues") and sub_maker.cues:
+            script_lines = _join_lines_split_inside_words(
+                text, script_lines, [cue.content for cue in sub_maker.cues]
+            )
             sub_items = _build_subtitle_items_from_edge_cues(sub_maker, script_lines)
         else:
+            script_lines = _join_lines_split_inside_words(
+                text, script_lines, getattr(sub_maker, "subs", [])
+            )
             sub_items = _build_subtitle_items_from_legacy_submaker(
                 sub_maker, script_lines
             )

@@ -247,9 +247,16 @@ def create_task(
         ):
             tm.video.validate_subtitle_colors(body)
             # 字体名可由 API 客户端直接提交，不能等到后台渲染时才发现路径越界。
-            # 这里与渲染层共用目录边界校验，让非法请求在创建付费任务前返回 400。
-            file_security.resolve_path_within_directory(
-                utils.font_dir(), body.font_name or "STHeitiMedium.ttc"
+            # 这里与渲染层共用目录边界校验，让非法请求在创建付费任务前返回 403/404。
+            # Route the font pre-check through the file-serving
+            # wrapper so the 403/404 error codes match the other
+            # task-output paths in this file instead of 400. The
+            # create_task outer except ValueError no longer covers
+            # this branch.
+            _resolve_path_within_directory(
+                utils.font_dir(),
+                body.font_name or "STHeitiMedium.ttc",
+                request_id,
             )
         task = {
             "task_id": task_id,

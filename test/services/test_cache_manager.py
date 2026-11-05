@@ -1,3 +1,4 @@
+import contextlib
 import os
 import tempfile
 import unittest
@@ -43,11 +44,9 @@ class TestVideoCacheManager(unittest.TestCase):
         (nested_dir / f"vid-{'c' * 32}.mp4").write_bytes(b"nested")
 
         symlink_path = self.cache_dir / f"vid-{'d' * 32}.mp4"
-        try:
+        # Windows 未开启开发者模式时创建符号链接可能没有权限，不影响其余断言。
+        with contextlib.suppress(OSError, NotImplementedError):
             symlink_path.symlink_to(self.cache_dir / "personal.mp4")
-        except (OSError, NotImplementedError):
-            # Windows 未开启开发者模式时创建符号链接可能没有权限，不影响其余断言。
-            pass
 
         with patch.object(cache_manager.time, "time", return_value=now):
             total = cache_manager.get_video_cache_stats()

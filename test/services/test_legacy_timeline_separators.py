@@ -1,3 +1,4 @@
+import pytest
 from edge_tts import SubMaker
 
 from app.services import subtitle, voice
@@ -30,6 +31,20 @@ def test_middle_markdown_separator_does_not_delay_following_caption():
     second = "This is the second one"
 
     with_separator = _timeline(f"{first}.\n---\n{second}.")
+    without_separator = _timeline(f"{first}.\n{second}.")
+
+    assert with_separator.subs == [first, second]
+    assert with_separator.offset == without_separator.offset
+
+
+@pytest.mark.parametrize(
+    "separator", ["* * *", "\u2014\u2014\u2014", "\u2022 \u2022 \u2022"]
+)
+def test_symbol_only_scene_break_does_not_shift_following_caption(separator):
+    first = "This is the first narrated sentence"
+    second = "This is the second one"
+
+    with_separator = _timeline(f"{first}.\n{separator}\n{second}.")
     without_separator = _timeline(f"{first}.\n{second}.")
 
     assert with_separator.subs == [first, second]

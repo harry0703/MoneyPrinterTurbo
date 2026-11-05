@@ -531,11 +531,9 @@ class TestVideoService(unittest.TestCase):
         m = MaterialInfo()
         m.url = os.path.basename(safe_img_path)
         m.provider = "local"
-        print(m)
 
         try:
             materials = vd.preprocess_video([m], clip_duration=4)
-            print(materials)
 
             # verify result
             self.assertIsNotNone(materials)
@@ -545,7 +543,7 @@ class TestVideoService(unittest.TestCase):
             # moviepy get video info
             clip = VideoFileClip(materials[0].url)
             try:
-                print(clip)
+                self.assertGreater(clip.duration, 0)
             finally:
                 clip.close()
 
@@ -1400,6 +1398,33 @@ class TestVideoService(unittest.TestCase):
         self.assertLess(command.index("-t"), len(command) - 1)
         self.assertNotEqual(command[-1], output_file)
 
+    def test_concat_video_clips_never_reads_the_console(self):
+        """
+        FFmpeg reads keys from its stdin, the console of webui.bat, main.py or
+        cli.py. A "q" typed there ends the joined video early and a "c" makes
+        FFmpeg wait for Enter. The other FFmpeg calls pass -nostdin too.
+        """
+
+        def fake_run(command, capture_output, text, check, **kwargs):
+            Path(command[-1]).write_bytes(b"encoded-video")
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with patch.object(vd.subprocess, "run", side_effect=fake_run) as run:
+                vd.concat_video_clips_with_ffmpeg(
+                    clip_files=[clip_file],
+                    output_file=output_file,
+                    threads=1,
+                    output_dir=temp_dir,
+                )
+
+        command = run.call_args.args[0]
+        self.assertIn("-nostdin", command[: command.index("-i")])
+
     def test_concat_video_clips_logs_heartbeat_while_ffmpeg_runs(self):
         """
         拼接时 subprocess.run 会阻塞到 ffmpeg 退出，期间项目不再产生任何日志，用户
@@ -1842,7 +1867,6 @@ class TestVideoService(unittest.TestCase):
                 font=font_path,
                 fontsize=30
             )
-            print(wrapped_text_en, text_height_en)
             # verify text is wrapped
             self.assertIn("\n", wrapped_text_en)
             
@@ -1854,7 +1878,6 @@ class TestVideoService(unittest.TestCase):
                 font=font_path,
                 fontsize=30
             )   
-            print(wrapped_text_zh, text_height_zh)
             # verify chinese text is wrapped
             self.assertIn("\n", wrapped_text_zh)
         except Exception as e:

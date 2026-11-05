@@ -33,12 +33,12 @@
 ## スペシャルサンクス ❤️
 
 <div align="center">
-  <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
+  <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="docs/sponsors/kimi-k3.1-pro-banner-en.webp" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
 </div>
 
-本プロジェクトをスポンサードしてくださっている [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo) に感謝します！ [Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) は Moonshot AI の最も高性能なモデルであり、世界初の 3T クラスのオープンモデルです。ネイティブの視覚能力と 100 万トークンのコンテキストウィンドウを備えた K3 は、ナレッジワーク、推論、長期にわたるタスクにおいて最先端の性能を発揮します。MoneyPrinterTurbo では、K3 が台本の作成と、最終的な映像素材を左右する検索キーワードの抽出を担い、動画制作を支えています。内容をより深く理解するほど、より適切な素材が得られます。
+本プロジェクトをスポンサードしてくださっている [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo) に感謝します！ [Kimi K3.1 Pro](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) は Moonshot AI がこれまでに開発した中で最も高性能な 3T クラスのオープンウェイトモデルです。ネイティブの視覚能力と 100 万トークンのコンテキストウィンドウを備えた K3.1 Pro は、ナレッジワーク、推論、長期にわたるタスクにおいて最先端の性能を発揮します。MoneyPrinterTurbo では、K3.1 Pro が台本の作成と、最終的な映像素材を左右する検索キーワードの抽出を担い、動画制作を支えています。内容をより深く理解するほど、より適切な素材が得られます。
 
-**MoneyPrinterTurbo ユーザー限定特典: 専用リンクから新規登録すると、初回のチャージ成功額の 10% 相当（上限 1,000 元）の API クレジットがボーナスとして付与されます。特典の終了は 2026 年 12 月 31 日です。Kimi オープンプラットフォーム（[中国語サイト](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo) | [グローバル](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)）から API をお試しください。**
+**MoneyPrinterTurbo ユーザー限定特典: 専用リンクから新規登録すると、初回のチャージ成功額の 10% 相当の API クレジットがボーナスとして付与されます。特典の終了は 2026 年 12 月 31 日です。Kimi オープンプラットフォーム（[中国語サイト](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo) | [グローバル](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)）から API をお試しください。**
 
 <br>
 <table align="center">

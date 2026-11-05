@@ -1,5 +1,6 @@
 import copy
 import errno
+import json
 import os
 import shutil
 import socket
@@ -539,6 +540,15 @@ def load_config():
             # Another initializer already removed this empty bind-mount stub.
             pass
         except OSError as exc:
+            if exc.errno == errno.EBUSY:
+                # The directory is the bind mount itself, so it cannot be
+                # removed from inside the container; it must be fixed on the host.
+                raise IsADirectoryError(
+                    f"{config_file} is a directory because config.toml did not exist "
+                    "on the host when Docker mounted it. Stop the containers, delete "
+                    "the empty config.toml folder next to the docker-compose file, "
+                    "copy config.example.toml to config.toml there, then start again"
+                ) from exc
             # Another initializer may already have replaced the empty Docker
             # stub with its complete regular file. Accept only that race, not
             # permission failures or a still-present/nonempty directory.
@@ -561,6 +571,26 @@ def load_config():
     logger.info(f"load config from file: {config_file}")
 
     return _load_toml_config(config_file)
+
+
+class _ConfigTomlEncoder(toml.TomlEncoder):
+    """
+    Write strings as JSON strings, which are also valid TOML basic strings.
+
+    toml 0.10.2's own string encoder (uiri/toml#404) drops the escaping of
+    every backslash up to the last one followed by "x", so a Windows path
+    with a folder such as "xiaoming" or "x64" is written as invalid TOML.
+    It also writes a non-breaking space as the text "xa0".
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.dump_funcs[str] = self._dump_str
+
+    @staticmethod
+    def _dump_str(value):
+        # TOML, unlike JSON, also requires DEL to be escaped.
+        return json.dumps(str(value), ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
 def save_config():
@@ -592,7 +622,7 @@ def save_config():
         config_to_save["voxcpm"] = dict(voxcpm)
         config_to_save["ui"] = dict(ui)
         config_to_save["diagnostics"] = dict(diagnostics)
-        serialized_config = toml.dumps(config_to_save)
+        serialized_config = toml.dumps(config_to_save, encoder=_ConfigTomlEncoder())
 
         # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
         # 点击普通控件都产生一次磁盘写入和 fsync。
@@ -678,7 +708,22 @@ app["redis_host"] = os.getenv(
 )
 
 ffmpeg_path = app.get("ffmpeg_path", "")
-if ffmpeg_path and os.path.isfile(ffmpeg_path):
-    os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
+if ffmpeg_path:
+    # config.toml 同样允许 "~" / "${VAR}" 写法：先展开再做存在性判断，
+    # 否则 isfile() 永远不成立，配置被静默忽略。
+    ffmpeg_path = os.path.expanduser(os.path.expandvars(ffmpeg_path))
+    if os.path.isfile(ffmpeg_path):
+        os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_path
+
+# 用户直接设置的 IMAGEIO_FFMPEG_EXE 也可能是 "~" / "${VAR}" 写法
+# （issue #1662）。MoviePy 2.x 在 import 时就通过 imageio 读取该变量
+# 并固定为 moviepy.config.FFMPEG_BINARY，之后不再重新解析；因此必须
+# 在本模块（所有入口最早的公共依赖，先于 moviepy 被导入）里完成展开，
+# 编码阶段才拿得到真实路径。
+_env_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
+if _env_ffmpeg:
+    os.environ["IMAGEIO_FFMPEG_EXE"] = os.path.expanduser(
+        os.path.expandvars(_env_ffmpeg)
+    )
 
 logger.info(f"{project_name} v{project_version}")

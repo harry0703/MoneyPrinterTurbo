@@ -20,6 +20,7 @@ from urllib.parse import quote, urlsplit
 import requests
 from loguru import logger
 
+from app.services import generation_progress
 from app.utils.request_logging import trace_http_call
 
 
@@ -460,6 +461,7 @@ class LoomLoomScriptBackend:
         )
 
     def wait_for_run(self, run_id: str) -> LoomLoomRun:
+        generation_progress.remote("loomloom", run_id)
         deadline = self._clock() + self.settings.run_timeout_seconds
         started_at = self._clock()
         last_logged_status = None
@@ -484,6 +486,7 @@ class LoomLoomScriptBackend:
                         f"{self.settings.run_timeout_seconds:g} seconds"
                     ) from exc
                 consecutive_poll_errors += 1
+                generation_progress.remote("loomloom", run_id, retrying=True)
                 retry_delay = min(
                     self.settings.poll_interval_seconds
                     * (2 ** min(consecutive_poll_errors - 1, 4)),
@@ -498,6 +501,7 @@ class LoomLoomScriptBackend:
                 self._sleep(retry_delay)
                 continue
             now = self._clock()
+            generation_progress.remote("loomloom", run_id, run.status)
             progress = run.completed_tasks + run.failed_tasks + run.cancelled_tasks
             # 远端视频任务可能持续数分钟。状态变化时立即记录，状态不变时每
             # 30 秒记录一次心跳，既能帮助定位卡住位置，也避免两秒一次刷屏。
@@ -945,6 +949,7 @@ class LoomLoomVideoBackend(LoomLoomScriptBackend):
         return {**matching[0], "accessUrl": access_url}
 
     def _download_video_artifact(self, access_url: str, destination: str) -> None:
+        generation_progress.downloading()
         temporary = None
         downloaded_bytes = 0
         response = None
