@@ -41,6 +41,9 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 **Exclusive offer for MoneyPrinterTurbo users: new users who register through the dedicated link receive bonus API credit equal to 10% of their first successful top-up. The offer ends December 31, 2026. Visit the Kimi Open Platform ([中文站](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo) | [Global](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)) to try the API.**
 
 <br>
+
+> [<img src="https://whop.com/favicon.ico" alt="Whop" width="14" height="14">](https://go.nli.one/moneyprinter) **Sponsored by [Whop](https://go.nli.one/moneyprinter)**: the platform to sell digital products, software and communities, and get paid worldwide.
+
 <table align="center">
   <tr>
     <td align="center" width="120">
