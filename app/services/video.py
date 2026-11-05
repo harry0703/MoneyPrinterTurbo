@@ -24,6 +24,7 @@ from moviepy import (
     CompositeVideoClip,
     ImageClip,
     TextClip,
+    VideoClip,
     VideoFileClip,
     afx,
 )
@@ -42,7 +43,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import bgm as bgm_service
-from app.services.utils import video_effects
+from app.services.utils import subtitle_shaping, video_effects
 from app.utils import file_security, logging_utils, utils
 from app.utils.subtitle_reader import moviepy_subtitles
 
@@ -652,6 +653,9 @@ def concat_video_clips_with_ffmpeg(
     def build_command(codec: str) -> list[str]:
         command = [
             utils.get_ffmpeg_binary(),
+            # Otherwise FFmpeg reads keys from the console it inherits: "q"
+            # ends the video early and "c" waits for Enter.
+            "-nostdin",
             "-y",
             "-f",
             "concat",
@@ -728,10 +732,10 @@ def _sanitize_image_file(image_path: str) -> str:
                 # Strip metadata after applying the camera's orientation.
                 # Palette transparency belongs to pixels, not removable metadata.
                 mode = "RGBA" if "A" in upright.getbands() or "transparency" in upright.info else "RGB"
-                if upright.mode == "I;16":
-                    # PNG grayscale samples span0..65535; an RGB cast either
+                if upright.mode in {"I;16", "I;16B", "I;16L"}:
+                    # 16-bit grayscale samples span0..65535; an RGB cast either
                     # clips them to white or wraps when MoviePy encodes them.
-                    with upright.point(lambda value: value / 257 + 0.5) as byte_range:
+                    with upright.convert("I").point(lambda value: value / 257 + 0.5) as byte_range:
                         cleaned_image = byte_range.convert(mode)
                 else:
                     cleaned_image = upright.convert(mode)
@@ -772,7 +776,7 @@ def _open_image_clip_with_fallback(image_path: str):
     except Exception:
         orientation = 1
         image_mode = None
-    if orientation in range(2, 9) or image_mode in {"CMYK", "LA", "1", "I;16"}:
+    if orientation in range(2, 9) or image_mode in {"CMYK", "LA", "1", "I;16", "I;16B", "I;16L"}:
         sanitized_path = _sanitize_image_file(image_path)
         return ImageClip(sanitized_path), sanitized_path
 
@@ -986,8 +990,8 @@ def combine_videos(
     used_video_paths: List[str] | None = None,
     progress_callback: Callable[[float], None] | None = None,
 ) -> str:
-    # Pydantic leaves this optional default as the string "random" unless
-    # explicitly provided. Normalize it once for all downstream enum access.
+    # Direct callers and persisted tasks can still supply the raw string.
+    # Normalize it once for all downstream enum access.
     video_concat_mode = VideoConcatMode(video_concat_mode or VideoConcatMode.random)
     audio_clip = AudioFileClip(audio_file)
     try:
@@ -1293,22 +1297,43 @@ def combine_videos(
     return combined_video_path
 
 
-def wrap_text(text, max_width, font="Arial", fontsize=60):
+def wrap_text(text, max_width, font="Arial", fontsize=60, *, shaped=None, fallbacks=None):
     # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
     # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
     # 控制在视频可用宽度内，避免大字号或中文长句直接溢出画面。
+    # 含阿拉伯字母的字幕整段由 khatt 整形绘制（见 subtitle_shaping），手工
+    # 换行拆出的每一行（包括其中的英文翻译行）都要按 khatt 测量。
+    if shaped is None:
+        shaped = subtitle_shaping.needs_shaping(text)
     if "\n" in text:
         # Hard breaks in SRT text are separate layout lines. Measuring a token
         # across a newline makes Pillow count both lines as one wide string,
         # then character wrapping can split an otherwise fitting word.
         wrapped_lines = [
-            wrap_text(line, max_width, font=font, fontsize=fontsize)
+            wrap_text(
+                line, max_width, font=font, fontsize=fontsize, shaped=shaped, fallbacks=fallbacks
+            )
             for line in text.split("\n")
         ]
         return "\n".join(line for line, _ in wrapped_lines), sum(
             height for _, height in wrapped_lines
         )
 
+    # 阿拉伯字母文本必须按整形后的字形、并用实际绘制时的字体（缺字时的
+    # 后备字体）测量，换行和高度才与最终字幕一致；Pillow 未整形时测得的是
+    # 断开的独立字形宽度。手工换行的每一行本就是独立段落（如阿拉伯语下面
+    # 跟一行英文翻译），自动折出的行则带上原段落的方向标记，测量时也带上
+    # 它，使测量与渲染方向一致。后备字体画不出的字符（如夹杂的中文）由所选
+    # 字体绘制，测量时同样计入（见 subtitle_shaping.fallback_fonts）。
+    direction_mark = ""
+    if shaped:
+        selected_font = font
+        font, _ = subtitle_shaping.resolve_font(font, text)
+        if fallbacks is None:
+            fallbacks = subtitle_shaping.fallback_fonts(font, selected_font)
+        if text.strip():
+            direction_mark = subtitle_shaping.direction_mark(text)
+    shaped_font_path = font
     font = ImageFont.truetype(font, fontsize)
     max_width = int(max_width)
 
@@ -1331,6 +1356,11 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         inner_text = inner_text.strip()
         if not inner_text:
             return 0, line_height
+        if shaped:
+            width = subtitle_shaping.text_width(
+                direction_mark + inner_text, shaped_font_path, fontsize, fallbacks
+            )
+            return width, line_height
         left, top, right, bottom = font.getbbox(inner_text)
         # bbox 仍适合测量换行所需的实际宽度；高度必须始终使用稳定字体行高。
         return right - left, line_height
@@ -1339,7 +1369,7 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
     if width <= max_width:
         # SRT 条目允许作者手工换行。即使整段文本在宽度上不需要再次折行，
         # 画布高度仍必须按现有行数计算，否则第二行及后续行会被裁掉。
-        return text, (text.count("\n") + 1) * line_height
+        return direction_mark + text, (text.count("\n") + 1) * line_height
 
     def attached_text_units(token):
         units = []
@@ -1395,7 +1425,8 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
         lines.append(current)
 
     line_start_punctuation = "，。！？；：、,.!?;:)]}）】》」』”’"
-    for index in range(1, len(lines)):
+    # 阿拉伯字母单词不能拆开（会破坏字母连写），不做下面的标点调整。
+    for index in range(1, 1 if shaped else len(lines)):
         # 中文长句按字符拆分时，最后一个句号、逗号等闭合标点可能被单独
         # 放到下一行，导致字幕背景被异常撑高，视觉上像一个小点掉在正文
         # 下方。这里在不重新设计换行算法的前提下，把上一行最后一个字
@@ -1415,7 +1446,9 @@ def wrap_text(text, max_width, font="Arial", fontsize=60):
             lines[index] = candidate
             lines[index - 1] = lines[index - 1][:-len(last_unit)]
 
-    result = "\n".join(line.strip() for line in lines if line.strip()).strip()
+    result = "\n".join(
+        direction_mark + line.strip() for line in lines if line.strip()
+    ).strip()
     # 高度以最终结果为准。原文本中的显式换行可能保留在某个 token 内，
     # 此时临时 lines 列表的长度不等于 MoviePy 实际渲染的行数。
     height = (result.count("\n") + 1) * line_height
@@ -1563,6 +1596,10 @@ def subtitle_font_supports_text(font_path: str, text: str) -> bool:
     )[:64]
     if not sample:
         return True
+    if subtitle_shaping.needs_shaping(sample):
+        # 阿拉伯字母文本由 khatt 绘制，所选字体缺字时改用后备字体：
+        # 判断实际用来绘制的字体能否画出全部字母和数字。
+        return subtitle_shaping.supports_text(font_path, sample)
     return _subtitle_font_supports_sample(font_path, sample)
 
 
@@ -1618,10 +1655,17 @@ def generate_video(
             return "#000000" if params.text_background_color else None
         return params.text_background_color
 
+    # 阿拉伯字母字幕使用的字体按整条视频的全部字幕一次确定（见字幕加载处），
+    # 避免同一视频中逐条字幕在两种字体之间来回切换。
+    shaped_font = font_path
+
     def create_text_clip(subtitle_item):
         params.font_size = int(params.font_size)
         params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
+        shaped = subtitle_shaping.needs_shaping(phrase)
+        clip_font = shaped_font if shaped else font_path
+        clip_fallbacks = subtitle_shaping.fallback_fonts(shaped_font, font_path) if shaped else []
         max_width = video_width * 0.9
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
@@ -1640,8 +1684,9 @@ def generate_video(
         wrapped_txt, txt_height = wrap_text(
             phrase,
             max_width=text_max_width,
-            font=font_path,
+            font=clip_font,
             fontsize=params.font_size,
+            fallbacks=clip_fallbacks,
         )
         interline = int(params.font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
@@ -1669,11 +1714,20 @@ def generate_video(
             # 圆角背景需要贴合文字宽度，而不是沿用 90% 视频宽度。这里先用
             # PIL 测量最长一行文字，再加水平内边距，避免短字幕出现过宽底板。
             try:
-                font = ImageFont.truetype(font_path, params.font_size)
-                text_w = max(
-                    int(font.getbbox(line)[2] - font.getbbox(line)[0])
-                    for line in wrapped_txt.split("\n")
-                )
+                if shaped:
+                    # 阿拉伯字母文本按整形后的字形和实际绘制字体测量。
+                    text_w = max(
+                        subtitle_shaping.text_width(
+                            line, clip_font, params.font_size, clip_fallbacks
+                        )
+                        for line in wrapped_txt.split("\n")
+                    )
+                else:
+                    font = ImageFont.truetype(font_path, params.font_size)
+                    text_w = max(
+                        int(font.getbbox(line)[2] - font.getbbox(line)[0])
+                        for line in wrapped_txt.split("\n")
+                    )
             except Exception as exc:
                 logger.warning(
                     f"failed to measure subtitle text width, fallback to max width: {str(exc)}"
@@ -1682,7 +1736,9 @@ def generate_video(
 
             box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
             radius = max(8, int(params.font_size * 0.4))
-            text_clip = TextClip(
+            text_clip = subtitle_shaping.text_clip(
+                TextClip,
+                shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1713,7 +1769,9 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            text_clip = TextClip(
+            text_clip = subtitle_shaping.text_clip(
+                TextClip,
+                shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1744,7 +1802,24 @@ def generate_video(
                 int(max_width),
                 clip_h,
             )
-            _clip = TextClip(
+            if shaped:
+                # khatt 让画布容纳全部墨迹（例如高出字体上沿的古兰经停顿符号），
+                # 按上面的公式固定高度可能把它们裁掉，所以先量出自然高度。
+                with subtitle_shaping.text_clip(
+                    TextClip,
+                    shaped_font=shaped_font,
+                    text=wrapped_txt,
+                    font=font_path,
+                    font_size=params.font_size,
+                    stroke_width=params.stroke_width,
+                    interline=interline,
+                    size=(size[0], None),
+                    text_align="center",
+                ) as natural:
+                    size = (size[0], max(size[1], natural.h))
+            _clip = subtitle_shaping.text_clip(
+                TextClip,
+                shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
                 font_size=params.font_size,
@@ -1802,16 +1877,22 @@ def generate_video(
         )
 
         def make_textclip(text):
-            return TextClip(
+            return subtitle_shaping.text_clip(
+                TextClip,
+                shaped_font=shaped_font,
                 text=text,
                 font=font_path,
                 font_size=params.font_size,
             )
 
         if params.subtitle_enabled and subtitle_path and os.path.exists(subtitle_path):
+            subtitles = moviepy_subtitles(subtitle_path)
+            shaped_font = subtitle_shaping.video_font(
+                font_path, (text for _, text in subtitles)
+            )
             sub = clip_stack.enter_context(
                 SubtitlesClip(
-                    subtitles=moviepy_subtitles(subtitle_path),
+                    subtitles=subtitles,
                     encoding="utf-8",
                     make_textclip=make_textclip,
                 )
@@ -1891,6 +1972,58 @@ def generate_video(
         return bgm_mix_succeeded
 
 
+# 放大模式的渲染方式已改为亚像素插值，输出像素与旧版本不同。文件名带上这个
+# 标记，避免复用旧版本按整数尺寸缩放、带抖动的缓存片段。
+_ZOOM_CACHE_TAG = "-smooth"
+
+
+def _smooth_zoom_clip(clip, zoom_amount: float):
+    """
+    以亚像素精度生成缓慢放大的片段，画布尺寸保持不变。
+
+    旧实现 `clip.resized(lambda t: ...)` 每帧把图片缩放到整数尺寸，再按整数
+    偏移居中裁切。放大速度很慢时（每秒约 3%），相邻帧的尺寸要么不变、要么
+    跳 1px，中心偏移也随取整来回摆动，成片里表现为画面抖动/顿挫，放大到
+    1080x1920 后更明显。
+
+    这里固定输出尺寸，每帧以图片中心为原点做仿射变换（BICUBIC 插值），
+    缩放比例随时间连续变化。构图与旧实现一致：从原图开始，以中心为基准
+    放大并裁掉超出画布的部分。带透明通道的图片同样处理遮罩。
+    """
+    base = Image.fromarray(np.asarray(clip.get_frame(0)).astype("uint8"))
+    width, height = base.size
+    center_x, center_y = width / 2.0, height / 2.0
+    duration = clip.duration or 1.0
+    mask_base = None
+    if clip.mask is not None:
+        mask_frame = np.asarray(clip.mask.get_frame(0)) * 255
+        mask_base = Image.fromarray(mask_frame.clip(0, 255).astype("uint8"))
+
+    def warp(image, t, resample):
+        progress = min(max(t, 0.0), duration) / duration
+        scale = 1.0 + zoom_amount * progress
+        # 输出像素 (x, y) 取自原图 (cx + (x - cx) / s, cy + (y - cy) / s)。
+        coefficients = (
+            1 / scale, 0, center_x - center_x / scale,
+            0, 1 / scale, center_y - center_y / scale,
+        )
+        return image.transform(
+            (width, height), Image.AFFINE, coefficients, resample=resample
+        )
+
+    zoomed = VideoClip(
+        lambda t: np.asarray(warp(base, t, Image.BICUBIC)), duration=clip.duration
+    )
+    if mask_base is not None:
+        mask = VideoClip(
+            lambda t: np.asarray(warp(mask_base, t, Image.BILINEAR)) / 255.0,
+            is_mask=True,
+            duration=clip.duration,
+        )
+        zoomed = zoomed.with_mask(mask)
+    return zoomed.with_position("center")
+
+
 def render_image_zoom_video(
     image_path: str, clip_duration: int = 5, image_motion: ImageMotion = ImageMotion.zoom
 ) -> str:
@@ -1906,9 +2039,9 @@ def render_image_zoom_video(
     clip = clip.with_duration(clip_duration).with_position("center")
     temp_path = ""
     try:
-        # 只有放大模式改变画面尺寸，静止模式保留原始构图及透明背景处理。
+        # 放大模式以亚像素精度逐帧放大，静止模式保留原始构图及透明背景处理。
         image_clip = (
-            clip.resized(lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration))
+            _smooth_zoom_clip(clip, clip_duration * 0.03)
             if motion == ImageMotion.zoom
             else clip
         )
@@ -1928,9 +2061,10 @@ def render_image_zoom_video(
                 source_digest.update(clip.mask.get_frame(0).tobytes())
             source_identity = source_digest.hexdigest()
             duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
+            motion_tag = _ZOOM_CACHE_TAG if motion == ImageMotion.zoom else ""
             video_file = os.path.join(
                 os.path.dirname(image_path),
-                f"{source_identity}.{motion.value}-{duration_identity}.mp4",
+                f"{source_identity}.{motion.value}{motion_tag}-{duration_identity}.mp4",
             )
             descriptor, temp_path = tempfile.mkstemp(
                 prefix=".image-zoom-",

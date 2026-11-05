@@ -12,6 +12,7 @@ from app.models.schema import (
     SubtitleRequest,
     TaskVideoRequest,
     VideoAspect,
+    VideoConcatMode,
     VideoFitMode,
     VideoParams,
 )
@@ -29,6 +30,24 @@ class TestVideoAspect(unittest.TestCase):
 
 
 class TestVideoParams(unittest.TestCase):
+    def test_enum_defaults_have_the_same_types_as_explicit_values(self):
+        """Pydantic must not expose raw strings only when a field is omitted."""
+        default_params = VideoParams(video_subject="Coffee")
+        explicit_params = VideoParams(
+            video_subject="Coffee",
+            video_aspect=VideoAspect.portrait.value,
+            video_concat_mode=VideoConcatMode.random.value,
+        )
+
+        for params in (default_params, explicit_params):
+            self.assertIs(params.video_aspect, VideoAspect.portrait)
+            self.assertIs(params.video_concat_mode, VideoConcatMode.random)
+
+        # Keep the public JSON representation backward-compatible.
+        serialized = default_params.model_dump(mode="json")
+        self.assertEqual(serialized["video_aspect"], "9:16")
+        self.assertEqual(serialized["video_concat_mode"], "random")
+
     def test_video_fit_mode_defaults_to_cover_and_validates_values(self):
         self.assertEqual(
             VideoParams(video_subject="Coffee").video_fit_mode,

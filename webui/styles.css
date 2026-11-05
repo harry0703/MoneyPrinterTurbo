@@ -182,6 +182,23 @@ div[class*="st-key-voice_mode_control"] [role="radiogroup"] > button p {
 }
 
 @media (max-width: 700px) {
+    /* Use the available mobile viewport for Settings without changing other dialogs. */
+    [data-testid="stDialog"]:has(.stTabs[class*="st-key-settings_dialog_tabs_"]) {
+        padding: 0 !important;
+    }
+
+    [data-testid="stDialog"]:has(.stTabs[class*="st-key-settings_dialog_tabs_"]) > div {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        min-height: 100vh;
+        min-height: 100dvh;
+        margin: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
     .mpt-brand > span:first-child {
         gap: 0.45rem;
     }

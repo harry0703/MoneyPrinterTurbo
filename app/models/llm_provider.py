@@ -278,6 +278,30 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.openai.com/v1",
     ),
     LLMProviderSpec(
+        "openai_codex",
+        "OpenAI - Codex",
+        adapter="openai_codex",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        extra_fields=(
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
+        ),
+    ),
+    LLMProviderSpec(
+        "openai_chatgpt",
+        "OpenAI - ChatGPT (Native OAuth)",
+        adapter="openai_chatgpt",
+        requires_api_key=False,
+        show_api_key=False,
+        requires_base_url=False,
+        show_base_url=False,
+        extra_fields=(
+            LLMProviderField("timeout", "Timeout (seconds)", default_value="300"),
+        ),
+    ),
+    LLMProviderSpec(
         "anthropic",
         "Anthropic Claude",
         api_key_url="https://platform.claude.com/settings/keys",
@@ -374,6 +398,14 @@ LLM_PROVIDER_REGISTRY = (
         model_docs_url="https://maas.xfyun.cn/modelSquare",
     ),
     # 聚合与统一接入平台
+    LLMProviderSpec(
+        "jalapeno",
+        "Jalapeno Cloud",
+        api_key_url="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo",
+        default_model="DeepSeek-V4.1-Flash",
+        default_base_url="https://api.jalapeno-cloud.ai/v1",
+        model_docs_url="https://www.jalapeno-cloud.ai/models",
+    ),
     LLMProviderSpec(
         "infistar",
         "Infistar",
@@ -530,6 +562,30 @@ LLM_PROVIDER_REGISTRY = (
         default_model="qwen3-8-flash",
         default_base_url="https://api.empiriolabs.ai/v1",
         model_docs_url="https://docs.empiriolabs.ai/models-pricing",
+    ),
+    LLMProviderSpec(
+        "runcrate",
+        "Runcrate",
+        api_key_url="https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        default_model="deepseek-ai/DeepSeek-V4.1-Flash",
+        default_base_url="https://api.runcrate.ai/v1",
+        model_docs_url="https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+    ),
+    LLMProviderSpec(
+        "cloudgpu",
+        "CloudGPU",
+        api_key_url="https://cloudgpu.app",
+        default_model="deepseek-v4-flash",
+        default_base_url="https://cloudgpu.app/v1",
+        model_docs_url="https://cloudgpu.app/v1/models",
+    ),
+    LLMProviderSpec(
+        "cheapaimodel",
+        "cheapaimodel",
+        api_key_url="https://console.cheapaimodel.ai/keys",
+        default_model="deepseek-v4-1-flash",
+        default_base_url="https://api.cheapaimodel.ai/v1",
+        model_docs_url="https://cheapaimodel.ai/models",
     ),
     # 本地部署与通用网关
     LLMProviderSpec(

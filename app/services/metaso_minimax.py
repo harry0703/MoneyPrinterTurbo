@@ -20,6 +20,7 @@ from loguru import logger
 from app.utils.request_logging import trace_http_call
 
 from app.config import config
+from app.services import generation_progress
 from app.models.schema import MaterialInfo, VideoAspect
 
 
@@ -255,6 +256,7 @@ def generate_videos(
 
     # POST 超时或 5xx 发生时，远端可能已经创建并计费。接口没有提供客户端
     # 幂等键，因此这里绝不自动重发；上层会停止后续关键词，避免重复扣费。
+    generation_progress.submitting('metaso_minimax')
     try:
         response = trace_http_call(
             "POST", requests.post,
@@ -366,6 +368,7 @@ def _wait_for_task(
         60.0,
     )
     query_url = f"{base_url}/v2/query/video_generation/{quote(task_id, safe='')}"
+    generation_progress.remote('metaso_minimax', task_id)
     consecutive_failures = 0
 
     while True:
@@ -428,6 +431,7 @@ def _wait_for_task(
                     task_id=task_id,
                 ) from exc
             consecutive_failures += 1
+            generation_progress.remote('metaso_minimax', task_id, retrying=True)
             if consecutive_failures > MAX_POLL_RETRIES:
                 raise MetasoMiniMaxUnconfirmedTaskError(
                     "Metaso MiniMax polling failed after retries; the paid task "
@@ -445,6 +449,7 @@ def _wait_for_task(
 
         consecutive_failures = 0
         status = str(task.get("status") or "").strip().lower()
+        generation_progress.remote('metaso_minimax', task_id, status)
         logger.info(f"Metaso MiniMax task status: id={task_id}, status={status}")
         if status == "succeeded":
             return task

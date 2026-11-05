@@ -49,11 +49,16 @@ async def application_lifespan(_: FastAPI):
     from app.controllers.manager.redis_manager import RedisTaskManager
     from app.controllers.v1 import video as video_controller
 
+    redis_task_manager = None
     if isinstance(video_controller.task_manager, RedisTaskManager):
-        video_controller.task_manager.resume_queued_tasks()
+        redis_task_manager = video_controller.task_manager
+        redis_task_manager.resume_queued_tasks()
+        redis_task_manager.start_queue_dispatcher()
     try:
         yield
     finally:
+        if redis_task_manager is not None:
+            redis_task_manager.stop_queue_dispatcher()
         logger.info("shutdown event")
 
 

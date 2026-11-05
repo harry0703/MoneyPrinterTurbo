@@ -406,11 +406,8 @@ class TestSubtitleService(unittest.TestCase):
 
         self.assertEqual([item[2] for item in items], ["Hello world"])
 
-    def test_correct_replaces_mismatch_and_appends_missing_script_line(self):
-        """
-        转写结果与脚本完全不一致时仍应以脚本为准；脚本多出的句子没有可复用
-        时间轴时使用明确的零时间占位，避免丢失文本且保持现有兼容行为。
-        """
+    def test_correct_preserves_transcription_when_script_outlasts_cues(self):
+        """An incomplete alignment must not overwrite usable timed captions."""
         original_srt = "1\n00:00:00,100 --> 00:00:01,000\nWrong text\n\n"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -418,13 +415,83 @@ class TestSubtitleService(unittest.TestCase):
             subtitle_file.write_text(original_srt, encoding="utf-8")
 
             subtitle.correct(str(subtitle_file), "Expected sentence. Extra sentence.")
+            self.assertEqual(subtitle_file.read_text(encoding="utf-8"), original_srt)
+
+    def test_correct_preserves_comma_split_transcription(self):
+        original_srt = (
+            "1\n00:00:00,100 --> 00:00:02,000\nIt runs as you so it can change memory\n\n"
+            "2\n00:00:02,500 --> 00:00:04,000\nThat is the gate\n\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+            subtitle.correct(
+                str(subtitle_file),
+                "It runs as you, so it can change memory. That is the gate.",
+            )
+            self.assertEqual(subtitle_file.read_text(encoding="utf-8"), original_srt)
+
+    def test_correct_rolls_back_merges_when_alignment_exhausts_cues(self):
+        # Even equal initial counts can run out of cues after a fuzzy merge.
+        original_srt = (
+            "1\n00:00:00,100 --> 00:00:01,000\nHello\n\n"
+            "2\n00:00:01,000 --> 00:00:02,000\nworld\n\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+            subtitle.correct(str(subtitle_file), "Hello world. Another sentence.")
+            self.assertEqual(subtitle_file.read_text(encoding="utf-8"), original_srt)
+
+    def test_correct_does_not_fabricate_cues_without_transcription(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text("", encoding="utf-8")
+            subtitle.correct(str(subtitle_file), "A sentence with no timing.")
+            self.assertEqual(subtitle_file.read_bytes(), b"")
+
+    def test_correct_still_replaces_mismatch_with_available_timing(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(
+                "1\n00:00:00,100 --> 00:00:01,000\nWrong text\n\n",
+                encoding="utf-8",
+            )
+            subtitle.correct(str(subtitle_file), "Expected sentence.")
+            self.assertEqual(
+                subtitle.file_to_subtitles(str(subtitle_file)),
+                [(1, "00:00:00,100 --> 00:00:01,000", "Expected sentence")],
+            )
+
+    def test_correct_does_not_split_thai_script_at_sentence_spaces(self):
+        """
+        create() does not end a Whisper segment at the space that ends a Thai
+        sentence, so one segment can hold two sentences. Split there, the script
+        would have more lines than segments, and its last sentences would get the
+        00:00:00,000 placeholder.
+        """
+        sentences = [
+            "กาแฟเป็นเครื่องดื่มที่ได้รับความนิยมทั่วโลก",
+            "ทุกเช้าผู้คนนับล้านเริ่มต้นวันด้วยกาแฟหนึ่งแก้ว",
+            "กาแฟช่วยให้ร่างกายตื่นตัวและมีสมาธิมากขึ้น",
+            "แต่การดื่มมากเกินไปอาจทำให้นอนไม่หลับ",
+        ]
+        original_srt = (
+            f"1\n00:00:00,100 --> 00:00:04,650\n{sentences[0]} {sentences[1]}\n\n"
+            f"2\n00:00:04,650 --> 00:00:09,588\n{sentences[2]} {sentences[3]}\n\n"
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle_file = Path(tmp_dir) / "subtitle.srt"
+            subtitle_file.write_text(original_srt, encoding="utf-8")
+
+            subtitle.correct(str(subtitle_file), " ".join(sentences))
             items = subtitle.file_to_subtitles(str(subtitle_file))
 
         self.assertEqual(
-            [item[2] for item in items],
-            ["Expected sentence", "Extra sentence"],
+            [(item[1], item[2]) for item in items],
+            [("00:00:00,100 --> 00:00:09,588", " ".join(sentences))],
         )
-        self.assertEqual(items[1][1], "00:00:00,000 --> 00:00:00,000")
 
     def test_file_to_subtitles_keeps_last_block_without_trailing_newline(self):
         """

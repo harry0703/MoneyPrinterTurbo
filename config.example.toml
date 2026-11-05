@@ -24,6 +24,20 @@ listen_port = 8080
 log_requests = false
 
 [app]
+# OpenAI - Codex: existing device-code provider; upgrades preserve this connection.
+# Uses ChatGPT subscription limits; no API key. Credentials live in storage/auth.
+openai_codex_model_name = ""
+openai_codex_timeout = ""
+# Codex image source: reuses the same ChatGPT login, with an independent Responses
+# model selection. Catalog candidates do not guarantee image-tool access.
+codex_image_model_name = ""
+codex_image_timeout = 300
+
+# OpenAI - ChatGPT (Native OAuth): separately selected, account/workspace eligibility required.
+# Browser and Python runtime must be on the same computer. Remote/Docker sign-in is not supported.
+# Uses public /v1/models and /v1/responses; never falls back to another billing path.
+openai_chatgpt_model_name = ""
+openai_chatgpt_timeout = ""
 
 # Optional protection for API routes and generated files under /tasks.
 # Leave empty for local backward-compatible access. When configured, clients
@@ -276,6 +290,21 @@ infistar_video_model = "doubao-seedance-2-0-fast-260128"
 infistar_video_poll_interval = 5
 infistar_video_run_timeout = 1800
 
+# Jalapeno Cloud：活动页 https://www.jalapeno-cloud.ai/MoneyPrinterTurbo
+# 模型广场 https://www.jalapeno-cloud.ai/models
+jalapeno_api_key = ""
+jalapeno_base_url = ""
+jalapeno_model_name = ""
+# 视频 Key 留空复用 jalapeno_api_key；独立视频 Key 或环境变量
+# JALAPENO_VIDEO_API_KEY 优先。视频地址不复用 LLM 的 /v1 地址。
+# 地址支持 https://api.jalapeno-cloud.ai/api/v3 或完整 /contents/generations/tasks。
+jalapeno_video_api_key = ""
+jalapeno_video_base_url = ""
+jalapeno_video_model = "Doubao-Seedance-2-5-260628"
+jalapeno_video_resolution = "480p"
+jalapeno_video_poll_interval = 5
+jalapeno_video_run_timeout = 1800
+
 # Shengsuan Cloud, OpenAI-compatible multi-model API.
 # API docs: https://lean.shengsuanyun.com/apidocs/api/openai-api
 shengsuanyun_api_key = ""
@@ -345,6 +374,30 @@ onomeo_model_name = ""
 empiriolabs_api_key = ""
 empiriolabs_base_url = ""
 empiriolabs_model_name = ""
+
+# Runcrate, a GPU cloud with an OpenAI-compatible API for open models.
+# API key: https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing
+# Model list: https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing
+runcrate_api_key = ""
+runcrate_base_url = ""
+runcrate_model_name = ""
+
+# CloudGPU, a GPU cloud with an OpenAI-compatible API.
+# API key: https://cloudgpu.app
+# Model list: https://cloudgpu.app/v1/models
+# Docs: https://cloudgpu.app/api/docs
+cloudgpu_api_key = ""
+cloudgpu_base_url = ""
+cloudgpu_model_name = ""
+
+# cheapaimodel, an OpenAI-compatible, pay-per-token gateway for open-weight
+# models (DeepSeek, GLM, Kimi) and Grok, prepaid in USD.
+# API key: https://console.cheapaimodel.ai/keys
+# Model list: https://cheapaimodel.ai/models
+# Docs: https://cheapaimodel.ai/docs
+cheapaimodel_api_key = ""
+cheapaimodel_base_url = ""
+cheapaimodel_model_name = ""
 
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
