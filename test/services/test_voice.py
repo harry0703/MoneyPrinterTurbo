@@ -1829,6 +1829,19 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(vs.convert_rate_to_percent(float("nan")), "+0%")
         self.assertEqual(vs.convert_rate_to_percent(float("inf")), "+0%")
 
+    def test_edge_voices_with_a_script_subtag_pass_edge_tts_validation(self):
+        # edge-tts only expands short names like en-US-AriaNeural; the listed
+        # Inuktitut voices carry a script subtag (iu-Cans-CA, iu-Latn-CA).
+        prefix = "Microsoft Server Speech Text to Speech Voice"
+        for short_name, full_name in (
+            ("iu-Cans-CA-SiqiniqNeural", f"{prefix} (iu-Cans-CA, SiqiniqNeural)"),
+            ("iu-Latn-CA-TaqqiqNeural", f"{prefix} (iu-Latn-CA, TaqqiqNeural)"),
+            ("zh-CN-liaoning-XiaobeiNeural", f"{prefix} (zh-CN-liaoning, XiaobeiNeural)"),
+        ):
+            with self.subTest(short_name=short_name):
+                communicate = vs.create_edge_tts_communicate("word", short_name, "+0%")
+                self.assertEqual(communicate.tts_config.voice, full_name)
+
 
 def _write_test_wav(filepath: str, duration_seconds: float = 1.0, sample_rate: int = 24000) -> str:
     import wave

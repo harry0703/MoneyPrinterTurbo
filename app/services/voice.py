@@ -1334,6 +1334,11 @@ def populate_legacy_submaker_with_full_text(
     return sub_maker
 
 
+# edge-tts expands short names such as en-US-AriaNeural itself, but its pattern
+# rejects a locale with a script subtag (iu-Cans-CA-SiqiniqNeural).
+_EDGE_SCRIPT_SUBTAG_VOICE = re.compile(r"^([a-z]{2,3}-[A-Z][a-z]{3}-[A-Z]{2})-(\w+Neural)$")
+
+
 def create_edge_tts_communicate(
     text: str, voice_name: str, rate_str: str
 ) -> edge_tts.Communicate:
@@ -1354,6 +1359,12 @@ def create_edge_tts_communicate(
 
     if "boundary" in communicate_signature.parameters:
         communicate_kwargs["boundary"] = "WordBoundary"
+
+    # Pass those voices in the full form that edge-tts sends for every voice.
+    script_subtag_voice = _EDGE_SCRIPT_SUBTAG_VOICE.match(voice_name)
+    if script_subtag_voice:
+        locale, name = script_subtag_voice.groups()
+        voice_name = f"Microsoft Server Speech Text to Speech Voice ({locale}, {name})"
 
     return edge_tts.Communicate(text, voice_name, **communicate_kwargs)
 
