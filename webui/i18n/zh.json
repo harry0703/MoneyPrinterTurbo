@@ -667,7 +667,7 @@
     "Infistar Video API Key": "无限星河视频 API Key",
     "Infistar Video Base URL": "无限星河视频 Base URL",
     "llm_provider_label.jalapeno": "Jalapeno Cloud",
-    "llm_provider_tips.jalapeno": "##### Jalapeno Cloud 配置说明\n- **API Key**：通过 [MoneyPrinterTurbo 专属活动页]({api_key_url})注册并获取密钥，活动权益以页面展示为准\n- **Base Url**：默认 `{default_base_url}`\n- **Model Name**：默认 `{default_model}`；其他模型 ID 请查看[模型广场]({model_docs_url})\n\n视频 Key 留空时会自动复用此 API Key，也可在素材来源设置中填写独立视频 Key。视频接口地址单独配置。",
+    "llm_provider_tips.jalapeno": "##### Jalapeno Cloud 配置说明\n- **API Key**：通过 [MoneyPrinterTurbo 专属活动页]({api_key_url})注册并获取密钥。新注册用户可获得 1 美元赠金，最多可生成 3 个视频\n- **Base Url**：默认 `{default_base_url}`\n- **Model Name**：默认 `{default_model}`；其他模型 ID 请查看[模型广场]({model_docs_url})\n\n视频 Key 留空时会自动复用此 API Key，也可在素材来源设置中填写独立视频 Key。视频接口地址单独配置。",
     "Jalapeno Cloud AI Video": "Jalapeno Cloud AI 视频",
     "Jalapeno Cloud Video Help": "通过 Jalapeno Cloud 生成 Seedance 视频素材。[项目专属活动](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo) · [模型广场](https://www.jalapeno-cloud.ai/models)",
     "Jalapeno Cloud Video API Key": "Jalapeno Cloud 视频 API Key（[获取 API Key](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo)）",

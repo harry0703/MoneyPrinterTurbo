@@ -667,7 +667,7 @@
     "Infistar Video API Key": "Infistar Video API Key",
     "Infistar Video Base URL": "Infistar Video Base URL",
     "llm_provider_label.jalapeno": "Jalapeno Cloud",
-    "llm_provider_tips.jalapeno": "##### Jalapeno Cloud Configuration\n- **API Key**: Register and get a key on the [MoneyPrinterTurbo campaign page]({api_key_url}); see that page for current offers\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model marketplace]({model_docs_url}) for other IDs\n\nAn empty video key reuses this API key. You can override it in material source settings. The video endpoint is configured separately.",
+    "llm_provider_tips.jalapeno": "##### Jalapeno Cloud Configuration\n- **API Key**: Register and get a key on the [MoneyPrinterTurbo campaign page]({api_key_url}). New users receive $1 in free credit, enough for up to 3 video generations\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model marketplace]({model_docs_url}) for other IDs\n\nAn empty video key reuses this API key. You can override it in material source settings. The video endpoint is configured separately.",
     "Jalapeno Cloud AI Video": "Jalapeno Cloud AI Video",
     "Jalapeno Cloud Video Help": "Generate Seedance clips through Jalapeno Cloud. [Project campaign](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo) · [Model marketplace](https://www.jalapeno-cloud.ai/models)",
     "Jalapeno Cloud Video API Key": "Jalapeno Cloud Video API Key ([Get API Key](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo))",
