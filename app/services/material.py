@@ -3212,13 +3212,19 @@ def _download_videos_by_script_order(
         minimum_duration=max_clip_duration,
         video_aspect=video_aspect,
     ):
+        # A topic the script returns to gets the same search results again. Dedupe
+        # only within one term, so the repeated term keeps its slot on the timeline;
+        # candidates another term already took are skipped when a round is built.
         term_items = []
+        term_urls = set()
         for item in video_items:
-            if item.url in valid_video_urls:
+            if item.url in term_urls:
                 continue
             term_items.append(item)
-            valid_video_urls.add(item.url)
-            found_duration += item.duration
+            term_urls.add(item.url)
+            if item.url not in valid_video_urls:
+                valid_video_urls.add(item.url)
+                found_duration += item.duration
 
         if term_items:
             candidate_groups.append((search_term, term_items))
@@ -3237,18 +3243,22 @@ def _download_videos_by_script_order(
     # 每个关键词独立推进候选下标：只有本轮真正被选中下载的候选才推进，
     # 未被选中的候选保留到下一轮，避免被整轮统一的下标跳过。
     next_candidate_indices = [0] * len(candidate_groups)
+    picked_urls = set()
     while candidate_groups and total_duration <= audio_duration:
-        round_materials = [
-            (
-                group_position,
-                search_term,
-                term_items[next_candidate_indices[group_position]],
-            )
-            for group_position, (search_term, term_items) in enumerate(
-                candidate_groups
-            )
-            if next_candidate_indices[group_position] < len(term_items)
-        ]
+        round_materials = []
+        round_urls = set()
+        for group_position, (search_term, term_items) in enumerate(candidate_groups):
+            # Skip candidates an earlier round or an earlier group of this round took.
+            index = next_candidate_indices[group_position]
+            while index < len(term_items) and (
+                term_items[index].url in picked_urls
+                or term_items[index].url in round_urls
+            ):
+                index += 1
+            next_candidate_indices[group_position] = index
+            if index < len(term_items):
+                round_materials.append((group_position, search_term, term_items[index]))
+                round_urls.add(term_items[index].url)
         if not round_materials:
             break
 
@@ -3263,8 +3273,9 @@ def _download_videos_by_script_order(
         # _select_materials_until_duration 返回候选列表的前缀子集，
         # 因此前 len(selected_materials) 个即本轮实际尝试下载的候选，
         # 只推进这些候选所在分组的下标。
-        for group_position, _, _ in round_materials[: len(selected_materials)]:
+        for group_position, _, item in round_materials[: len(selected_materials)]:
             next_candidate_indices[group_position] += 1
+            picked_urls.add(item.url)
 
         downloaded_materials = _download_materials_in_parallel(
             materials=selected_materials,
