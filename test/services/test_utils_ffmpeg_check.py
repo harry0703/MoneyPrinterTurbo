@@ -105,11 +105,15 @@ class TestGetFfmpegBinaryEnvExpansion(unittest.TestCase):
         """
         home = tempfile.mkdtemp(prefix="ffmpeg-home-")
         try:
+            # Windows expands "~" from USERPROFILE, not HOME.
             with patch.dict(
-                os.environ, {"HOME": home, "IMAGEIO_FFMPEG_EXE": "~/bin/ffmpeg"}
+                os.environ,
+                {"HOME": home, "USERPROFILE": home, "IMAGEIO_FFMPEG_EXE": "~/bin/ffmpeg"},
             ):
                 expanded = utils.get_ffmpeg_binary()
-                self.assertEqual(expanded, os.path.join(home, "bin", "ffmpeg"))
+                self.assertEqual(
+                    os.path.normpath(expanded), os.path.join(home, "bin", "ffmpeg")
+                )
                 self.assertEqual(os.environ["IMAGEIO_FFMPEG_EXE"], expanded)
         finally:
             shutil.rmtree(home, ignore_errors=True)
@@ -193,7 +197,10 @@ class TestMoviePyEncodeWithExpandedEnv(unittest.TestCase):
             self.assertGreater(os.path.getsize(output), 0)
 
     def test_encode_with_tilde_path(self):
-        self._encode_with_imageio_env("~/ffmpeg", {"HOME": self.bin_dir})
+        # Windows expands "~" from USERPROFILE, not HOME.
+        self._encode_with_imageio_env(
+            "~/ffmpeg", {"HOME": self.bin_dir, "USERPROFILE": self.bin_dir}
+        )
 
     def test_encode_with_env_var_path(self):
         self._encode_with_imageio_env(
