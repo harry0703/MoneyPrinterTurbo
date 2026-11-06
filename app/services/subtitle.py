@@ -222,8 +222,15 @@ def levenshtein_distance(s1, s2):
 
 
 def similarity(a, b):
-    distance = levenshtein_distance(a.lower(), b.lower())
-    max_length = max(len(a), len(b))
+    # 大小写折叠可能改变字符数（例如 "İ".lower() 是两个码点），编辑距离与分母
+    # 必须用同一份归一化后的文本，否则结果会超出 [0, 1]。两个空串视为完全相同，
+    # 避免除零；字幕校正会拿空脚本行或空的转写文本参与比较。
+    normalized_a = a.lower()
+    normalized_b = b.lower()
+    max_length = max(len(normalized_a), len(normalized_b))
+    if max_length == 0:
+        return 1.0
+    distance = levenshtein_distance(normalized_a, normalized_b)
     return 1 - (distance / max_length)
 
 
