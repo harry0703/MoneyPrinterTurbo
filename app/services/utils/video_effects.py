@@ -37,9 +37,11 @@ def slidein_transition(clip: Clip, t: float, side: str) -> Clip:
         clip.duration
     )
     moving_clip = clip.with_position(position)
-    return CompositeVideoClip([background, moving_clip], size=(width, height)).with_duration(
-        clip.duration
-    )
+    # bg_color keeps the composite opaque, so MoviePy does not build and encode
+    # a full-frame transparency mask for every frame.
+    return CompositeVideoClip(
+        [background, moving_clip], size=(width, height), bg_color=(0, 0, 0)
+    ).with_duration(clip.duration)
 
 
 # SlideOut
@@ -71,9 +73,9 @@ def slideout_transition(clip: Clip, t: float, side: str) -> Clip:
         clip.duration
     )
     moving_clip = clip.with_position(position)
-    return CompositeVideoClip([background, moving_clip], size=(width, height)).with_duration(
-        clip.duration
-    )
+    return CompositeVideoClip(
+        [background, moving_clip], size=(width, height), bg_color=(0, 0, 0)
+    ).with_duration(clip.duration)
 
 
 # 保留原始设计的 20% 缩放幅度，让三秒左右的短片也有清晰可见的 Ken Burns 运动感。
