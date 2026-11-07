@@ -969,8 +969,12 @@ def _fit_clip_to_canvas(
     resized_clip = clip.resized(
         new_size=(resized_width, resized_height)
     ).with_position("center")
+    # bg_color keeps the composite opaque, so MoviePy does not build and encode
+    # a full-frame transparency mask for every frame.
     return CompositeVideoClip(
-        [background, resized_clip], size=(target_width, target_height)
+        [background, resized_clip],
+        size=(target_width, target_height),
+        bg_color=(0, 0, 0),
     ).with_duration(clip.duration)
 
 
@@ -1901,7 +1905,14 @@ def generate_video(
             for item in sub.subtitles:
                 clip = create_text_clip(subtitle_item=item)
                 text_clips.append(clip)
-            video_clip = CompositeVideoClip([video_clip, *text_clips])
+            # bg_color makes the composite opaque. Without it MoviePy starts every
+            # frame from a transparent canvas and also builds a full-size mask
+            # composite, which the writer pipes to FFmpeg as an alpha channel
+            # that H.264 drops. The video covers the whole canvas, so the
+            # rendered frames are the same.
+            video_clip = CompositeVideoClip(
+                [video_clip, *text_clips], bg_color=(0, 0, 0)
+            )
             clip_stack.callback(video_clip.close)
 
         bgm_enabled = bgm_service.should_use_bgm(
