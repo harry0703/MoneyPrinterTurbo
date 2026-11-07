@@ -509,6 +509,57 @@ class TestGenerateResponseTransportLimits(unittest.TestCase):
             base_url="https://example.test/v1",
         )
 
+    def test_transport_limits_forwarded_to_gemini_and_litellm(self):
+        """连接测试的超时/重试约束也必须作用到 Gemini 和 LiteLLM 适配器。"""
+        config.app.update(
+            {
+                "llm_provider": "gemini",
+                "gemini_api_key": "gemini-test-key",
+                "gemini_base_url": "",
+                "gemini_model_name": "gemini-test-model",
+            }
+        )
+        captured = {}
+
+        class FakeGeminiClient:
+            def __init__(self, **kwargs):
+                captured["gemini"] = kwargs
+                self.models = types.SimpleNamespace(
+                    generate_content=lambda **kw: types.SimpleNamespace(text="ok")
+                )
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return None
+
+        with patch("google.genai.Client", FakeGeminiClient):
+            result = llm._generate_response("hi", request_timeout=30, max_retries=0)
+
+        self.assertEqual(result, "ok", result)
+        self.assertEqual(captured["gemini"]["http_options"].timeout, 30000)
+        self.assertIsNone(captured["gemini"]["http_options"].base_url)
+
+        config.app["llm_provider"] = "litellm"
+        config.app["litellm_model_name"] = "openai/gpt-4o-mini"
+
+        def completion(**kwargs):
+            captured["litellm"] = kwargs
+            return types.SimpleNamespace(
+                choices=[
+                    types.SimpleNamespace(message=types.SimpleNamespace(content="ok"))
+                ]
+            )
+
+        fake_litellm = types.SimpleNamespace(completion=completion)
+        with patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = llm._generate_response("hi", request_timeout=30, max_retries=0)
+
+        self.assertEqual(result, "ok", result)
+        self.assertEqual(captured["litellm"]["timeout"], 30)
+        self.assertEqual(captured["litellm"]["num_retries"], 0)
+
 
 class TestLiteLLMProvider(unittest.TestCase):
     def setUp(self):
