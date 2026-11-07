@@ -301,6 +301,7 @@
     "VoxCPM Model ID Placeholder": "Selecciona un ID de modelo speech_synthesis en ModelBest",
     "VoxCPM Base URL": "URL base de VoxCPM",
     "Fish Audio Model": "Modelo Fish Audio",
+    "Audexum API Key": "Audexum API Key ([audexum.com](https://audexum.com))",
     "Chatterbox API Key": "Clave API de Chatterbox (Opcional; [Ver configuración](https://github.com/travisvn/chatterbox-tts-api))",
     "Chatterbox Base URL": "URL base de Chatterbox",
     "Chatterbox Model": "Modelo de Chatterbox",
