@@ -1,0 +1,50 @@
+# Ubuntu-inspired Streamlit Theme
+# Linux for human beings aesthetic
+# Warm orange, friendly purple, open source spirit
+
+[theme]
+base = "light"
+primaryColor = "#E95420"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F7F7"
+codeBackgroundColor = "#F0F0F0"
+textColor = "#111111"
+linkColor = "#E95420"
+borderColor = "#CDCDCD"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "6px"
+buttonRadius = "4px"
+font = "'Ubuntu':https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap"
+codeFont = "'Ubuntu Mono':https://fonts.googleapis.com/css2?family=Ubuntu+Mono:wght@400;700&display=swap"
+codeFontSize = "0.9rem"
+codeTextColor = "#111111"
+baseFontSize = 15
+baseFontWeight = 400
+headingFontSizes = ["32px", "26px", "22px", "18px", "16px", "14px"]
+headingFontWeights = [500, 500, 500, 500, 500, 500]
+linkUnderline = false
+chartCategoricalColors = ["#E95420", "#772953", "#77216F", "#5E2750", "#2C001E", "#AEA79F", "#333333"]
+
+# Ubuntu color palette
+orangeColor = "#E95420"
+violetColor = "#772953"
+redColor = "#DF382C"
+greenColor = "#38B44A"
+blueColor = "#19B6EE"
+yellowColor = "#EFB73E"
+grayColor = "#AEA79F"
+
+dataframeBorderColor = "#CDCDCD"
+dataframeHeaderBackgroundColor = "#F0F0F0"
+
+[theme.sidebar]
+backgroundColor = "#2C001E"
+secondaryBackgroundColor = "#3D0028"
+codeBackgroundColor = "#1A0012"
+textColor = "#FFFFFF"
+borderColor = "#5E2750"
+primaryColor = "#E95420"
+dataframeHeaderBackgroundColor = "#3D0028"
+dataframeHeaderTextColor = "#FFFFFF"
+dataframeBorderColor = "#5E2750"

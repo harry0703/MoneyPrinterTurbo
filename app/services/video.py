@@ -42,7 +42,10 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
+from app.models.scene_timeline import SceneTimeline
 from app.services import bgm as bgm_service
+from app.services import audio_mix, export_profiles, render_metrics as render_metrics_service
+from app.services import subtitle_presets
 from app.services.utils import subtitle_shaping, video_effects
 from app.utils import file_security, logging_utils, utils
 from app.utils.subtitle_reader import moviepy_subtitles
@@ -326,6 +329,16 @@ def _get_configured_video_codec() -> str:
         )
         return _DEFAULT_VIDEO_CODEC
     return configured_codec
+
+
+def _config_float(name: str, default: float, minimum: float, maximum: float) -> float:
+    try:
+        value = float(config.app.get(name, default))
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if not math.isfinite(value):
+        return default
+    return min(maximum, max(minimum, value))
 
 
 @lru_cache(maxsize=16)
@@ -1297,6 +1310,190 @@ def combine_videos(
     return combined_video_path
 
 
+def _scene_label_overlay(clip, label_text: str, width: int, height: int, font_path: str):
+    """Compose a restrained, source-grounded lower-third title once per scene."""
+    label_size = max(32, min(64, int(height * 0.035)))
+    label = subtitle_shaping.text_clip(
+        TextClip,
+        shaped_font=font_path,
+        text=label_text,
+        font=font_path,
+        font_size=label_size,
+        color="#FFFFFF",
+        stroke_color="#101820",
+        stroke_width=1,
+        method="label",
+    ).with_duration(clip.duration)
+    panel = ColorClip(
+        size=(int(label.w) + 36, int(label.h) + 24),
+        color=(12, 18, 28),
+    ).with_duration(clip.duration).with_opacity(0.78)
+    x, y = int(width * 0.06), int(height * 0.12)
+    label = label.with_position((x + 18, y + 12))
+    panel = panel.with_position((x, y))
+    return CompositeVideoClip(
+        [clip, panel, label], size=(width, height)
+    ).with_duration(clip.duration)
+
+
+def combine_scene_timeline(
+    *,
+    combined_video_path: str,
+    timeline,
+    video_aspect: VideoAspect | str,
+    video_transition_mode: VideoTransitionMode | str | None = None,
+    threads: int = 2,
+    progress_callback: Callable[[float], None] | None = None,
+    show_scene_labels: bool = False,
+    font_name: str = "STHeitiMedium.ttc",
+) -> str:
+    """Render the exact scene assignments and concatenate them without audio.
+
+    The existing final mixer remains responsible for narration, subtitles, and
+    BGM. Each scene is encoded once to a temporary normalized clip, then the
+    existing FFmpeg concat path publishes one combined visual track.
+    """
+    timeline = (
+        timeline
+        if isinstance(timeline, SceneTimeline)
+        else SceneTimeline.model_validate(timeline)
+    )
+    aspect = VideoAspect(video_aspect)
+    width, height = aspect.to_resolution()
+    output_dir = os.path.dirname(os.path.abspath(combined_video_path))
+    os.makedirs(output_dir, exist_ok=True)
+    rendered_paths: list[str] = []
+    codec = _get_configured_video_codec()
+    transition_value = getattr(video_transition_mode, "value", video_transition_mode)
+    label_font = None
+    if show_scene_labels:
+        label_font = file_security.resolve_path_within_directory(
+            utils.font_dir(), font_name or "STHeitiMedium.ttc"
+        )
+
+    try:
+        for index, item in enumerate(timeline.items):
+            clip = source = None
+            descriptor, rendered_path = tempfile.mkstemp(
+                prefix=f".scene-{item.scene_id}-", suffix=".mp4", dir=output_dir
+            )
+            os.close(descriptor)
+            os.unlink(rendered_path)
+            rendered_paths.append(rendered_path)
+            try:
+                if item.material_type == "generated_image":
+                    source, _ = _open_image_clip_with_fallback(item.asset_path)
+                    source = source.with_duration(item.duration)
+                    fitted = _fit_clip_to_canvas(
+                        source,
+                        target_width=width,
+                        target_height=height,
+                        fit_mode=item.fit_mode,
+                    )
+                    if item.image_motion == "zoom":
+                        zoomed = fitted.resized(
+                            lambda t, duration=item.duration: 1 + 0.03 * t / duration
+                        ).with_position("center")
+                        clip = CompositeVideoClip(
+                            [zoomed], size=(width, height), bg_color=(0, 0, 0)
+                        ).with_duration(item.duration)
+                    else:
+                        clip = fitted.with_duration(item.duration)
+                else:
+                    source = _open_video_clip_quietly(item.asset_path)
+                    if source.duration + 0.025 < item.source_end:
+                        raise ValueError(
+                            f"source clip is shorter than its timeline interval: {item.scene_id}"
+                        )
+                    clip = source.subclipped(item.source_start, item.source_end)
+                    clip = _fit_clip_to_canvas(
+                        clip,
+                        target_width=width,
+                        target_height=height,
+                        fit_mode=item.fit_mode,
+                    )
+                    if abs(float(clip.duration) - item.duration) > 0.025:
+                        clip = clip.with_duration(item.duration)
+
+                transition_duration = min(1.0, float(clip.duration))
+                if item.entry_transition == "fade":
+                    clip = video_effects.fadein_transition(clip, transition_duration)
+                elif transition_value == VideoTransitionMode.fade_in.value:
+                    clip = video_effects.fadein_transition(clip, transition_duration)
+                elif transition_value == VideoTransitionMode.fade_out.value:
+                    clip = video_effects.fadeout_transition(clip, transition_duration)
+                elif transition_value in {
+                    VideoTransitionMode.slide_in.value,
+                    VideoTransitionMode.slide_out.value,
+                    VideoTransitionMode.zoom_in.value,
+                    VideoTransitionMode.zoom_out.value,
+                    VideoTransitionMode.shuffle.value,
+                }:
+                    side = random.choice(["left", "right", "top", "bottom"])
+                    transition_functions = {
+                        VideoTransitionMode.slide_in.value: lambda: video_effects.slidein_transition(clip, transition_duration, side),
+                        VideoTransitionMode.slide_out.value: lambda: video_effects.slideout_transition(clip, transition_duration, side),
+                        VideoTransitionMode.zoom_in.value: lambda: video_effects.zoomin_transition(clip, 1),
+                        VideoTransitionMode.zoom_out.value: lambda: video_effects.zoomout_transition(clip, 1),
+                    }
+                    if transition_value == VideoTransitionMode.shuffle.value:
+                        transition_value_for_clip = random.choice([
+                            VideoTransitionMode.fade_in.value,
+                            VideoTransitionMode.fade_out.value,
+                            VideoTransitionMode.slide_in.value,
+                            VideoTransitionMode.slide_out.value,
+                            VideoTransitionMode.zoom_in.value,
+                            VideoTransitionMode.zoom_out.value,
+                        ])
+                        if transition_value_for_clip in {
+                            VideoTransitionMode.fade_in.value,
+                            VideoTransitionMode.fade_out.value,
+                        }:
+                            effect = (
+                                video_effects.fadein_transition
+                                if transition_value_for_clip == VideoTransitionMode.fade_in.value
+                                else video_effects.fadeout_transition
+                            )
+                            clip = effect(clip, transition_duration)
+                        else:
+                            clip = transition_functions[transition_value_for_clip]()
+                    else:
+                        clip = transition_functions[transition_value]()
+                if item.exit_transition == "fade":
+                    clip = video_effects.fadeout_transition(clip, transition_duration)
+                if show_scene_labels and item.scene_label:
+                    clip = _scene_label_overlay(
+                        clip, item.scene_label, width, height, label_font
+                    )
+                _write_videofile_with_codec_fallback(
+                    clip,
+                    rendered_path,
+                    codec,
+                    fps=timeline.fps,
+                    audio=False,
+                    threads=threads or 2,
+                    logger=None,
+                    ffmpeg_params=_BT709_FFMPEG_PARAMS,
+                )
+                if progress_callback:
+                    progress_callback((index + 1) / len(timeline.items))
+            finally:
+                close_clip(clip)
+                if source is not clip:
+                    close_clip(source)
+
+        concat_video_clips_with_ffmpeg(
+            clip_files=rendered_paths,
+            output_file=combined_video_path,
+            threads=threads,
+            output_dir=output_dir,
+            max_duration=timeline.audio_duration,
+        )
+        return combined_video_path
+    finally:
+        delete_files(rendered_paths)
+
+
 def wrap_text(text, max_width, font="Arial", fontsize=60, *, shaped=None, fallbacks=None):
     # 字幕换行必须在真正创建 TextClip 前完成，否则 MoviePy 只会按原始文本
     # 计算渲染区域。这里用 PIL 按当前字体和字号测量宽度，确保每一行都尽量
@@ -1528,12 +1725,24 @@ def validate_subtitle_colors(params: VideoParams) -> None:
     """Reject colors Pillow cannot render, before generation services run."""
     if not params.subtitle_enabled:
         return
-    colors = [("text_fore_color", params.text_fore_color)]
+    colors = [
+        ("text_fore_color", params.text_fore_color),
+        ("subtitle_highlight_color", params.subtitle_highlight_color),
+    ]
     # Rendering truncates the width to an integer; a zero-width stroke is unused.
     if int(params.stroke_width) > 0:
         colors.append(("stroke_color", params.stroke_color))
     if isinstance(params.text_background_color, str):
         colors.append(("text_background_color", params.text_background_color))
+    preset = subtitle_presets.resolve_preset(params.subtitle_preset)
+    if preset.get("text_fore_color"):
+        colors.append(("subtitle_preset.text_fore_color", preset["text_fore_color"]))
+    if preset.get("stroke_color"):
+        colors.append(("subtitle_preset.stroke_color", preset["stroke_color"]))
+    if preset.get("background"):
+        colors.append(("subtitle_preset.background", preset["background"]))
+    if preset.get("highlight_color"):
+        colors.append(("subtitle_preset.highlight_color", preset["highlight_color"]))
     for field, value in colors:
         if value is None:
             continue
@@ -1610,6 +1819,8 @@ def generate_video(
     output_file: str,
     params: VideoParams,
     bgm_file_override: str | None = None,
+    scene_timeline: SceneTimeline | None = None,
+    render_metrics: dict | None = None,
 ) -> bool:
     """
     合成最终视频，并返回本次背景音乐处理是否成功。
@@ -1620,12 +1831,59 @@ def generate_video(
     """
     aspect = VideoAspect(params.video_aspect)
     video_width, video_height = aspect.to_resolution()
+    requested_codec = _get_configured_video_codec()
+    export_profile = export_profiles.resolve_profile(
+        getattr(params, "video_export_profile", "legacy"), codec=requested_codec
+    )
+    render_snapshot = render_metrics_service.start_snapshot() if render_metrics is not None else None
+    voice_normalization_gain = 1.0
+    peak_guard_gain = 1.0
 
     logger.info(f"generating video: {video_width} x {video_height}")
     logger.info(f"  ① video: {video_path}")
     logger.info(f"  ② audio: {audio_path}")
     logger.info(f"  ③ subtitle: {subtitle_path}")
     logger.info(f"  ④ output: {output_file}")
+
+    preset = subtitle_presets.resolve_preset(
+        getattr(params, "subtitle_preset", "classic")
+    )
+    explicit_fields = getattr(params, "model_fields_set", set())
+    legacy_defaults = {
+        "font_size": 60,
+        "text_fore_color": "#FFFFFF",
+        "stroke_color": "#000000",
+        "stroke_width": 1.5,
+        "subtitle_position": "bottom",
+        "subtitle_animation": "none",
+        "rounded_subtitle_background": False,
+    }
+
+    def style_value(field: str, current, preset_key: str | None = None):
+        if field in explicit_fields and current != legacy_defaults.get(field):
+            return current
+        return preset.get(preset_key or field, current)
+
+    subtitle_font_size = int(style_value("font_size", params.font_size))
+    subtitle_font_name = params.font_name or "STHeitiMedium.ttc"
+    if preset.get("font_name") and subtitle_font_name in {
+        "STHeitiMedium.ttc", "MicrosoftYaHeiBold.ttc"
+    }:
+        subtitle_font_name = preset["font_name"]
+    subtitle_text_color = style_value("text_fore_color", params.text_fore_color)
+    subtitle_stroke_color = style_value("stroke_color", params.stroke_color)
+    subtitle_stroke_width = float(style_value("stroke_width", params.stroke_width))
+    subtitle_position = style_value("subtitle_position", params.subtitle_position)
+    subtitle_animation = style_value("subtitle_animation", params.subtitle_animation)
+    subtitle_rounded_background = bool(style_value(
+        "rounded_subtitle_background", params.rounded_subtitle_background,
+        "rounded_background",
+    ))
+    subtitle_highlight_color = getattr(
+        params, "subtitle_highlight_color", config.ui.get("subtitle_highlight_color", "#FFE45E")
+    )
+    if "subtitle_highlight_color" not in explicit_fields:
+        subtitle_highlight_color = preset.get("highlight_color", subtitle_highlight_color)
 
     # https://github.com/harry0703/MoneyPrinterTurbo/issues/217
     # PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'final-1.mp4.tempTEMP_MPY_wvf_snd.mp3'
@@ -1640,7 +1898,7 @@ def generate_video(
         # 始终以真实路径校验字体必须留在 resource/fonts，阻断绝对路径、
         # ../ 穿越及指向目录外的符号链接，再交给 PIL/MoviePy 打开。
         font_path = file_security.resolve_path_within_directory(
-            utils.font_dir(), params.font_name
+            utils.font_dir(), subtitle_font_name
         )
         if os.name == "nt":
             font_path = font_path.replace("\\", "/")
@@ -1652,7 +1910,7 @@ def generate_video(
         # 也可能是实际颜色字符串。统一在这里归一化，避免把 True/False
         # 直接传给 TextClip 后出现不可预期的渲染结果。
         if isinstance(params.text_background_color, bool):
-            return "#000000" if params.text_background_color else None
+            return "#000000" if params.text_background_color else preset.get("background")
         return params.text_background_color
 
     # 阿拉伯字母字幕使用的字体按整条视频的全部字幕一次确定（见字幕加载处），
@@ -1660,22 +1918,23 @@ def generate_video(
     shaped_font = font_path
 
     def create_text_clip(subtitle_item):
-        params.font_size = int(params.font_size)
-        params.stroke_width = int(params.stroke_width)
         phrase = subtitle_item[1]
+        phrase_color = subtitle_text_color
+        if subtitle_presets.highlight_word_cue(params, phrase):
+            phrase_color = subtitle_highlight_color
         shaped = subtitle_shaping.needs_shaping(phrase)
         clip_font = shaped_font if shaped else font_path
         clip_fallbacks = subtitle_shaping.fallback_fonts(shaped_font, font_path) if shaped else []
         max_width = video_width * 0.9
         bg_color = resolve_subtitle_background_color()
         rounded_bg_enabled = bool(
-            getattr(params, "rounded_subtitle_background", False) and bg_color
+            subtitle_rounded_background and bg_color
         )
         has_subtitle_background = bool(bg_color)
         # 圆角背景按文字真实宽度生成，左右留白应更克制；旧矩形背景仍保留
         # 较大的安全边距，避免历史配置中的长字幕贴边或被裁切。
         padding_ratio = 0.4 if rounded_bg_enabled else 0.6
-        pad_x = int(params.font_size * padding_ratio) if has_subtitle_background else 0
+        pad_x = int(subtitle_font_size * padding_ratio) if has_subtitle_background else 0
         # 字幕背景需要给文字左右留出明确内边距。先从可用宽度中扣除
         # padding 再换行，避免长英文或大字号刚好撑满 90% 视频宽度后，
         # 文字贴到背景框边缘，看起来像被裁切。普通矩形背景和圆角背景
@@ -1685,19 +1944,19 @@ def generate_video(
             phrase,
             max_width=text_max_width,
             font=clip_font,
-            fontsize=params.font_size,
+            fontsize=subtitle_font_size,
             fallbacks=clip_fallbacks,
         )
-        interline = int(params.font_size * 0.25)
+        interline = int(subtitle_font_size * 0.25)
         line_count = wrapped_txt.count("\n") + 1
-        vertical_padding = int(params.font_size * 0.35)
+        vertical_padding = int(subtitle_font_size * 0.35)
         # Pillow/MoviePy 会把描边向字形上下两侧扩张，并把这部分计入每一行
         # 的行进高度。若只在整个字幕块外增加一次描边留白，粗描边多行文本
         # 仍会逐行累积误差。这里按实际行数计入双侧描边空间，默认细描边只
         # 增加少量高度，而“小字号 + 粗描边 + 多行”也能完整显示。
-        stroke_padding = int(params.stroke_width * 2 * line_count)
+        stroke_padding = int(subtitle_stroke_width * 2 * line_count)
         text_clip_margin_y = max(
-            int(params.font_size * 0.3), int(params.stroke_width * 2)
+            int(subtitle_font_size * 0.3), int(subtitle_stroke_width * 2)
         )
         # MoviePy 在 `method=label` 下会自动收缩文本框高度，遇到多行字幕、
         # 描边或背景色时，容易把最后一行的下半部分裁掉。这里显式传入
@@ -1718,12 +1977,12 @@ def generate_video(
                     # 阿拉伯字母文本按整形后的字形和实际绘制字体测量。
                     text_w = max(
                         subtitle_shaping.text_width(
-                            line, clip_font, params.font_size, clip_fallbacks
+                            line, clip_font, subtitle_font_size, clip_fallbacks
                         )
                         for line in wrapped_txt.split("\n")
                     )
                 else:
-                    font = ImageFont.truetype(font_path, params.font_size)
+                    font = ImageFont.truetype(font_path, subtitle_font_size)
                     text_w = max(
                         int(font.getbbox(line)[2] - font.getbbox(line)[0])
                         for line in wrapped_txt.split("\n")
@@ -1735,17 +1994,17 @@ def generate_video(
                 text_w = int(max_width)
 
             box_w = max(1, min(int(max_width), text_w + 2 * pad_x))
-            radius = max(8, int(params.font_size * 0.4))
+            radius = max(8, int(subtitle_font_size * 0.4))
             text_clip = subtitle_shaping.text_clip(
                 TextClip,
                 shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
-                font_size=params.font_size,
-                color=params.text_fore_color,
+                font_size=subtitle_font_size,
+                color=phrase_color,
                 bg_color=None,
-                stroke_color=params.stroke_color,
-                stroke_width=params.stroke_width,
+                stroke_color=subtitle_stroke_color,
+                stroke_width=subtitle_stroke_width,
                 interline=interline,
                 size=(box_w, None),
                 text_align="center",
@@ -1774,11 +2033,11 @@ def generate_video(
                 shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
-                font_size=params.font_size,
-                color=params.text_fore_color,
+                font_size=subtitle_font_size,
+                color=phrase_color,
                 bg_color=None,
-                stroke_color=params.stroke_color,
-                stroke_width=params.stroke_width,
+                stroke_color=subtitle_stroke_color,
+                stroke_width=subtitle_stroke_width,
                 interline=interline,
                 size=(int(max_width), None),
                 text_align="center",
@@ -1810,8 +2069,8 @@ def generate_video(
                     shaped_font=shaped_font,
                     text=wrapped_txt,
                     font=font_path,
-                    font_size=params.font_size,
-                    stroke_width=params.stroke_width,
+                    font_size=subtitle_font_size,
+                    stroke_width=subtitle_stroke_width,
                     interline=interline,
                     size=(size[0], None),
                     text_align="center",
@@ -1822,11 +2081,11 @@ def generate_video(
                 shaped_font=shaped_font,
                 text=wrapped_txt,
                 font=font_path,
-                font_size=params.font_size,
-                color=params.text_fore_color,
+                font_size=subtitle_font_size,
+                color=phrase_color,
                 bg_color=None,
-                stroke_color=params.stroke_color,
-                stroke_width=params.stroke_width,
+                stroke_color=subtitle_stroke_color,
+                stroke_width=subtitle_stroke_width,
                 interline=interline,
                 size=size,
                 text_align="center",
@@ -1837,19 +2096,22 @@ def generate_video(
         _clip = _clip.with_duration(duration)
 
         # 弹跳动画只在用户显式选择时启用；默认 none 完全沿用原字幕渲染路径。
-        anim_type = getattr(params, "subtitle_animation", "none")
+        anim_type = subtitle_animation
         if anim_type in ("pop_spring", "spring", "pop"):
             _clip = _apply_subtitle_spring_animation(_clip, duration)
 
-        if params.subtitle_position == "bottom":
+        if subtitle_position == "safe_bottom":
+            lower_edge = video_height * subtitle_presets.safe_bottom_ratio(aspect)
+            _clip = _clip.with_position(("center", lower_edge - _clip.h))
+        elif subtitle_position == "bottom":
             _clip = _clip.with_position(("center", video_height * 0.95 - _clip.h))
-        elif params.subtitle_position == "top":
+        elif subtitle_position == "top":
             _clip = _clip.with_position(("center", video_height * 0.05))
-        elif params.subtitle_position in ("two_thirds_bottom", "two_thirds", "2/3_bottom"):
+        elif subtitle_position in ("two_thirds_bottom", "two_thirds", "2/3_bottom"):
             # 2/3 from the bottom = 1/3 from the top: y = (video_height - _clip.h) * (1/3)
             y_two_thirds = (video_height - _clip.h) / 3.0
             _clip = _clip.with_position(("center", y_two_thirds))
-        elif params.subtitle_position == "custom":
+        elif subtitle_position == "custom":
             # Ensure the subtitle is fully within the screen bounds
             margin = 10  # Additional margin, in pixels
             max_y = video_height - _clip.h - margin
@@ -1875,6 +2137,8 @@ def generate_video(
         audio_clip = voice_source_clip.with_effects(
             [afx.MultiplyVolume(1.0 if params.voice_volume is None else params.voice_volume)]
         )
+        if params.audio_normalization_enabled:
+            audio_clip, voice_normalization_gain = audio_mix.normalize_voice_clip(audio_clip)
 
         def make_textclip(text):
             return subtitle_shaping.text_clip(
@@ -1928,6 +2192,17 @@ def generate_video(
                 )
             )
         bgm_mix_succeeded = True
+        narration_intervals = (
+            audio_mix.subtitle_intervals(subtitle_path)
+            if params.audio_ducking_enabled and subtitle_path
+            else []
+        )
+        if params.audio_ducking_enabled and not narration_intervals:
+            logger.warning(
+                "audio ducking was enabled but no usable narration timestamps were found"
+            )
+        peak_before_guard = None
+        sound_effect_clips = []
         if bgm_file:
             try:
                 bgm_effects = [afx.MultiplyVolume(params.bgm_volume)]
@@ -1937,9 +2212,21 @@ def generate_video(
                 if bgm_file_override is None:
                     bgm_effects.append(afx.AudioLoop(duration=video_clip.duration))
                 # Fade the complete playback timeline, not each source loop.
-                bgm_effects.append(afx.AudioFadeOut(3))
+                if params.bgm_fade_in_seconds > 0:
+                    bgm_effects.append(afx.AudioFadeIn(params.bgm_fade_in_seconds))
+                if params.bgm_fade_out_seconds > 0:
+                    bgm_effects.append(afx.AudioFadeOut(params.bgm_fade_out_seconds))
                 bgm_source_clip = clip_stack.enter_context(AudioFileClip(bgm_file))
                 bgm_clip = bgm_source_clip.with_effects(bgm_effects)
+                if narration_intervals:
+                    duck_gain = _config_float("audio_duck_gain", 0.25, 0.0, 1.0)
+                    bgm_clip = audio_mix.duck_music_clip(
+                        bgm_clip,
+                        narration_intervals,
+                        duck_gain=duck_gain,
+                        attack_seconds=_config_float("audio_duck_attack_seconds", 0.15, 0.0, 2.0),
+                        release_seconds=_config_float("audio_duck_release_seconds", 0.45, 0.0, 3.0),
+                    )
                 audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
             except Exception:
                 bgm_mix_succeeded = False
@@ -1950,25 +2237,104 @@ def generate_video(
                     f"file={bgm_file}"
                 )
 
+        if params.sound_effects:
+            sound_effect_directory = utils.storage_dir("sound_effects", create=True)
+            scene_starts = {
+                item.scene_id: item.timeline_start for item in scene_timeline.items
+            } if scene_timeline is not None else {}
+            effect_layers = []
+            for cue in params.sound_effects:
+                try:
+                    if cue.scene_id and cue.scene_id not in scene_starts:
+                        raise ValueError(f"unknown scene ID: {cue.scene_id}")
+                    effect_path = file_security.resolve_path_within_directory(
+                        sound_effect_directory, cue.file_name
+                    )
+                    effect_source = clip_stack.enter_context(AudioFileClip(effect_path))
+                    effect_start = scene_starts.get(cue.scene_id, 0.0) + cue.start_seconds
+                    timeline_duration = (
+                        scene_timeline.audio_duration if scene_timeline else video_clip.duration
+                    )
+                    remaining = max(0.0, timeline_duration - effect_start)
+                    effect_duration = min(
+                        float(effect_source.duration or 0),
+                        cue.duration_seconds or float(effect_source.duration or 0),
+                        remaining,
+                    )
+                    if effect_duration <= 0:
+                        continue
+                    effect = effect_source.subclipped(0, effect_duration)
+                    effects = [afx.MultiplyVolume(cue.volume)]
+                    if cue.fade_in_seconds:
+                        effects.append(afx.AudioFadeIn(min(cue.fade_in_seconds, effect_duration)))
+                    if cue.fade_out_seconds:
+                        effects.append(afx.AudioFadeOut(min(cue.fade_out_seconds, effect_duration)))
+                    effect_layers.append(effect.with_effects(effects).with_start(effect_start))
+                except Exception as exc:
+                    logger.warning(
+                        "skipping unavailable sound effect: file={}, scene_id={}, error={}: {}",
+                        cue.file_name, cue.scene_id, type(exc).__name__, exc,
+                    )
+            sound_effect_clips = effect_layers
+            if effect_layers:
+                audio_clip = CompositeAudioClip([audio_clip, *effect_layers])
+
+        if params.audio_peak_guard_enabled:
+            audio_clip, peak_guard_gain, peak_before_guard = audio_mix.peak_guard_clip(audio_clip)
+            logger.info(
+                "audio peak guard applied: peak_before={:.4f}, gain={:.4f}",
+                peak_before_guard, peak_guard_gain,
+            )
+
         final_video_clip = video_clip.with_audio(audio_clip)
         clip_stack.callback(final_video_clip.close)
         # 显式沿用输入音频的采样率；如果取不到，再回退 MoviePy 默认的 44100Hz。
         # 这样可以减少不同环境，尤其 Docker 中再次重采样带来的音质波动。
         output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
         with _stage_heartbeat("final video render"):
-            _write_videofile_with_codec_fallback(
-                final_video_clip,
-                output_file=output_file,
-                codec=_get_configured_video_codec(),
+            write_options = dict(
+                codec=requested_codec,
                 atomic_output=True,
                 audio_codec=audio_codec,
                 audio_fps=output_audio_fps,
-                audio_bitrate=audio_bitrate,
+                audio_bitrate=export_profile["audio_bitrate"],
+                bitrate=export_profile["video_bitrate"],
                 temp_audiofile_path=_get_temp_audio_dir(output_dir),
                 threads=params.n_threads or 2,
                 logger=None,
-                fps=fps,
+                fps=export_profile["fps"],
+                ffmpeg_params=_BT709_FFMPEG_PARAMS + (
+                    ["-movflags", "+faststart"] if export_profile["faststart"] else []
+                ),
             )
+            if export_profile["encoder_preset"]:
+                write_options["preset"] = export_profile["encoder_preset"]
+            used_codec = _write_videofile_with_codec_fallback(
+                final_video_clip,
+                output_file=output_file,
+                **write_options,
+            )
+        if render_metrics is not None and render_snapshot is not None:
+            output_duration = float(getattr(final_video_clip, "duration", 0) or 0)
+            render_metrics.update(render_metrics_service.finish_snapshot(
+                render_snapshot, output_path=output_file,
+                duration=output_duration, fps=export_profile["fps"],
+            ))
+            render_metrics.update({
+                "export_profile": getattr(params, "video_export_profile", "legacy"),
+                "requested_codec": requested_codec,
+                "used_codec": used_codec,
+                "hardware_acceleration": used_codec != "libx264",
+                "audio_codec": audio_codec,
+                "audio_bitrate": export_profile["audio_bitrate"],
+                "video_bitrate": export_profile["video_bitrate"],
+                "audio_sample_rate": output_audio_fps,
+                "audio_ducking": bool(params.audio_ducking_enabled and narration_intervals),
+                "voice_normalization_gain": voice_normalization_gain,
+                "peak_guard_gain": peak_guard_gain,
+                "peak_before_guard": peak_before_guard,
+                "sound_effect_count": len(sound_effect_clips),
+            })
         return bgm_mix_succeeded
 
 

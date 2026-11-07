@@ -30,6 +30,9 @@ Configure a TwelveLabs API key from the TwelveLabs dashboard (https://twelvelabs
 """
 
 import math
+import base64
+import hashlib
+import os
 from contextlib import contextmanager
 from functools import lru_cache
 from typing import List, Optional
@@ -77,6 +80,58 @@ def _cosine(a: List[float], b: List[float]) -> float:
     if na == 0 or nb == 0:
         return 0.0
     return dot / (na * nb)
+
+
+def text_similarity(first: str, second: str, model: Optional[str] = None) -> Optional[float]:
+    """Return normalized Marengo text/text relevance, never a visual verdict.
+
+    The result is a cosine-derived ranking signal in [0, 1], not a calibrated
+    probability. Scene acceptance must continue to require visual evidence.
+    """
+    left, right = embed_text(first, model), embed_text(second, model)
+    if left is None or right is None or len(left) != len(right):
+        return None
+    return min(1.0, max(0.0, (_cosine(left, right) + 1.0) / 2.0))
+
+
+def image_text_similarity(
+    image_file: str, text: str, model: Optional[str] = None
+) -> Optional[float]:
+    """Return Marengo image/text cosine relevance, not a correctness verdict."""
+    if not is_enabled() or not image_file or not text:
+        return None
+    model = model or config.app.get("twelvelabs_marengo_model", DEFAULT_MARENGO_MODEL)
+    try:
+        image_vector = _embed_image_cached(
+            os.path.abspath(image_file), _file_sha256(image_file), model
+        )
+        text_vector = embed_text(text, model)
+        if text_vector is None or len(image_vector) != len(text_vector):
+            return None
+        return min(1.0, max(0.0, (_cosine(image_vector, text_vector) + 1.0) / 2.0))
+    except Exception as exc:  # noqa: BLE001 - semantic ranking is supplementary
+        logger.warning(f"TwelveLabs image/text similarity failed: {exc}")
+        return None
+
+
+def _file_sha256(file_path: str) -> str:
+    digest = hashlib.sha256()
+    with open(file_path, "rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+@lru_cache(maxsize=256)
+def _embed_image_cached(file_path: str, content_sha256: str, model: str) -> List[float]:
+    # Include the content hash in the cache key: a path reused for a changed
+    # file must never inherit the previous image's vector.
+    with _managed_client() as client, open(file_path, "rb") as image_file:
+        response = client.embed.create(model_name=model, image_file=image_file)
+    vector = list(response.image_embedding.segments[0].float_)
+    if not vector or not all(math.isfinite(value) for value in vector) or not any(vector):
+        raise ValueError("image embedding must contain finite nonzero components")
+    return vector
 
 
 def embed_text(text: str, model: Optional[str] = None) -> Optional[List[float]]:
@@ -155,6 +210,8 @@ def analyze_clip(
     prompt: str = "Describe what happens in this video in one sentence.",
     model: Optional[str] = None,
     max_tokens: int = _PEGASUS_MIN_MAX_TOKENS,
+    start_time: float | None = None,
+    end_time: float | None = None,
 ) -> Optional[str]:
     """
     QA / describe a clip from a public URL with Pegasus, returning the model's
@@ -162,7 +219,7 @@ def analyze_clip(
 
     Notes (TwelveLabs API constraints):
       * Pegasus needs a publicly reachable URL (or an uploaded asset), not a
-        bare local path; the analyzed window must be >= 4s.
+        bare local path; supported analysis windows start at one second.
       * max_tokens must be >= 512 for this model.
     """
     if not is_enabled() or not video_url:
@@ -172,13 +229,58 @@ def analyze_clip(
         from twelvelabs.types import VideoContext_Url
 
         with _managed_client() as client:
-            resp = client.analyze(
+            request = dict(
                 model_name=model,
                 video=VideoContext_Url(url=video_url),
                 prompt=prompt,
                 max_tokens=max(max_tokens, _PEGASUS_MIN_MAX_TOKENS),
             )
+            if start_time is not None:
+                request["start_time"] = float(start_time)
+            if end_time is not None:
+                request["end_time"] = float(end_time)
+            resp = client.analyze(**request)
             return resp.data
     except Exception as e:  # noqa: BLE001
         logger.warning(f"TwelveLabs analyze_clip failed: {e}")
+        return None
+
+
+def analyze_images(
+    images: list[bytes],
+    prompt: str,
+    model: Optional[str] = None,
+    max_tokens: int = _PEGASUS_MIN_MAX_TOKENS,
+) -> Optional[str]:
+    """Analyze up to twenty image frames with Pegasus 1.6.
+
+    Bytes are encoded inline and sent in a single request. The optional SDK is
+    imported lazily, so old installations safely report unavailable support.
+    """
+    if not is_enabled() or not images or len(images) > 20:
+        return None
+    model = model or config.app.get(
+        "twelvelabs_pegasus_image_model", "pegasus1.6"
+    )
+    try:
+        from twelvelabs.types import AnalyzeImageInput
+
+        with _managed_client() as client:
+            payload = [
+                AnalyzeImageInput(
+                    name=f"frame_{index + 1}",
+                    base64_string=base64.b64encode(image).decode("ascii"),
+                )
+                for index, image in enumerate(images)
+            ]
+            response = client.analyze(
+                model_name=model,
+                image=payload,
+                prompt=prompt,
+                max_tokens=max(max_tokens, _PEGASUS_MIN_MAX_TOKENS),
+                stream=False,
+            )
+            return response.data
+    except Exception as exc:  # noqa: BLE001 - optional provider failures are non-fatal
+        logger.warning(f"TwelveLabs analyze_images failed: {exc}")
         return None

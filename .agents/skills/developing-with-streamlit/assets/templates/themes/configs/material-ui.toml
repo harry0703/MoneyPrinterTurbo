@@ -1,0 +1,45 @@
+# Material UI Theme for Streamlit
+# Google's Material Design 3 aesthetic
+# Clean, accessible, systematic design language
+
+[theme]
+base = "light"
+primaryColor = "#6750A4"
+backgroundColor = "#FFFBFE"
+secondaryBackgroundColor = "#F7F2FA"
+codeBackgroundColor = "#E8DEF8"
+textColor = "#1C1B1F"
+linkColor = "#6750A4"
+borderColor = "#CAC4D0"
+showWidgetBorder = false
+showSidebarBorder = false
+baseRadius = "16px"
+buttonRadius = "full"
+font = "'Roboto':https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+codeFont = "'Roboto Mono':https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap"
+codeFontSize = "14px"
+codeTextColor = "#1C1B1F"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["36px", "28px", "22px", "18px", "16px", "14px"]
+headingFontWeights = [400, 400, 500, 500, 500, 500]
+linkUnderline = false
+# Material Design color system
+chartCategoricalColors = ["#6750A4", "#7D5260", "#625B71", "#B3261E", "#006874", "#386A20", "#924C25"]
+
+# Material Design 3 colors
+violetColor = "#6750A4"
+redColor = "#B3261E"
+greenColor = "#386A20"
+blueColor = "#006874"
+orangeColor = "#924C25"
+yellowColor = "#7C5800"
+
+dataframeBorderColor = "#CAC4D0"
+dataframeHeaderBackgroundColor = "#E8DEF8"
+
+[theme.sidebar]
+backgroundColor = "#F7F2FA"
+secondaryBackgroundColor = "#E8DEF8"
+codeBackgroundColor = "#D0BCFF"
+borderColor = "#CAC4D0"

@@ -1,0 +1,49 @@
+# Microsoft Fluent Design-inspired Streamlit Theme
+# Modern Windows 11 aesthetic
+# Light, airy with depth and acrylic-like elements
+
+[theme]
+base = "light"
+primaryColor = "#0078D4"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F5F5"
+codeBackgroundColor = "#F3F3F3"
+textColor = "#1A1A1A"
+linkColor = "#0078D4"
+borderColor = "#E0E0E0"
+showWidgetBorder = true
+showSidebarBorder = false
+baseRadius = "4px"
+buttonRadius = "4px"
+font = "'Segoe UI', 'Open Sans':https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap"
+codeFont = "'Cascadia Code', 'Fira Code':https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap"
+codeFontSize = "0.875rem"
+codeTextColor = "#1A1A1A"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["28px", "24px", "20px", "16px", "14px", "12px"]
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+linkUnderline = false
+chartCategoricalColors = ["#0078D4", "#107C10", "#D83B01", "#FFB900", "#8764B8", "#00B7C3", "#E81123"]
+
+# Fluent accent colors
+blueColor = "#0078D4"
+greenColor = "#107C10"
+redColor = "#E81123"
+yellowColor = "#FFB900"
+orangeColor = "#D83B01"
+violetColor = "#8764B8"
+grayColor = "#737373"
+
+dataframeBorderColor = "#E0E0E0"
+dataframeHeaderBackgroundColor = "#F5F5F5"
+
+[theme.sidebar]
+backgroundColor = "#F3F3F3"
+secondaryBackgroundColor = "#EBEBEB"
+codeBackgroundColor = "#E5E5E5"
+textColor = "#1A1A1A"
+borderColor = "#D1D1D1"
+primaryColor = "#0078D4"
+dataframeHeaderBackgroundColor = "#EBEBEB"
+dataframeBorderColor = "#D1D1D1"

@@ -1,0 +1,39 @@
+# Dracula Theme for Streamlit
+# Popular dark theme with vibrant colors on dark background
+[theme]
+base = "dark"
+primaryColor = "#bd93f9"
+backgroundColor = "#282a36"
+secondaryBackgroundColor = "#21222c"
+codeBackgroundColor = "#21222c"
+textColor = "#f8f8f2"
+linkColor = "#8be9fd"
+borderColor = "#44475a"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "8px"
+buttonRadius = "8px"
+font = "'Fira Sans':https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+codeFontSize = "0.875rem"
+codeTextColor = "#f8f8f2"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["32px", "24px", "20px", "16px", "14px", "12px"]
+headingFontWeights = [700, 600, 600, 600, 600, 600]
+linkUnderline = false
+chartCategoricalColors = ["#bd93f9", "#50fa7b", "#ff79c6", "#8be9fd", "#ffb86c", "#ff5555", "#f1fa8c"]
+
+# Dracula color palette
+violetColor = "#bd93f9"
+greenColor = "#50fa7b"
+redColor = "#ff5555"
+blueColor = "#8be9fd"
+yellowColor = "#f1fa8c"
+orangeColor = "#ffb86c"
+
+[theme.sidebar]
+backgroundColor = "#21222c"
+secondaryBackgroundColor = "#191a21"
+codeBackgroundColor = "#191a21"
+borderColor = "#44475a"

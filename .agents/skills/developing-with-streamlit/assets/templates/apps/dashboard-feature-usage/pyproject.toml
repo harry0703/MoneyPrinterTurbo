@@ -1,0 +1,11 @@
+[project]
+name = "dashboard-feature-usage"
+version = "1.0.0"
+description = "A feature usage analytics dashboard with filtering and starter kits"
+requires-python = ">=3.11"
+dependencies = [
+    "altair>=5.5.0",
+    "numpy>=1.26.0",
+    "pandas>=2.2.3",
+    "streamlit",
+]

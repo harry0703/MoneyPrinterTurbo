@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -145,6 +146,40 @@ class TestTwelveLabsService(unittest.TestCase):
         self.assertEqual(out, "A city skyline at dusk.")
         # max_tokens must be clamped to the Pegasus minimum (>=512)
         self.assertGreaterEqual(client.analyze.call_args.kwargs["max_tokens"], 512)
+
+    def test_analyze_images_uses_pegasus_16_and_inline_image_payload(self):
+        config.app["twelvelabs_api_keys"] = ["tlk_test"]
+        stub_types = type(sys)("twelvelabs.types")
+        stub_types.AnalyzeImageInput = lambda **kwargs: kwargs
+        stub_pkg = sys.modules.get("twelvelabs") or type(sys)("twelvelabs")
+        response = MagicMock(data='{"description":"Saturn","confidence":0.9}')
+        client = MagicMock()
+        client.analyze.return_value = response
+        with patch.dict(sys.modules, {"twelvelabs": stub_pkg, "twelvelabs.types": stub_types}), patch.object(
+            twelvelabs, "_client", return_value=client
+        ):
+            result = twelvelabs.analyze_images([b"image-bytes"], "inspect")
+        self.assertEqual(result, response.data)
+        request = client.analyze.call_args.kwargs
+        self.assertEqual(request["model_name"], "pegasus1.6")
+        self.assertEqual(request["image"][0]["name"], "frame_1")
+        self.assertTrue(request["image"][0]["base64_string"])
+
+    def test_analyze_images_rejects_more_than_twenty_images_without_calling_api(self):
+        config.app["twelvelabs_api_keys"] = ["tlk_test"]
+        with patch.object(twelvelabs, "_client") as client:
+            self.assertIsNone(twelvelabs.analyze_images([b"x"] * 21, "inspect"))
+        client.assert_not_called()
+
+    def test_marengo_image_text_similarity_is_normalized_and_auxiliary(self):
+        config.app["twelvelabs_api_keys"] = ["tlk_test"]
+        with tempfile.TemporaryDirectory() as directory:
+            image_path = Path(directory) / "frame.jpg"
+            image_path.write_bytes(b"image bytes")
+            with patch.object(twelvelabs, "_embed_image_cached", return_value=[1.0, 0.0]), patch.object(
+                twelvelabs, "embed_text", return_value=[1.0, 0.0]
+            ):
+                self.assertEqual(twelvelabs.image_text_similarity(str(image_path), "Saturn"), 1.0)
 
 
 @unittest.skipUnless(

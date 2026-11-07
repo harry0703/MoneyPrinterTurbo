@@ -203,6 +203,8 @@ DEFAULT_SUBTITLE_SETTINGS = {
     "subtitle_enabled": True,
     "font_name": "MicrosoftYaHeiBold.ttc",
     "subtitle_position": "bottom",
+    "subtitle_preset": "classic",
+    "scene_graphics_enabled": False,
     "subtitle_display_mode": "sentence",
     "subtitle_animation": "none",
     "custom_position": 70.0,
@@ -1645,6 +1647,12 @@ def _apply_restored_params(params):
         "subtitle_position_select", params.get("subtitle_position") or "bottom"
     )
     _set_stable_widget_value(
+        "subtitle_preset_select", params.get("subtitle_preset") or "classic"
+    )
+    st.session_state["scene_graphics_enabled_checkbox"] = bool(
+        params.get("scene_graphics_enabled", False)
+    )
+    _set_stable_widget_value(
         "subtitle_display_mode_select", params.get("subtitle_display_mode") or "sentence"
     )
     _set_stable_widget_value(
@@ -2706,6 +2714,8 @@ def reset_subtitle_settings():
     st.session_state["subtitle_enabled_checkbox"] = defaults["subtitle_enabled"]
     _set_stable_widget_value("font_name_select", defaults["font_name"])
     _set_stable_widget_value("subtitle_position_select", defaults["subtitle_position"])
+    _set_stable_widget_value("subtitle_preset_select", defaults["subtitle_preset"])
+    st.session_state["scene_graphics_enabled_checkbox"] = defaults["scene_graphics_enabled"]
     _set_stable_widget_value(
         "subtitle_display_mode_select", defaults["subtitle_display_mode"]
     )
@@ -2732,6 +2742,8 @@ def reset_subtitle_settings():
         "subtitle_enabled",
         "font_name",
         "subtitle_position",
+        "subtitle_preset",
+        "scene_graphics_enabled",
         "subtitle_display_mode",
         "subtitle_animation",
         "custom_position",
@@ -6070,6 +6082,70 @@ def _render_video_settings(panel, params):
             )
             _set_runtime_config("app", "video_source", params.video_source)
 
+            pipeline_options = [
+                (tr("Pipeline Legacy"), "legacy"),
+                (tr("Pipeline Scene"), "scene"),
+            ]
+            pipeline_values = [value for _label, value in pipeline_options]
+            saved_pipeline = str(config.app.get("video_pipeline", "legacy") or "legacy")
+            if saved_pipeline not in pipeline_values:
+                saved_pipeline = "legacy"
+            params.video_pipeline = stable_selectbox(
+                tr("Video Pipeline"),
+                options=pipeline_values,
+                default_value=saved_pipeline,
+                key="video_pipeline_select",
+                format_func=lambda value: dict(
+                    (value, label) for label, value in pipeline_options
+                )[value],
+                help=tr("Video Pipeline Help"),
+            )
+            _set_runtime_config("app", "video_pipeline", params.video_pipeline)
+            if params.video_pipeline == "scene":
+                st.caption(tr("Scene Pipeline Requirements"))
+                if params.video_source not in {"pexels", "pixabay", "coverr"}:
+                    st.warning(tr("Scene Pipeline Stock Provider Notice"))
+                twelve_labs_available = bool(config.app.get("twelvelabs_api_keys"))
+                params.scene_media_visual_validation = st.checkbox(
+                    tr("Visual Media Validation"),
+                    value=bool(
+                        config.app.get(
+                            "scene_media_visual_validation",
+                            params.scene_media_visual_validation,
+                        )
+                    ),
+                    key="scene_media_visual_validation_checkbox",
+                    help=tr("Visual Media Validation Help"),
+                    disabled=not twelve_labs_available,
+                )
+                _set_runtime_config(
+                    "app", "scene_media_visual_validation",
+                    params.scene_media_visual_validation,
+                )
+                if not twelve_labs_available:
+                    st.info(tr("TwelveLabs Scene Validation Unavailable"))
+                fallback_options = [
+                    (tr("Fallback to Legacy"), "legacy"),
+                    (tr("Fail on Scene Pipeline Error"), "fail"),
+                ]
+                fallback_values = [value for _label, value in fallback_options]
+                saved_fallback = str(config.app.get("scene_plan_fallback", "legacy") or "legacy")
+                if saved_fallback not in fallback_values:
+                    saved_fallback = "legacy"
+                params.scene_plan_fallback = stable_selectbox(
+                    tr("Scene Failure Policy"),
+                    options=fallback_values,
+                    default_value=saved_fallback,
+                    key="scene_failure_policy_select",
+                    format_func=lambda value: dict(
+                        (value, label) for label, value in fallback_options
+                    )[value],
+                    help=tr("Scene Failure Policy Help"),
+                )
+                _set_runtime_config(
+                    "app", "scene_plan_fallback", params.scene_plan_fallback
+                )
+
             loomloom_video_capability = None
             if params.video_source == "loomloom":
                 # 尽早读取缓存，使下方画面比例控件直接受当前 Profile 约束。
@@ -6363,6 +6439,32 @@ def _render_video_settings(panel, params):
                 _delete_runtime_config("app", "video_codec")
             else:
                 _set_runtime_config("app", "video_codec", selected_video_codec)
+
+            export_profiles = [
+                (tr("Export Legacy"), "legacy"),
+                (tr("Export Shorts"), "shorts"),
+                (tr("Export High Quality"), "high_quality"),
+                (tr("Export Fast"), "fast"),
+            ]
+            export_profile_values = [value for _label, value in export_profiles]
+            saved_export_profile = str(
+                config.app.get("video_export_profile", "legacy") or "legacy"
+            )
+            if saved_export_profile not in export_profile_values:
+                saved_export_profile = "legacy"
+            params.video_export_profile = stable_selectbox(
+                tr("Video Export Profile"),
+                options=export_profile_values,
+                default_value=saved_export_profile,
+                key="video_export_profile_select",
+                format_func=lambda value: dict(
+                    (value, label) for label, value in export_profiles
+                )[value],
+                help=tr("Video Export Profile Help"),
+            )
+            _set_runtime_config(
+                "app", "video_export_profile", params.video_export_profile
+            )
 
             concurrency_options = [1, 2, 4, 6, 8]
             if params.video_source in {"pexels", "pixabay", "coverr"}:
@@ -8689,6 +8791,42 @@ def _render_subtitle_settings(panel, params):
             )
             params.subtitle_position = selected_subtitle_position
             _set_runtime_config("ui", "subtitle_position", params.subtitle_position)
+
+            subtitle_presets = [
+                (tr("Classic (Legacy)"), "classic"),
+                (tr("Cinematic"), "cinematic"),
+                (tr("Modern"), "modern"),
+                (tr("Documentary"), "documentary"),
+                (tr("Viral"), "viral"),
+                (tr("Minimalist"), "minimalist"),
+            ]
+            saved_preset = config.ui.get(
+                "subtitle_preset", DEFAULT_SUBTITLE_SETTINGS["subtitle_preset"]
+            )
+            preset_values = [value for _label, value in subtitle_presets]
+            if saved_preset not in preset_values:
+                saved_preset = "classic"
+            selected_preset = stable_selectbox(
+                tr("Subtitle Style"),
+                options=preset_values,
+                default_value=saved_preset,
+                key="subtitle_preset_select",
+                format_func=lambda value: dict(
+                    (value, label) for label, value in subtitle_presets
+                ).get(value, value),
+                disabled=subtitle_settings_disabled,
+            )
+            params.subtitle_preset = selected_preset
+            _set_runtime_config("ui", "subtitle_preset", selected_preset)
+            params.scene_graphics_enabled = st.checkbox(
+                tr("Scene title labels"),
+                value=bool(config.ui.get("scene_graphics_enabled", False)),
+                key="scene_graphics_enabled_checkbox",
+                help=tr("Displays the scene's existing main subject as a restrained title label when using the scene pipeline."),
+            )
+            _set_runtime_config(
+                "ui", "scene_graphics_enabled", params.scene_graphics_enabled
+            )
 
             # Subtitle Display Mode (Sentence vs Single Word)
             subtitle_display_modes = [
