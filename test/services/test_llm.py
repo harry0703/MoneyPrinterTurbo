@@ -203,6 +203,20 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertEqual(result, "")
         self.assertEqual(generate_response.call_count, llm._max_retries)
 
+    def test_generate_script_strips_markdown_code_fence(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            return_value="\x60\x60\x60text\n第一段。\n\n第二段。\n\x60\x60\x60",
+        ):
+            result = llm.generate_script(
+                video_subject="テスト",
+                paragraph_number=2,
+            )
+
+        self.assertEqual(result, "第一段。\n\n第二段。")
+        self.assertNotIn("\x60\x60\x60", result)
+
     def test_generate_script_strips_each_bracket_group_independently(self):
         """
         format_response must remove each [bracket] and (paren) group in
