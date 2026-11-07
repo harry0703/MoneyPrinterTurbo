@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from unittest.mock import patch
 
@@ -103,6 +104,55 @@ class TestAPIAuthenticationHTTP(unittest.TestCase):
 
         self.assertEqual(correct_first.status_code, 401)
         self.assertEqual(wrong_first.status_code, 401)
+
+    def test_latin1_and_utf8_encodings_preserve_existing_key_access(self):
+        """Raw ASGI headers preserve both encodings without client transcoding."""
+
+        async def status_for(raw_key):
+            messages = []
+
+            async def receive():
+                return {"type": "http.request", "body": b"", "more_body": False}
+
+            async def send(message):
+                messages.append(message)
+
+            scope = {
+                "type": "http", "asgi": {"version": "3.0"},
+                "http_version": "1.1", "scheme": "http", "method": "GET",
+                "path": "/api/v1/tasks", "raw_path": b"/api/v1/tasks",
+                "root_path": "", "query_string": b"",
+                "headers": [(b"host", b"testserver"), (b"x-api-key", raw_key)],
+                "client": ("127.0.0.1", 12345), "server": ("testserver", 80),
+            }
+            await asgi.app(scope, receive, send)
+            return next(m["status"] for m in messages if m["type"] == "http.response.start")
+
+        config.app["api_key"] = "é"
+        for raw_key in (b"\xe9", b"\xc3\xa9"):
+            with self.subTest(encoding=raw_key):
+                self.assertEqual(asyncio.run(status_for(raw_key)), 200)
+        for raw_key in (b"\xe8", b"\xc3\xa8"):
+            with self.subTest(wrong_encoding=raw_key):
+                self.assertEqual(asyncio.run(status_for(raw_key)), 401)
+
+    def test_unicode_key_authenticates_from_utf8_header_bytes(self):
+        """TOML 支持 Unicode Key；客户端按 UTF-8 发送同一 Key 时必须通过。"""
+
+        config.app["api_key"] = "密钥-é"
+        raw_key = "密钥-é".encode("utf-8")
+
+        accepted = self.client.get("/api/v1/tasks", headers=[(b"x-api-key", raw_key)])
+        wrong = self.client.get(
+            "/api/v1/tasks", headers=[(b"x-api-key", "错误-é".encode("utf-8"))]
+        )
+        task_file = self.client.get(
+            "/tasks/missing/final-1.mp4", headers=[(b"x-api-key", raw_key)]
+        )
+
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(wrong.status_code, 401)
+        self.assertNotEqual(task_file.status_code, 401)
 
 
 if __name__ == "__main__":
