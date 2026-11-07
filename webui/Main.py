@@ -49,6 +49,7 @@ from app.services import bgm as bgm_service
 from app.services import material_upload as material_upload_service
 from app.services import (
     cache_manager,
+    genmagic,
     llm,
     loomloom,
     material,
@@ -144,6 +145,7 @@ VIDEO_SOURCE_GROUPS = {
         "jalapeno",
         "wavespeed",
         "muapi",
+        "genmagic",
     ),
     "ai_image": ("openai_image", "codex_image"),
     "local": ("local",),
@@ -779,6 +781,7 @@ def _initialize_session_state():
         "ofox_confirm_charge": False,
         "metaso_minimax_confirm_charge": False,
         "muapi_confirm_charge": False,
+        "genmagic_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -3414,6 +3417,7 @@ def _material_provider_labels():
         "jalapeno": tr("Jalapeno Cloud AI Video"),
         "wavespeed": tr("WaveSpeed AI Video"),
         "muapi": tr("MuAPI AI Video"),
+        "genmagic": tr("GenMagic AI Video"),
         "openai_image": tr("OpenAI Compatible Text-to-Image"),
         "codex_image": tr("codex.image.label"),
         "local": tr("Local file"),
@@ -4076,6 +4080,54 @@ def _render_material_provider_settings(provider):
             "muapi_resolution",
             muapi_resolution.strip() or muapi.DEFAULT_RESOLUTION,
         )
+    elif provider == "genmagic":
+        st.markdown(f"**{tr('GenMagic AI Video')}**")
+        st.caption(tr("GenMagic AI Video Help"))
+        genmagic_api_key = st.text_input(
+            tr("GenMagic API Key"),
+            value=str(app_settings.get("genmagic_api_key", "") or ""),
+            type="password",
+            help=tr("GenMagic API Key Help"),
+            key="genmagic_api_key_input",
+            on_change=_save_settings_change,
+            args=(
+                "app",
+                "genmagic_api_key",
+                "genmagic_api_key_input",
+                lambda value: value.strip(),
+            ),
+        )
+        _set_runtime_config("app", "genmagic_api_key", genmagic_api_key.strip())
+        genmagic_model = st.text_input(
+            tr("GenMagic Video Model"),
+            value=str(app_settings.get("genmagic_video_model", "") or ""),
+            placeholder=tr("GenMagic Video Model Placeholder"),
+            key="genmagic_video_model_input",
+            help=tr("GenMagic Video Model Help"),
+            on_change=_save_settings_change,
+            args=(
+                "app",
+                "genmagic_video_model",
+                "genmagic_video_model_input",
+                lambda value: value.strip(),
+            ),
+        )
+        _set_runtime_config("app", "genmagic_video_model", genmagic_model.strip())
+        genmagic_resolution = st.text_input(
+            tr("GenMagic Resolution"),
+            value=str(app_settings.get("genmagic_resolution", "") or ""),
+            placeholder=tr("GenMagic Resolution Placeholder"),
+            key="genmagic_resolution_input",
+            help=tr("GenMagic Resolution Help"),
+            on_change=_save_settings_change,
+            args=(
+                "app",
+                "genmagic_resolution",
+                "genmagic_resolution_input",
+                lambda value: value.strip(),
+            ),
+        )
+        _set_runtime_config("app", "genmagic_resolution", genmagic_resolution.strip())
     elif provider == "codex_image":
         st.markdown(f"**{tr('codex.image.label')}**")
         st.caption(tr("codex.image.help"))
@@ -6045,6 +6097,7 @@ def _render_video_settings(panel, params):
                 "ofox": tr("OFox AI Video"),
                 "metaso_minimax": tr("Metaso MiniMax H3"),
                 "muapi": tr("MuAPI AI Video"),
+                "genmagic": tr("GenMagic AI Video"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
                 "codex_image": tr("codex.image.label"),
@@ -6098,6 +6151,8 @@ def _render_video_settings(panel, params):
                 st.caption(tr("Metaso MiniMax H3 Help"))
             if params.video_source == "muapi":
                 st.caption(tr("MuAPI AI Video Help"))
+            if params.video_source == "genmagic":
+                st.caption(tr("GenMagic AI Video Help"))
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
                 local_file_types = sorted(
@@ -6412,6 +6467,8 @@ def _render_video_settings(panel, params):
                 _render_metaso_minimax_video_settings(params)
             if params.video_source == "muapi":
                 _render_muapi_video_settings(params)
+            if params.video_source == "genmagic":
+                _render_genmagic_video_settings(params)
     return uploaded_files
 
 
@@ -6694,6 +6751,29 @@ def _render_muapi_video_settings(params):
         tr("Confirm MuAPI Charge"),
         key="muapi_confirm_charge",
         help=tr("Confirm MuAPI Charge Help"),
+    )
+
+
+def _render_genmagic_video_settings(params):
+    """Show an estimated GenMagic clip count and require explicit billing consent."""
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    if estimated_range := _estimate_voiceover_duration_range(
+        str(params.video_script or ""), params.voice_rate
+    ):
+        min_clips = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        max_clips = max(
+            math.ceil(estimated_range[1] * video_count / clip_duration), min_clips
+        )
+        st.warning(
+            tr("GenMagic Billing Notice").format(min=min_clips, max=max_clips)
+        )
+    else:
+        st.warning(tr("GenMagic Billing Notice Without Script"))
+    st.checkbox(
+        tr("Confirm GenMagic Charge"),
+        key="genmagic_confirm_charge",
+        help=tr("Confirm GenMagic Charge Help"),
     )
 
 
@@ -9064,6 +9144,7 @@ def _render_generation_controls(
             "ofox",
             "metaso_minimax",
             "muapi",
+            "genmagic",
             "loomloom",
             "openai_image",
             "codex_image",
@@ -9192,6 +9273,20 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm MuAPI Charge Required"))
+            st.stop()
+
+        if params.video_source == "genmagic" and not (
+            genmagic.is_enabled(config.snapshot_config_with_pending(config.app))
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the GenMagic API Key"))
+            st.stop()
+
+        if params.video_source == "genmagic" and not st.session_state.get(
+            "genmagic_confirm_charge", False
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm GenMagic Charge Required"))
             st.stop()
 
         if params.video_source == "codex_image":

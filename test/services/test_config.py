@@ -69,6 +69,12 @@ class TestConfigPersistence:
         assert app_config["muapi_resolution"]
         assert app_config["muapi_min_duration"] == 3
         assert app_config["muapi_max_duration"] == 12
+        assert app_config["genmagic_api_key"] == ""
+        assert app_config["genmagic_base_url"] == "https://genmagic.co/api/v1"
+        # Empty means "use GenMagic's default model", never a model name copied
+        # into the sample that could go stale.
+        assert app_config["genmagic_video_model"] == ""
+        assert app_config["genmagic_resolution"] == ""
         assert "loomloom_market_listing_id" not in app_config
         assert "loomloom_video_market_listing_id" not in app_config
         assert app_config["shengsuanyun_api_key"] == ""

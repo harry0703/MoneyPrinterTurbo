@@ -126,6 +126,7 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
             "jalapeno",
             "wavespeed",
             "muapi",
+            "genmagic",
             "openai_image",
             "codex_image",
             "local",

@@ -36,6 +36,7 @@ SUPPORTED_SOURCES = {
     "ofox",
     "metaso_minimax",
     "muapi",
+    "genmagic",
     "infistar",
     "jalapeno",
     # Keep this list aligned with ``_CLI_VIDEO_SOURCES`` in cli.py. A source that
@@ -49,6 +50,10 @@ VOLCENGINE_ARK_API_KEY_URL = (
 )
 OFOX_API_KEY_URL = "https://ofox.ai"
 MUAPI_API_KEY_URL = "https://muapi.ai"
+GENMAGIC_API_KEY_URL = (
+    "https://genmagic.co/get-api-key"
+    "?utm_source=moneyprinterturbo&utm_medium=integration"
+)
 INFISTAR_VIDEO_API_KEY_URL = "https://infistar.cc/keys"
 JALAPENO_API_KEY_URL = "https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"
 PEXELS_API_KEY_URL = "https://www.pexels.com/api/"
@@ -266,6 +271,7 @@ def apply_environment_config(config_path: Path) -> None:
         "MPT_METASO_MINIMAX_API_KEY", ""
     ).strip()
     muapi_key = os.environ.get("MPT_MUAPI_API_KEY", "").strip()
+    genmagic_key = os.environ.get("MPT_GENMAGIC_API_KEY", "").strip()
     infistar_video_key = os.environ.get("MPT_INFISTAR_VIDEO_API_KEY", "").strip()
     jalapeno_video_key = os.environ.get("MPT_JALAPENO_VIDEO_API_KEY", "").strip()
     if not any(
@@ -279,6 +285,7 @@ def apply_environment_config(config_path: Path) -> None:
             ofox_key,
             metaso_minimax_key,
             muapi_key,
+            genmagic_key,
             infistar_video_key,
             jalapeno_video_key,
         )
@@ -320,6 +327,9 @@ def apply_environment_config(config_path: Path) -> None:
     if muapi_key:
         text = _replace_config_value(text, "muapi_api_key", muapi_key)
         changes.append("muapi_api_key")
+    if genmagic_key:
+        text = _replace_config_value(text, "genmagic_api_key", genmagic_key)
+        changes.append("genmagic_api_key")
     if infistar_video_key:
         text = _replace_config_value(text, "infistar_video_api_key", infistar_video_key)
         changes.append("infistar_video_api_key")
@@ -492,6 +502,17 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("muapi_api_key")
         if not has_cli_option(cli_args, "--confirm-muapi-charge"):
             missing.append("confirm_muapi_charge")
+    elif source == "genmagic":
+        # Same priority as app.services.genmagic.get_api_key: the config key
+        # first, then the GENMAGIC_API_KEY environment variable.
+        value = (
+            _plain_config_value(text, "genmagic_api_key").strip()
+            or os.environ.get("GENMAGIC_API_KEY", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("genmagic_api_key")
+        if not has_cli_option(cli_args, "--confirm-genmagic-charge"):
+            missing.append("confirm_genmagic_charge")
     elif source == "infistar":
         # 视频凭据独立于同品牌 LLM，预检必须与 infistar_video.get_api_key 一致。
         value = (
@@ -549,6 +570,7 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
             "ofox_api_key",
             "metaso_minimax_api_key",
             "muapi_api_key",
+            "genmagic_api_key",
             "infistar_video_api_key",
             "jalapeno_video_api_key",
         }
@@ -607,6 +629,11 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print("MUAPI_API_KEY_ENV=MPT_MUAPI_API_KEY")
     if "confirm_muapi_charge" in missing:
         print("MUAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-muapi-charge")
+    if "genmagic_api_key" in missing:
+        print(f"GENMAGIC_API_KEY_URL={GENMAGIC_API_KEY_URL}")
+        print("GENMAGIC_API_KEY_ENV=MPT_GENMAGIC_API_KEY")
+    if "confirm_genmagic_charge" in missing:
+        print("GENMAGIC_CHARGE_CONFIRMATION_REQUIRED=--confirm-genmagic-charge")
     if "infistar_video_api_key" in missing:
         print(f"INFISTAR_VIDEO_API_KEY_URL={INFISTAR_VIDEO_API_KEY_URL}")
         print("INFISTAR_VIDEO_API_KEY_ENV=MPT_INFISTAR_VIDEO_API_KEY")
