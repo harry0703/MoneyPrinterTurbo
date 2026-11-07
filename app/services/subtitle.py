@@ -221,6 +221,121 @@ def levenshtein_distance(s1, s2):
     return previous_row[-1]
 
 
+def _prefix_distances(a, b):
+    """Return the edit distances between a and the prefixes of b: item j is b[:j]."""
+    # Lowercase one character at a time, so that j stays an index into b:
+    # "İ".lower() has two characters.
+    a = [c.lower() for c in a]
+    b = [c.lower() for c in b]
+    previous_row = list(range(len(b) + 1))
+    for i, c1 in enumerate(a):
+        current_row = [i + 1]
+        for j, c2 in enumerate(b):
+            current_row.append(
+                min(
+                    previous_row[j + 1] + 1,
+                    current_row[j] + 1,
+                    previous_row[j] + (c1 != c2),
+                )
+            )
+        previous_row = current_row
+    return previous_row
+
+
+def _prefix_similarity(a, b):
+    """Return how much the shorter of a and b is like the start of the longer one."""
+    shorter, longer = sorted((a, b), key=len)
+    return 1 - min(_prefix_distances(shorter, longer)) / len(shorter)
+
+
+def _end_of_script_line_in_cue(
+    script_line, cue_text, next_script_line, next_cue_text, line_after_next
+):
+    """
+    Return where script_line ends in cue_text when the cue starts with
+    script_line and goes on like next_script_line, else None.
+
+    next_cue_text is the text of the cue after it, and line_after_next the
+    script line after next_script_line, each "" when there is none.
+    """
+    if len(cue_text) <= len(script_line):
+        return None
+    distances = _prefix_distances(script_line, cue_text)
+    end = distances.index(min(distances))
+    if not end or similarity(script_line, cue_text[:end]) <= 0.8:
+        return None
+    rest = cue_text[end:].strip()
+    if not rest or _prefix_similarity(rest, next_script_line) <= 0.8:
+        return None
+    if (
+        next_cue_text
+        and len(rest) < len(next_script_line)
+        and _prefix_similarity(next_script_line, next_cue_text)
+        >= _prefix_similarity(next_script_line, rest + " " + next_cue_text)
+    ):
+        # The next cue starts the next line by itself. The rest of this cue is
+        # then the start of that line written twice, as in "We went home and
+        # then we" before "and then we slept", or a letter that Whisper added,
+        # as in "Hello worlds" for "Hello world" before "So we went".
+        return None
+    if (
+        next_cue_text
+        and len(rest) >= len(next_script_line)
+        and similarity(rest, next_script_line) > 0.8
+        and _prefix_similarity(next_script_line, next_cue_text) > 0.8
+        and (
+            not line_after_next
+            or _prefix_similarity(next_script_line, next_cue_text)
+            > _prefix_similarity(line_after_next, next_cue_text)
+        )
+    ):
+        # The rest of this cue is the whole next line, and the next cue is that
+        # line again, as in "We went home and then we slept" before "and then
+        # we slept". When the next cue starts the line after it as well, as in
+        # "Come here, come here, come here.", the cue is still cut.
+        return None
+    return end
+
+
+def _srt_time_to_seconds(value):
+    hours, minutes, seconds = value.strip().replace(",", ".").split(":")
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def _cut_cues(subtitle_items, first, last, cut_at):
+    """
+    Cut subtitle_items[first:last], joined with spaces, at character cut_at.
+
+    Return the time of the cut and the index of the first cue after it. When the
+    cut is inside a cue, the rest of that cue replaces it, from the time of the
+    cut, which is in proportion to the characters before it.
+    """
+    offset = 0
+    index = first
+    while index < last - 1:
+        text = subtitle_items[index][2].strip()
+        if cut_at <= offset + len(text):
+            break
+        offset += len(text) + 1
+        index += 1
+
+    number, times, text = subtitle_items[index]
+    text = text.strip()
+    start, end = times.split(" --> ")
+    position = min(max(cut_at - offset, 0), len(text))
+    rest = text[position:].strip()
+    if not rest:
+        return end, index + 1
+
+    start_seconds = _srt_time_to_seconds(start)
+    cut_seconds = start_seconds + (
+        _srt_time_to_seconds(end) - start_seconds
+    ) * position / len(text)
+    cut = utils.time_convert_seconds_to_hmsm(cut_seconds)
+    subtitle_items[index] = (number, f"{cut} --> {end}", rest)
+    return cut, index
+
+
 def similarity(a, b):
     # 大小写折叠可能改变字符数（例如 "İ".lower() 是两个码点），编辑距离与分母
     # 必须用同一份归一化后的文本，否则结果会超出 [0, 1]。两个空串视为完全相同，
@@ -272,6 +387,29 @@ def correct(subtitle_file, video_script):
                     next_subtitle_index += 1
                 else:
                     break
+
+            if script_index + 1 < len(script_lines):
+                # Whisper can leave out a comma that the script has, as in "before
+                # they run and reads pass". Then one cue holds this line and the
+                # start of the next one, and the next line gets the rest of it.
+                next_cue_text = ""
+                if next_subtitle_index < len(subtitle_items):
+                    next_cue_text = subtitle_items[next_subtitle_index][2].strip()
+                line_after_next = ""
+                if script_index + 2 < len(script_lines):
+                    line_after_next = script_lines[script_index + 2].strip()
+                line_end = _end_of_script_line_in_cue(
+                    script_line,
+                    combined_subtitle,
+                    script_lines[script_index + 1].strip(),
+                    next_cue_text,
+                    line_after_next,
+                )
+                if line_end is not None:
+                    end_time, next_subtitle_index = _cut_cues(
+                        subtitle_items, subtitle_index, next_subtitle_index, line_end
+                    )
+                    combined_subtitle = combined_subtitle[:line_end].strip()
 
             if similarity(script_line, combined_subtitle) > 0.8:
                 logger.warning(
