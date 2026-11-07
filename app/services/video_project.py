@@ -194,17 +194,14 @@ def stage_graph(spec: dict) -> list[Stage]:
                 scene["duration"] if not scene["audio"] else None,
             ]
         )
-        render = _fingerprint(
-            [
-                transform,
-                "scene",
-                timing,
-                scene["footage"],
-                settings.width,
-                settings.height,
-                settings.fps,
-            ]
-        )
+        render_inputs = [
+            transform, "scene", timing, scene["footage"],
+            settings.width, settings.height, settings.fps,
+        ]
+        # Default-zero offsets retain fingerprints of existing revisions.
+        if scene.get("footage_start", 0.0):
+            render_inputs.append(["footage_start", scene["footage_start"]])
+        render = _fingerprint(render_inputs)
         stages.extend(
             [
                 Stage(f"{scene_id}:audio", "audio", audio, (), scene_id),
@@ -310,12 +307,25 @@ class VideoProject:
             if not isinstance(raw, dict) or set(raw) - {
                 "id",
                 "footage",
+                "footage_start",
                 "audio",
                 "narration",
                 "duration",
             }:
                 raise ProjectError("unknown scene fields")
             scene_id = _identifier(raw["id"])
+            footage_start = raw.get("footage_start", 0.0)
+            try:
+                finite_footage_start = math.isfinite(footage_start)
+            except (TypeError, OverflowError):
+                finite_footage_start = False
+            if (
+                isinstance(footage_start, bool)
+                or not isinstance(footage_start, (int, float))
+                or not finite_footage_start
+                or footage_start < 0
+            ):
+                raise ProjectError("footage_start must be finite and nonnegative")
             narration = raw.get("narration", "")
             if not isinstance(narration, str) or len(narration) > 100000:
                 raise ProjectError("narration must be text under 100000 characters")
@@ -337,6 +347,7 @@ class VideoProject:
                 {
                     "id": scene_id,
                     "narration": narration,
+                    "footage_start": footage_start,
                     "duration": duration,
                     "footage": self._asset(raw["footage"], Path(relative_to)),
                     "audio": self._asset(raw["audio"], Path(relative_to))
@@ -731,6 +742,8 @@ class VideoProject:
                     + [
                         "-stream_loop",
                         "-1",
+                        "-ss",
+                        str(scene.get("footage_start", 0.0)),
                         "-format_whitelist",
                         PREPARED_FORMATS,
                         "-i",
