@@ -47,6 +47,24 @@ from app.services.utils import subtitle_shaping, video_effects
 from app.utils import file_security, logging_utils, utils
 from app.utils.subtitle_reader import moviepy_subtitles
 
+
+class MaterialSkippedError(RuntimeError):
+    """素材在预处理阶段被跳过时抛出。
+
+    preprocess_video 的返回值一直是"通过校验的素材列表"，被跳过的素材只留一条
+    warning 就消失，调用方拿到的是变短的列表，无法与输入清单对账。开启
+    raise_on_skip 后，只要有素材被跳过就抛出本异常，把静默丢弃变成显式失败。
+    """
+
+    def __init__(self, skipped):
+        self.skipped = skipped
+        detail = "; ".join(
+            f"{item.get('url')!r} -> {item.get('gate')}: {item.get('reason')}"
+            for item in skipped
+        )
+        super().__init__(f"{len(skipped)} material(s) skipped: {detail}")
+
+
 class SubClippedVideoClip:
     def __init__(
         self,
@@ -2087,18 +2105,50 @@ def render_image_zoom_video(
 
 
 def preprocess_video(
-    materials: List[MaterialInfo], clip_duration=4, image_motion: ImageMotion = ImageMotion.zoom
+    materials: List[MaterialInfo],
+    clip_duration=4,
+    image_motion: ImageMotion = ImageMotion.zoom,
+    skip_report: List[dict] = None,
+    raise_on_skip: bool = False,
+    per_material_duration: bool = False,
 ):
+    """校验并预处理素材，返回可用素材列表。
+
+    默认行为与历史版本一致（跳过不合格素材，返回变短的列表）。新增三个可选参数，
+    让调用方能够对账，而不是被动接受一个变短的列表：
+
+    Args:
+        skip_report: 传入一个 list，被跳过的素材会以
+            ``{"url", "gate", "reason"}`` 的形式追加进去，供调用方逐条报警。
+        raise_on_skip: 为 True 时，只要有素材被跳过就抛出
+            :class:`MaterialSkippedError`，把静默丢弃变成显式失败。
+        per_material_duration: 为 True 且 ``MaterialInfo.duration`` 有效时，
+            用素材自带的时长渲染图片片段，而不是全部套用全局 ``clip_duration``。
+            多镜头任务因此不需要把逐镜时长压成一个全局整数。
+    """
     # WebUI 在某些二次生成场景下可能传入空素材列表，这里直接返回空结果，避免抛出 NoneType 异常。
     if not materials:
         return []
 
     # 仅返回通过预处理校验的素材，避免低分辨率图片继续进入后续的视频合成流程。
     valid_materials = []
+    skipped = []
     local_videos_dir = utils.storage_dir("local_videos", create=True)
+
+    def record_skip(material, gate: str, reason: str):
+        """登记一次跳过；默认只留 warning，调用方可通过 skip_report 逐条取回。"""
+        item = {
+            "url": getattr(material, "url", None),
+            "gate": gate,
+            "reason": reason,
+        }
+        skipped.append(item)
+        if skip_report is not None:
+            skip_report.append(item)
 
     for material in materials:
         if not material.url:
+            record_skip(material, "empty_url", "material has no url")
             continue
 
         try:
@@ -2113,6 +2163,7 @@ def preprocess_video(
                 f"skip unsafe local material: {material.url}, "
                 f"local_videos_dir: {local_videos_dir}, error: {str(exc)}"
             )
+            record_skip(material, "path_escape", str(exc))
             continue
 
         ext = utils.parse_extension(material_source_path)
@@ -2138,6 +2189,7 @@ def preprocess_video(
                 logger.warning(
                     f"skip unreadable local material: {material.url}, error: {str(exc)}"
                 )
+                record_skip(material, "unreadable", str(exc))
                 continue
         try:
             width = clip.size[0]
@@ -2150,6 +2202,12 @@ def preprocess_video(
                 )
                 # 探测到低分辨率素材后立即关闭资源，并且不要把该素材返回给后续流程。
                 close_clip(clip)
+                record_skip(
+                    material,
+                    "low_resolution",
+                    f"{width}x{height} < "
+                    f"{_MIN_MATERIAL_DIMENSION - _MIN_DIMENSION_TOLERANCE}px minimum",
+                )
                 continue
 
             if is_image:
@@ -2157,8 +2215,16 @@ def preprocess_video(
                 # 探测尺寸时已经打开过一次素材，这里先释放探测句柄，再渲染
                 # 用于导出的图片片段。
                 close_clip(clip)
+                # 逐镜时长：多镜头任务里每个素材自带自己的时长，套用全局
+                # clip_duration 会把 8 镜 27 秒压成 8×3 秒。material.duration
+                # 有效时优先用它。
+                image_clip_duration = clip_duration
+                if per_material_duration:
+                    material_duration = getattr(material, "duration", 0) or 0
+                    if material_duration > 0:
+                        image_clip_duration = material_duration
                 video_file = render_image_zoom_video(
-                    material_source_path, clip_duration, image_motion=image_motion
+                    material_source_path, image_clip_duration, image_motion=image_motion
                 )
                 material.url = video_file
                 logger.success(f"image processed: {video_file}")
@@ -2173,5 +2239,9 @@ def preprocess_video(
             raise
 
         valid_materials.append(material)
+
+    if skipped and raise_on_skip:
+        # 有素材被跳过就必须失败：变短的列表不允许静默进入成片阶段。
+        raise MaterialSkippedError(skipped)
 
     return valid_materials
