@@ -1,6 +1,7 @@
 """Application implementation - ASGI."""
 
 import math
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
@@ -70,10 +71,14 @@ def exception_handler(request: Request, e: HttpException):
 
 
 def validation_exception_handler(request: Request, e: RequestValidationError):
+    raw_errors = e.errors()
+    if request.url.path.startswith("/api/v1/motion"):
+        # Motion Studio requests carry an LLM API key; pydantic's "input" can be the whole body.
+        raw_errors = [{k: v for k, v in err.items() if k not in ("input", "ctx")} for err in raw_errors]
     # Rejected inputs can contain NaN/Infinity, and custom validators attach
     # exception objects to ctx. Neither can be emitted by JSONResponse directly.
     errors = jsonable_encoder(
-        e.errors(),
+        raw_errors,
         custom_encoder={
             float: lambda value: value if math.isfinite(value) else str(value),
             Exception: str,
@@ -312,6 +317,11 @@ configure_browser_access(app, cors_allowed_origins)
 
 task_dir = utils.task_dir()
 app.mount("/tasks", StaticFiles(directory=task_dir, html=True), name="")
+
+# Motion Studio scene engine (HTML/JS/fonts only, no user data); the studio previews characters in it.
+# ES modules only run when served as JavaScript; the Windows registry can map .js to text/plain.
+mimetypes.add_type("text/javascript", ".js")
+app.mount("/motion-engine", StaticFiles(directory=utils.resource_dir("motion")), name="motion-engine")
 
 public_dir = utils.public_dir()
 app.mount("/", StaticFiles(directory=public_dir, html=True), name="")

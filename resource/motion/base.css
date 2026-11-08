@@ -1,0 +1,35 @@
+/* Motion Studio engine: stage styles for 1080x1920 Shorts.
+   Look: "sticker pop" (neo-brutalist): lilac dot-grid stage, paper cards with thick ink outlines and
+   hard offset shadows, acid-lime highlights, coral warnings, outlined display text.
+   Shapes: cards 24px radius, small tiles 12px or less, pills fully round. Shadows are hard ink offsets. */
+@font-face { font-family: "Baloo2"; src: url("fonts/Baloo2.ttf"); font-weight: 400 800; }
+:root {
+  --bg: #C9B8FF; --ink: #18141F; --paper: #FFFEF9; --text: var(--ink); --muted: #4B4366;
+  --accent: #C6F432; --danger: #FF4F6E;
+  --bw: 5px; --hard: 9px 9px 0 var(--ink); --hard-sm: 5px 5px 0 var(--ink);
+}
+* { margin: 0; box-sizing: border-box; }
+body { width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: "Baloo2", "Noto Sans CJK SC", "Microsoft YaHei", "Nirmala UI", sans-serif; }
+#stage { position: absolute; inset: 0; background: radial-gradient(circle, rgba(24,20,31,.13) 2.4px, transparent 2.9px) 0 0 / 44px 44px, var(--bg); }
+.scene { position: absolute; inset: 0; opacity: 0; }
+.abs { position: absolute; left: 0; right: 0; text-align: center; opacity: 0; will-change: transform, opacity; }
+/* Bright display text gets an ink outline and a hard drop, so lime/coral read on the light stage. */
+.pop { -webkit-text-stroke: 0.065em var(--ink); paint-order: stroke fill; text-shadow: 0.035em 0.045em 0 var(--ink); }
+.pill { background: var(--accent); color: var(--ink); padding: 2px 32px 8px; border-radius: 999px; display: inline-block; border: var(--bw) solid var(--ink); box-shadow: var(--hard-sm); }
+
+/* Host canvas or image stands bottom-left above the Shorts UI on a lime sticker disc; captions sit in
+   a speech bubble beside it. */
+#host { position: absolute; left: 0; top: 940px; width: 560px; height: 620px; z-index: 2; }
+#host::before { content: ''; position: absolute; left: 80px; top: 72px; width: 400px; height: 400px; border-radius: 50%; background: var(--accent); border: 6px solid var(--ink); box-shadow: var(--hard); }
+#host canvas { position: relative; display: block; }
+#cap { left: 525px; right: auto; width: 390px; top: 1120px; min-height: 210px; padding: 22px 28px 26px; display: flex; flex-wrap: wrap; align-content: center; column-gap: 14px;
+  font-size: 50px; font-weight: 800; line-height: 1.28; text-align: left; background: var(--paper); border: var(--bw) solid var(--ink); border-radius: 30px; box-shadow: var(--hard); opacity: 1; z-index: 3; }
+#cap:empty { visibility: hidden; }
+#cap::before { content: ''; position: absolute; left: -19px; top: 120px; width: 30px; height: 30px; background: inherit; border-left: var(--bw) solid var(--ink); border-bottom: var(--bw) solid var(--ink); transform: rotate(45deg); }
+#cap .on { background: var(--accent); border-radius: 10px; padding: 0 8px; margin: 0 -8px; }
+
+/* No character: captions take the full width at the bottom. */
+.no-host #host { display: none; }
+.no-host #cap { left: 90px; width: 900px; justify-content: center; text-align: center; font-size: 58px; }
+.no-host #cap::before { display: none; }

@@ -190,6 +190,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 
 - [x] Use **AI Agent, WebUI, API, or CLI** workflows for quick creation or automated production
 - [x] Go from a topic to script, voiceover, footage, subtitles, music, and editing automatically, while retaining control over every stage
+- [x] Make **motion-graphics Shorts with a talking 3D or image host** in [Motion Studio](docs/motion-studio.md): word-timed text, numbers and cards instead of stock clips, at `/studio/`
 - [x] Generate multiple output variants in batches, review task history, and import or export generation settings and API keys
 
 ### Scripts and Model Providers

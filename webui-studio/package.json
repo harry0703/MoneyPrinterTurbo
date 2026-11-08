@@ -1,0 +1,23 @@
+{
+  "name": "motion-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Motion Studio: the browser UI for MoneyPrinterTurbo's motion-graphics Shorts",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/baloo-2": "^5.3.0",
+    "@fontsource/mukta": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.2.1",
+    "vite": "^8.3.6"
+  }
+}
