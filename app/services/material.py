@@ -2434,6 +2434,7 @@ def download_videos(
             task_id=task_id, search_terms=search_terms,
             audio_duration=audio_duration, max_clip_duration=max_clip_duration,
             material_directory=material_directory or utils.task_dir(task_id),
+            match_script_order=match_script_order,
         )
     if source == "infistar":
         return _download_videos_infistar_on_demand(
@@ -2976,9 +2977,31 @@ def _download_videos_ofox_on_demand(
     return video_paths
 
 
+def _arcmira_candidates(search_terms: List[str], match_script_order: bool):
+    if not match_script_order:
+        for term in search_terms:
+            for moment in arcmira.search_arcmira_moments(term):
+                yield term, moment
+        return
+
+    from collections import deque
+
+    pending = deque((term, None) for term in search_terms)
+    while pending:
+        term, candidates = pending.popleft()
+        if candidates is None:
+            candidates = iter(arcmira.search_arcmira_moments(term))
+        try:
+            moment = next(candidates)
+        except StopIteration:
+            continue
+        pending.append((term, candidates))
+        yield term, moment
+
+
 def _download_videos_arcmira_on_demand(
     *, task_id: str, search_terms: List[str], audio_duration: float,
-    max_clip_duration: int, material_directory: str,
+    max_clip_duration: int, material_directory: str, match_script_order: bool = False,
 ) -> List[str]:
     required_duration = float(audio_duration)
     clip_duration = float(max_clip_duration)
@@ -2990,39 +3013,44 @@ def _download_videos_arcmira_on_demand(
     seen = set()
     rights_shown = False
     try:
-        for term in search_terms:
+        if required_duration <= 0:
+            return paths
+        for term, moment in _arcmira_candidates(search_terms, match_script_order):
             if total >= required_duration:
                 break
-            for moment in arcmira.search_arcmira_moments(term):
-                identity = (moment.video_id, moment.start_seconds)
-                if identity in seen:
-                    continue
-                seen.add(identity)
-                if not rights_shown:
-                    logger.info(arcmira.CLIP_RIGHTS_LINE)
-                    rights_shown = True
-                duration = min(clip_duration, required_duration - total)
-                saved = arcmira.fetch_arcmira_clip(moment, material_directory, duration)
-                if not saved:
-                    continue
+            identity = (moment.video_id, moment.start_seconds)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            if not rights_shown:
+                logger.info(arcmira.CLIP_RIGHTS_LINE)
+                rights_shown = True
+            duration = min(clip_duration, required_duration - total)
+            saved = arcmira.fetch_arcmira_clip(moment, material_directory, duration)
+            if not saved:
+                continue
+            try:
                 measured = _get_downloaded_video_duration(saved)
-                if not math.isfinite(measured) or measured <= 0:
-                    continue
-                paths.append(saved)
-                item = MaterialInfo(
-                    provider="arcmira", url=moment.watch_url, duration=math.ceil(measured),
-                    source_info={
-                        "video_id": moment.video_id, "search_term": term,
-                        "start_seconds": moment.start_seconds,
-                        "end_seconds": moment.start_seconds + duration,
-                        "quote": moment.text, "channel": moment.channel,
-                        "published_at": moment.published_at,
-                    },
-                )
-                sources.append(_material_source_record(item, saved))
-                total += min(duration, measured)
-                if total >= required_duration:
-                    break
+            except ValueError:
+                logger.warning("Arcmira clip duration could not be measured; skipping {}", moment.video_id)
+                continue
+            if not math.isfinite(measured) or measured <= 0:
+                continue
+            paths.append(saved)
+            item = MaterialInfo(
+                provider="arcmira", url=moment.watch_url, duration=math.ceil(measured),
+                source_info={
+                    "video_id": moment.video_id, "search_term": term,
+                    "start_seconds": moment.start_seconds,
+                    "end_seconds": moment.start_seconds + duration,
+                    "quote": moment.text, "channel": moment.channel,
+                    "published_at": moment.published_at,
+                },
+            )
+            sources.append(_material_source_record(item, saved))
+            total += min(duration, measured)
+            if total >= required_duration:
+                break
     finally:
         _persist_material_sources(task_id, sources)
     return paths

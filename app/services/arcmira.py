@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import math
+import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,6 +25,7 @@ CLIP_RIGHTS_LINE = (
     "It grants no rights to the video."
 )
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}\Z")
+DOWNLOAD_TIMEOUT_SECONDS = 300
 
 
 class ArcmiraError(RuntimeError):
@@ -105,6 +109,52 @@ def search_arcmira_moments(search_term: str, limit: int = 5) -> list[Moment]:
     return moments
 
 
+def _usable_clip(path: Path) -> bool:
+    from moviepy import VideoFileClip
+
+    if not path.is_file() or not path.stat().st_size:
+        return False
+    try:
+        with VideoFileClip(str(path), audio=False) as clip:
+            return math.isfinite(clip.duration) and clip.duration > 0
+    except Exception:
+        return False
+
+
+def _run_downloader(command: list[str]) -> subprocess.CompletedProcess:
+    options = (
+        {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+        if os.name == "nt"
+        else {"start_new_session": True}
+    )
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        **options,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=DOWNLOAD_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=10,
+            )
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.communicate()
+        raise
+    return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
 def fetch_arcmira_clip(
     moment: Moment, save_dir: str, max_clip_duration: float
 ) -> str | None:
@@ -119,6 +169,9 @@ def fetch_arcmira_clip(
     output = (
         directory / f"arcmira-{moment.video_id}-{moment.start_seconds:g}-{end:g}.mp4"
     )
+    if _usable_clip(output):
+        return str(output)
+    output.unlink(missing_ok=True)
     command = [
         sys.executable,
         "-m",
@@ -147,33 +200,35 @@ def fetch_arcmira_clip(
         str(output),
         moment.watch_url,
     ]
-    try:
-        result = subprocess.run(
-            command,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        logger.warning(
-            "Arcmira clip download failed or timed out; skipping {}", moment.video_id
-        )
-        return None
-    if result.returncode:
-        message = result.stderr.lower()
-        needs_sign_in = any(
-            term in message
-            for term in (
-                "sign in",
-                "sign-in",
-                "private video",
-                "members-only",
-                "age-restricted",
-                "login required",
+    with tempfile.TemporaryDirectory(prefix=".arcmira-", dir=directory) as staging:
+        staged_output = Path(staging) / output.name
+        command[command.index("-o") + 1] = str(staged_output)
+        try:
+            result = _run_downloader(command)
+        except (OSError, subprocess.TimeoutExpired):
+            logger.warning(
+                "Arcmira clip download failed or timed out; skipping {}",
+                moment.video_id,
             )
-        )
-        reason = "video requires sign-in" if needs_sign_in else "downloader failed"
-        logger.warning("Arcmira clip skipped: {} ({})", moment.video_id, reason)
-        return None
-    return str(output) if output.is_file() and output.stat().st_size else None
+            return None
+        if result.returncode:
+            message = result.stderr.lower()
+            needs_sign_in = any(
+                term in message
+                for term in (
+                    "sign in",
+                    "sign-in",
+                    "private video",
+                    "members-only",
+                    "age-restricted",
+                    "login required",
+                )
+            )
+            reason = "video requires sign-in" if needs_sign_in else "downloader failed"
+            logger.warning("Arcmira clip skipped: {} ({})", moment.video_id, reason)
+            return None
+        if not _usable_clip(staged_output):
+            logger.warning("Arcmira clip is not usable; skipping {}", moment.video_id)
+            return None
+        staged_output.replace(output)
+    return str(output)

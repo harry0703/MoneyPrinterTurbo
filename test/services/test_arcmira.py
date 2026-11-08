@@ -1,4 +1,10 @@
 import math
+import os
+from pathlib import Path
+import shutil
+import signal
+import subprocess
+import sys
 import traceback
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -144,14 +150,13 @@ def test_downloader_uses_exact_bounds_and_never_ambient_auth(tmp_path):
         assert "test-arcmira-key" not in str(command)
         assert kwargs.get("shell", False) is False
         assert command[command.index("--ffmpeg-location") + 1] == "ffmpeg-test"
-        from pathlib import Path
-
         Path(command[command.index("-o") + 1]).write_bytes(b"test video")
         return SimpleNamespace(returncode=0, stderr="")
 
     with (
         patch("imageio_ffmpeg.get_ffmpeg_exe", return_value="ffmpeg-test"),
-        patch.object(arcmira.subprocess, "run", side_effect=download),
+        patch.object(arcmira, "_run_downloader", side_effect=download),
+        patch.object(arcmira, "_usable_clip", side_effect=lambda path: path.is_file()),
     ):
         assert arcmira.fetch_arcmira_clip(moment, str(tmp_path), 3) == str(
             tmp_path / "arcmira-abcdefghijk-12.5-15.5.mp4"
@@ -172,8 +177,8 @@ def test_sign_in_video_is_skipped_without_retry(message, tmp_path):
     with (
         patch("imageio_ffmpeg.get_ffmpeg_exe", return_value="ffmpeg-test"),
         patch.object(
-            arcmira.subprocess,
-            "run",
+            arcmira,
+            "_run_downloader",
             return_value=SimpleNamespace(returncode=1, stderr=message),
         ) as run,
     ):
@@ -264,3 +269,181 @@ def test_source_record_drops_untrusted_watch_url_and_invalid_timestamps():
     )
     item.source_info["start_seconds"] = -1
     assert "start_seconds" not in material._material_source_record(item, "clip.mp4")
+
+
+@pytest.fixture
+def two_second_video(tmp_path):
+    import imageio_ffmpeg
+
+    target = tmp_path / "valid.mp4"
+    subprocess.run(
+        [
+            imageio_ffmpeg.get_ffmpeg_exe(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=64x64:r=10",
+            "-t",
+            "2",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(target),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return target
+
+
+def test_script_order_searches_each_topic_before_reusing_first(
+    tmp_path, two_second_video
+):
+    terms = ["forest", "city", "mountain"]
+    searched = []
+
+    def search(term):
+        searched.append(term)
+        index = terms.index(term)
+        return [
+            arcmira.Moment(f"{index:010d}{n}", 0, term, "show", "") for n in range(3)
+        ]
+
+    def fetch(moment, directory, duration):
+        target = tmp_path / f"{moment.video_id}.mp4"
+        shutil.copyfile(two_second_video, target)
+        return str(target)
+
+    with (
+        patch.object(arcmira, "search_arcmira_moments", side_effect=search),
+        patch.object(arcmira, "fetch_arcmira_clip", side_effect=fetch),
+        patch.object(material, "_persist_material_sources") as persist,
+    ):
+        paths = material.download_videos(
+            task_id="ordered-test",
+            source="arcmira",
+            search_terms=terms,
+            audio_duration=6,
+            max_clip_duration=2,
+            match_script_order=True,
+        )
+    assert searched == ["forest", "city", "mountain"]
+    assert [record["search_term"] for record in persist.call_args.args[1]] == terms
+    assert len(paths) == 3
+
+
+def test_failed_duration_probe_skips_candidate(tmp_path):
+    moments = [
+        arcmira.Moment("abcdefghijk", 0, "bad", "show", ""),
+        arcmira.Moment("lmnopqrstuv", 0, "good", "show", ""),
+    ]
+    with (
+        patch.object(arcmira, "search_arcmira_moments", return_value=moments),
+        patch.object(
+            arcmira, "fetch_arcmira_clip", side_effect=["bad.mp4", "good.mp4"]
+        ),
+        patch.object(
+            material,
+            "_get_downloaded_video_duration",
+            side_effect=[ValueError("corrupt clip"), 2],
+        ),
+        patch.object(material, "_persist_material_sources") as persist,
+    ):
+        paths = material.download_videos(
+            task_id="corrupt-test",
+            source="arcmira",
+            search_terms=["topic"],
+            audio_duration=2,
+            max_clip_duration=2,
+        )
+    assert paths == ["good.mp4"]
+    assert len(persist.call_args.args[1]) == 1
+
+
+def test_corrupt_cached_clip_is_replaced(tmp_path, two_second_video, monkeypatch):
+    media = tmp_path / "media"
+    media.mkdir()
+    output = media / "arcmira-abcdefghijk-0-2.mp4"
+    output.write_bytes(b"corrupt video")
+    original_popen = subprocess.Popen
+
+    def downloader(command, **kwargs):
+        if "-m" in command and "yt_dlp" in command:
+            destination = command[command.index("-o") + 1]
+            command = [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; import shutil,sys; p=Path(sys.argv[2]); "
+                "shutil.copyfile(sys.argv[1],p) if not p.exists() else None",
+                str(two_second_video),
+                destination,
+            ]
+        return original_popen(command, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", downloader)
+    result = arcmira.fetch_arcmira_clip(
+        arcmira.Moment("abcdefghijk", 0, "quote", "show", ""), str(media), 2
+    )
+    assert result == str(output)
+    assert material._get_downloaded_video_duration(result) == pytest.approx(2)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Real POSIX process-group regression")
+def test_timeout_stops_ffmpeg_child_and_removes_partial_files(tmp_path, monkeypatch):
+    import imageio_ffmpeg
+
+    media = tmp_path / "media"
+    pid_file = tmp_path / "child.pid"
+    script = tmp_path / "downloader.py"
+    script.write_text("""import subprocess,sys,pathlib
+p=subprocess.Popen([sys.argv[1], '-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i', 'color=s=64x64:r=10', '-t', '60', '-y', sys.argv[3]+'.part.mp4'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+pathlib.Path(sys.argv[2]).write_text(str(p.pid))
+p.wait()
+""")
+    original_popen, original_run = subprocess.Popen, subprocess.run
+
+    def downloader(command, **kwargs):
+        if "-m" in command and "yt_dlp" in command:
+            command = [
+                sys.executable,
+                str(script),
+                imageio_ffmpeg.get_ffmpeg_exe(),
+                str(pid_file),
+                command[command.index("-o") + 1],
+            ]
+        return original_popen(command, **kwargs)
+
+    def shortened_run(command, **kwargs):
+        if "-m" in command and "yt_dlp" in command:
+            kwargs["timeout"] = 0.6
+        return original_run(command, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", downloader)
+    monkeypatch.setattr(subprocess, "run", shortened_run)
+    monkeypatch.setattr(arcmira, "DOWNLOAD_TIMEOUT_SECONDS", 0.6, raising=False)
+    child = None
+    try:
+        assert (
+            arcmira.fetch_arcmira_clip(
+                arcmira.Moment("abcdefghijk", 0, "quote", "show", ""), str(media), 2
+            )
+            is None
+        )
+        child = int(pid_file.read_text())
+        status = original_run(
+            ["ps", "-o", "stat=", "-p", str(child)], capture_output=True, text=True
+        ).stdout.strip()
+        assert not status or status.startswith("Z"), f"FFmpeg still running: {status}"
+        assert not list(media.rglob("*.part.mp4"))
+    finally:
+        if child is None and pid_file.exists():
+            child = int(pid_file.read_text())
+        if child:
+            try:
+                os.kill(child, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
