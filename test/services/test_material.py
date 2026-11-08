@@ -1096,7 +1096,9 @@ class TestMaterialTlsVerification(unittest.TestCase):
 
             self.assertEqual(Path(result), cached_path)
             self.assertEqual(cached_path.read_bytes(), b"healthy cached video")
-            validate.assert_called_once_with(str(cached_path))
+            # save_video joins with "/", Path uses "\\" on Windows: compare as paths.
+            validate.assert_called_once()
+            self.assertEqual(Path(validate.call_args.args[0]), cached_path)
             get.assert_not_called()
 
     def test_nonfinite_video_metadata_is_not_published(self):
@@ -1291,6 +1293,68 @@ class TestMaterialTlsVerification(unittest.TestCase):
         self.assertEqual(
             [source["local_file"] for source in recorded_sources],
             ["a1.mp4", "b1.mp4", "a2.mp4"],
+        )
+
+    def test_script_order_keeps_the_slot_of_a_repeated_term(self):
+        """
+        When the script returns to a topic (forest, city, forest, mountain), the
+        repeated term gets the same search results. It must keep its own slot and
+        use the next unused candidate instead of being dropped, which would move
+        every later topic up one slot.
+        """
+
+        def fake_search(search_term, minimum_duration, video_aspect):
+            return [
+                material.MaterialInfo(
+                    provider="pexels",
+                    url=f"https://v.example/{search_term}-{n}.mp4",
+                    duration=10,
+                    source_info={
+                        "provider": "pexels",
+                        "search_term": search_term,
+                        "asset_id": f"{search_term}-{n}",
+                    },
+                )
+                for n in (1, 2, 3)
+            ]
+
+        def fake_save_video(video_url, save_dir=""):
+            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(material, "search_videos_pexels", side_effect=fake_search),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            result = material.download_videos(
+                task_id="ordered-repeated-term",
+                search_terms=["forest", "city", "forest", "mountain"],
+                source="pexels",
+                audio_duration=20,
+                max_clip_duration=5,
+                match_script_order=True,
+            )
+
+        self.assertEqual(
+            result,
+            [
+                "/tmp/forest-1.mp4",
+                "/tmp/city-1.mp4",
+                "/tmp/forest-2.mp4",
+                "/tmp/mountain-1.mp4",
+                "/tmp/forest-3.mp4",
+            ],
         )
 
     def test_script_order_uses_next_candidate_after_failed_download(self):

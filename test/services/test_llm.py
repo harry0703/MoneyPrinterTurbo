@@ -203,6 +203,20 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertEqual(result, "")
         self.assertEqual(generate_response.call_count, llm._max_retries)
 
+    def test_generate_script_strips_markdown_code_fence(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            return_value="\x60\x60\x60text\n第一段。\n\n第二段。\n\x60\x60\x60",
+        ):
+            result = llm.generate_script(
+                video_subject="テスト",
+                paragraph_number=2,
+            )
+
+        self.assertEqual(result, "第一段。\n\n第二段。")
+        self.assertNotIn("\x60\x60\x60", result)
+
     def test_generate_script_strips_each_bracket_group_independently(self):
         """
         format_response must remove each [bracket] and (paren) group in
@@ -634,6 +648,17 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(cloudgpu.requires_api_key)
         self.assertEqual(cloudgpu.api_key_url, "https://cloudgpu.app")
         self.assertEqual(cloudgpu.model_docs_url, "https://cloudgpu.app/v1/models")
+        cheapaimodel = get_llm_provider("cheapaimodel")
+        self.assertEqual(cheapaimodel.default_model, "deepseek-v4-1-flash")
+        self.assertEqual(cheapaimodel.default_base_url, "https://api.cheapaimodel.ai/v1")
+        self.assertEqual(cheapaimodel.adapter, "openai_compatible")
+        self.assertTrue(cheapaimodel.requires_api_key)
+        self.assertEqual(
+            cheapaimodel.api_key_url, "https://console.cheapaimodel.ai/keys"
+        )
+        self.assertEqual(
+            cheapaimodel.model_docs_url, "https://cheapaimodel.ai/models"
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -718,6 +743,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "empiriolabs",
                 "runcrate",
                 "cloudgpu",
+                "cheapaimodel",
                 "ollama",
                 "claude_code",
                 "oneapi",

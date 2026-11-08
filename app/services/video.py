@@ -24,6 +24,7 @@ from moviepy import (
     CompositeVideoClip,
     ImageClip,
     TextClip,
+    VideoClip,
     VideoFileClip,
     afx,
 )
@@ -652,6 +653,9 @@ def concat_video_clips_with_ffmpeg(
     def build_command(codec: str) -> list[str]:
         command = [
             utils.get_ffmpeg_binary(),
+            # Otherwise FFmpeg reads keys from the console it inherits: "q"
+            # ends the video early and "c" waits for Enter.
+            "-nostdin",
             "-y",
             "-f",
             "concat",
@@ -965,8 +969,12 @@ def _fit_clip_to_canvas(
     resized_clip = clip.resized(
         new_size=(resized_width, resized_height)
     ).with_position("center")
+    # bg_color keeps the composite opaque, so MoviePy does not build and encode
+    # a full-frame transparency mask for every frame.
     return CompositeVideoClip(
-        [background, resized_clip], size=(target_width, target_height)
+        [background, resized_clip],
+        size=(target_width, target_height),
+        bg_color=(0, 0, 0),
     ).with_duration(clip.duration)
 
 
@@ -1897,7 +1905,14 @@ def generate_video(
             for item in sub.subtitles:
                 clip = create_text_clip(subtitle_item=item)
                 text_clips.append(clip)
-            video_clip = CompositeVideoClip([video_clip, *text_clips])
+            # bg_color makes the composite opaque. Without it MoviePy starts every
+            # frame from a transparent canvas and also builds a full-size mask
+            # composite, which the writer pipes to FFmpeg as an alpha channel
+            # that H.264 drops. The video covers the whole canvas, so the
+            # rendered frames are the same.
+            video_clip = CompositeVideoClip(
+                [video_clip, *text_clips], bg_color=(0, 0, 0)
+            )
             clip_stack.callback(video_clip.close)
 
         bgm_enabled = bgm_service.should_use_bgm(
@@ -1968,6 +1983,58 @@ def generate_video(
         return bgm_mix_succeeded
 
 
+# 放大模式的渲染方式已改为亚像素插值，输出像素与旧版本不同。文件名带上这个
+# 标记，避免复用旧版本按整数尺寸缩放、带抖动的缓存片段。
+_ZOOM_CACHE_TAG = "-smooth"
+
+
+def _smooth_zoom_clip(clip, zoom_amount: float):
+    """
+    以亚像素精度生成缓慢放大的片段，画布尺寸保持不变。
+
+    旧实现 `clip.resized(lambda t: ...)` 每帧把图片缩放到整数尺寸，再按整数
+    偏移居中裁切。放大速度很慢时（每秒约 3%），相邻帧的尺寸要么不变、要么
+    跳 1px，中心偏移也随取整来回摆动，成片里表现为画面抖动/顿挫，放大到
+    1080x1920 后更明显。
+
+    这里固定输出尺寸，每帧以图片中心为原点做仿射变换（BICUBIC 插值），
+    缩放比例随时间连续变化。构图与旧实现一致：从原图开始，以中心为基准
+    放大并裁掉超出画布的部分。带透明通道的图片同样处理遮罩。
+    """
+    base = Image.fromarray(np.asarray(clip.get_frame(0)).astype("uint8"))
+    width, height = base.size
+    center_x, center_y = width / 2.0, height / 2.0
+    duration = clip.duration or 1.0
+    mask_base = None
+    if clip.mask is not None:
+        mask_frame = np.asarray(clip.mask.get_frame(0)) * 255
+        mask_base = Image.fromarray(mask_frame.clip(0, 255).astype("uint8"))
+
+    def warp(image, t, resample):
+        progress = min(max(t, 0.0), duration) / duration
+        scale = 1.0 + zoom_amount * progress
+        # 输出像素 (x, y) 取自原图 (cx + (x - cx) / s, cy + (y - cy) / s)。
+        coefficients = (
+            1 / scale, 0, center_x - center_x / scale,
+            0, 1 / scale, center_y - center_y / scale,
+        )
+        return image.transform(
+            (width, height), Image.AFFINE, coefficients, resample=resample
+        )
+
+    zoomed = VideoClip(
+        lambda t: np.asarray(warp(base, t, Image.BICUBIC)), duration=clip.duration
+    )
+    if mask_base is not None:
+        mask = VideoClip(
+            lambda t: np.asarray(warp(mask_base, t, Image.BILINEAR)) / 255.0,
+            is_mask=True,
+            duration=clip.duration,
+        )
+        zoomed = zoomed.with_mask(mask)
+    return zoomed.with_position("center")
+
+
 def render_image_zoom_video(
     image_path: str, clip_duration: int = 5, image_motion: ImageMotion = ImageMotion.zoom
 ) -> str:
@@ -1983,9 +2050,9 @@ def render_image_zoom_video(
     clip = clip.with_duration(clip_duration).with_position("center")
     temp_path = ""
     try:
-        # 只有放大模式改变画面尺寸，静止模式保留原始构图及透明背景处理。
+        # 放大模式以亚像素精度逐帧放大，静止模式保留原始构图及透明背景处理。
         image_clip = (
-            clip.resized(lambda t: 1 + (clip_duration * 0.03) * (t / clip.duration))
+            _smooth_zoom_clip(clip, clip_duration * 0.03)
             if motion == ImageMotion.zoom
             else clip
         )
@@ -2005,9 +2072,10 @@ def render_image_zoom_video(
                 source_digest.update(clip.mask.get_frame(0).tobytes())
             source_identity = source_digest.hexdigest()
             duration_identity = hashlib.sha256(str(clip_duration).encode()).hexdigest()[:16]
+            motion_tag = _ZOOM_CACHE_TAG if motion == ImageMotion.zoom else ""
             video_file = os.path.join(
                 os.path.dirname(image_path),
-                f"{source_identity}.{motion.value}-{duration_identity}.mp4",
+                f"{source_identity}.{motion.value}{motion_tag}-{duration_identity}.mp4",
             )
             descriptor, temp_path = tempfile.mkstemp(
                 prefix=".image-zoom-",

@@ -77,6 +77,8 @@ class TestFadeAndSlideTransitions(unittest.TestCase):
             with self.subTest(side=side):
                 transitioned = video_effects.slidein_transition(clip, 1, side)
                 self.addCleanup(transitioned.close)
+                # The black background is opaque, so no per-frame mask.
+                self.assertIsNone(transitioned.mask)
                 moving_clip = transitioned.clips[1]
                 self.assertEqual(moving_clip.pos(0), expected_start)
                 self.assertEqual(moving_clip.pos(1), (0, 0))
@@ -100,6 +102,7 @@ class TestFadeAndSlideTransitions(unittest.TestCase):
             with self.subTest(side=side):
                 transitioned = video_effects.slideout_transition(clip, 1, side)
                 self.addCleanup(transitioned.close)
+                self.assertIsNone(transitioned.mask)
                 moving_clip = transitioned.clips[1]
                 self.assertEqual(moving_clip.pos(0.5), (0, 0))
                 self.assertEqual(moving_clip.pos(2.5), expected_end)
