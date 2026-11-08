@@ -253,20 +253,22 @@ def _end_of_script_line_in_cue(
 ):
     """
     Return where script_line ends in cue_text when the cue starts with
-    script_line and goes on like next_script_line, else None.
+    script_line and goes on like next_script_line, else None, and whether the
+    cue is tied: its rest is the whole next line, and the next cue starts
+    next_script_line and line_after_next equally well.
 
     next_cue_text is the text of the cue after it, and line_after_next the
     script line after next_script_line, each "" when there is none.
     """
     if len(cue_text) <= len(script_line):
-        return None
+        return None, False
     distances = _prefix_distances(script_line, cue_text)
     end = distances.index(min(distances))
     if not end or similarity(script_line, cue_text[:end]) <= 0.8:
-        return None
+        return None, False
     rest = cue_text[end:].strip()
     if not rest or _prefix_similarity(rest, next_script_line) <= 0.8:
-        return None
+        return None, False
     if (
         next_cue_text
         and len(rest) < len(next_script_line)
@@ -277,25 +279,25 @@ def _end_of_script_line_in_cue(
         # then the start of that line written twice, as in "We went home and
         # then we" before "and then we slept", or a letter that Whisper added,
         # as in "Hello worlds" for "Hello world" before "So we went".
-        return None
+        return None, False
     if (
         next_cue_text
         and len(rest) >= len(next_script_line)
         and similarity(rest, next_script_line) > 0.8
-        and _prefix_similarity(next_script_line, next_cue_text) > 0.8
-        and (
-            not line_after_next
-            or _prefix_similarity(next_script_line, next_cue_text)
-            >= _prefix_similarity(line_after_next, next_cue_text)
-        )
     ):
-        # The rest of this cue is the whole next line, and the next cue is that
-        # line again, as in "We went home and then we slept" before "and then
-        # we slept". When the next cue starts the next line and the line after
-        # it equally well, as in "Come here, come here, come here.", the copies
-        # cannot be told apart, and the cue is not cut either.
-        return None
-    return end
+        like_next_line = _prefix_similarity(next_script_line, next_cue_text)
+        like_line_after_next = 0
+        if line_after_next:
+            like_line_after_next = _prefix_similarity(line_after_next, next_cue_text)
+        if like_next_line > 0.8 and like_next_line >= like_line_after_next:
+            # The rest of this cue is the whole next line, and the next cue is
+            # that line again, as in "We went home and then we slept" before
+            # "and then we slept". When the next cue starts the line after it
+            # equally well, as in "Come here, come here, come here.", it can be
+            # either line, and a cut and a whole cue can each give the lines
+            # after it the wrong cues: the cue is tied.
+            return None, like_next_line == like_line_after_next
+    return end, False
 
 
 def _srt_time_to_seconds(value):
@@ -355,8 +357,9 @@ def _align(script_lines, subtitle_items, cut_cues):
     Give each script line in turn the time of the cues that hold it.
 
     Return the new subtitle items, the text of the cues that each line got (None
-    when its cue is the line itself), and the number of cues used. With
-    cut_cues, a cue that holds a line and the start of the next one is cut.
+    when its cue is the line itself), the number of cues used, and whether a cue
+    was tied (see _end_of_script_line_in_cue()). With cut_cues, a cue that holds
+    a line and the start of the next one is cut.
     """
     # _cut_cues() replaces the cue that it cuts.
     subtitle_items = list(subtitle_items)
@@ -364,6 +367,7 @@ def _align(script_lines, subtitle_items, cut_cues):
     cue_texts = []
     script_index = 0
     subtitle_index = 0
+    tied = False
 
     while script_index < len(script_lines) and subtitle_index < len(subtitle_items):
         script_line = script_lines[script_index].strip()
@@ -401,13 +405,14 @@ def _align(script_lines, subtitle_items, cut_cues):
                 line_after_next = ""
                 if script_index + 2 < len(script_lines):
                     line_after_next = script_lines[script_index + 2].strip()
-                line_end = _end_of_script_line_in_cue(
+                line_end, tie = _end_of_script_line_in_cue(
                     script_line,
                     combined_subtitle,
                     script_lines[script_index + 1].strip(),
                     next_cue_text,
                     line_after_next,
                 )
+                tied = tied or tie
                 if line_end is not None:
                     end_time, next_subtitle_index = _cut_cues(
                         subtitle_items, subtitle_index, next_subtitle_index, line_end
@@ -425,7 +430,7 @@ def _align(script_lines, subtitle_items, cut_cues):
             script_index += 1
             subtitle_index = next_subtitle_index
 
-    return new_subtitle_items, cue_texts, subtitle_index
+    return new_subtitle_items, cue_texts, subtitle_index, tied
 
 
 def _starts_its_cues(script_line, cue_text):
@@ -447,19 +452,21 @@ def correct(subtitle_file, video_script):
         normalized_script, split_thai_and_lao_sentences=False
     )
 
-    new_subtitle_items, cue_texts, subtitle_index = _align(
+    new_subtitle_items, cue_texts, subtitle_index, _ = _align(
         script_lines, subtitle_items, cut_cues=False
     )
-    cut_items, cut_cue_texts, cut_subtitle_index = _align(
+    cut_items, cut_cue_texts, cut_subtitle_index, tied = _align(
         script_lines, subtitle_items, cut_cues=True
     )
     # A cue can look like a line and the start of the next one without being
     # that, as when Whisper writes a line twice with a letter wrong, or ends a
     # cue inside a word. A cut there gives the lines after it the wrong cues.
-    # So the cuts are kept only when every line then starts the text of its
-    # cues, and no cue is left unused that the lines use without cuts.
+    # So the cuts are kept only when no cue was tied, every line then starts
+    # the text of its cues, and no cue is left unused that the lines use
+    # without cuts.
     if (
-        len(cut_items) == len(script_lines)
+        not tied
+        and len(cut_items) == len(script_lines)
         and cut_subtitle_index >= subtitle_index
         and all(
             _starts_its_cues(item[2], cue_text)
