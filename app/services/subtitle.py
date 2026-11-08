@@ -286,13 +286,14 @@ def _end_of_script_line_in_cue(
         and (
             not line_after_next
             or _prefix_similarity(next_script_line, next_cue_text)
-            > _prefix_similarity(line_after_next, next_cue_text)
+            >= _prefix_similarity(line_after_next, next_cue_text)
         )
     ):
         # The rest of this cue is the whole next line, and the next cue is that
         # line again, as in "We went home and then we slept" before "and then
-        # we slept". When the next cue starts the line after it as well, as in
-        # "Come here, come here, come here.", the cue is still cut.
+        # we slept". When the next cue starts the next line and the line after
+        # it equally well, as in "Come here, come here, come here.", the copies
+        # cannot be told apart, and the cue is not cut either.
         return None
     return end
 

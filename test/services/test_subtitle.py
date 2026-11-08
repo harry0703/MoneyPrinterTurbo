@@ -724,6 +724,42 @@ class TestSubtitleService(unittest.TestCase):
             ],
         )
 
+    def test_correct_keeps_a_cue_when_the_next_line_is_said_again(self):
+        """
+        The second line and the third are both "come here", so "come hare come
+        here" starts each of them alike and the copies cannot be told apart.
+        The first cue is then not cut; cut, it gave the second line 0.711-1.5 s.
+        The last cue, which nothing follows, is still cut between the last two
+        lines.
+        """
+        cues = [
+            ("00:00:00,000 --> 00:00:01,500", "Come here come here"),
+            ("00:00:01,600 --> 00:00:03,200", "come hare come here"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "Come here, come here, come here."),
+            [
+                ("00:00:00,000 --> 00:00:01,500", "Come here"),
+                ("00:00:01,600 --> 00:00:02,358", "come here"),
+                ("00:00:02,358 --> 00:00:03,200", "come here"),
+            ],
+        )
+
+    def test_correct_keeps_a_cue_when_the_line_after_next_starts_the_next_line(self):
+        """
+        "音乐" is the start of "音乐公园", so "音乐公园嗯音乐" starts both lines
+        alike, and the first cue is not cut. Cut, it gave "音乐公园" 0.5-1 s and
+        "音乐" the second cue. As on main, the two cues do not cover the three
+        lines, so the transcription is kept.
+        """
+        cues = [
+            ("00:00:00,000 --> 00:00:01,000", "问题方法音乐公园"),
+            ("00:00:01,050 --> 00:00:02,400", "音乐公园嗯音乐"),
+        ]
+
+        self.assertEqual(self._correct_cues(cues, "问题方法，音乐公园，音乐。"), cues)
+
     def test_file_to_subtitles_keeps_last_block_without_trailing_newline(self):
         """
         The final subtitle must be parsed even when the SRT file does not end
