@@ -794,8 +794,11 @@ voices = []
 # Audexum TTS: https://audexum.com (free tier available, no card required).
 # API key: create one in your account. You can also set AUDEXUM_API_KEY.
 # Voices: Nova, Atlas, Reid, Sage, Kai, Cole, Ivy, Mira, Elle, F1-F5, M1-M5
-# (see https://audexum.com/v1/voices).
+# (see https://audexum.com/v1/voices). The speech rate setting applies to F1-F5 / M1-M5;
+# the named voices currently keep their natural pace.
 api_key = ""
+# Optional: OpenAI-compatible endpoint (config.toml only, not shown in the WebUI).
+# base_url = "https://audexum.com/v1"
 
 [voxcpm]
 # ModelBest VoxCPM cloud TTS. Create an API Key and select a model with the

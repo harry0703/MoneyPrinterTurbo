@@ -518,6 +518,12 @@ def get_audexum_api_key() -> str:
     return configured_key or os.getenv("AUDEXUM_API_KEY", "").strip()
 
 
+def get_audexum_base_url() -> str:
+    """Effective Audexum endpoint: ``[audexum] base_url`` or the public API."""
+    configured_url = str(config.audexum.get("base_url", "") or "").strip()
+    return (configured_url or AUDEXUM_BASE_URL).rstrip("/")
+
+
 def is_fish_audio_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("fish_audio:")
 
@@ -2971,9 +2977,8 @@ def audexum_tts(
             "[audexum] or the AUDEXUM_API_KEY environment variable."
         )
         return None
-    base_url = (config.audexum.get("base_url", "") or AUDEXUM_BASE_URL).strip().rstrip("/")
     return _openai_compatible_tts(
-        "audexum", base_url, api_key, "audexum", voice, text, voice_rate, voice_file
+        "audexum", get_audexum_base_url(), api_key, "audexum", voice, text, voice_rate, voice_file
     )
 
 

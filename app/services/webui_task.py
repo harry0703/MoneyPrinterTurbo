@@ -61,7 +61,7 @@ def _submission_signature(
         "params": params.model_dump(mode="json", warnings=False),
         "settings": {
             name: config.snapshot_config_with_pending(getattr(config, name))
-            for name in ("app", "azure", "elevenlabs", "siliconflow", "chatterbox")
+            for name in ("app", "azure", "elevenlabs", "siliconflow", "chatterbox", "audexum")
         },
         "references": [hashlib.sha256(value or b"").hexdigest() for value in references],
         "request": request_inputs,

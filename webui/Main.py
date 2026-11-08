@@ -7060,6 +7060,13 @@ def _get_voice_preview_provider_signature(tts_server: str) -> dict:
             "model_id": config.kokoro.get("model_id", ""),
             "credential": _credential_signature(config.kokoro.get("api_key", "")),
         }
+    if tts_server == "audexum":
+        # 使用实际生效的服务地址和 Key（含 AUDEXUM_API_KEY 环境变量回退），
+        # 清空或更换 Key、修改 base_url 后旧试听都不能再被复用。
+        return {
+            "base_url": voice.get_audexum_base_url(),
+            "credential": _credential_signature(voice.get_audexum_api_key()),
+        }
     if tts_server == "voxcpm":
         return {
             "base_url": config.voxcpm.get("base_url", ""),
