@@ -2297,6 +2297,20 @@ def _render_current_generation_task():
     _render_running_generation_task(task_id)
 
 
+# 除中英文外，已完整维护 Provider 配置说明的界面语言。
+FULLY_TRANSLATED_TIPS_LOCALES = frozenset({"zh", "en", "vi"})
+
+
+def _provider_tips_language(tips_key):
+    """返回展示某条 Provider 说明所用的语言；未翻译时回退英文。"""
+    ui_language = st.session_state.get("ui_language", "en")
+    if ui_language in FULLY_TRANSLATED_TIPS_LOCALES and locales.get(
+        ui_language, {}
+    ).get("Translation", {}).get(tips_key):
+        return ui_language
+    return "en"
+
+
 def get_llm_provider_tips(provider_id, **kwargs):
     # LLM provider 说明文案统一使用 `llm_provider_tips.<provider_id>` 规则。
     # 这样新增 provider 时只需要在 locale 中补文案；没有文案时不展示提示块，
@@ -2305,11 +2319,9 @@ def get_llm_provider_tips(provider_id, **kwargs):
     if provider is None:
         return ""
 
-    # Provider 配置说明目前统一维护中文和英文两套规范模板；其它界面语言
-    # 统一使用英文，避免在 locale 中复制英文后长期不同步。后续某个语种完成
-    # 全量翻译后，再将它加入这里的独立维护范围。
-    ui_language = st.session_state.get("ui_language", "en")
-    tips_language = ui_language if ui_language in {"zh", "en"} else "en"
+    # Provider 配置说明维护中文、英文以及已全量翻译的语种（见
+    # FULLY_TRANSLATED_TIPS_LOCALES）；其它界面语言或缺失的条目回退英文。
+    tips_language = _provider_tips_language(provider.tips_key)
     tips = (
         locales.get(tips_language, {}).get("Translation", {}).get(provider.tips_key, "")
     )
@@ -2317,7 +2329,7 @@ def get_llm_provider_tips(provider_id, **kwargs):
         return tips
 
     service_endpoint = provider.preferred_service_endpoint(
-        prefer_international=tips_language == "en"
+        prefer_international=tips_language != "zh"
     )
     api_key_url = (
         service_endpoint.api_key_url
@@ -2336,7 +2348,7 @@ def get_llm_provider_tips(provider_id, **kwargs):
             service_endpoint.model_docs_url
             if service_endpoint and service_endpoint.model_docs_url
             else provider.effective_model_docs_url(
-                prefer_international=tips_language == "en"
+                prefer_international=tips_language != "zh"
             )
         ),
         **{
@@ -2400,15 +2412,10 @@ def get_llm_provider_label(provider):
 
 
 def get_tts_provider_tips(provider_id):
-    # TTS 配置说明与 LLM Provider 采用相同维护策略：只维护中英文，
-    # 其它界面语言统一回退英文，避免复制后长期不同步。
-    ui_language = st.session_state.get("ui_language", "en")
-    tips_language = ui_language if ui_language in {"zh", "en"} else "en"
-    return (
-        locales.get(tips_language, {})
-        .get("Translation", {})
-        .get(f"tts_provider_tips.{provider_id}", "")
-    )
+    # TTS 配置说明与 LLM Provider 采用相同维护策略。
+    tips_key = f"tts_provider_tips.{provider_id}"
+    tips_language = _provider_tips_language(tips_key)
+    return locales.get(tips_language, {}).get("Translation", {}).get(tips_key, "")
 
 
 def localized_widget_key(name, *parts):
