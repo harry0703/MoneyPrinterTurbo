@@ -45,6 +45,9 @@ streamlit.log
 *.flac
 # Allow test fixture videos (small reference clips committed intentionally)
 !test/resources/*.mp4
+# Royalty-free music and hooks bundled on purpose (see resource/songs/copyright_free/CREDITOS.md)
+!resource/songs/copyright_free/*.mp3
+!resource/hooks/*.mp3
 
 # Runtime logs
 *.log
