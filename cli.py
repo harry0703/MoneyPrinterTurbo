@@ -48,8 +48,10 @@ _CLI_VIDEO_SOURCES = (
     "jalapeno",
     "metaso_minimax",
     "muapi",
+    "useapi",
     "openai_image",
     "codex_image",
+    "useapi_image",
     "local",
 )
 
@@ -250,6 +252,13 @@ def _bgm_type(value: str) -> str:
     )
 
 
+def _useapi_image_needs_confirmation() -> bool:
+    """Kling image models spend Kling credits; Nano Banana models do not."""
+    from app.services import useapi
+
+    return useapi.image_requires_confirmation()
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     command = "mpt cli" if __name__ == "app.cli" else "uv run python cli.py"
     parser = argparse.ArgumentParser(
@@ -420,6 +429,16 @@ Batch manifests:
         help=(
             "confirm that MuAPI video generation creates paid tasks; required "
             "with --video-source muapi for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-useapi-charge",
+        action="store_true",
+        help=(
+            "confirm that useapi.net videos and Kling images spend credits on "
+            "your own Google AI plan, Kling AI account or Dreamina account; "
+            "required with --video-source useapi, and with useapi_image when "
+            "useapi_image_model is a Kling model, for materials or video output"
         ),
     )
 
@@ -801,6 +820,26 @@ Batch manifests:
     ):
         parser.error(
             "--confirm-muapi-charge is required with --video-source muapi"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "useapi"
+        and stage_requires_materials
+        and not args.confirm_useapi_charge
+    ):
+        parser.error(
+            "--confirm-useapi-charge is required with --video-source useapi"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "useapi_image"
+        and stage_requires_materials
+        and not args.confirm_useapi_charge
+        and _useapi_image_needs_confirmation()
+    ):
+        parser.error(
+            "--confirm-useapi-charge is required with --video-source "
+            "useapi_image when useapi_image_model is a Kling model"
         )
 
     if (not args.batch_file and args.video_source == "infistar"
@@ -1215,6 +1254,7 @@ def _validate_batch_task_params(
     muapi_charge_confirmed: bool,
     infistar_charge_confirmed: bool = False,
     jalapeno_charge_confirmed: bool = False,
+    useapi_charge_confirmed: bool = False,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
@@ -1283,6 +1323,23 @@ def _validate_batch_task_params(
         and not muapi_charge_confirmed
     ):
         raise ValueError("--confirm-muapi-charge is required for MuAPI video generation")
+    if (
+        params.video_source == "useapi"
+        and stop_at in {"materials", "video"}
+        and not useapi_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-useapi-charge is required for useapi.net video generation"
+        )
+    if (
+        params.video_source == "useapi_image"
+        and stop_at in {"materials", "video"}
+        and not useapi_charge_confirmed
+        and _useapi_image_needs_confirmation()
+    ):
+        raise ValueError(
+            "--confirm-useapi-charge is required for useapi.net Kling images"
+        )
 
     if (params.video_source == "infistar" and stop_at in {"materials", "video"}
             and not infistar_charge_confirmed):
@@ -1406,6 +1463,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                 muapi_charge_confirmed=args.confirm_muapi_charge,
                 infistar_charge_confirmed=args.confirm_infistar_charge,
                 jalapeno_charge_confirmed=args.confirm_jalapeno_charge,
+                useapi_charge_confirmed=args.confirm_useapi_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc
