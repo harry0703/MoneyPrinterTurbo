@@ -24,6 +24,7 @@ from PIL import Image, UnidentifiedImageError
 from app.config import config
 from app.models.schema import ImageMotion, MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
+    arcmira,
     codex_image,
     generation_progress,
     infistar_video,
@@ -169,6 +170,27 @@ def _material_source_record(item: MaterialInfo, local_path: str) -> dict[str, An
                 rendition[field] = str(value) if field == "id" else value
         if rendition:
             record["rendition"] = rendition
+    if record["provider"] == "arcmira":
+        video_id = source.get("video_id")
+        start, end = source.get("start_seconds"), source.get("end_seconds")
+        if (
+            isinstance(video_id, str)
+            and arcmira.VIDEO_ID.fullmatch(video_id)
+            and all(
+                isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+                for v in (start, end)
+            )
+            and 0 <= start < end
+        ):
+            record.update(
+                video_id=video_id,
+                start_seconds=start,
+                end_seconds=end,
+                source_page=f"https://www.youtube.com/watch?v={video_id}&t={start:g}s",
+            )
+            for field in ("quote", "channel", "published_at"):
+                if isinstance(source.get(field), str):
+                    record[field] = source[field]
     return record
 
 
@@ -2407,6 +2429,12 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
+    if source == "arcmira":
+        return _download_videos_arcmira_on_demand(
+            task_id=task_id, search_terms=search_terms,
+            audio_duration=audio_duration, max_clip_duration=max_clip_duration,
+            material_directory=material_directory or utils.task_dir(task_id),
+        )
     if source == "infistar":
         return _download_videos_infistar_on_demand(
             task_id=task_id, search_terms=search_terms, video_aspect=video_aspect,
@@ -2946,6 +2974,58 @@ def _download_videos_ofox_on_demand(
     logger.success(f"generated and downloaded {len(video_paths)} OFox videos")
     _persist_material_sources(task_id, material_sources)
     return video_paths
+
+
+def _download_videos_arcmira_on_demand(
+    *, task_id: str, search_terms: List[str], audio_duration: float,
+    max_clip_duration: int, material_directory: str,
+) -> List[str]:
+    required_duration = float(audio_duration)
+    clip_duration = float(max_clip_duration)
+    if not math.isfinite(required_duration) or not math.isfinite(clip_duration) or clip_duration <= 0:
+        raise arcmira.ArcmiraError("Arcmira material durations must be finite and clip duration positive")
+    paths = []
+    sources = []
+    total = 0.0
+    seen = set()
+    rights_shown = False
+    try:
+        for term in search_terms:
+            if total >= required_duration:
+                break
+            for moment in arcmira.search_arcmira_moments(term):
+                identity = (moment.video_id, moment.start_seconds)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                if not rights_shown:
+                    logger.info(arcmira.CLIP_RIGHTS_LINE)
+                    rights_shown = True
+                duration = min(clip_duration, required_duration - total)
+                saved = arcmira.fetch_arcmira_clip(moment, material_directory, duration)
+                if not saved:
+                    continue
+                measured = _get_downloaded_video_duration(saved)
+                if not math.isfinite(measured) or measured <= 0:
+                    continue
+                paths.append(saved)
+                item = MaterialInfo(
+                    provider="arcmira", url=moment.watch_url, duration=math.ceil(measured),
+                    source_info={
+                        "video_id": moment.video_id, "search_term": term,
+                        "start_seconds": moment.start_seconds,
+                        "end_seconds": moment.start_seconds + duration,
+                        "quote": moment.text, "channel": moment.channel,
+                        "published_at": moment.published_at,
+                    },
+                )
+                sources.append(_material_source_record(item, saved))
+                total += min(duration, measured)
+                if total >= required_duration:
+                    break
+    finally:
+        _persist_material_sources(task_id, sources)
+    return paths
 
 
 def _download_videos_muapi_on_demand(

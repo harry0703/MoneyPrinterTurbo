@@ -22,6 +22,11 @@ PROVIDER_TIPS_PREFIXES = (
 # 避免把完全相同的品牌名复制十份，也避免长说明后续只更新部分语言。
 ENGLISH_FALLBACK_KEYS = frozenset(
     {
+        'Arcmira',
+        'Arcmira API Key',
+        'Arcmira Transcript Search Help',
+        'You need the rights to download, cut or reuse this video. Arcmira finds the moment and gives you the link and the seconds. It grants no rights to the video.',
+
         "Generation Waiting In Queue",
         "Generation Preparing",
         "Generation Writing Script",

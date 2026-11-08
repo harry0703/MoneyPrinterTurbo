@@ -108,6 +108,7 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
         assert data["controlId"] == "video_source_select_en_control"
         assert [group["label"] for group in data["groups"]] == [
             "Stock Video",
+            "Arcmira",
             "AI Video",
             "AI Image",
             "Local Files",
@@ -118,6 +119,7 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
             "pexels",
             "pixabay",
             "coverr",
+            "arcmira",
             "metaso_minimax",
             "ofox",
             "loomloom",
@@ -184,3 +186,30 @@ def test_stock_concurrency_only_appears_for_stock_sources():
                 if item.key.startswith("clip_rendering_concurrency_select_")
             ).value == 2
             assert config.app["material_concurrency"] == 4
+
+
+def test_arcmira_selection_shows_rights_and_submits_without_secret():
+    from app.services.arcmira import CLIP_RIGHTS_LINE
+
+    harness = _GroupedSelectHarness()
+    with _running_app(harness) as app, patch(
+        "app.services.webui_task.submit_generation"
+    ) as submit:
+        config.app["arcmira_api_key"] = "arcmira-test-secret"
+        app.session_state["voice_mode_control_en"] = "none"
+        harness.selected = "arcmira"
+        app.run()
+        assert any(str(item.value) == CLIP_RIGHTS_LINE for item in app.warning)
+        for key, value in (
+            ("video_subject", "Video production"),
+            ("video_script", "Find spoken examples of video production."),
+            ("video_terms", "video production"),
+        ):
+            next(item for item in app.text_area if str(item.key) == key or str(item.key).startswith(f"{key}_")).set_value(value)
+        app.run()
+        next(item for item in app.button if str(item.key).startswith("generate_video_button")).click().run()
+        assert [str(item.value) for item in app.exception] == []
+        assert submit.call_count == 1
+        params = submit.call_args.kwargs["params"]
+        assert params.video_source == "arcmira"
+        assert "arcmira-test-secret" not in params.model_dump_json()

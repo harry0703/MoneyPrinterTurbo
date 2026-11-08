@@ -224,6 +224,20 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Export portrait `9:16 (1080×1920)`, landscape `16:9 (1920×1080)`, or square `1:1 (1080×1080)` videos
 - [x] Publish completed videos directly to **TikTok, Instagram, and YouTube Shorts**
 
+### Arcmira
+
+Find the moment something was said on YouTube, including podcasts on YouTube: the exact quote, often who said it, the channel, the date and a watch link cued to the second. Filter by who is speaking, by the person or company discussed, and by date. Use one topic per call. An empty result does not prove something was never said.
+
+You need the rights to download, cut or reuse this video. Arcmira finds the moment and gives you the link and the seconds. It grants no rights to the video.
+
+```toml
+[app]
+video_source = "arcmira"
+arcmira_api_key = ""
+```
+
+https://arcmira.com/docs
+
 ## Gallery 🎬
 
 All examples below were generated with MoneyPrinterTurbo.

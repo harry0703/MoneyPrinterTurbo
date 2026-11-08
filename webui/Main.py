@@ -48,6 +48,7 @@ from app.models.schema import (
 from app.services import bgm as bgm_service
 from app.services import material_upload as material_upload_service
 from app.services import (
+    arcmira,
     cache_manager,
     llm,
     loomloom,
@@ -135,6 +136,7 @@ LOOMLOOM_MAX_POLL_FAILURES = 5
 # 不改变 config.toml、历史任务和 API 请求中的字段语义，旧用户无需迁移配置。
 VIDEO_SOURCE_GROUPS = {
     "stock_video": ("pexels", "pixabay", "coverr"),
+    "spoken_video": ("arcmira",),
     "ai_video": (
         "metaso_minimax",
         "ofox",
@@ -3380,7 +3382,7 @@ def _initialize_material_navigation(target, settings):
     source_group = next(
         (group for group, providers in groups.items() if source in providers), None
     )
-    explicit = {"stock": "stock_video", "video": "ai_video", "image": "ai_image"}.get(
+    explicit = {"stock": "stock_video", "video": "ai_video", "image": "ai_image", "spoken": "spoken_video"}.get(
         target
     )
     group = explicit or (source_group if target == "material" else None)
@@ -3403,6 +3405,7 @@ def _initialize_material_navigation(target, settings):
 
 def _material_provider_labels():
     return {
+        "arcmira": tr("Arcmira"),
         "pexels": tr("Pexels"),
         "pixabay": tr("Pixabay"),
         "coverr": tr("Coverr"),
@@ -3494,6 +3497,7 @@ def _render_general_settings(settings):
         ("ai_video", "AI Video", "movie", "video"),
         ("ai_image", "AI Image", "image", "image"),
         ("stock_video", "Stock Video", "video_library", "stock"),
+        ("spoken_video", "Arcmira", "subtitles", "spoken"),
     )
     for section, title, icon, target in cards:
         labels = llm_labels if section == "llm" else material_labels
@@ -3619,6 +3623,16 @@ def _render_material_provider_settings(provider):
             args=(config_key, f"{config_key}_input"),
         )
         _save_material_api_keys(config_key, value)
+    elif provider == "arcmira":
+        st.warning(tr(arcmira.CLIP_RIGHTS_LINE))
+        value = st.text_input(
+            tr("Arcmira API Key"),
+            value=str(app_settings.get("arcmira_api_key", "") or ""),
+            type="password", key="arcmira_api_key_input",
+            on_change=_save_settings_change,
+            args=("app", "arcmira_api_key", "arcmira_api_key_input", lambda value: value.strip()),
+        )
+        _set_runtime_config("app", "arcmira_api_key", value.strip())
     elif provider == "metaso_minimax":
         st.markdown(f"**{tr('Metaso MiniMax H3')}**")
         metaso_api_key = st.text_input(
@@ -4221,9 +4235,9 @@ def _render_settings_dialog():
         settings_tab_targets = {key: tr(label) for key, label in tab_keys.items()}
         settings_tabs_key = localized_widget_key("settings_dialog_tabs")
         target_tab = st.session_state.pop("settings_dialog_target_tab", None)
-        if target_tab in {"stock", "video", "image", "material"}:
+        if target_tab in {"stock", "video", "image", "spoken", "material"}:
             _initialize_material_navigation(target_tab, app_settings)
-        if target_tab in {"stock", "video", "image"}:
+        if target_tab in {"stock", "video", "image", "spoken"}:
             target_tab = "material"
         active = target_tab or st.session_state.get("settings_active_tab", "general")
         if active not in settings_tab_targets:
@@ -4898,6 +4912,7 @@ def _render_settings_dialog():
                         "AI Image Generation APIs Help",
                     ),
                     ("stock_video", "Stock Video APIs", "Stock Video APIs Help"),
+                    ("spoken_video", "Arcmira", "Arcmira Transcript Search Help"),
                 )
                 remembered = dict(
                     st.session_state.get("settings_material_providers", {})
@@ -6035,6 +6050,7 @@ def _render_video_settings(panel, params):
                 (tr("Random"), "random"),
             ]
             video_source_labels = {
+                "arcmira": tr("Arcmira"),
                 "pexels": tr("Pexels"),
                 "pixabay": tr("Pixabay"),
                 "coverr": tr("Coverr"),
@@ -6058,6 +6074,7 @@ def _render_video_settings(panel, params):
                 tr("Video Source"),
                 groups=(
                     (tr("Stock Video"), VIDEO_SOURCE_GROUPS["stock_video"]),
+                    (tr("Arcmira"), VIDEO_SOURCE_GROUPS["spoken_video"]),
                     (tr("AI Video"), VIDEO_SOURCE_GROUPS["ai_video"]),
                     (tr("AI Image"), VIDEO_SOURCE_GROUPS["ai_image"]),
                     (tr("Local Material"), VIDEO_SOURCE_GROUPS["local"]),
@@ -6069,6 +6086,9 @@ def _render_video_settings(panel, params):
                 on_settings=_open_material_settings_dialog,
             )
             _set_runtime_config("app", "video_source", params.video_source)
+
+            if params.video_source == "arcmira":
+                st.warning(tr(arcmira.CLIP_RIGHTS_LINE))
 
             loomloom_video_capability = None
             if params.video_source == "loomloom":
@@ -9057,6 +9077,7 @@ def _render_generation_controls(
             "infistar",
             "jalapeno",
             "pexels",
+            "arcmira",
             "pixabay",
             "coverr",
             "wavespeed",
