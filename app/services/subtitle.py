@@ -349,17 +349,18 @@ def similarity(a, b):
     return 1 - (distance / max_length)
 
 
-def correct(subtitle_file, video_script):
-    subtitle_items = file_to_subtitles(subtitle_file)
-    normalized_script = utils.normalize_script_for_subtitle_matching(video_script)
-    # create() splits Whisper segments at punctuation but not at the space that ends
-    # a Thai or Lao sentence, so a segment can hold several of those sentences.
-    script_lines = utils.split_string_by_punctuations(
-        normalized_script, split_thai_and_lao_sentences=False
-    )
+def _align(script_lines, subtitle_items, cut_cues):
+    """
+    Give each script line in turn the time of the cues that hold it.
 
-    corrected = False
+    Return the new subtitle items, the text of the cues that each line got (None
+    when its cue is the line itself), and the number of cues used. With
+    cut_cues, a cue that holds a line and the start of the next one is cut.
+    """
+    # _cut_cues() replaces the cue that it cuts.
+    subtitle_items = list(subtitle_items)
     new_subtitle_items = []
+    cue_texts = []
     script_index = 0
     subtitle_index = 0
 
@@ -369,6 +370,7 @@ def correct(subtitle_file, video_script):
 
         if script_line == subtitle_line:
             new_subtitle_items.append(subtitle_items[subtitle_index])
+            cue_texts.append(None)
             script_index += 1
             subtitle_index += 1
         else:
@@ -388,7 +390,7 @@ def correct(subtitle_file, video_script):
                 else:
                     break
 
-            if script_index + 1 < len(script_lines):
+            if cut_cues and script_index + 1 < len(script_lines):
                 # Whisper can leave out a comma that the script has, as in "before
                 # they run and reads pass". Then one cue holds this line and the
                 # start of the next one, and the next line gets the rest of it.
@@ -411,34 +413,77 @@ def correct(subtitle_file, video_script):
                     )
                     combined_subtitle = combined_subtitle[:line_end].strip()
 
-            if similarity(script_line, combined_subtitle) > 0.8:
-                logger.warning(
-                    f"Merged/Corrected - Script: {script_line}, Subtitle: {combined_subtitle}"
+            new_subtitle_items.append(
+                (
+                    len(new_subtitle_items) + 1,
+                    f"{start_time} --> {end_time}",
+                    script_line,
                 )
-                new_subtitle_items.append(
-                    (
-                        len(new_subtitle_items) + 1,
-                        f"{start_time} --> {end_time}",
-                        script_line,
-                    )
-                )
-                corrected = True
-            else:
-                logger.warning(
-                    f"Mismatch - Script: {script_line}, Subtitle: {combined_subtitle}"
-                )
-                new_subtitle_items.append(
-                    (
-                        len(new_subtitle_items) + 1,
-                        f"{start_time} --> {end_time}",
-                        script_line,
-                    )
-                )
-                corrected = True
-
+            )
+            cue_texts.append(combined_subtitle)
             script_index += 1
             subtitle_index = next_subtitle_index
 
+    return new_subtitle_items, cue_texts, subtitle_index
+
+
+def _starts_its_cues(script_line, cue_text):
+    """
+    Return whether script_line is like the start of cue_text, the text of the
+    cues that _align() gave it (None when its cue is the line itself).
+    """
+    if cue_text is None:
+        return True
+    return 1 - min(_prefix_distances(script_line, cue_text)) / len(script_line) > 0.8
+
+
+def correct(subtitle_file, video_script):
+    subtitle_items = file_to_subtitles(subtitle_file)
+    normalized_script = utils.normalize_script_for_subtitle_matching(video_script)
+    # create() splits Whisper segments at punctuation but not at the space that ends
+    # a Thai or Lao sentence, so a segment can hold several of those sentences.
+    script_lines = utils.split_string_by_punctuations(
+        normalized_script, split_thai_and_lao_sentences=False
+    )
+
+    new_subtitle_items, cue_texts, subtitle_index = _align(
+        script_lines, subtitle_items, cut_cues=False
+    )
+    cut_items, cut_cue_texts, cut_subtitle_index = _align(
+        script_lines, subtitle_items, cut_cues=True
+    )
+    # A cue can look like a line and the start of the next one without being
+    # that, as when Whisper writes a line twice with a letter wrong, or ends a
+    # cue inside a word. A cut there gives the lines after it the wrong cues.
+    # So the cuts are kept only when every line then starts the text of its
+    # cues, and no cue is left unused that the lines use without cuts.
+    if (
+        len(cut_items) == len(script_lines)
+        and cut_subtitle_index >= subtitle_index
+        and all(
+            _starts_its_cues(item[2], cue_text)
+            for item, cue_text in zip(cut_items, cut_cue_texts)
+        )
+    ):
+        new_subtitle_items, cue_texts, subtitle_index = (
+            cut_items,
+            cut_cue_texts,
+            cut_subtitle_index,
+        )
+
+    corrected = False
+    for (_, _, script_line), cue_text in zip(new_subtitle_items, cue_texts):
+        if cue_text is None:
+            continue
+        if similarity(script_line, cue_text) > 0.8:
+            logger.warning(
+                f"Merged/Corrected - Script: {script_line}, Subtitle: {cue_text}"
+            )
+        else:
+            logger.warning(f"Mismatch - Script: {script_line}, Subtitle: {cue_text}")
+        corrected = True
+
+    script_index = len(new_subtitle_items)
     if script_index < len(script_lines):
         # The transcription has no timing left for these script lines. Keep
         # its original cues rather than publishing a partially aligned result

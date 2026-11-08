@@ -418,6 +418,8 @@ class TestSubtitleService(unittest.TestCase):
             self.assertEqual(subtitle_file.read_text(encoding="utf-8"), original_srt)
 
     def test_correct_preserves_comma_split_transcription(self):
+        # Cutting the first cue between the two lines it holds still leaves the
+        # last sentence of the script without a cue, so the transcription is kept.
         original_srt = (
             "1\n00:00:00,100 --> 00:00:02,000\nIt runs as you so it can change memory\n\n"
             "2\n00:00:02,500 --> 00:00:04,000\nThat is the gate\n\n"
@@ -427,7 +429,7 @@ class TestSubtitleService(unittest.TestCase):
             subtitle_file.write_text(original_srt, encoding="utf-8")
             subtitle.correct(
                 str(subtitle_file),
-                "It runs as you, so it can change memory. That is the gate.",
+                "It runs as you, so it can change memory. That is the gate. Stay safe.",
             )
             self.assertEqual(subtitle_file.read_text(encoding="utf-8"), original_srt)
 
@@ -507,8 +509,9 @@ class TestSubtitleService(unittest.TestCase):
     def test_correct_shares_a_cue_that_holds_the_next_script_line(self):
         """
         Whisper can leave out a comma that the script has. One cue then holds
-        two script lines: the first line got the whole cue, every later line
-        the cue of the line after it, and the last lines 00:00:00,000.
+        two script lines: the first line got the whole cue and every later line
+        the cue of the line after it, until the cues ran out and the
+        transcription was kept.
         """
         cues = [
             (
@@ -675,6 +678,49 @@ class TestSubtitleService(unittest.TestCase):
                 ("00:00:00,000 --> 00:00:01,500", "I opened the door"),
                 ("00:00:01,600 --> 00:00:02,200", "and saw"),
                 ("00:00:02,500 --> 00:00:03,000", "Then left"),
+            ],
+        )
+
+    def test_correct_keeps_cues_when_a_line_written_twice_has_a_wrong_letter(self):
+        """
+        "Hello world" looks like "Hello" and the start of "world", but "wurld"
+        is "world" again with one letter wrong. Cut, the first cue would give
+        "world" 0.909-2 s, and "Next line" the cue "wurld" too, from 5 s.
+        """
+        cues = [
+            ("00:00:00,000 --> 00:00:02,000", "Hello world"),
+            ("00:00:05,000 --> 00:00:06,000", "wurld"),
+            ("00:00:07,000 --> 00:00:08,000", "Next line"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "Hello, world. Next line."),
+            [
+                ("00:00:00,000 --> 00:00:02,000", "Hello"),
+                ("00:00:05,000 --> 00:00:06,000", "world"),
+                ("00:00:07,000 --> 00:00:08,000", "Next line"),
+            ],
+        )
+
+    def test_correct_keeps_cues_when_a_cut_leaves_cues_unused(self):
+        """
+        A Chinese cue can end inside a word. Cut after "今天天气很好", its rest "我"
+        does not take in the next cue "们", so the last two lines would get
+        2.571-3 s and 3-3.3 s, and the last two cues would be dropped.
+        """
+        cues = [
+            ("00:00:00,000 --> 00:00:03,000", "今天天气很好我"),
+            ("00:00:03,000 --> 00:00:03,300", "们"),
+            ("00:00:03,300 --> 00:00:06,000", "去公园散步"),
+            ("00:00:06,500 --> 00:00:08,000", "然后一起回家"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "今天天气很好，我们去公园散步。然后一起回家。"),
+            [
+                ("00:00:00,000 --> 00:00:03,000", "今天天气很好"),
+                ("00:00:03,000 --> 00:00:06,000", "我们去公园散步"),
+                ("00:00:06,500 --> 00:00:08,000", "然后一起回家"),
             ],
         )
 
