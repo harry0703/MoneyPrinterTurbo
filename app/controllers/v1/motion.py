@@ -67,6 +67,8 @@ def get_character(request: Request, character_id: str = Path(pattern=CHARACTER_I
 def create_job(request: Request, body: MotionJobRequest):
     if body.voice not in VOICE_BY_ID:
         raise _fail(request, 400, f"unknown voice: {body.voice}")
+    if VOICE_BY_ID[body.voice].get("openai") and body.llm.provider != "openai":
+        raise _fail(request, 400, "OpenAI voices use your OpenAI API key: choose OpenAI as the script writer's provider.")
     try:
         job = jobs.submit(body)
     except jobs.Busy:

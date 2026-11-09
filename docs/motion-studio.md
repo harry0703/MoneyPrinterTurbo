@@ -54,8 +54,9 @@ OpenAI-compatible endpoint (base URL). Calls go through LiteLLM, which MoneyPrin
 depends on. The model field is free text; the suggestions are only a starting point.
 
 The key you paste goes from the studio to this server and straight to the provider for that video.
-It is never written to disk, logged, returned by the API or kept after the job's script is written,
-and the studio keeps it in memory only (not in local storage). Provider error messages are scrubbed
+It is never written to disk, logged, returned by the API or kept after the job's script is written
+(with an OpenAI voice, after the voice is recorded), and the studio keeps it in memory only (not in
+local storage). Provider error messages are scrubbed
 of anything key-like before they are shown.
 
 The AI is told to use only facts from your brief or common knowledge and never to invent statistics,
@@ -67,6 +68,11 @@ an "information only" line to the outro.
 Edge TTS (free, no key): Hindi, English (India and US), Marathi, Simplified Chinese, Spanish and
 Brazilian Portuguese voices. The script is written in the voice's language. Hindi scripts keep common
 English terms in English letters.
+
+OpenAI voices (Marin, Cedar; Hindi and English) sound far more natural. They read the whole script in
+one directed take with `gpt-4o-mini-tts`, then `whisper-1` returns word times that are matched back to
+the script, so captions keep the script's spelling. They use the script writer's OpenAI key, so the
+provider must be OpenAI; a 45-second video costs roughly US$0.02.
 
 ## Publishing to YouTube
 

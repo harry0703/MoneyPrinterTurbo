@@ -4,6 +4,8 @@ import json
 import shutil
 from pathlib import Path
 
+from pydantic import SecretStr
+
 from app.models.motion import Storyboard
 from app.services.motion import speech
 from app.services.motion.speech import Speech
@@ -37,15 +39,17 @@ def scene_storyboard(storyboard: Storyboard, voice: Speech, character: dict, pal
     return {"character": character, "palette": palette, "beats": beats, "duration": voice.duration}
 
 
-def prepare(job_dir: Path, storyboard: Storyboard, voice_id: str, character_file: Path | None) -> Speech:
-    """Record the voice and lay out everything the renderer needs inside job_dir."""
+def prepare(job_dir: Path, storyboard: Storyboard, voice_id: str, character_file: Path | None,
+            api_key: SecretStr | None = None) -> Speech:
+    """Record the voice and lay out everything the renderer needs inside job_dir (api_key: OpenAI voices only)."""
     character = {"kind": "none"}
     if character_file is not None:
         target = job_dir / f"character{character_file.suffix.lower()}"
         shutil.copyfile(character_file, target)
         kind = "image" if target.suffix in IMAGE_SUFFIXES else "glb"
         character = {"kind": kind, "url": f"/job/{target.name}"}
-    voice = speech.synthesize([beat.say for beat in storyboard.beats], voice_id, job_dir)
+    key = api_key.get_secret_value() if api_key else None
+    voice = speech.synthesize([beat.say for beat in storyboard.beats], voice_id, job_dir, key)
     scene = scene_storyboard(storyboard, voice, character, next_palette(job_dir.parent))
     (job_dir / "storyboard.json").write_text(json.dumps(scene, ensure_ascii=False, indent=1), encoding="utf-8")
     return voice

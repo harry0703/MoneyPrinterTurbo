@@ -25,6 +25,7 @@ from loguru import logger
 from app.models.motion import MotionJobRequest
 from app.services.motion import pipeline, writer
 from app.services.motion.errors import MotionError
+from app.services.motion.speech import VOICE_BY_ID
 from app.utils import utils
 
 ROOT = Path(utils.storage_dir("motion", create=True))
@@ -229,6 +230,8 @@ def _run(job: Job, character: Path | None) -> None:
     request = job.secret.pop()  # the request holds the API key; it lives only in this frame now
     job_dir = JOBS_DIR / job.id
     voice, title = request.voice, request.title
+    # OpenAI voices reuse the writer's key, so it lives in this frame until the voice is recorded.
+    voice_key = request.llm.api_key if VOICE_BY_ID.get(voice, {}).get("openai") else None
     try:
         job_dir.mkdir(parents=True, exist_ok=True)
         _stage(job, "writing")
@@ -238,7 +241,8 @@ def _run(job: Job, character: Path | None) -> None:
         storyboard.youtube.title = title
         (job_dir / "youtube.json").write_text(storyboard.youtube.model_dump_json(), encoding="utf-8")
         _stage(job, "voicing")
-        speech = pipeline.prepare(job_dir, storyboard, voice, character)
+        speech = pipeline.prepare(job_dir, storyboard, voice, character, voice_key)
+        voice_key = None
         _stage(job, "rendering")
         _render(job, job_dir)
         for copy in job_dir.glob("character.*"):  # the upload itself stays in uploads/

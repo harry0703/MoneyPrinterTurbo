@@ -324,6 +324,79 @@ class TestSpeechSynthesis(unittest.TestCase):
         self.assertIn("voice service", str(caught.exception))
 
 
+class TestOpenAIVoice(unittest.TestCase):
+    TEXTS = ["अगर आपके भाई की आवाज़ में call आए...", "तो रुकिए।"]
+    HEARD = [("अगर", 0.0, 0.3), ("आपके", 0.34, 0.8), ("भाई", 0.86, 1.1), ("की", 1.18, 1.3), ("आवाज", 1.34, 1.7),
+             ("में", 1.76, 1.85), ("कौल", 1.9, 2.1), ("आए", 2.18, 2.5), ("तो", 3.0, 3.2), ("रुकिए", 3.25, 3.8)]
+
+    def test_align_keeps_script_spelling_with_transcript_times(self):
+        words, beats = speech.align(self.TEXTS, self.HEARD, 4.0)
+        self.assertEqual([w["text"] for w in words], ["अगर", "आपके", "भाई", "की", "आवाज़", "में", "call", "आए", "तो", "रुकिए"])
+        self.assertEqual((words[4]["start"], words[4]["end"]), (1.34, 1.7))  # nukta ignored when matching
+        self.assertEqual((words[6]["start"], words[6]["end"]), (1.9, 2.1))  # call / कौल: differing run
+        self.assertEqual([w["br"] for w in words].count(True), 2)  # end of each beat
+        self.assertEqual(beats, [(0.0, round(3.0 - speech.LEAD_S, 3)), (round(3.0 - speech.LEAD_S, 3), 4.0)])
+
+    def test_align_without_a_transcript_spreads_words_over_the_audio(self):
+        words, beats = speech.align(self.TEXTS, [], 5.0)
+        starts = [w["start"] for w in words]
+        self.assertEqual(starts, sorted(starts))
+        self.assertEqual((words[0]["start"], words[-1]["end"]), (0.0, 5.0))
+        self.assertEqual(beats[-1][1], 5.0)
+
+    def fake_client(self, error=None):
+        import types
+
+        client = mock.Mock()
+        if error:
+            client.audio.speech.create.side_effect = error
+        client.audio.speech.create.return_value = types.SimpleNamespace(content=b"\x00\x00" * speech.SAMPLE_RATE * 4)
+        heard = [types.SimpleNamespace(word=w, start=s, end=e) for w, s, e in self.HEARD]
+        client.audio.transcriptions.create.return_value = types.SimpleNamespace(words=heard)
+        return client
+
+    def test_openai_voice_records_one_take_with_the_creators_key(self):
+        client = self.fake_client()
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(speech.openai, "OpenAI", return_value=client) as make:
+            result = speech.synthesize(self.TEXTS, "openai-marin-hi", Path(tmp), SECRET)
+            written = sorted(p.name for p in Path(tmp).iterdir())
+        self.assertEqual(make.call_args.kwargs["api_key"], SECRET)
+        call = client.audio.speech.create.call_args.kwargs
+        self.assertEqual((call["model"], call["voice"], call["response_format"]), ("gpt-4o-mini-tts", "marin", "pcm"))
+        self.assertIn("Hindi", call["instructions"])
+        self.assertEqual(client.audio.transcriptions.create.call_args.kwargs["language"], "hi")
+        self.assertEqual(len(result.beats), 2)
+        self.assertAlmostEqual(result.duration, 4.0 + speech.HOLD_S, places=2)
+        self.assertEqual(written, ["audio.m4a", "env.json", "words.json"])
+
+    def test_openai_voice_errors_are_plain_and_never_show_the_key(self):
+        import httpx
+
+        response = httpx.Response(401, request=httpx.Request("POST", "https://api.openai.com/v1/audio/speech"))
+        denied = speech.openai.AuthenticationError(f"Incorrect API key provided: {SECRET}", response=response, body=None)
+        with mock.patch.object(speech.openai, "OpenAI", return_value=self.fake_client(denied)), \
+                self.assertRaises(MotionError) as caught:
+            speech.synthesize(self.TEXTS, "openai-marin-hi", Path("."), SECRET)
+        self.assertEqual(str(caught.exception), "OpenAI rejected the API key.")
+        self.assertIsNone(caught.exception.__cause__)
+        with self.assertRaises(MotionError) as caught:
+            speech.synthesize(self.TEXTS, "openai-marin-hi", Path("."), None)
+        self.assertIn("OpenAI API key", str(caught.exception))
+
+    def test_job_keeps_the_key_until_the_openai_voice_is_recorded(self):
+        board = Storyboard.model_validate(fixture())
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(jobs, "JOBS_DIR", Path(tmp)), \
+                mock.patch.object(writer, "write", return_value=board), \
+                mock.patch.object(pipeline, "prepare", return_value=Speech([], [], 40.0)) as prepare, \
+                mock.patch.object(jobs, "_render"):
+            for voice, expected in [("openai-marin-hi", SECRET), ("hi-IN-MadhurNeural", None)]:
+                job = jobs.Job(id="0123456789abcdef", title="t", secret=[job_request().model_copy(update={"voice": voice})])
+                jobs._run(job, None)
+                key = prepare.call_args.args[4]
+                self.assertEqual(key.get_secret_value() if key else None, expected)
+                self.assertEqual(job.status, "done")
+
+
 class TestPipelinePrepare(unittest.TestCase):
     def test_character_and_scene_are_staged_for_the_renderer(self):
         board = Storyboard.model_validate(fixture())
@@ -452,6 +525,11 @@ class TestApi(unittest.TestCase):
         body = job_request().model_dump(mode="json")
         body["voice"] = "xx-XX-Nobody"
         self.assertEqual(self.client.post("/api/v1/motion/jobs", json=body).status_code, 400)
+        body = job_request(provider="anthropic", model="claude-sonnet-5-5").model_dump(mode="json")
+        body["voice"] = "openai-marin-hi"  # OpenAI voices need the OpenAI key
+        response = self.client.post("/api/v1/motion/jobs", json=body)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("OpenAI voices", response.text)
         self.assertEqual(self.client.get("/api/v1/motion/jobs/not-a-job").status_code, 400)
         self.assertEqual(self.client.get("/api/v1/motion/jobs/0123456789abcdef").status_code, 404)
 
