@@ -16,6 +16,8 @@ from app.services.motion.speech import VOICE_BY_ID
 
 MAX_TOKENS = 8000  # reasoning models spend part of this before answering
 TIMEOUT_S = 150
+MAX_WORDS = 120  # about 55 s: Edge TTS at +15% speaks 2.0 to 2.4 words a second
+SHORTEN_TO_WORDS = 105
 
 
 @dataclass(frozen=True)
@@ -58,7 +60,7 @@ Return ONLY a JSON object, no markdown, in this shape:
  "youtube": {{"title": "...", "description": "...", "hashtags": ["#..."]}}}}
 
 Beats
-- 4 to 8 beats. The whole narration is about 90 to 130 words, 35 to 55 seconds when spoken.
+- 4 to 8 beats. The whole narration is about 90 to 115 words (35 to 55 seconds when spoken), never more than 120.
 - Beat 1 is the hook (a sharp question or a surprising fact) and uses the "hook" or "big_number" layout. The last beat uses "outro" with a call to action.
 - "say": what the host speaks in this beat, 1 or 2 short sentences in {language}. {language_rules}
 - "emphasis": one word copied exactly from "say": the moment the main visual pops.
@@ -187,21 +189,45 @@ def complete(settings: LlmSettings, messages: list[dict]) -> str:
     return reply
 
 
+def word_count(board: Storyboard) -> int:
+    # ponytail: whitespace words, so scripts written without spaces (Chinese) are never shortened
+    return sum(len(beat.say.split()) for beat in board.beats)
+
+
+def shorten(request: MotionJobRequest, messages: list[dict], reply: str, board: Storyboard) -> Storyboard:
+    """One round asking for a tighter script when it runs long; the original stands if that fails."""
+    words = word_count(board)
+    if words <= MAX_WORDS:
+        return board
+    messages = messages + [
+        {"role": "assistant", "content": reply},
+        {"role": "user", "content": f"The narration is {words} words, over a minute when spoken. Shorten it to about "
+                                    f"{SHORTEN_TO_WORDS} words: drop the weakest beat or points and keep the facts that "
+                                    "matter most. Reply with the complete JSON object only."},
+    ]
+    try:
+        shorter = Storyboard.model_validate(extract_json(complete(request.llm, messages)))
+    except (ValueError, MotionError):
+        return board
+    return shorter if word_count(shorter) < words else board
+
+
 def write(request: MotionJobRequest) -> Storyboard:
-    """Storyboard for the brief; one repair round when the first answer doesn't validate."""
+    """Storyboard for the brief; one repair round when the first answer doesn't validate, one when it runs long."""
     messages = build_messages(request)
     reply = complete(request.llm, messages)
     try:
-        return Storyboard.model_validate(extract_json(reply))
+        board = Storyboard.model_validate(extract_json(reply))
     except ValueError as error:  # bad JSON or schema (pydantic's ValidationError is a ValueError)
         messages += [
             {"role": "assistant", "content": reply},
             {"role": "user", "content": f"That JSON is invalid: {describe_problems(error)}. "
                                         "Reply with the corrected, complete JSON object only."},
         ]
-    reply = complete(request.llm, messages)
-    try:
-        return Storyboard.model_validate(extract_json(reply))
-    except ValueError:
-        raise MotionError("The AI's storyboard didn't match the required format twice. "
-                          "Try again or pick a stronger model.") from None
+        reply = complete(request.llm, messages)
+        try:
+            board = Storyboard.model_validate(extract_json(reply))
+        except ValueError:
+            raise MotionError("The AI's storyboard didn't match the required format twice. "
+                              "Try again or pick a stronger model.") from None
+    return shorten(request, messages, reply, board)

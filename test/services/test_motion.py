@@ -60,6 +60,40 @@ class TestStoryboard(unittest.TestCase):
 
 
 class TestWriter(unittest.TestCase):
+    def long_board(self) -> dict:
+        board = fixture()
+        for beat in board["beats"]:
+            beat["say"] += " यह बात ध्यान से सुनो" * 6  # +30 words per beat
+        return board
+
+    def test_long_script_gets_one_shortening_round(self):
+        replies = iter([json.dumps(self.long_board()), json.dumps(fixture())])
+        with mock.patch.object(writer, "complete", side_effect=lambda s, m: next(replies)) as complete:
+            board = writer.write(job_request())
+        self.assertLessEqual(writer.word_count(board), writer.MAX_WORDS)
+        self.assertIn("Shorten it", complete.call_args_list[1].args[1][-1]["content"])
+
+    def test_long_script_stands_when_shortening_fails(self):
+        long = self.long_board()
+        for bad_reply in ["not json", MotionError("rate limited")]:
+            replies = iter([json.dumps(long), bad_reply])
+
+            def answer(settings, messages):
+                reply = next(replies)
+                if isinstance(reply, Exception):
+                    raise reply
+                return reply
+
+            with mock.patch.object(writer, "complete", side_effect=answer):
+                board = writer.write(job_request())
+            self.assertGreater(writer.word_count(board), writer.MAX_WORDS)
+
+    def test_short_script_needs_one_call(self):
+        self.assertLessEqual(writer.word_count(Storyboard.model_validate(fixture())), writer.MAX_WORDS)
+        with mock.patch.object(writer, "complete", return_value=json.dumps(fixture())) as complete:
+            writer.write(job_request())
+        self.assertEqual(complete.call_count, 1)
+
     def test_one_repair_round_fixes_a_bad_reply(self):
         broken = fixture()
         del broken["youtube"]
