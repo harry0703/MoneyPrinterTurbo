@@ -66,6 +66,7 @@ Beats
 - "emphasis": one word copied exactly from "say": the moment the main visual pops.
 - "mood": neutral, happy, excited, wink, shocked or sad. Match the content and vary it.
 - On-screen text is short and punchy. Never copy "say" onto the screen.
+- Everything the viewer reads (on-screen fields, the outro label, the YouTube description) is in {language} too, even when the brief is in another language.
 
 Layouts and fields (stay within the limits):
 - hook: headline (max 48 characters), kicker (big punchline, max 18), tone
