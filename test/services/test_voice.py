@@ -2329,6 +2329,23 @@ class TestElevenLabsVoice(unittest.TestCase):
         for text in ("[paused]", "(pauses)", "[暂停一下]"):
             self.assertFalse(utils.has_pause_tags(text), text)
 
+    def test_pause_tags_accept_fullwidth_brackets(self):
+        """中文输入法打出的全角括号也必须是停顿，不能把标签原文读出来。"""
+        samples = (
+            ("（停顿：2秒）你好", [("pause", 2.0), ("speech", "你好")]),
+            ("（pause: 2s）Hi", [("pause", 2.0), ("speech", "Hi")]),
+            ("［pause: 1s］Hi", [("pause", 1.0), ("speech", "Hi")]),
+            ("【pause: 1.5s】Hi", [("pause", 1.5), ("speech", "Hi")]),
+        )
+        for script, expected in samples:
+            with self.subTest(script=script):
+                self.assertEqual(utils.parse_script_with_pauses(script), expected)
+                cleaned = utils.remove_pause_tags(script)
+                self.assertNotIn("停顿", cleaned)
+                self.assertNotIn("pause", cleaned.lower())
+        for text in ("（暂停一下）", "【paused】", "［pauses］"):
+            self.assertFalse(utils.has_pause_tags(text), text)
+
     def test_concat_audio_files_reads_pcm_in_bounded_chunks(self):
         """Long pause-aware narration should not load each WAV into memory."""
         real_wave_open = vs.wave.open
