@@ -18,10 +18,11 @@ NO_SQUARE = {VideoAspect.portrait, VideoAspect.landscape}
 
 # (model, allowed durations, ratios) as documented on useapi.net.
 EXPECTED = [
-    ("veo-3.1-lite", (8,), ALL_RATIOS),
-    ("veo-3.1-lite-low-priority", (8,), ALL_RATIOS),
-    ("veo-3.1-fast", (8,), ALL_RATIOS),
-    ("veo-3.1-quality", (8,), ALL_RATIOS),
+    # Google Flow video takes landscape or portrait only, Veo included.
+    ("veo-3.1-lite", (8,), NO_SQUARE),
+    ("veo-3.1-lite-low-priority", (8,), NO_SQUARE),
+    ("veo-3.1-fast", (8,), NO_SQUARE),
+    ("veo-3.1-quality", (8,), NO_SQUARE),
     ("omni-flash", (4, 6, 8, 10), NO_SQUARE),
     ("omni-flash-1.2", tuple(range(3, 11)), NO_SQUARE),
     ("vids-omni-flash-1.2", tuple(range(3, 16)), NO_SQUARE),
@@ -88,13 +89,13 @@ def test_models_without_square_reject_1_1_before_submission(model):
         (
             "veo-3.1-quality",
             5,
-            {"prompt": "lake", "model": "veo-3.1-quality", "aspectRatio": "1:1",
+            {"prompt": "lake", "model": "veo-3.1-quality", "aspectRatio": "landscape",
              "duration": 8, "async": True},
         ),
         (
             "veo-3.1-lite-low-priority",
             5,
-            {"prompt": "lake", "model": "veo-3.1-lite-low-priority", "aspectRatio": "1:1",
+            {"prompt": "lake", "model": "veo-3.1-lite-low-priority", "aspectRatio": "landscape",
              "duration": 8, "async": True},
         ),
         (
@@ -130,7 +131,13 @@ def test_models_without_square_reject_1_1_before_submission(model):
     ],
 )
 def test_request_fields_per_model(model, requested, expected_json):
-    _, payload = useapi._submission(model, "lake", VideoAspect.square,
+    # Google Flow models take no 1:1, so they are checked in landscape.
+    aspect = (
+        VideoAspect.landscape
+        if useapi.MODELS[model]["service"] == useapi.GOOGLE_FLOW
+        else VideoAspect.square
+    )
+    _, payload = useapi._submission(model, "lake", aspect,
                                     useapi.request_duration(model, requested))
     assert payload == expected_json
 

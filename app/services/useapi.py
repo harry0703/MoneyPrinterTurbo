@@ -91,7 +91,9 @@ def _model(label, service, durations, aspects, resolutions=(), **defaults):
     return spec
 
 
-_VEO_ASPECTS = {**_GOOGLE_FLOW_ASPECTS, VideoAspect.square: "1:1"}
+# POST /v1/google-flow/videos takes aspectRatio "landscape" or "portrait" only,
+# for Veo as for Omni, so 1:1 is refused before anything is submitted.
+_VEO_ASPECTS = dict(_GOOGLE_FLOW_ASPECTS)
 MODELS: dict[str, dict[str, Any]] = {
     "veo-3.1-lite": _model(
         "Veo 3.1 Lite (Google Flow)", GOOGLE_FLOW, (8,), _VEO_ASPECTS

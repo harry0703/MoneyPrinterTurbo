@@ -223,8 +223,9 @@ useapi_api_token = ""
 # 3.0 Turbo 3-15, older Kling 5 or 10; Seedance 2.5 4-30, 2.0 models 4-15,
 # 1.5 Pro 5, 10 or 12, 1.0 models 5 or 10. Clip durations are rounded up to the
 # next allowed length (or down to the longest) before submission.
-# Ratios: Omni (Google Flow and Google Vids) makes 9:16 or 16:9; every other
-# model also makes 1:1.
+# Ratios: every Google Flow model (Veo and Omni) and Google Vids makes 9:16 or
+# 16:9, and a 1:1 task with one of them is refused before anything is sent;
+# Kling and Seedance also make 1:1.
 useapi_video_model = "veo-3.1-lite"
 # Optional resolution; the WebUI lists only what the selected model accepts.
 # Empty, or a value the model does not accept, uses the model's default:

@@ -202,23 +202,18 @@ def test_omni_duration_and_aspect_mapping():
         }
 
 
-def test_square_is_rejected_for_omni_but_sent_to_veo():
-    config.app["useapi_video_model"] = "omni-flash-1.2"
+@pytest.mark.parametrize(
+    "model",
+    ["omni-flash-1.2", "omni-flash", "veo-3.1-lite", "veo-3.1-lite-low-priority",
+     "veo-3.1-fast", "veo-3.1-quality"],
+)
+def test_square_is_rejected_for_every_google_flow_video_model(model):
+    # POST /v1/google-flow/videos takes aspectRatio landscape or portrait only.
+    config.app["useapi_video_model"] = model
     with patch.object(useapi.requests, "post") as post:
         with pytest.raises(useapi.UseAPIError, match="9:16, 16:9"):
             useapi.generate_videos("city", 5, VideoAspect.square)
     post.assert_not_called()
-
-    config.app["useapi_video_model"] = "veo-3.1-lite"
-    completed = _response(
-        _flow_job("j-square", "completed", [_flow_media("https://flow-content.google/s")])
-    )
-    with (
-        patch.object(useapi.requests, "post", return_value=_response({"jobid": "j-square"}, 201)) as post,
-        patch.object(useapi.requests, "get", return_value=completed),
-    ):
-        useapi.generate_videos("city", 5, VideoAspect.square)
-    assert post.call_args.kwargs["json"]["aspectRatio"] == "1:1"
 
 
 @pytest.mark.parametrize(
@@ -687,6 +682,25 @@ def test_task_preflight_rejects_unsupported_ratio_before_script_generation():
 
     assert result["failed_stage"] == "preflight"
     assert "omni-flash-1.2" in result["error"]
+    generate_script.assert_not_called()
+
+
+def test_task_preflight_rejects_square_for_veo_before_script_generation():
+    config.app["useapi_video_model"] = "veo-3.1-lite"
+    params = VideoParams(
+        video_subject="useapi square",
+        video_source="useapi",
+        video_aspect=VideoAspect.square,
+    )
+    with (
+        patch.object(task_service.sm, "state", sm.MemoryState()),
+        patch.object(task_service, "generate_script") as generate_script,
+    ):
+        result = task_service.start("useapi-veo-square", params, stop_at="materials")
+
+    assert result["failed_stage"] == "preflight"
+    assert "veo-3.1-lite" in result["error"]
+    assert "9:16, 16:9" in result["error"]
     generate_script.assert_not_called()
 
 
