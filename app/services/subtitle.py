@@ -336,10 +336,19 @@ def _end_of_script_line_in_cue(
         like_line_after_next = 0
         if line_after_next:
             like_line_after_next = _prefix_similarity(line_after_next, next_cue_text)
-        if like_next_line > 0.8 and like_next_line >= like_line_after_next:
+        # Whisper can write the copy with a letter wrong, and in a short line
+        # one letter weighs a lot: "wurld" starts "world" only 80%. So the next
+        # cue is also a copy when it starts like the next line within one edit
+        # (_prefix_distance()), but not when that line is one character long,
+        # as one character is one edit off the start of any text.
+        next_cue_is_copy = like_next_line > 0.8 or (
+            len(next_script_line) > 1
+            and _prefix_distance(next_script_line, next_cue_text) <= 1
+        )
+        if next_cue_is_copy and like_next_line >= like_line_after_next:
             # The rest of this cue is the whole next line, and the next cue is
             # that line again, as in "We went home and then we slept" before
-            # "and then we slept".
+            # "and then we slept", or "Hello world" before "wurld".
             return None, False
     return end, False
 
@@ -477,29 +486,42 @@ def _align(script_lines, subtitle_items, cut_cues):
     return new_subtitle_items, cue_texts, subtitle_index, tied
 
 
-def _starts_its_cues(script_line, cue_text):
+def _start_similarity(script_line, cue_text):
     """
-    Return whether script_line is like the start of cue_text, the text of the
-    cues that _align() gave it (None when its cue is the line itself).
+    Return how much script_line is like the start of cue_text, the text of the
+    cues that _align() gave it (None when its cue is the line itself). Words
+    that Whisper wrote after the line, such as the start of the next line
+    written twice, do not count against it, as they do in similarity().
     """
     if cue_text is None:
-        return True
-    return 1 - min(_prefix_distances(script_line, cue_text)) / len(script_line) > 0.8
+        return 1.0
+    return 1 - min(_prefix_distances(script_line, cue_text)) / len(script_line)
+
+
+def _starts_its_cues(script_line, cue_text):
+    """Return whether script_line is more than 80% like the start of cue_text."""
+    return _start_similarity(script_line, cue_text) > 0.8
 
 
 def _keeps_every_match(script_lines, cue_texts, cut_cue_texts):
     """
-    Return whether the cuts leave every script line that the alignment without
-    them matches (its cue is the line, or more than 80% like it) at least as
-    like the text of its cues. cue_texts and cut_cue_texts are the texts that
-    _align() gave the lines without and with cuts.
+    Return whether no script line that the alignment without cuts matches is
+    matched worse with them. A line is matched when it is more than 80% like
+    the text of its cues (similarity(), and 100% when its cue is the line
+    itself), or more than 80% like the start of that text
+    (_start_similarity()), as its own cue can hold more than the line. With
+    the cuts, it must be at least as like its cues by each measure that it
+    passes. cue_texts and cut_cue_texts are the texts that _align() gave the
+    lines without and with cuts.
 
     A wrong cut moves the cues of the lines after it, and a line can still start
     the text of its moved cues: for "Hello, world. This is the next line of the
     script." with the cues "Hello world", "wurld" and "This is the next line of
-    the script", a cut after "Hello" leaves "wurld", "world" written again with
-    a letter wrong, to the last line, which then gets 5-9 s instead of its own
-    cue.
+    the script", a cut after "Hello" would leave "wurld", "world" written again
+    with a letter wrong, to the last line, which would then get 5-9 s instead
+    of its own cue. When that cue is "This is the next line of the script thank
+    you", the line is only 78% like it, but it starts it fully, and it would
+    start "wurld This is the next line of the script thank you" less well.
     """
     for script_line, cue_text, cut_cue_text in zip(
         script_lines, cue_texts, cut_cue_texts
@@ -509,6 +531,9 @@ def _keeps_every_match(script_lines, cue_texts, cut_cue_texts):
         script_line = script_line.strip()
         matched = 1.0 if cue_text is None else similarity(script_line, cue_text)
         if matched > 0.8 and similarity(script_line, cut_cue_text) < matched:
+            return False
+        started = _start_similarity(script_line, cue_text)
+        if started > 0.8 and _start_similarity(script_line, cut_cue_text) < started:
             return False
     return True
 
@@ -533,7 +558,8 @@ def correct(subtitle_file, video_script):
     # cue inside a word. A cut there gives the lines after it the wrong cues.
     # So the cuts are kept only when no cue was tied, every line then starts
     # the text of its cues, no cue is left unused that the lines use without
-    # cuts, and no line that matches its cues without cuts matches worse.
+    # cuts, and no line that matches or starts its cues without cuts matches
+    # or starts them worse.
     if (
         not tied
         and len(cut_items) == len(script_lines)

@@ -777,6 +777,120 @@ class TestSubtitleService(unittest.TestCase):
             cues,
         )
 
+    def test_correct_keeps_cues_when_the_line_after_a_copy_has_more_in_its_cue(self):
+        """
+        As in the tests above, but the cue of the long line holds more than the
+        line: the start of the last line, which the last cue has again, or two
+        words that Whisper added. The long line is then 80% or less like its
+        cue, but it starts it. Cut after "Hello", the first cue would give the
+        long line the cue "wurld" too, from 5 s, and in Chinese, with "朋有" for
+        "朋友", the cue "朋有" from 2.5 s. As on main, each line keeps its own cue.
+        """
+        cases = [
+            (
+                "Hello, world. This is the next line of the script, and then we stop.",
+                [
+                    ("00:00:00,000 --> 00:00:02,000", "Hello world", "Hello"),
+                    ("00:00:05,000 --> 00:00:06,000", "wurld", "world"),
+                    (
+                        "00:00:07,000 --> 00:00:09,900",
+                        "This is the next line of the script and then",
+                        "This is the next line of the script",
+                    ),
+                    (
+                        "00:00:10,200 --> 00:00:11,500",
+                        "and then we stop",
+                        "and then we stop",
+                    ),
+                ],
+            ),
+            (
+                "大家好，朋友。今天我们一起来做一顿简单的晚饭吧，然后一起去公园散步。",
+                [
+                    ("00:00:00,000 --> 00:00:02,000", "大家好朋友", "大家好"),
+                    ("00:00:02,500 --> 00:00:03,200", "朋有", "朋友"),
+                    (
+                        "00:00:03,600 --> 00:00:07,200",
+                        "今天我们一起来做一顿简单的晚饭吧然后一起",
+                        "今天我们一起来做一顿简单的晚饭吧",
+                    ),
+                    (
+                        "00:00:07,400 --> 00:00:09,500",
+                        "然后一起去公园散步",
+                        "然后一起去公园散步",
+                    ),
+                ],
+            ),
+            (
+                "Hello, world. This is the next line of the script.",
+                [
+                    ("00:00:00,000 --> 00:00:02,000", "Hello world", "Hello"),
+                    ("00:00:05,000 --> 00:00:06,000", "wurld", "world"),
+                    (
+                        "00:00:07,000 --> 00:00:10,000",
+                        "This is the next line of the script thank you",
+                        "This is the next line of the script",
+                    ),
+                ],
+            ),
+        ]
+
+        for script, cues in cases:
+            with self.subTest(script=script):
+                self.assertEqual(
+                    self._correct_cues([(times, cue) for times, cue, _ in cues], script),
+                    [(times, line) for times, _, line in cues],
+                )
+
+    def test_correct_keeps_the_transcription_when_a_cut_moves_a_line_onto_a_copy(self):
+        """
+        As in the first case of the test above, but Whisper also left out the
+        comma after the long line, so its cue holds the last line too, and the
+        cues run out without cuts. Cut after "Hello", the first cue would give
+        "world" 0.909-2 s and the long line 5-9.692 s. As on main, the
+        transcription is kept.
+        """
+        cues = [
+            ("00:00:00,000 --> 00:00:02,000", "Hello world"),
+            ("00:00:05,000 --> 00:00:06,000", "wurld"),
+            (
+                "00:00:07,000 --> 00:00:11,000",
+                "This is the next line of the script and then we stop",
+            ),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(
+                cues,
+                "Hello, world. This is the next line of the script, and then we stop.",
+            ),
+            cues,
+        )
+
+    def test_correct_keeps_cues_when_a_one_character_line_is_written_twice(self):
+        """
+        "出发吧走" looks like "出发吧" and the line "走", and "奏" can be "走"
+        written again with one character wrong. A line of one character is one
+        edit off any text, so "奏" does not count as a copy of it. Cut after
+        "出发吧", the first cue would give the last line "奏" too, from 2 s, but
+        that line starts its own cue, which holds two words that Whisper added,
+        better. As on main, each line keeps its own cue.
+        """
+        cues = [
+            ("00:00:00,000 --> 00:00:01,500", "出发吧走"),
+            ("00:00:02,000 --> 00:00:02,400", "奏"),
+            ("00:00:02,800 --> 00:00:06,000", "今天我们一起去公园散步就是说那个"),
+        ]
+
+        self.assertEqual(
+            self._correct_cues(cues, "出发吧，走。今天我们一起去公园散步。"),
+            [
+                ("00:00:00,000 --> 00:00:01,500", "出发吧"),
+                ("00:00:02,000 --> 00:00:02,400", "走"),
+                ("00:00:02,800 --> 00:00:06,000", "今天我们一起去公园散步"),
+            ],
+        )
+
     def test_correct_keeps_cues_when_a_cut_leaves_cues_unused(self):
         """
         A Chinese cue can end inside a word. Cut after "今天天气很好", its rest "我"
