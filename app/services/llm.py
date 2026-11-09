@@ -1356,6 +1356,37 @@ def _parse_social_metadata(response: str, platform: str) -> dict:
     return {"title": title, "caption": caption, "hashtags": hashtags}
 
 
+# A period with a following space is not the end of the first sentence when
+# it marks a numbered tip ("1. Save weekly."), an initial ("U.S. policy",
+# "10:30 a.m."), or a short title ("No. 1", "Mr. Smith", "Fig. 3").
+# "2.0" has no space after the dot and never reaches this check.
+_SOCIAL_TITLE_ABBREVIATIONS = frozenset(
+    {"no", "fig", "vol", "mr", "mrs", "ms", "dr", "st", "prof", "jr", "sr"}
+)
+_SOCIAL_TITLE_BREAK = re.compile(r"(?<=[.!?])\s+|(?<=[。！？])\s*")
+_SOCIAL_TITLE_TOKEN = re.compile(r"[A-Za-z]+$|[0-9]+$")
+
+
+def _first_social_title_sentence(script: str) -> str:
+    """Return the first sentence of a fallback title."""
+    for match in _SOCIAL_TITLE_BREAK.finditer(script):
+        punctuation = script[match.start() - 1]
+        if punctuation != ".":
+            return script[: match.start()]
+        token = _SOCIAL_TITLE_TOKEN.search(script[: match.start() - 1])
+        if token is None:
+            return script[: match.start()]
+        word = token.group()
+        if (
+            word.isdigit()
+            or len(word) == 1
+            or word.lower() in _SOCIAL_TITLE_ABBREVIATIONS
+        ):
+            continue
+        return script[: match.start()]
+    return script
+
+
 def _fallback_social_metadata(
     video_subject: str, video_script: str, platform: str
 ) -> dict:
@@ -1366,7 +1397,7 @@ def _fallback_social_metadata(
     title = subject
     if not title and script:
         # 中日文句末通常没有空格；英文仍要求空白，避免拆开 2.0 等数字。
-        title = re.split(r"(?<=[.!?])\s+|(?<=[。！？])\s*", script, maxsplit=1)[0]
+        title = _first_social_title_sentence(script)
 
     return {
         "title": _clamp_text(title, spec["title_max"]),
