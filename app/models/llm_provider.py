@@ -587,6 +587,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.cheapaimodel.ai/v1",
         model_docs_url="https://cheapaimodel.ai/models",
     ),
+    LLMProviderSpec(
+        "standardcompute",
+        "Standard Compute",
+        api_key_url="https://standardcompute.com",
+        default_model="StandardCompute",
+        default_base_url="https://api.stdcmpt.com/v1",
+        model_docs_url="https://api.stdcmpt.com/v1/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
