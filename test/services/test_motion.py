@@ -1,6 +1,7 @@
 """Motion Studio: storyboard validation, writer repair, key handling, uploads, timing and API."""
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -338,6 +339,33 @@ class TestPipelinePrepare(unittest.TestCase):
         self.assertTrue(copied)
         self.assertEqual(scene["character"], {"kind": "image", "url": "/job/character.png"})
         self.assertEqual(len(scene["beats"]), 6)
+        self.assertEqual(scene["palette"], "lilac")  # first job ever
+
+    def test_palettes_rotate_without_back_to_back_repeats(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, used = Path(tmp), []
+            for i in range(len(pipeline.PALETTES) * 2 + 1):
+                palette = pipeline.next_palette(root)
+                used.append(palette)
+                job = root / f"job{i}"
+                job.mkdir()
+                (job / "storyboard.json").write_text(json.dumps({"palette": palette}), encoding="utf-8")
+                os.utime(job / "storyboard.json", (1000 + i, 1000 + i))
+        self.assertEqual(used[: len(pipeline.PALETTES)], list(pipeline.PALETTES))
+        self.assertEqual(used[len(pipeline.PALETTES):], list(pipeline.PALETTES) + ["lilac"])
+
+    def test_old_jobs_without_a_palette_count_as_lilac(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "old").mkdir()
+            (Path(tmp) / "old" / "storyboard.json").write_text("{}", encoding="utf-8")
+            (Path(tmp) / "broken").mkdir()
+            (Path(tmp) / "broken" / "storyboard.json").write_text("not json", encoding="utf-8")
+            self.assertEqual(pipeline.next_palette(Path(tmp)), "peach")
+
+    def test_every_palette_is_defined_in_the_engine_css(self):
+        css = (Path(asgi.__file__).resolve().parents[1] / "resource" / "motion" / "base.css").read_text(encoding="utf-8")
+        for palette in pipeline.PALETTES[1:]:  # lilac is the :root default
+            self.assertIn(f':root[data-palette="{palette}"]', css)
 
 
 class FakeRender:

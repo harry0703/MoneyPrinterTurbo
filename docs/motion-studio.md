@@ -112,8 +112,10 @@ renderer.py  headless Chrome plays resource/motion/auto.html; every frame is pip
 ```
 
 Scene layouts: `hook`, `big_number` (counts up), `compare`, `list`, `statement`, `outro`. Text shrinks to
-fit its box. The look ("sticker pop": lilac stage, ink outlines, lime and coral) lives in
-`resource/motion/base.css`.
+fit its box. The look ("sticker pop": dot-grid stage, paper cards, ink outlines) lives in
+`resource/motion/base.css`. Each video gets one of seven colour palettes (lilac, peach, sky, bubblegum,
+mint, butter, aqua), picked so back-to-back videos never share one; `PALETTES` in
+`app/services/motion/pipeline.py` sets the rotation order.
 
 ## Development
 

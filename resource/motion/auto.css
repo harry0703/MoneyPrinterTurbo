@@ -24,7 +24,7 @@
 .cmp-head { top: 220px; height: 170px; }
 .card { position: absolute; top: 420px; width: 430px; height: 370px; background: var(--paper); border: var(--bw) solid var(--ink);
   border-top-width: 20px; border-radius: 24px; box-shadow: var(--hard); opacity: 0; }
-.card[data-tone="good"] { border-top-color: #9BC21F; }
+.card[data-tone="good"] { border-top-color: var(--accent-deep); }
 .card[data-tone="bad"] { border-top-color: var(--danger); }
 .cmp-left { left: 90px; }
 .cmp-right { left: 560px; }

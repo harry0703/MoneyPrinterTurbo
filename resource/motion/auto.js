@@ -179,6 +179,7 @@ function build(sb) {
     return view;
   });
   $('stage').classList.toggle('no-host', !sb.character || sb.character.kind === 'none');
+  document.documentElement.dataset.palette = sb.palette || 'lilac';
   scenes = sb.beats.map((b, i) => [`beat${i}`, b.start, i + 1 < sb.beats.length ? sb.beats[i + 1].start : b.end + 5]);
   moods = sb.beats.map((b) => [b.start, MOOD_MAP[b.mood] || 'neutral']);
   points = sb.beats.flatMap((b) => [b.start + 0.15, b.emph]).filter((x) => x != null).sort((a, z) => a - z);
