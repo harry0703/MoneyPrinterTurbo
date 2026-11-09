@@ -111,6 +111,16 @@ class TestTiming(unittest.TestCase):
         speech.mark_breaks(words, "Hello, there friend")
         self.assertEqual([w.get("br") for w in words], [True, False, True])
 
+    def test_tokens_written_without_spaces_become_one_caption_word(self):
+        spoken = ["या", "cybercrime", ".", "gov", ".", "in", "पर"]
+        words = [{"text": t, "start": i, "end": i + 0.5} for i, t in enumerate(spoken)]
+        joined = speech.join_glued(words, "या cybercrime.gov.in पर, ok")
+        self.assertEqual([w["text"] for w in joined], ["या", "cybercrime.gov.in", "पर"])
+        self.assertEqual((joined[1]["start"], joined[1]["end"]), (1, 5.5))
+        self.assertEqual(words[1]["text"], "cybercrime")  # input left untouched
+        missing = [{"text": "x", "start": 0, "end": 1}]
+        self.assertEqual(speech.join_glued(missing, "other text"), missing)
+
     def test_emphasis_finds_the_spoken_word(self):
         words = [{"text": "सबसे", "start": 1.0}, {"text": "महंगी", "start": 1.4}, {"text": "गलती", "start": 1.9}]
         self.assertEqual(speech.emphasis_time(words, "महंगी"), 1.4)

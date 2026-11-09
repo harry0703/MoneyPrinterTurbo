@@ -17,12 +17,16 @@ const hash01 = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; retu
 let W = [], phrases = [];
 
 // Caption phrases break where the script has punctuation (w.br), or at spoken pauses when that is
-// missing; long phrases are capped at maxLen words.
+// missing. A phrase longer than maxLen words is cut into even chunks, so no word is left alone
+// ("follow करना मत | भूलें" would read as "don't follow").
 function phrasesFrom(words, gap = 0.2, maxLen = 6) {
   const out = [], hasBreaks = words.some((w) => 'br' in w); let from = 0;
   words.forEach((w, i) => {
     const next = words[i + 1], pause = hasBreaks ? w.br : next && next.start - w.end > gap;
-    if (!next || pause || i - from + 1 >= maxLen) { out.push({ from, to: i }); from = i + 1; }
+    if (next && !pause) return;
+    const len = i - from + 1, n = Math.ceil(len / maxLen);
+    for (let k = 0; k < n; k++) out.push({ from: from + Math.round((k * len) / n), to: from + Math.round(((k + 1) * len) / n) - 1 });
+    from = i + 1;
   });
   return out;
 }

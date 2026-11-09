@@ -85,9 +85,13 @@ YouTube
 
 DEVANAGARI_RULES = (
     "Write in Devanagari, keeping common English terms (credit card, SIP, AI, app names) in English letters. "
-    "In \"say\", write numbers as words (e.g. \"साढ़े तीन प्रतिशत\"); on screen use digits and symbols."
+    "In \"say\", write numbers as words the way people say them (e.g. \"साढ़े तीन प्रतिशत\", helpline 1930 as \"उन्नीस सौ तीस\"). "
+    "Everywhere else (on-screen fields, the outro label, the YouTube description) use digits and symbols."
 )
-DEFAULT_RULES = "In \"say\", write numbers the way they are spoken; on screen use digits and symbols."
+DEFAULT_RULES = (
+    "In \"say\", write numbers the way they are spoken. "
+    "Everywhere else (on-screen fields, the outro label, the YouTube description) use digits and symbols."
+)
 
 BRIEF = """Creator's brief
 Title: {title}

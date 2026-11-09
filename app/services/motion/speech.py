@@ -71,6 +71,27 @@ def _decode(mp3: bytes) -> np.ndarray:
     return np.frombuffer(pcm, np.int16)
 
 
+def join_glued(words: list[dict], text: str) -> list[dict]:
+    """Merge spoken tokens the script writes without a space between them.
+
+    Edge TTS splits "cybercrime.gov.in" into five tokens; the caption should show it as one word.
+    Tokens that can't be found in the script are kept as they are.
+    """
+    out, pos, glued_at = [], 0, None
+    for w in words:
+        at = text.find(w["text"], pos)
+        if at < 0:
+            out.append(dict(w))
+            glued_at = None
+            continue
+        if out and at == glued_at:
+            out[-1] = {**out[-1], "text": out[-1]["text"] + w["text"], "end": w["end"]}
+        else:
+            out.append(dict(w))
+        pos = glued_at = at + len(w["text"])
+    return out
+
+
 def mark_breaks(words: list[dict], text: str) -> None:
     """Flag words that end a caption phrase (followed by , ? । ! . in the script).
 
@@ -123,6 +144,7 @@ def synthesize(texts: list[str], voice: str, out_dir: Path) -> Speech:
         except Exception as error:  # network, service or codec failure
             raise MotionError("Couldn't reach the voice service (Edge TTS). Check your internet connection and try again.") from error
         samples = _decode(mp3)
+        beat_words = join_glued(beat_words, text)
         offset = cursor / SAMPLE_RATE
         for w in beat_words:
             w["start"] = round(w["start"] + offset, 3)
