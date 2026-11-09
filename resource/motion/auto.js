@@ -59,6 +59,11 @@ function counter(text) {
   return (p) => pre + (locale ? (target * p).toLocaleString(locale, fmt) : (target * p).toFixed(decimals)) + post;
 }
 
+// The main visual pops on the beat's emphasis word, but never later than MAX_WAIT_S into the scene: a
+// late emphasis word must not leave the screen half empty (a hook once hid its number for 9 seconds).
+const MAX_WAIT_S = 1.6;
+const revealAt = (b, fallback) => Math.min(b.emph ?? b.start + fallback, b.start + MAX_WAIT_S);
+
 // ---------- layouts: each returns {node, fits: [[el, maxPx]], play(t)} ----------
 const LAYOUTS = {
   hook(b) {
@@ -70,7 +75,7 @@ const LAYOUTS = {
       play(t) {
         rise(head, t, b.start + 0.05, 0.45, 40);
         if (kick) {
-          const at = b.emph ?? b.start + 0.6;
+          const at = revealAt(b, 0.6);
           pop(kick, t, at, 0.5);
           if (t > at + 0.5) kick.style.transform = `scale(${bump(t, at + 0.5, 0.4, 0.06)})`;
         }
@@ -86,7 +91,7 @@ const LAYOUTS = {
     return {
       node, fits: [[label, 60], [value, 250], sub && [sub, 72]],
       play(t) {
-        const at = b.emph ?? b.start + 0.4;
+        const at = revealAt(b, 0.4);
         rise(label, t, b.start + 0.05, 0.4, 24);
         pop(value, t, at - 0.1, 0.45);
         if (count) text.textContent = count(outCubic(prog(t, at - 0.1, 0.9)));
@@ -111,7 +116,7 @@ const LAYOUTS = {
       play(t) {
         rise(head, t, b.start + 0.05, 0.4, 30);
         pop(L.card, t, b.start + 0.35, 0.45);
-        pop(R.card, t, b.emph ?? b.start + 0.45 * dur, 0.45);
+        pop(R.card, t, Math.min(b.emph ?? b.start + 0.45 * dur, b.start + 0.5 * dur), 0.45);
         if (kick) pop(kick, t, b.start + 0.72 * dur, 0.45);
       },
     };
@@ -160,7 +165,7 @@ const LAYOUTS = {
       node, fits: [label && [label, 50], [cta, 104]],
       play(t) {
         if (label) rise(label, t, b.start + 0.15, 0.4, 24);
-        const at = b.emph ?? b.start + 0.5;
+        const at = revealAt(b, 0.5);
         pop(cta, t, at, 0.45);
         if (t > at + 0.45) cta.style.transform = `scale(${1 + 0.04 * Math.sin((t - at) * 7)})`;
       },
