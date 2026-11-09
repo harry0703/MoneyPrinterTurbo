@@ -1033,6 +1033,10 @@ def combine_videos(
 
     processed_clips = []
     subclipped_items = []
+    # Sequential mode plays the first slice of every source before the others.
+    # The other slices wait here and fill only the time that the first slices
+    # leave, so footage repeats only after every slice has played.
+    later_items: dict[str, list[SubClippedVideoClip]] = {}
     video_duration = 0
     for video_path in video_paths:
         clip = None
@@ -1058,6 +1062,7 @@ def combine_videos(
             close_clip(clip)
         
         start_time = 0
+        segments = []
 
         while start_time < clip_duration:
             end_time = min(start_time + source_clip_duration, clip_duration)
@@ -1066,7 +1071,7 @@ def combine_videos(
             # 这样既不会丢掉“整段视频本身就短于 max_clip_duration”的素材，
             # 也不会吞掉长视频最后剩下的一小段尾部内容。
             if end_time > start_time:
-                subclipped_items.append(
+                segments.append(
                     SubClippedVideoClip(
                         file_path=video_path,
                         start_time=start_time,
@@ -1078,8 +1083,12 @@ def combine_videos(
                 )
 
             start_time = end_time
-            if video_concat_mode.value == VideoConcatMode.sequential.value:
-                break
+
+        if video_concat_mode.value == VideoConcatMode.sequential.value:
+            subclipped_items.append(segments[0])
+            later_items[video_path] = segments[1:]
+        else:
+            subclipped_items.extend(segments)
 
     subclipped_items = _prioritize_unique_source_clips(
         subclipped_items=subclipped_items,
@@ -1087,6 +1096,14 @@ def combine_videos(
         **({"source_usage": source_usage, "source_groups": source_groups}
            if source_usage is not None else {}),
     )
+    # Sequential mode appends its later slices after this index. They only fill
+    # narration that the first slices leave uncovered.
+    first_item_count = len(subclipped_items)
+    if later_items:
+        # One more slice of each source per round, in the order the first slices play.
+        sources = dict.fromkeys(item.source_file_path for item in subclipped_items)
+        rounds = itertools.zip_longest(*(later_items[source] for source in sources))
+        subclipped_items += [item for row in rounds for item in row if item is not None]
         
     logger.debug(f"total subclipped items: {len(subclipped_items)}")
     
@@ -1221,6 +1238,14 @@ def combine_videos(
             batch_duration = 0.0
             candidate_index = next_candidate_index
             while candidate_index < len(subclipped_items) and batch_duration < remaining_duration:
+                if (
+                    candidate_index >= first_item_count
+                    and video_duration + batch_duration >= audio_duration
+                ):
+                    # The narration is covered, so this slice would start where the
+                    # final max_duration cut ends the video. As on main, the loop below
+                    # fills the safety margin with a clip that is already encoded.
+                    break
                 subclipped_item = subclipped_items[candidate_index]
                 source_duration = subclipped_item.end_time - subclipped_item.start_time
                 output_duration = min(
