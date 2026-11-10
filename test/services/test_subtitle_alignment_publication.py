@@ -12,7 +12,8 @@ def test_whisper_sentence_publication_preserves_timed_transcription(tmp_path):
         "1\n00:00:00,100 --> 00:00:02,000\nIt runs as you so it can change memory\n\n"
         "2\n00:00:02,500 --> 00:00:04,000\nThat is the gate\n\n"
     )
-    script = "It runs as you, so it can change memory. That is the gate."
+    # The transcription has no cue for the last sentence of the script.
+    script = "It runs as you, so it can change memory. That is the gate. Stay safe."
     params = VideoParams(
         video_subject="alignment",
         subtitle_enabled=True,
