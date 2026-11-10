@@ -407,6 +407,13 @@ cheapaimodel_api_key = ""
 cheapaimodel_base_url = ""
 cheapaimodel_model_name = ""
 
+# UberLLM, a pay-as-you-go OpenAI-compatible API for models from many labs.
+# API key: https://uberllm.dev/signup
+# Model list: https://uberllm.dev/models
+uberllm_api_key = ""
+uberllm_base_url = ""
+uberllm_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
