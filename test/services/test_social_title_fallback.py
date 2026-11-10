@@ -30,6 +30,8 @@ from app.services import llm
         ("", "Fig. 3 shows the trend. See the chart.", "Fig. 3 shows the trend."),
         ("", "1. Save a little each week. Start now.", "1. Save a little each week."),
         ("", "U.S. policy changed. Details follow.", "U.S. policy changed."),
+        ("", "My score is 42. Next we discuss savings.", "My score is 42."),
+        ("", "I chose option A. Next we discuss savings.", "I chose option A."),
         ("", "Ready? Learn more.", "Ready?"),
         ("", "Welcome! Learn more.", "Welcome!"),
         ("", "没有句号的脚本", "没有句号的脚本"),

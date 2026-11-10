@@ -1357,9 +1357,10 @@ def _parse_social_metadata(response: str, platform: str) -> dict:
 
 
 # A period with a following space is not the end of the first sentence when
-# it marks a numbered tip ("1. Save weekly."), an initial ("U.S. policy",
-# "10:30 a.m."), or a short title ("No. 1", "Mr. Smith", "Fig. 3").
-# "2.0" has no space after the dot and never reaches this check.
+# it marks a numbered tip at the start of a line ("1. Save weekly."), closes a
+# dotted abbreviation ("U.S. policy", "10:30 a.m."), or follows a short title
+# ("No. 1", "Mr. Smith", "Fig. 3"). "My score is 42." and "option A." still end
+# the sentence. "2.0" has no space after the dot and never reaches this check.
 _SOCIAL_TITLE_ABBREVIATIONS = frozenset(
     {"no", "fig", "vol", "mr", "mrs", "ms", "dr", "st", "prof", "jr", "sr"}
 )
@@ -1373,17 +1374,20 @@ def _first_social_title_sentence(script: str) -> str:
         punctuation = script[match.start() - 1]
         if punctuation != ".":
             return script[: match.start()]
-        token = _SOCIAL_TITLE_TOKEN.search(script[: match.start() - 1])
+        head = script[: match.start() - 1]
+        token = _SOCIAL_TITLE_TOKEN.search(head)
         if token is None:
             return script[: match.start()]
         word = token.group()
-        if (
-            word.isdigit()
-            or len(word) == 1
-            or word.lower() in _SOCIAL_TITLE_ABBREVIATIONS
-        ):
-            continue
-        return script[: match.start()]
+        before = head[: token.start()].rstrip(" \t")
+        if word.isdigit():
+            is_marker = not before or before.endswith("\n")
+        elif len(word) == 1:
+            is_marker = before.endswith(".")
+        else:
+            is_marker = word.lower() in _SOCIAL_TITLE_ABBREVIATIONS
+        if not is_marker:
+            return script[: match.start()]
     return script
 
 
