@@ -292,6 +292,8 @@
     "llm_provider_tips.cloudgpu": "##### CloudGPU Configuration\n- **API Key**: Sign in and create an API key at [CloudGPU]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs\n\nCloudGPU is a GPU cloud with an OpenAI-compatible API. The default model is deepseek-v4-flash. API documentation: [CloudGPU API docs](https://cloudgpu.app/api/docs).",
     "llm_provider_label.cheapaimodel": "cheapaimodel",
     "llm_provider_tips.cheapaimodel": "##### cheapaimodel Configuration\n- **API Key**: Sign in and create an API key on the [cheapaimodel API keys page]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs\n\ncheapaimodel is an OpenAI-compatible, pay-per-token gateway for open-weight models (DeepSeek, GLM, Kimi) and Grok, prepaid in USD. API documentation: [cheapaimodel docs](https://cheapaimodel.ai/docs).",
+    "llm_provider_label.uberllm": "UberLLM",
+    "llm_provider_tips.uberllm": "##### UberLLM Configuration\n- **API Key**: Sign up and create an API key at [UberLLM]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs in `provider/model` form\n\nUberLLM is a pay-as-you-go, OpenAI-compatible API: one API key serves models from many labs (GPT, Claude, Gemini, DeepSeek, Qwen, Kimi and more). It is prepaid; there is no free tier.",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",

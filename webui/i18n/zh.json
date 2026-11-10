@@ -292,6 +292,8 @@
     "llm_provider_tips.cloudgpu": "##### CloudGPU 配置说明\n- **API Key**: 登录后在 [CloudGPU]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nCloudGPU 是 GPU 云平台，提供兼容 OpenAI 接口的模型 API。默认模型为 deepseek-v4-flash。接口说明见 [CloudGPU API 文档](https://cloudgpu.app/api/docs)。",
     "llm_provider_label.cheapaimodel": "cheapaimodel",
     "llm_provider_tips.cheapaimodel": "##### cheapaimodel 配置说明\n- **API Key**: 登录后在 [cheapaimodel API Keys 页面]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\ncheapaimodel 是兼容 OpenAI 接口、按 token 计费的模型网关，可调用 DeepSeek、GLM、Kimi 等开放权重模型和 Grok，以美元预付。接口说明见 [cheapaimodel 文档](https://cheapaimodel.ai/docs)。",
+    "llm_provider_label.uberllm": "UberLLM",
+    "llm_provider_tips.uberllm": "##### UberLLM 配置说明\n- **API Key**: 在 [UberLLM]({api_key_url}) 注册并创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它 `provider/model` 格式的模型 ID\n\nUberLLM 是按量付费、兼容 OpenAI 接口的模型 API，一个 API Key 可调用 GPT、Claude、Gemini、DeepSeek、Qwen、Kimi 等多家厂商的模型。需预充值，无免费额度。",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
