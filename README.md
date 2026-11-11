@@ -156,6 +156,18 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://apixo.ai/zh?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_logo"><img src="docs/sponsors/apixo-seedream-zh.png" alt="APIXO AI：Seedream 5.5 官价七折，&#36;0.014/张起" width="100" height="100"></a><br>
+      <a href="https://apixo.ai/zh?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_brand"></a>
+    </td>
+    <td align="left">
+      <strong><a href="https://apixo.ai/zh?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_brand">APIXO AI</a>：一站式 AI 图片与视频创作平台</strong><br>
+      在 <strong>APIXO AI</strong> 网页生成图片与视频，也可通过 API 接入应用与自动化流程。<br>
+      <strong><a href="https://apixo.ai/zh/models/seedream-5-5?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_model">Seedream 5.5</a> 文生图 API 限时官价七折，&#36;0.014/张起。</strong><br>
+      <a href="https://apixo.ai/zh/deals/black-friday?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_deals">探索 APIXO AI 模型与优惠 →</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn">录咖 AI</a>
     </td>
@@ -646,3 +658,5 @@ Trying to load the model directly from the local cache, if it exists.
 ## 许可证 📝
 
 点击查看 [`LICENSE`](LICENSE) 文件
+
+APIXO AI verification: apixo.ai

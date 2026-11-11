@@ -95,6 +95,18 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://apixo.ai/ja?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_logo"><img src="docs/sponsors/apixo-seedream-ja.png" alt="APIXO AI：Seedream 5.5、30%オフ、1枚 &#36;0.014〜" width="100" height="100"></a><br>
+      <a href="https://apixo.ai/ja?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_brand"></a>
+    </td>
+    <td align="left">
+      <strong><a href="https://apixo.ai/ja?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_brand">APIXO AI</a>：AI画像・動画制作をひとつの場所で</strong><br>
+      <strong>APIXO AI</strong>で画像・動画をブラウザから制作。APIでアプリや自動化ワークフローにも組み込めます。<br>
+      <strong><a href="https://apixo.ai/ja/models/seedream-5-5?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_model">Seedream 5.5</a>のテキスト画像生成APIが1枚&#36;0.014から、期間限定で公式価格比30%オフ。</strong><br>
+      <a href="https://apixo.ai/ja/deals/black-friday?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_deals">APIXO AIのモデルとキャンペーンを見る →</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>
@@ -312,11 +324,11 @@ CLI での動画生成については `mpt cli --help` を参照してくださ�
 オンラインのモデル、素材、音声サービスを利用する前に、WebUI の基本設定で必要な API キーを入力してください。
 インストール版の設定と生成ファイルは、既定では以下の場所に保存されます:
 
-| OS | データディレクトリ |
-| --- | --- |
-| macOS | `~/Library/Application Support/MoneyPrinterTurbo` |
-| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo` |
-| Linux | `~/.local/share/MoneyPrinterTurbo` または `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+| OS      | データディレクトリ                                                           |
+| ------- | ---------------------------------------------------------------------------- |
+| macOS   | `~/Library/Application Support/MoneyPrinterTurbo`                            |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo`                                           |
+| Linux   | `~/.local/share/MoneyPrinterTurbo` または `$XDG_DATA_HOME/MoneyPrinterTurbo` |
 
 起動前に `MPT_HOME` を設定すると、保存先を変更できます。
 生成された動画は、そのディレクトリ内の `storage/tasks` に保存されます。
