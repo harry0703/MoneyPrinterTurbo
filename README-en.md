@@ -143,6 +143,18 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://apinebula.ai/ref/luDuqJIb"><img src="docs/sponsors/apinebula-logo.png" alt="APINEBULA" width="56" height="56"></a><br>
+      <a href="https://apinebula.ai/ref/luDuqJIb"><strong>APINEBULA</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://apinebula.ai/ref/luDuqJIb">APINEBULA</a> for sponsoring this project!<br>
+      APINEBULA brings leading AI models together in one platform, giving developers, teams, and businesses reliable, cost-effective API access.<br>
+      Use Claude, GPT, and Gemini through a single API, with prices <strong>as low as 6% of standard rates</strong>. Built for high-concurrency workloads, APINEBULA also offers <strong>enterprise contracts, corporate bank transfers, and invoicing</strong>.<br>
+      <a href="https://apinebula.ai/ref/luDuqJIb">Sign up through our referral link</a> and use the promo code <strong>MPT</strong> when topping up to get <strong>10% off</strong>!
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>

@@ -144,6 +144,18 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://apinebula.ai/ref/luDuqJIb"><img src="docs/sponsors/apinebula-logo.png" alt="APINEBULA" width="56" height="56"></a><br>
+      <a href="https://apinebula.ai/ref/luDuqJIb"><strong>APINEBULA</strong></a>
+    </td>
+    <td align="left">
+      感谢 <a href="https://apinebula.ai/ref/luDuqJIb">APINEBULA</a> 赞助本项目！<br>
+      APINEBULA 是银河录像局旗下的企业级 AI 聚合平台，依托大平台资源，为开发者、团队与企业提供稳定、高性价比的大模型 API 接入服务。<br>
+      聚合 Claude、GPT、Gemini 等主流满血模型，一个接口即可接入全球顶尖 AI 大模型，价格<strong>低至 0.6 折</strong>；支持企业级高并发，提供<strong>正式合同、对公打款与开票服务</strong>。<br>
+      通过<a href="https://apinebula.ai/ref/luDuqJIb">专属链接注册</a>，充值时填写优惠码 <strong>MPT</strong>，即可享<strong>九折优惠</strong>！
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn">录咖 AI</a>
     </td>

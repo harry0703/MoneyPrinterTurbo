@@ -399,6 +399,14 @@ LLM_PROVIDER_REGISTRY = (
     ),
     # 聚合与统一接入平台
     LLMProviderSpec(
+        "apinebula",
+        "APINEBULA",
+        api_key_url="https://apinebula.ai/ref/luDuqJIb",
+        default_model="gpt-6.1-sol",
+        default_base_url="https://apinebula.ai/v1",
+        model_docs_url="https://apinebula.ai/zh/pricing",
+    ),
+    LLMProviderSpec(
         "jalapeno",
         "Jalapeno Cloud",
         api_key_url="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo",

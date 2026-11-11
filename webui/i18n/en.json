@@ -264,6 +264,8 @@
     "Recommended": "Recommended",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI (Recommended)",
     "llm_provider_label.muse_spark": "Muse Spark",
+    "llm_provider_label.apinebula": "APINEBULA",
+    "llm_provider_tips.apinebula": "##### APINEBULA Configuration\n- **API Key**: Register through the [referral link]({api_key_url}) and create a key in the console\n- **Base Url**: Defaults to `{default_base_url}`; do not include the full `/chat/completions` path\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs available to your account\n\nAPINEBULA sponsors MoneyPrinterTurbo and provides an OpenAI-compatible API for video scripts and stock-footage search terms. Enter the promo code **MPT** when topping up to get 10% off.",
     "llm_provider_label.infistar": "Infistar",
     "llm_provider_tips.infistar": "##### Infistar Configuration\n- **API Key**: Create a key in the [Infistar console]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs\n\nInfistar sponsors MoneyPrinterTurbo and provides an OpenAI-compatible API.",
     "llm_provider_label.shengsuanyun": "Shengsuan Cloud",

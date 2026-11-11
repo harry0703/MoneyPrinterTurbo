@@ -264,6 +264,8 @@
     "Recommended": "推荐",
     "llm_provider_label.moonshot": "Kimi / Moonshot AI（推荐）",
     "llm_provider_label.muse_spark": "Muse Spark",
+    "llm_provider_label.apinebula": "APINEBULA",
+    "llm_provider_tips.apinebula": "##### APINEBULA 配置说明\n- **API Key**：通过[专属链接]({api_key_url})注册后在控制台创建密钥\n- **Base Url**：默认 `{default_base_url}`，无需填写完整的 `/chat/completions` 路径\n- **Model Name**：默认 `{default_model}`，可在[模型列表]({model_docs_url})查看账号可用的模型 ID\n\nAPINEBULA 是 MoneyPrinterTurbo 的项目赞助商，提供 OpenAI 兼容接口，用于生成视频文案和素材搜索关键词。充值时填写 **MPT** 优惠码可享九折优惠。",
     "llm_provider_label.infistar": "无限星河 AI / Infistar",
     "llm_provider_tips.infistar": "##### 无限星河 AI 配置说明\n- **API Key**：在[无限星河控制台]({api_key_url})创建密钥\n- **Base Url**：默认 `{default_base_url}`\n- **Model Name**：默认 `{default_model}`；其他模型 ID 请查看[模型列表]({model_docs_url})\n\nInfistar 是 MoneyPrinterTurbo 的项目赞助商，提供 OpenAI 兼容接口。",
     "llm_provider_label.shengsuanyun": "胜算云",

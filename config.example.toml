@@ -272,6 +272,14 @@ moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""
 
+# APINEBULA：项目赞助商，提供 OpenAI 兼容接口。
+# 注册：https://apinebula.ai/ref/luDuqJIb；充值时使用 MPT 优惠码享九折。
+# 模型列表：https://apinebula.ai/zh/pricing
+# 地址和模型留空时使用 https://apinebula.ai/v1 和 gpt-6.1-sol。
+apinebula_api_key = ""
+apinebula_base_url = ""
+apinebula_model_name = ""
+
 # 无限星河 AI（Infistar），项目赞助商，提供 OpenAI 兼容接口。
 # 密钥：https://infistar.cc/keys；模型列表：https://infistar.cc/pricing
 # 地址和模型留空时使用 https://infistar.cc/v1 和 gpt-6-luna。
