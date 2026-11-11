@@ -407,6 +407,16 @@ cheapaimodel_api_key = ""
 cheapaimodel_base_url = ""
 cheapaimodel_model_name = ""
 
+# Standard Compute, an OpenAI-compatible LLM gateway. The default model
+# `StandardCompute` routes each request to the cheapest enabled model that can
+# handle it, with automatic fallback; pinned model ids are listed by the public
+# model list below.
+# API key: https://standardcompute.com
+# Model list: https://api.stdcmpt.com/v1/models
+standardcompute_api_key = ""
+standardcompute_base_url = ""
+standardcompute_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""

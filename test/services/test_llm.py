@@ -659,6 +659,17 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             cheapaimodel.model_docs_url, "https://cheapaimodel.ai/models"
         )
+        standardcompute = get_llm_provider("standardcompute")
+        self.assertEqual(standardcompute.default_model, "StandardCompute")
+        self.assertEqual(
+            standardcompute.default_base_url, "https://api.stdcmpt.com/v1"
+        )
+        self.assertEqual(standardcompute.adapter, "openai_compatible")
+        self.assertTrue(standardcompute.requires_api_key)
+        self.assertEqual(standardcompute.api_key_url, "https://standardcompute.com")
+        self.assertEqual(
+            standardcompute.model_docs_url, "https://api.stdcmpt.com/v1/models"
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -745,6 +756,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "runcrate",
                 "cloudgpu",
                 "cheapaimodel",
+                "standardcompute",
                 "ollama",
                 "claude_code",
                 "oneapi",
