@@ -113,6 +113,7 @@ MPT_VOLCENGINE_ARK_API_KEY
 MPT_OFOX_API_KEY
 MPT_METASO_MINIMAX_API_KEY
 MPT_MUAPI_API_KEY
+MPT_GENMAGIC_API_KEY
 MPT_INFISTAR_VIDEO_API_KEY
 MPT_JALAPENO_VIDEO_API_KEY
 ```
@@ -138,6 +139,12 @@ this flag silently.
 When `MUAPI_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated MuAPI clip creates a paid task. Only after the user explicitly
 confirms, rerun with `--confirm-muapi-charge`; never add this flag silently.
+
+When `GENMAGIC_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
+generated GenMagic clip is billed when it completes (a failed job is not billed),
+at the price of the chosen model, clip length and resolution. Only after the user
+explicitly confirms, rerun with `--confirm-genmagic-charge`; never add this flag
+silently.
 
 When `INFISTAR_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated Infistar clip creates a paid task. Only after the user explicitly

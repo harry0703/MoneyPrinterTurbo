@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from app.config import config
-from app.services import metaso_minimax, ofox, volcengine_seedance
+from app.services import genmagic, metaso_minimax, ofox, volcengine_seedance
 
 
 PROVIDERS = (
@@ -26,6 +26,7 @@ PROVIDERS = (
         "base_url",
         metaso_minimax.MetasoMiniMaxUnconfirmedTaskError,
     ),
+    (genmagic, "genmagic", "base_url", genmagic.GenMagicUnconfirmedTaskError),
 )
 
 
