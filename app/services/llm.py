@@ -774,6 +774,22 @@ def _generate_response(
             **_sdk_transport_options(request_timeout, max_retries),
         )
 
+        if adapter == "openai_responses":
+            # APIXO 的 GPT 模型仅支持 Responses；未完成的响应可能带有部分
+            # 正文，必须先确认完成状态，避免把截断文案交给配音和素材生成。
+            response = trace_sdk_call(
+                llm_provider, base_url, client.responses.create,
+                model=model_name, input=prompt,
+            )
+            if getattr(response, "status", None) != "completed":
+                raise ValueError(
+                    f"[{llm_provider}] response did not complete "
+                    f"(status={getattr(response, 'status', None)})"
+                )
+            return _normalize_text_response(
+                getattr(response, "output_text", None), llm_provider
+            )
+
         response = trace_sdk_call(
             llm_provider, base_url, client.chat.completions.create,
             model=model_name, messages=[{"role": "user", "content": prompt}]

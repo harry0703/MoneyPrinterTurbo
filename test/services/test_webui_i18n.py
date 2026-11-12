@@ -96,6 +96,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.shengsuanyun",
         "llm_provider_label.infistar",
         "llm_provider_label.apinebula",
+        "llm_provider_label.apixo",
         "llm_provider_label.jalapeno",
         "Jalapeno Cloud AI Video",
         "Jalapeno Cloud Video Help",

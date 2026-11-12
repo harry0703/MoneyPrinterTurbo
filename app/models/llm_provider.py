@@ -399,6 +399,15 @@ LLM_PROVIDER_REGISTRY = (
     ),
     # 聚合与统一接入平台
     LLMProviderSpec(
+        "apixo",
+        "APIXO AI",
+        adapter="openai_responses",
+        api_key_url="https://apixo.ai/dashboard/api-keys",
+        default_model="gpt-5.4-mini",
+        default_base_url="https://llm.apixo.ai/v1",
+        model_docs_url="https://apixo.ai/docs/models/text/openai-responses",
+    ),
+    LLMProviderSpec(
         "apinebula",
         "APINEBULA",
         api_key_url="https://apinebula.ai/ref/luDuqJIb",

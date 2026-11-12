@@ -272,6 +272,14 @@ moonshot_api_key = ""
 moonshot_base_url = ""
 moonshot_model_name = ""
 
+# APIXO AI：GPT 模型使用 OpenAI Responses API（非 Chat Completions）。
+# 密钥：https://apixo.ai/dashboard/api-keys
+# 模型：https://apixo.ai/docs/models/text/openai-responses
+# 地址和模型留空时使用 https://llm.apixo.ai/v1 和 gpt-5.4-mini。
+apixo_api_key = ""
+apixo_base_url = ""
+apixo_model_name = ""
+
 # APINEBULA：项目赞助商，提供 OpenAI 兼容接口。
 # 注册：https://apinebula.ai/ref/luDuqJIb；充值时使用 MPT 优惠码享九折。
 # 模型列表：https://apinebula.ai/zh/pricing
