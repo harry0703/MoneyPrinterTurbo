@@ -301,6 +301,9 @@ _THAI_OR_LAO_LETTER = (
 _THAI_OR_LAO_SENTENCE_SPACE = re.compile(
     rf"(?<={_THAI_OR_LAO_LETTER})\s+(?={_THAI_OR_LAO_LETTER})"
 )
+# Titles that stand before a name, as in "Mr. Smith", "Dr. Walker" and "Mt. Everest". "St." and
+# "Jr." are left out: they can end a sentence, as in "Our shop is on Main St. We open at 9."
+_TITLE_BEFORE_NAME = re.compile(r"(?<!\w)(?:Mr|Mrs|Ms|Dr|Prof|Mt)$")
 
 
 def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
@@ -349,6 +352,12 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
         ):
             # Edge TTS usually returns "No.1", "Vol.2" and "Fig.3" as one word. After a Chinese,
             # Japanese or Korean character the dot still ends the sentence, as in "很好.2025年".
+            txt += char
+            continue
+
+        if char == "." and next_char == " " and _TITLE_BEFORE_NAME.search(txt):
+            # "Dr. Smith" and "Mt. Everest" stay in one line: the dot of a title before a name
+            # ends no sentence, and a line break there showed "Dr" or "Mt" alone as a subtitle.
             txt += char
             continue
 
