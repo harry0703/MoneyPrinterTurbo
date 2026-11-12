@@ -168,6 +168,16 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.openlux.ai/register?channel=c_rejpjkhg"><img src="docs/sponsors/openlux-logo.png" alt="OpenLux" width="100"></a>
+    </td>
+    <td align="left">
+      感谢 <a href="https://www.openlux.ai/register?channel=c_rejpjkhg">OpenLux</a> 对本项目的赞助！<br>OpenLux 是一个面向企业的<strong>一站式 AI 聚合平台</strong>，汇集全球各大厂商主流大模型，平台提供高效、稳定的服务与及时的技术支持。Claude、OpenAI、Gemini 系列模型基准折扣分别低至<strong>官方的 0.882 折、0.4 折和 0.8 折</strong>。<br>
+      MoneyPrinterTurbo 用户还可享受专属福利：通过专属链接注册，充值<strong>最高可享 7.5% 优惠</strong>！<br>
+      <a href="https://www.openlux.ai/register?channel=c_rejpjkhg">立即体验 OpenLux →</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn">录咖 AI</a>
     </td>

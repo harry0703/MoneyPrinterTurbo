@@ -167,6 +167,17 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.openlux.ai/register?channel=c_rejpjkhg"><img src="docs/sponsors/openlux-logo.png" alt="OpenLux" width="100"></a><br>
+      <a href="https://www.openlux.ai/register?channel=c_rejpjkhg"></a>
+    </td>
+    <td align="left">
+      Thank you to <a href="https://www.openlux.ai/register?channel=c_rejpjkhg">OpenLux</a> for sponsoring this project!<br>OpenLux is an <strong>all-in-one AI platform</strong> for businesses, bringing together leading AI models from major providers worldwide. With fast, reliable service and responsive technical support, OpenLux offers base pricing for Claude, OpenAI, and Gemini models <strong>as low as 8.82%, 4%, and 8% of official rates</strong>, respectively.<br>
+      Exclusive offer for MoneyPrinterTurbo users: Sign up through our referral link and enjoy <strong>up to 7.5% off credit top-ups</strong>!<br>
+      <a href="https://www.openlux.ai/register?channel=c_rejpjkhg">Get started with OpenLux →</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>
