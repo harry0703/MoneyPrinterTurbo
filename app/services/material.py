@@ -2048,6 +2048,191 @@ def _download_videos_openai_image_on_demand(
     return video_paths
 
 
+# 抽象/具体关键词仅用于 "prompt_based" 策略的粗略分流，关键词始终是英文
+# （generate_terms 固定要求英文输出），因此词表也用英文维护。
+_MIXED_ABSTRACT_KEYWORDS = frozenset({
+    "love", "freedom", "dream", "fear", "hope", "courage", "future",
+    "innovation", "history", "legacy", "power", "progress", "economy",
+    "technology", "concept", "strategy", "tradition", "heritage", "crisis",
+    "independence", "sovereignty", "diplomacy", "ambition",
+})
+_MIXED_CONCRETE_KEYWORDS = frozenset({
+    "car", "beach", "city", "dog", "food", "building", "ship", "factory",
+    "tank", "port", "mountain", "coast", "shipyard", "harbor", "soldier",
+    "worker", "river", "bridge", "castle", "church", "train", "forest",
+    "village", "island", "mine", "aircraft", "submarine",
+})
+
+
+def _assign_mixed_sources(
+    search_terms: List[str], mix_ratio: float, mix_strategy: str
+) -> List[str]:
+    """
+    为 ``video_source = "mixed"`` 的每个关键词选择 "api" 或 "pixabay"。
+
+    返回与 ``search_terms`` 等长、顺序一致的来源列表，调用方按原始脚本顺序
+    逐个处理，不会打乱叙事顺序。
+    """
+    count = len(search_terms)
+    if count == 0:
+        return []
+
+    if mix_strategy == "alternate":
+        return ["api" if index % 2 == 0 else "pixabay" for index in range(count)]
+
+    if mix_strategy == "prompt_based":
+        assignments = []
+        for index, term in enumerate(search_terms):
+            lowered = term.lower()
+            words = set(lowered.replace("-", " ").split())
+            if words & _MIXED_ABSTRACT_KEYWORDS:
+                assignments.append("api")
+            elif words & _MIXED_CONCRETE_KEYWORDS:
+                assignments.append("pixabay")
+            else:
+                # 既不匹配抽象词也不匹配具体词时，退回交替策略，避免整批
+                # 关键词因为词表没有命中而全部落到同一个来源。
+                assignments.append("api" if index % 2 == 0 else "pixabay")
+        return assignments
+
+    # 默认 "ratio" 策略：把 API 配额在时间线上均匀打散，而不是堆在开头，
+    # 这样靠后的脚本段落也能用上生成的图片，不会全部挤在片头。
+    ratio = min(max(float(mix_ratio), 0.0), 1.0)
+    api_count = round(count * ratio)
+    assignments = ["pixabay"] * count
+    if api_count > 0:
+        step = count / api_count
+        for slot in range(api_count):
+            index = min(int(slot * step), count - 1)
+            assignments[index] = "api"
+    return assignments
+
+
+def _download_videos_mixed_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+    image_motion: ImageMotion = ImageMotion.zoom,
+    source_mix_ratio: float = 0.5,
+    source_mix_strategy: str = "ratio",
+) -> List[str]:
+    """
+    按脚本顺序逐个关键词在 Pixabay 素材和文生图 API 之间二选一，凑够所需
+    总时长立即停止。
+
+    Pixabay 一侧免费，文生图一侧按张计费；因此和 openai_image 的按需生成
+    函数一样，必须严格按顺序处理、每个关键词最多尝试一次、累计时长达标后
+    立刻停止，不能先为全部关键词取回素材再挑选，避免为用不到的画面付费。
+    """
+    if not material_directory:
+        material_directory = utils.task_dir(task_id)
+
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError):
+        required_duration = 0.0
+    if required_duration <= 0:
+        logger.warning(
+            "skip mixed material generation because required audio duration "
+            f"is not positive: duration={audio_duration}"
+        )
+        _persist_material_sources(task_id, [])
+        return []
+
+    assignments = _assign_mixed_sources(
+        search_terms, source_mix_ratio, source_mix_strategy
+    )
+
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+    total_duration = 0.0
+    source_counts = {"api": 0, "pixabay": 0}
+
+    for search_term, source_choice in zip(search_terms, assignments):
+        if source_choice == "api":
+            try:
+                items = generate_images_openai(
+                    search_term=search_term,
+                    minimum_duration=max_clip_duration,
+                    video_aspect=video_aspect,
+                    save_dir=material_directory,
+                )
+            except OpenAIImagePaidResultError:
+                _persist_material_sources(task_id, material_sources)
+                raise
+            for item in items:
+                video_file = _render_openai_image_video(
+                    item.url, max_clip_duration, image_motion=image_motion
+                )
+                if not video_file:
+                    _persist_material_sources(task_id, material_sources)
+                    raise OpenAIImagePaidResultError(
+                        "generated image could not be rendered locally"
+                    )
+                video_paths.append(video_file)
+                try:
+                    material_sources.append(_material_source_record(item, video_file))
+                except Exception as source_error:
+                    logger.warning(
+                        "failed to prepare mixed material source record: "
+                        f"provider=openai_image, error={type(source_error).__name__}, "
+                        f"detail={source_error}"
+                    )
+                total_duration += min(max_clip_duration, item.duration)
+                source_counts["api"] += 1
+        else:
+            candidates = _search_videos_with_cache(
+                provider="pixabay",
+                search_videos=search_videos_pixabay,
+                search_term=search_term,
+                minimum_duration=max_clip_duration,
+                video_aspect=video_aspect,
+            )
+            if not candidates:
+                logger.warning(
+                    f"no pixabay candidates for mixed term, skipping: {search_term!r}"
+                )
+                continue
+            downloaded = _download_materials_in_parallel(
+                materials=[(search_term, candidates[0])],
+                material_directory=material_directory,
+            )
+            for _, item, saved_video_path in downloaded:
+                if not saved_video_path:
+                    continue
+                video_paths.append(saved_video_path)
+                try:
+                    material_sources.append(
+                        _material_source_record(item, saved_video_path)
+                    )
+                except Exception as source_error:
+                    logger.warning(
+                        "failed to prepare mixed material source record: "
+                        f"provider=pixabay, error={type(source_error).__name__}, "
+                        f"detail={source_error}"
+                    )
+                total_duration += min(max_clip_duration, item.duration)
+                source_counts["pixabay"] += 1
+
+        if total_duration >= required_duration:
+            logger.info(
+                "mixed materials cover the required duration, stop early: "
+                f"generated={total_duration:.1f}s, required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(
+        f"mixed materials ready: api={source_counts['api']}, "
+        f"pixabay={source_counts['pixabay']}, total={len(video_paths)}"
+    )
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
 def _search_videos_with_cache(
     provider: str,
     search_videos: Callable[..., List[MaterialInfo]],
@@ -2371,6 +2556,8 @@ def download_videos(
     image_motion: ImageMotion = ImageMotion.zoom,
     jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
     codex_image_context=None,
+    source_mix_ratio: float = 0.5,
+    source_mix_strategy: str = "ratio",
 ) -> List[str]:
     """
     搜索并下载覆盖配音时长所需的素材，返回本地文件路径。
@@ -2493,6 +2680,21 @@ def download_videos(
             material_directory=material_directory,
             image_motion=image_motion,
             **image_options,
+        )
+
+    if source == "mixed":
+        # 与 WaveSpeed/openai_image 相同的按需付费语义：按脚本顺序逐个关键词
+        # 决定来源，Pixabay 免费、文生图按张计费，凑够所需时长立即停止。
+        return _download_videos_mixed_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+            image_motion=image_motion,
+            source_mix_ratio=source_mix_ratio,
+            source_mix_strategy=source_mix_strategy,
         )
 
     if match_script_order:

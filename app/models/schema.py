@@ -121,6 +121,16 @@ class VideoParams(BaseModel):
     match_materials_to_script: bool = False
     video_count: int = Field(default=1, ge=1)
 
+    # Only read when video_source == "mixed": fraction of script terms sent to
+    # the configured image-generation API instead of Pixabay (0.0 = all
+    # Pixabay, 1.0 = all generated images).
+    source_mix_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
+    # "ratio" spreads source_mix_ratio evenly across the script terms,
+    # "alternate" alternates API/Pixabay term by term, "prompt_based" routes
+    # abstract-sounding terms to the API and concrete/physical terms to
+    # Pixabay.
+    source_mix_strategy: Literal["ratio", "alternate", "prompt_based"] = "ratio"
+
     video_source: Optional[str] = "pexels"
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video

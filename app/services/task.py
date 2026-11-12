@@ -103,6 +103,7 @@ _SUPPORTED_VIDEO_SOURCES = frozenset({
     "pexels", "pixabay", "coverr", "local", "wavespeed",
     "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
     "loomloom", "openai_image", "codex_image", "infistar", "jalapeno",
+    "mixed",
 })
 
 
@@ -821,6 +822,9 @@ def get_video_materials(
         )
         if params.video_source == "codex_image":
             generation_options["codex_image_context"] = codex_image_context
+        if params.video_source == "mixed":
+            generation_options["source_mix_ratio"] = params.source_mix_ratio
+            generation_options["source_mix_strategy"] = params.source_mix_strategy
         # 顺序匹配模式只在用户显式开启时生效。这里强制素材下载按关键词顺序
         # 轮询，避免某个早期关键词下载太多素材，把后续脚本主题挤出最终时间线。
         try:
@@ -1658,7 +1662,7 @@ def _run_pipeline(
 
     if (
         stop_at in {"materials", "video"}
-        and params.video_source == "openai_image"
+        and params.video_source in {"openai_image", "mixed"}
         and not material.is_openai_image_enabled(
             config.snapshot_config_with_pending(config.app)
         )

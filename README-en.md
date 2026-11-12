@@ -210,6 +210,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Access Seedance, Wan, and other text-to-video models through [OFox](https://ofox.ai) with a single API key
 - [x] Generate 3–12 second AI video materials through the asynchronous [MuAPI](https://muapi.ai) text-to-video API, with configurable endpoint, aspect ratio, resolution, and polling
 - [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services or custom image gateways and turn generated images into animated video clips
+- [x] Mix free Pixabay footage with that same text-to-image service in a single video, picking a source per script term by ratio, alternation, or keyword — see [docs/mixed-source.md](docs/mixed-source.md)
 - [x] Adjust clip duration, frame fitting, and material order to suit different aspect ratios and storytelling styles
 
 ### Voiceover, Subtitles, and Background Music
