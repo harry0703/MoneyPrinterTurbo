@@ -283,7 +283,6 @@ def test_traced_upscale_request_logs_no_email():
         }
 
     config.app.update({"useapi_video_model": "veo-3.1-lite", "useapi_upscale": "1080p"})
-    useapi._REFUSED_UPSCALES.clear()
     with (
         patch.object(request_logging, "get_logging_options", return_value=("DEBUG", True)),
         captured_logs() as lines,

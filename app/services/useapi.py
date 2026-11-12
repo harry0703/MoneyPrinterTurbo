@@ -774,10 +774,12 @@ def generate_videos(
     ]
 
 
-# Upscale targets the account's plan refused in this process.  The refusal
-# comes before anything is charged and does not change on retry, so later
-# clips skip the request and keep their original resolution.
-_REFUSED_UPSCALES: set[str] = set()
+# useapi.net refuses an upscale the account's plan does not include with this
+# 400 text (for example "4K upscaling is not available for this account").
+# The refusal is answered before any captcha is solved or credit is spent,
+# so each clip simply asks again: nothing is cached, and switching the token,
+# the connected account or the plan takes effect on the next clip.
+_PLAN_REFUSAL_TEXT = "upscaling is not available for this account"
 
 
 def _flow_media_generation_id(job: dict[str, Any]) -> str:
@@ -805,11 +807,10 @@ def _upscale_flow_video(
 
     The original clip is already made, so every upscale problem keeps it:
     a plan that does not include the resolution (refused before anything is
-    charged), a busy account, a failed upscale job, or an answer that leaves
-    the upscale state unknown.  An ambiguous upscale is never submitted again.
+    charged), any other rejected request, a busy account, a failed upscale
+    job, or an answer that leaves the upscale state unknown.  An ambiguous
+    upscale is never submitted again.
     """
-    if resolution in _REFUSED_UPSCALES:
-        return ""
     media_id = _flow_media_generation_id(job)
     if not media_id:
         logger.warning("useapi.net clip has no media id to upscale; keeping it as is")
@@ -824,13 +825,19 @@ def _upscale_flow_video(
         )
         status_code = _status_code(response)
         if status_code == 400:
-            _REFUSED_UPSCALES.add(resolution)
-            logger.warning(
-                f"useapi.net upscale to {resolution} was refused and nothing was "
-                "charged; the original clips are kept for the rest of this run "
-                f"(upscaling needs a paid Google AI plan, 4K needs Ultra): "
-                f"{_response_error(response, api_token)}"
-            )
+            error = _response_error(response, api_token)
+            if _PLAN_REFUSAL_TEXT in error.lower():
+                logger.warning(
+                    f"useapi.net upscale to {resolution} is not included in this "
+                    "Google account's plan and nothing was charged; keeping the "
+                    "original clip (upscaling needs a paid Google AI plan, 4K "
+                    f"needs Ultra): {error}"
+                )
+            else:
+                logger.warning(
+                    f"useapi.net rejected the upscale to {resolution} and nothing "
+                    f"was charged; keeping the original clip: {error}"
+                )
             return ""
         job_id, _ = _submit_response(response, api_token, "upscale")
         logger.info(f"useapi.net upscale job created: id={safe_job_id(job_id)}")

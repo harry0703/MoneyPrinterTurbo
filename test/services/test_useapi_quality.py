@@ -89,9 +89,7 @@ def restore_config():
         }
     )
     config.proxy.clear()
-    useapi._REFUSED_UPSCALES.clear()
     yield
-    useapi._REFUSED_UPSCALES.clear()
     config.app.clear()
     config.app.update(original_app)
     config.proxy.clear()
@@ -238,29 +236,90 @@ def test_upscale_submits_polls_and_downloads_the_upscaled_clip():
     assert all(EMAIL not in line for line in lines)
 
 
-def test_refused_upscale_keeps_the_original_and_is_not_retried():
-    config.app.update({"useapi_video_model": "veo-3.1-lite", "useapi_upscale": "4K"})
-    refused = _response(
-        {"error": "4K upscaling is not available for this account", "code": 400},
+def _refused(resolution="4K"):
+    return _response(
+        {"error": f"{resolution} upscaling is not available for this account", "code": 400},
         status_code=400,
     )
+
+
+def test_refused_upscale_keeps_the_original_and_the_next_clip_asks_again():
+    config.app.update({"useapi_video_model": "veo-3.1-lite", "useapi_upscale": "4K"})
     result, post, _, lines = _run_flow_clip(
-        [_response({"jobid": FLOW_JOB}, 201), refused],
+        [_response({"jobid": FLOW_JOB}, 201), _refused()],
         [_response(_flow_completed(FLOW_JOB, ORIGINAL_URL))],
     )
     assert result[0].url == ORIGINAL_URL
     assert post.call_count == 2
-    warnings = [line for line in lines if "was refused" in line]
-    assert len(warnings) == 1
+    assert len([line for line in lines if "not included in this Google account's plan" in line]) == 1
+    assert all(EMAIL not in line for line in lines)
 
-    # A later clip in the same run does not ask again.
-    result, post, _, lines = _run_flow_clip(
-        [_response({"jobid": FLOW_JOB}, 201)],
+    # Nothing is remembered: the refusal is free, and the plan may have changed.
+    result, post, _, _ = _run_flow_clip(
+        [_response({"jobid": FLOW_JOB}, 201), _response({"jobid": UPSCALE_JOB}, 201)],
+        [
+            _response(_flow_completed(FLOW_JOB, ORIGINAL_URL)),
+            _response(_flow_completed(UPSCALE_JOB, UPSCALED_URL)),
+        ],
+    )
+    assert post.call_count == 2
+    assert result[0].url == UPSCALED_URL
+
+
+def test_refusal_for_one_account_does_not_block_another_token_or_account():
+    config.app.update({"useapi_video_model": "veo-3.1-lite", "useapi_upscale": "1080p"})
+    result, post, _, _ = _run_flow_clip(
+        [_response({"jobid": FLOW_JOB}, 201), _refused("1080p")],
         [_response(_flow_completed(FLOW_JOB, ORIGINAL_URL))],
     )
     assert result[0].url == ORIGINAL_URL
-    assert post.call_count == 1
-    assert not any("was refused" in line for line in lines)
+    assert post.call_count == 2
+
+    # Same process, another useapi.net token whose clip came from another
+    # connected Google account on a paid plan.
+    other_token = "user:5678-other-token"
+    other_email = "another.account@gmail.com"
+    other_job = f"j1110v-u701-email:{other_email}-bot:google-flow"
+    other_media = f"user:701-email:{other_email}-video:CAMbXYZ"
+    config.app["useapi_api_token"] = other_token
+    result, post, _, lines = _run_flow_clip(
+        [_response({"jobid": other_job}, 201), _response({"jobid": UPSCALE_JOB}, 201)],
+        [
+            _response(_flow_completed(other_job, ORIGINAL_URL, other_media)),
+            _response(_flow_completed(UPSCALE_JOB, UPSCALED_URL)),
+        ],
+    )
+    assert post.call_count == 2
+    upscale = post.call_args_list[1]
+    assert upscale.args[0] == "https://api.useapi.net/v1/google-flow/videos/upscale"
+    assert upscale.kwargs["json"]["mediaGenerationId"] == other_media
+    assert upscale.kwargs["headers"]["Authorization"] == f"Bearer {other_token}"
+    assert result[0].url == UPSCALED_URL
+    assert all(other_email not in line for line in lines)
+
+
+def test_other_400_is_not_treated_as_a_plan_refusal():
+    config.app.update({"useapi_video_model": "veo-3.1-lite", "useapi_upscale": "1080p"})
+    invalid = _response({"error": "mediaGenerationId is invalid", "code": 400}, status_code=400)
+    result, post, _, lines = _run_flow_clip(
+        [_response({"jobid": FLOW_JOB}, 201), invalid],
+        [_response(_flow_completed(FLOW_JOB, ORIGINAL_URL))],
+    )
+    assert result[0].url == ORIGINAL_URL
+    assert post.call_count == 2
+    assert any("rejected the upscale to 1080p" in line for line in lines)
+    assert not any("not included in this Google account's plan" in line for line in lines)
+
+    # A later valid clip at the same resolution is still upscaled.
+    result, post, _, _ = _run_flow_clip(
+        [_response({"jobid": FLOW_JOB}, 201), _response({"jobid": UPSCALE_JOB}, 201)],
+        [
+            _response(_flow_completed(FLOW_JOB, ORIGINAL_URL)),
+            _response(_flow_completed(UPSCALE_JOB, UPSCALED_URL)),
+        ],
+    )
+    assert post.call_count == 2
+    assert result[0].url == UPSCALED_URL
 
 
 @pytest.mark.parametrize(
