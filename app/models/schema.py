@@ -267,6 +267,11 @@ class TaskVideoRequest(VideoParams, BaseModel):
     video_clip_duration: int = Field(default=5, ge=1, le=15)
     n_threads: Optional[int] = Field(default=2, ge=1, le=16)
 
+    # A request without voice_name uses the same Edge voice as /audio and
+    # /subtitle. Edge TTS accepts no empty voice, so with the empty default
+    # of VideoParams the task failed at the audio stage, after the LLM calls.
+    voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
+
 
 class TaskQueryRequest(BaseModel):
     pass
