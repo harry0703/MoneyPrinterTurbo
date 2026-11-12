@@ -215,38 +215,45 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Use **AI Agent, WebUI, API, or CLI** workflows for quick creation or automated production
 - [x] Go from a topic to script, voiceover, footage, subtitles, music, and editing automatically, while retaining control over every stage
 - [x] Generate multiple output variants in batches, review task history, and import or export generation settings and API keys
+- [x] Track progress through script generation, voiceover, footage downloads, clip processing, and final rendering
 
 ### Scripts and Model Providers
 
 - [x] Use a ChatGPT subscription through [OpenAI - Codex](docs/codex-provider.md), with device-code sign-in and a dynamic model selector
 - [x] Explicitly choose [ChatGPT Native OAuth](docs/chatgpt-provider.md) for official app authorization and account-specific models; account/workspace eligibility and a local browser/runtime are required
 - [x] Generate or rewrite **multilingual video scripts** with AI, or supply a complete custom script
-- [x] Use leading providers including [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo), [OpenAI](https://platform.openai.com/api-keys), [Anthropic Claude](https://platform.claude.com/settings/keys), [Google Gemini](https://aistudio.google.com/app/apikey), [DeepSeek](https://platform.deepseek.com/api_keys), [Alibaba Cloud Qwen](https://qwen.ai/apiplatform), [Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI), [ByteDance VolcEngine Ark](https://console.volcengine.com/ark), [xAI Grok](https://console.x.ai/), [MiniMax](https://platform.minimax.io/), and [Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
-- [x] Connect through [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
+- [x] Use leading providers including [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo), [OpenAI](https://platform.openai.com/api-keys), [Anthropic Claude](https://platform.claude.com/settings/keys), [Google Gemini](https://aistudio.google.com/app/apikey), [DeepSeek](https://platform.deepseek.com/api_keys), [Alibaba Cloud Qwen](https://qwen.ai/apiplatform), [Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI), [ByteDance VolcEngine Ark](https://console.volcengine.com/ark), [xAI Grok](https://console.x.ai/), [MiniMax](https://platform.minimax.io/), [Muse Spark](https://dev.meta.ai/docs/authentication), [iFlytek Spark](https://maas.xfyun.cn/), and [Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
+- [x] Connect through [APIXO AI](https://apixo.ai/dashboard/api-keys), [APINEBULA](https://apinebula.ai/ref/luDuqJIb), [Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo), [Infistar](https://infistar.cc/keys), [Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO), [Cheaper Inference](https://cheaperinference.com/signup), [Requesty](https://app.requesty.ai/api-keys), [FutureInfra](https://futureinfra.ai/console/?screen=ai-router), [Y-API](https://y-api.bestvirtualgoods.com/app/keys), [Opper](https://platform.opper.ai), [onomeo](https://onomeo.com/dashboard), [EmpirioLabs AI](https://platform.empiriolabs.ai/dashboard/api-keys), [Runcrate](https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing), [CloudGPU](https://cloudgpu.app), [cheapaimodel](https://console.cheapaimodel.ai/keys), [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Kimi Code](https://www.kimi.ai/code?aff=moneyprinterturbo), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
 
 ### Video and Image Footage
 
 - [x] Upload your own **local images and videos**, or get HD stock footage from [Pexels (free)](https://www.pexels.com/api/), [Pixabay (free)](https://pixabay.com/api/docs/), and [Coverr](https://coverr.co/developers?ctx=header_navigation)
 - [x] Generate `768P` or `2K` source footage with [Metaso MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT), with 4–15 second clips in `9:16`, `16:9`, or `1:1`
-- [x] Create multiple AI video clips with [Shengsuan Cloud AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), then combine them with the project's voiceover, subtitle, and editing workflow
+- [x] Review a quote and confirm the charge to generate multiple clips with [Shengsuan Cloud LoomLoom AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), then combine them with the project's voiceover, subtitle, and editing workflow
+- [x] Generate AI video footage through [Infistar](https://infistar.cc/keys) and [Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo)
 - [x] Use the native [Volcano Engine Ark Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey) integration to generate cohesive visuals from individual script segments
 - [x] Turn script keywords into original video footage with [WaveSpeed AI](https://wavespeed.ai)
 - [x] Access Seedance, Wan, and other text-to-video models through [OFox](https://ofox.ai) with a single API key
 - [x] Generate 3–12 second AI video materials through the asynchronous [MuAPI](https://muapi.ai) text-to-video API, with configurable endpoint, aspect ratio, resolution, and polling
-- [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services or custom image gateways and turn generated images into animated video clips
-- [x] Adjust clip duration, frame fitting, and material order to suit different aspect ratios and storytelling styles
+- [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services, custom image gateways, or the included [local SDXL image server](docs/local-image-server/README.md); choose static or slow-zoom motion for local and generated images
+- [x] Use [OpenAI - Codex image generation](docs/codex-provider.md) with the shared ChatGPT sign-in and a separate image model selector; the account and selected model must have image-generation access
+- [x] Adjust clip duration, playback speed, and transitions; choose crop-to-fill or letterbox fitting and random or sequential footage order
+- [x] Optionally use [TwelveLabs](https://playground.twelvelabs.io/) to rerank stock-footage search terms by video topic
 
 ### Voiceover, Subtitles, and Background Music
 
 - [x] Choose automatic voiceover, uploaded audio, or no voiceover, with voice samples and full narration previews
 - [x] Use **Edge TTS (free, no API key required)**, Azure Speech, SiliconFlow, Google Gemini, Xiaomi MiMo, MiniMax, ElevenLabs, Chatterbox, Kokoro, Fish Audio, ModelBest VoxCPM, and other voice services
-- [x] Generate subtitles and configure their font, position, color, size, outline, and background style
-- [x] Use random, local, or AI-generated background music with independent volume control
+- [x] Clone voices from reference audio with ModelBest VoxCPM, and control Edge TTS narration pauses with tags such as `[pause: 2s]`
+- [x] Generate subtitles from TTS timestamps or local Whisper transcription, with sentence or word-by-word display, pop-up spring animation, and configurable font, position, color, size, outline, and background style
+- [x] Use random music, preview preset songs, or upload local tracks; generate video-matched music with [Sonilo](https://platform.sonilo.com/dashboard) or [ElevenLabs Video-to-Music](https://elevenlabs.io/), with independent volume control
 
 ### Output and Publishing
 
 - [x] Export portrait `9:16 (1080×1920)`, landscape `16:9 (1920×1080)`, or square `1:1 (1080×1080)` videos
 - [x] Publish completed videos directly to **TikTok, Instagram, and YouTube Shorts**
+- [x] Generate publishing titles, captions, and hashtags with an LLM, and configure YouTube visibility and whether the video is made for kids
+- [x] Use the separate [local video project CLI](docs/video-projects.md) to revise scenes, compare versions, and reuse unchanged render artifacts
 
 ## Gallery 🎬
 
