@@ -184,6 +184,7 @@
 - [x] 自動ナレーション、音声ファイルのアップロード、音声なしの 3 つの方式に対応し、音声サンプルとナレーション全体をプレビュー可能
 - [x] **Edge TTS（無料・API キー不要）**、Azure Speech、SiliconFlow、Google Gemini、Xiaomi MiMo、MiniMax、ElevenLabs、Chatterbox、Kokoro、Fish Audio、ModelBest VoxCPM などの音声サービスに対応
 - [x] ModelBest VoxCPM で参照音声から声をクローン化でき、Edge TTS では `[pause: 2s]` などのタグで読み上げの間を調整可能
+- [x] [useapi.net](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) によるナレーション（Kling 音声合成、すべての Kling プランで無料；Google Vids の音声）と AI BGM（[Google Flow Music](https://useapi.net/docs/api-flowmusic-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration)、Lyria、Google AI プランに含まれる）に対応
 - [x] TTS のタイムスタンプまたはローカル Whisper から字幕を自動生成。文単位・単語単位の表示とスプリング型ポップアップアニメーションに対応し、フォント、位置、色、サイズ、縁取り、背景を調整可能
 - [x] ランダム BGM、プリセット曲の試聴、ローカル音楽のアップロードに対応。[Sonilo](https://platform.sonilo.com/dashboard) や [ElevenLabs Video-to-Music](https://elevenlabs.io/) で動画に合わせた BGM を生成し、音量を個別に調整可能
 

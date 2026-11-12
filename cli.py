@@ -236,7 +236,8 @@ def _image_motion(value: str) -> str:
 # 只有这些取值会请求外部音乐生成服务，因此只有它们消费配乐提示词。取值需与
 # app/services/task.py 的 _VIDEO_MUSIC_PROVIDERS 保持一致；集中定义后，新增
 # 配乐供应商不会再次遗漏 --bgm-type 校验、批量校验和提示词参数。
-_CLI_MUSIC_BGM_TYPES = ("sonilo", "elevenlabs")
+_CLI_MUSIC_BGM_TYPES = ("sonilo", "elevenlabs", "flowmusic")
+_CLI_MUSIC_BGM_TYPES_TEXT = "sonilo, elevenlabs or flowmusic"
 _BGM_TYPE_CHOICES_TEXT = "none, random, custom, " + ", ".join(_CLI_MUSIC_BGM_TYPES)
 _BGM_TYPE_METAVAR = "{none,random,custom," + ",".join(_CLI_MUSIC_BGM_TYPES) + "}"
 
@@ -529,7 +530,9 @@ Batch manifests:
             "instead, unless this option is given. "
             "Use 'no-voice' for silent output. Provider-specific identifiers "
             "use prefixes such as gemini:, mimo:, elevenlabs:, chatterbox:, "
-            "kokoro:, and voxcpm:"
+            "kokoro:, voxcpm:, useapi-kling: (Kling TTS through useapi.net, "
+            "useapi-kling:<speakerId>) and useapi-vids: (Google Vids voices "
+            "through useapi.net, for example useapi-vids:Holt)"
         ),
     )
     audio_group.add_argument(
@@ -567,7 +570,9 @@ Batch manifests:
         metavar=_BGM_TYPE_METAVAR,
         help=(
             "background music mode; Sonilo reads its API key from config.toml or "
-            "SONILO_API_KEY, ElevenLabs from config.toml or ELEVENLABS_API_KEY; "
+            "SONILO_API_KEY, ElevenLabs from config.toml or ELEVENLABS_API_KEY "
+            "and flowmusic (Google Flow Music through useapi.net) reads its token from "
+            "useapi_api_token in config.toml or USEAPI_TOKEN; "
             "--bgm-file implies custom when omitted (default: random)"
         ),
     )
@@ -581,7 +586,8 @@ Batch manifests:
         default=None,
         help=(
             "optional music style prompt for the selected AI background music "
-            "provider (sonilo or elevenlabs); the provider's own length limit "
+            "provider (" + _CLI_MUSIC_BGM_TYPES_TEXT + "); the provider's own "
+            "length limit "
             "is enforced before generation"
         ),
     )
@@ -872,7 +878,7 @@ Batch manifests:
         and args.bgm_type not in _CLI_MUSIC_BGM_TYPES
     ):
         parser.error(
-            "--video-music-prompt requires --bgm-type sonilo or elevenlabs"
+            "--video-music-prompt requires --bgm-type " + _CLI_MUSIC_BGM_TYPES_TEXT
         )
 
     if (
@@ -1415,7 +1421,7 @@ def _validate_batch_task_params(
         raise ValueError("sonilo_bgm_prompt requires bgm_type=sonilo")
     if params.video_music_prompt and params.bgm_type not in _CLI_MUSIC_BGM_TYPES:
         raise ValueError(
-            "video_music_prompt requires bgm_type=sonilo or elevenlabs"
+            "video_music_prompt requires bgm_type=" + _CLI_MUSIC_BGM_TYPES_TEXT
         )
 
 

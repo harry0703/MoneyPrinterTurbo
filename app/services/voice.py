@@ -31,7 +31,7 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 from openai import OpenAI
 
 from app.config import config
-from app.services import bgm
+from app.services import bgm, useapi_audio
 from app.utils import utils
 from app.utils.subtitle_reader import moviepy_subtitles
 from app.utils.subtitle_writer import staged_subtitle_file
@@ -97,6 +97,10 @@ _VOXCPM_RETRY_DELAY_SECONDS = (1.0, 2.0)
 # plus JSON framing while bounding both transport lines and multiline events.
 _VOXCPM_TTS_MAX_AUDIO_BYTES = 50 * 1024 * 1024
 _VOXCPM_SSE_MAX_EVENT_BYTES = 4 * ((_VOXCPM_TTS_MAX_AUDIO_BYTES + 2) // 3) + 64 * 1024
+# useapi.net (third-party API) voices: Kling text-to-speech on the user's Kling
+# account and Google Vids voices on the user's Google account.
+USEAPI_KLING_VOICE_PREFIX = "useapi-kling:"
+USEAPI_VIDS_VOICE_PREFIX = "useapi-vids:"
 NO_VOICE_NAME = "no-voice"
 # `none` 是 PR #981 里曾使用过的无配音标识。这里短期兼容这个值，避免
 # 已经手动调用过该分支的 API 用户升级后立即失效；WebUI 和新代码统一使用
@@ -395,6 +399,33 @@ def get_voxcpm_voices(voice_id: str | None = None) -> list[str]:
     return [f"voxcpm:{voice_id}"]
 
 
+def get_useapi_kling_voices(api_token: str | None = None) -> list[str]:
+    """
+    List Kling text-to-speech voices through useapi.net.
+
+    Values are ``useapi-kling:<speakerId>:<name>``. The list is read from the
+    user's connected Kling account, so it needs a useapi.net token; errors are
+    raised for the caller to show.
+    """
+    return [
+        f"{USEAPI_KLING_VOICE_PREFIX}{item['speaker_id']}:{item['name']}"
+        for item in useapi_audio.kling_voices(api_token)
+    ]
+
+
+def get_useapi_vids_voices() -> list[str]:
+    """
+    Return the 30 Google Vids voices as ``useapi-vids:<Name>-<Style>``.
+
+    Google Vids offers a fixed list (GET /google-vids/voices), so it is kept
+    locally like the Gemini TTS voices and needs no request.
+    """
+    return [
+        f"{USEAPI_VIDS_VOICE_PREFIX}{name}-{style}"
+        for name, _voice_id, style in useapi_audio.VIDS_VOICES
+    ]
+
+
 _AZURE_VOICES_DATA_FILE = os.path.join(
     os.path.dirname(__file__), "data", "azure_voices.json"
 )
@@ -503,6 +534,28 @@ def is_voxcpm_voice(voice_name: str | None) -> bool:
     return (voice_name or "").startswith("voxcpm:")
 
 
+def is_useapi_kling_voice(voice_name: str | None) -> bool:
+    return (voice_name or "").startswith(USEAPI_KLING_VOICE_PREFIX)
+
+
+def is_useapi_vids_voice(voice_name: str | None) -> bool:
+    return (voice_name or "").startswith(USEAPI_VIDS_VOICE_PREFIX)
+
+
+def parse_useapi_kling_speaker_id(voice_name: str | None) -> str:
+    """The Kling speakerId in ``useapi-kling:<speakerId>[:<name>]``."""
+    if not is_useapi_kling_voice(voice_name):
+        return ""
+    return str(voice_name).split(":", 2)[1].strip()
+
+
+def parse_useapi_vids_voice_name(voice_name: str | None) -> str:
+    """The Google Vids voice name in ``useapi-vids:<Name>[-<Style>]``."""
+    if not is_useapi_vids_voice(voice_name):
+        return ""
+    return str(voice_name).split(":", 1)[1].split("-", 1)[0].strip()
+
+
 def get_fish_audio_api_key() -> str:
     configured_key = str(config.fish_audio.get("api_key", "") if hasattr(config, "fish_audio") and isinstance(config.fish_audio, dict) else "").strip()
     return configured_key or os.getenv("FISH_API_KEY", "").strip()
@@ -550,6 +603,8 @@ def is_azure_v1_voice(voice_name: str | None) -> bool:
     if is_fish_audio_voice(name):
         return False
     if is_voxcpm_voice(name):
+        return False
+    if is_useapi_kling_voice(name) or is_useapi_vids_voice(name):
         return False
     return True
 
@@ -640,7 +695,8 @@ def generate_silent_audio(duration_seconds: float, output_file: str) -> bool:
 
 def _warn_ignored_voice_rate(provider: str, voice_rate: float) -> None:
     """
-    Gemini TTS, MiMo TTS and VoxCPM have no numeric speed parameter, so
+    Gemini TTS, MiMo TTS, VoxCPM and Google Vids speech have no numeric
+    speed parameter, so
     voice_rate is not sent to them. Warn when a speed other than 1.0 is
     requested instead of ignoring it silently.
     """
@@ -788,6 +844,21 @@ def _single_tts(
                 prompt_text=voxcpm_prompt_text,
             )
         logger.error(f"Invalid VoxCPM voice name format: {voice_name}")
+        return None
+    elif is_useapi_kling_voice(voice_name):
+        # 格式: useapi-kling:<speakerId>:<name>
+        speaker_id = parse_useapi_kling_speaker_id(voice_name)
+        if speaker_id:
+            return useapi_kling_tts(text, speaker_id, voice_rate, voice_file)
+        logger.error(f"Invalid useapi.net Kling voice name format: {voice_name}")
+        return None
+    elif is_useapi_vids_voice(voice_name):
+        # 格式: useapi-vids:<Name>-<Style>
+        vids_voice = parse_useapi_vids_voice_name(voice_name)
+        if vids_voice:
+            _warn_ignored_voice_rate("Google Vids speech", voice_rate)
+            return useapi_vids_tts(text, vids_voice, voice_file)
+        logger.error(f"Invalid useapi.net Google Vids voice name format: {voice_name}")
         return None
     return azure_tts_v1(text, voice_name, voice_rate, voice_file)
 
@@ -3462,6 +3533,165 @@ def voxcpm_tts(
                     logger.warning(f"could not remove temporary VoxCPM audio: {exc}")
 
     return None
+
+
+def _encode_tts_audio(source_file: str, output_file: str) -> bool:
+    """Re-encode one narration file into the container ``output_file`` names."""
+    codec = (
+        ["-codec:a", "pcm_s16le"]
+        if output_file.lower().endswith(".wav")
+        else ["-codec:a", "libmp3lame", "-q:a", "4"]
+    )
+    # The chunk is downloaded content, already fully decoded by
+    # _validate_remote_tts_audio; the same input whitelists as bgm.py keep a
+    # playlist from making FFmpeg read other files.
+    command = [
+        utils.get_ffmpeg_binary(), "-nostdin", "-v", "error", "-y",
+        "-protocol_whitelist", "file,pipe",
+        "-format_whitelist", "mp3,mov,aac,wav,flac,ogg,asf",
+        "-i", source_file, "-vn", *codec,
+    ]
+    return _publish_tts_ffmpeg_output(command, output_file, "useapi.net audio encode")
+
+
+def _useapi_chunked_tts(
+    provider: str,
+    chunks: list[str],
+    synthesize,
+    chunk_suffix: str,
+    voice_file: str,
+) -> Union[SubMaker, None]:
+    """
+    Synthesize script chunks in order, join them and build subtitle timing.
+
+    useapi.net returns no word timing, so, like Gemini and ElevenLabs, each
+    chunk's sentences share that chunk's measured duration by character
+    count. Timing is kept per chunk, so a long script split into several
+    requests stays aligned across the joins.
+    """
+    if not chunks:
+        logger.error(f"{provider} has no text to read")
+        return None
+    ensure_file_path_exists(voice_file)
+    output_dir = os.path.dirname(os.path.abspath(voice_file))
+    output_suffix = os.path.splitext(voice_file)[1] or ".mp3"
+    try:
+        with tempfile.TemporaryDirectory(prefix=".useapi-tts-", dir=output_dir) as temp_dir:
+            chunk_files = []
+            chunk_durations = []
+            for index, chunk in enumerate(chunks):
+                chunk_file = os.path.join(temp_dir, f"chunk_{index}{chunk_suffix}")
+                if len(chunks) > 1:
+                    logger.info(f"{provider}: reading part {index + 1}/{len(chunks)}")
+                synthesize(chunk, chunk_file)
+                _validate_remote_tts_audio(chunk_file)
+                with AudioFileClip(chunk_file) as clip:
+                    chunk_duration = float(clip.duration)
+                if not math.isfinite(chunk_duration) or chunk_duration <= 0:
+                    raise ValueError(f"{provider} returned audio with an invalid duration")
+                chunk_files.append(chunk_file)
+                chunk_durations.append(chunk_duration)
+
+            staged_file = os.path.join(temp_dir, f"narration{output_suffix}")
+            if len(chunk_files) > 1:
+                joined = _concat_audio_files(chunk_files, staged_file)
+            elif chunk_suffix.lower() == output_suffix.lower():
+                shutil.copyfile(chunk_files[0], staged_file)
+                joined = True
+            else:
+                joined = _encode_tts_audio(chunk_files[0], staged_file)
+            if not joined:
+                logger.error(f"{provider}: failed to write the narration audio")
+                return None
+            with AudioFileClip(staged_file) as clip:
+                total_duration = float(clip.duration)
+            if not math.isfinite(total_duration) or total_duration <= 0:
+                raise ValueError(f"{provider} narration has an invalid duration")
+            os.replace(staged_file, voice_file)
+    except useapi_audio.UseAPIAudioError as exc:
+        logger.error(f"{provider} failed: {useapi_audio.safe_text(exc)}")
+        return None
+    except (OSError, ValueError) as exc:
+        logger.error(f"{provider} failed: {useapi_audio.safe_text(exc)}")
+        return None
+
+    # Spread the measured total over the chunks so the last subtitle ends
+    # with the audio even when re-encoding shifted the length slightly.
+    scale = total_duration / sum(chunk_durations)
+    sub_maker = ensure_legacy_submaker_fields(SubMaker())
+    offset_100ns = 0
+    for chunk, chunk_duration in zip(chunks, chunk_durations):
+        chunk_maker = populate_legacy_submaker_with_full_text(
+            ensure_legacy_submaker_fields(SubMaker()), chunk, chunk_duration * scale
+        )
+        for sentence, (start, end) in zip(chunk_maker.subs, chunk_maker.offset):
+            sub_maker.subs.append(sentence)
+            sub_maker.offset.append((start + offset_100ns, end + offset_100ns))
+        offset_100ns += int(chunk_duration * scale * 10000000)
+    logger.success(f"{provider} succeeded: {voice_file}")
+    return sub_maker
+
+
+def _kling_chunk_fits(chunk: str, speed: float) -> bool:
+    # estimate_no_voice_duration covers CJK, Latin and other scripts; slower
+    # speech lasts longer, so the estimate is divided by the speed.
+    return (
+        estimate_no_voice_duration(chunk) / speed
+        <= useapi_audio.KLING_TTS_CHUNK_SECONDS
+    )
+
+
+def useapi_kling_tts(
+    text: str,
+    speaker_id: str,
+    voice_rate: float,
+    voice_file: str,
+) -> Union[SubMaker, None]:
+    """
+    Read the script with Kling text-to-speech through useapi.net.
+
+    Kling TTS is free and unlimited on every Kling plan. One request reads up
+    to 5 minutes of speech, so longer scripts are split at sentence
+    boundaries and the parts are joined in order.
+    """
+    speed = useapi_audio.kling_speed(voice_rate)
+    emotion = str(config.app.get("useapi_kling_tts_emotion", "") or "").strip()
+    chunks = useapi_audio.split_script(
+        text, lambda chunk: _kling_chunk_fits(chunk, speed)
+    )
+    return _useapi_chunked_tts(
+        "useapi.net Kling TTS",
+        chunks,
+        lambda chunk, path: useapi_audio.kling_tts(
+            chunk, speaker_id, path, speed=speed, emotion=emotion
+        ),
+        ".mp3",
+        voice_file,
+    )
+
+
+def useapi_vids_tts(
+    text: str,
+    voice_name: str,
+    voice_file: str,
+) -> Union[SubMaker, None]:
+    """
+    Read the script with a Google Vids voice through useapi.net.
+
+    Each request reads up to 2500 characters and uses one of the Google
+    account's monthly speech uses, so longer scripts are split into as few
+    sentence-aligned parts as possible.
+    """
+    chunks = useapi_audio.split_script(
+        text, lambda chunk: len(chunk) <= useapi_audio.VIDS_SPEECH_MAX_CHARS
+    )
+    return _useapi_chunked_tts(
+        "useapi.net Google Vids speech",
+        chunks,
+        lambda chunk, path: useapi_audio.vids_speech(chunk, voice_name, path),
+        ".wav",
+        voice_file,
+    )
 
 
 def _format_text(text: str) -> str:
