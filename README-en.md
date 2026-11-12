@@ -246,6 +246,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Choose automatic voiceover, uploaded audio, or no voiceover, with voice samples and full narration previews
 - [x] Use **Edge TTS (free, no API key required)**, Azure Speech, SiliconFlow, Google Gemini, Xiaomi MiMo, MiniMax, ElevenLabs, Chatterbox, Kokoro, Fish Audio, ModelBest VoxCPM, and other voice services
 - [x] Clone voices from reference audio with ModelBest VoxCPM, and control Edge TTS narration pauses with tags such as `[pause: 2s]`
+- [x] Supports [useapi.net](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) voice-over (Kling text-to-speech, free on every Kling plan; Google Vids voices) and AI background music ([Google Flow Music](https://useapi.net/docs/api-flowmusic-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration), Lyria, included in Google AI plans)
 - [x] Generate subtitles from TTS timestamps or local Whisper transcription, with sentence or word-by-word display, pop-up spring animation, and configurable font, position, color, size, outline, and background style
 - [x] Use random music, preview preset songs, or upload local tracks; generate video-matched music with [Sonilo](https://platform.sonilo.com/dashboard) or [ElevenLabs Video-to-Music](https://elevenlabs.io/), with independent volume control
 

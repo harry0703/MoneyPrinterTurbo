@@ -66,6 +66,8 @@ from app.services import (
 )
 from app.services import elevenlabs_music as elevenlabs_music_service
 from app.services import sonilo as sonilo_service
+from app.services import useapi_audio
+from app.services import useapi_flowmusic as useapi_flowmusic_service
 from app.services import state as sm
 from app.services import task as tm
 from app.services import version_checker
@@ -720,6 +722,10 @@ def _initialize_session_state():
         "elevenlabs_music_prompt_input": _saved_ui_text(
             "elevenlabs_music_prompt",
             max_length=elevenlabs_music_service.MAX_PROMPT_LENGTH,
+        ),
+        "flowmusic_prompt_input": _saved_ui_text(
+            "flowmusic_prompt",
+            max_length=useapi_flowmusic_service.MAX_PROMPT_LENGTH,
         ),
         "subtitle_enabled_checkbox": _saved_ui_bool("subtitle_enabled", True),
         "stroke_color_picker": _saved_ui_color("stroke_color", "#000000"),
@@ -1525,6 +1531,10 @@ def _infer_tts_server_from_voice(voice_name):
         return "fish_audio"
     if voice.is_voxcpm_voice(voice_name):
         return "voxcpm"
+    if voice.is_useapi_kling_voice(voice_name):
+        return "useapi-kling"
+    if voice.is_useapi_vids_voice(voice_name):
+        return "useapi-vids"
     if voice.is_azure_v2_voice(voice_name):
         return "azure-tts-v2"
     return "azure-tts-v1"
@@ -1636,6 +1646,9 @@ def _apply_restored_params(params):
         params.get("video_music_prompt") or params.get("sonilo_bgm_prompt") or ""
     )
     st.session_state["elevenlabs_music_prompt_input"] = (
+        params.get("video_music_prompt") or ""
+    )
+    st.session_state["flowmusic_prompt_input"] = (
         params.get("video_music_prompt") or ""
     )
 
@@ -2173,6 +2186,15 @@ def _render_generation_task_snapshot(task_id, task):
         ):
             st.warning(
                 tr("ElevenLabs BGM Fallback Warning").format(
+                    index=warning.get("video_index", "")
+                )
+            )
+        elif (
+            isinstance(warning, Mapping)
+            and warning.get("code") == "flowmusic_bgm_failed"
+        ):
+            st.warning(
+                tr("Flow Music BGM Fallback Warning").format(
                     index=warning.get("video_index", "")
                 )
             )
@@ -7256,6 +7278,13 @@ def _get_voice_preview_provider_signature(tts_server: str) -> dict:
                 else ""
             ),
         }
+    if tts_server == "useapi-kling":
+        return {
+            "emotion": config.app.get("useapi_kling_tts_emotion", ""),
+            "credential": _credential_signature(useapi_audio.get_api_key()),
+        }
+    if tts_server == "useapi-vids":
+        return {"credential": _credential_signature(useapi_audio.get_api_key())}
     return {}
 
 
@@ -7792,7 +7821,9 @@ def _render_elevenlabs_api_key_input(label_key):
     ).strip()
 
 
-def _render_background_music_settings(params, elevenlabs_api_key_rendered=False):
+def _render_background_music_settings(
+    params, elevenlabs_api_key_rendered=False, useapi_token_rendered=False
+):
     """渲染背景音乐来源与音量设置，并返回本次待保存的上传文件。"""
     uploaded_bgm_file = None
     previous_bgm_type = st.session_state.get("last_rendered_bgm_type")
@@ -7804,6 +7835,7 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
         (tr("Custom Background Music"), "custom"),
         (tr("Sonilo Background Music"), "sonilo"),
         (tr("ElevenLabs Background Music"), "elevenlabs"),
+        (tr("Flow Music Background Music"), "flowmusic"),
     ]
     selected_bgm_type = stable_selectbox(
         tr("Background Music Source"),
@@ -7832,6 +7864,13 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
         # 在无操作的情况下复制进 config.toml。
         if configured_key or entered_key != effective_key:
             _set_runtime_config("app", "sonilo_api_key", entered_key)
+    elif params.bgm_type == "flowmusic":
+        st.caption(tr("Flow Music Background Music Help"))
+        if useapi_token_rendered:
+            # The voice-over section above already shows the shared token.
+            st.caption(tr("useapi.net Audio API Token Shared"))
+        else:
+            _render_useapi_audio_token_input("useapi_music_api_token_input")
     elif params.bgm_type == "elevenlabs":
         if elevenlabs_api_key_rendered:
             # TTS 区域已经渲染共享输入框时不再创建第二个 widget，避免两个独立
@@ -8085,6 +8124,45 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
                 st.error(tr("ElevenLabs Connection Test Failed").format(error=str(exc)))
             else:
                 st.success(tr("ElevenLabs Connection Test Succeeded"))
+    elif params.bgm_type == "flowmusic":
+        if previous_bgm_type != "flowmusic":
+            st.session_state["flowmusic_prompt_input"] = _saved_ui_text(
+                "flowmusic_prompt",
+                max_length=useapi_flowmusic_service.MAX_PROMPT_LENGTH,
+            )
+        params.video_music_prompt = st.text_input(
+            tr("Flow Music Prompt"),
+            key="flowmusic_prompt_input",
+            max_chars=useapi_flowmusic_service.MAX_PROMPT_LENGTH,
+            help=tr("Flow Music Prompt Help"),
+        ).strip()
+        _set_runtime_config("ui", "flowmusic_prompt", params.video_music_prompt)
+        flowmusic_model = stable_selectbox(
+            tr("Flow Music Model"),
+            options=list(useapi_flowmusic_service.MODELS),
+            default_value=useapi_flowmusic_service.model_id(),
+            key="flowmusic_model_select",
+            format_func=lambda value: useapi_flowmusic_service.MODELS.get(value, value),
+        )
+        _set_runtime_config("app", "useapi_flowmusic_model", flowmusic_model)
+        if bgm_enabled:
+            st.info(tr("Flow Music Credits Notice"))
+        if params.video_count > 1:
+            st.warning(tr("Flow Music Multiple Videos Warning"))
+        if st.button(
+            tr("Test Flow Music Connection"),
+            key="test_flowmusic_connection_button",
+            use_container_width=True,
+        ):
+            try:
+                account_count = useapi_flowmusic_service.test_connection()
+            except useapi_flowmusic_service.FlowMusicError as exc:
+                logger.warning(f"Google Flow Music connection test failed: {exc}")
+                st.error(tr("Flow Music Connection Test Failed").format(error=str(exc)))
+            else:
+                st.success(
+                    tr("Flow Music Connection Test Succeeded").format(count=account_count)
+                )
     if params.bgm_type == "sonilo" and bgm_enabled and not sonilo_service.is_enabled():
         # 音量为 0 时任务层不会生成或混合 Sonilo 配乐，因此无需提示 Key；
         # 该判断与任务入口共用服务层规则，避免界面提示和实际执行条件分叉。
@@ -8095,8 +8173,85 @@ def _render_background_music_settings(params, elevenlabs_api_key_rendered=False)
         and not elevenlabs_music_service.is_enabled()
     ):
         st.warning(tr("ElevenLabs API Key Required"))
+    elif (
+        params.bgm_type == "flowmusic"
+        and bgm_enabled
+        and not _useapi_audio_token()
+    ):
+        st.warning(tr("Flow Music Token Required"))
     st.session_state["last_rendered_bgm_type"] = params.bgm_type
     return uploaded_bgm_file
+
+
+def _render_useapi_audio_token_input(widget_key):
+    """
+    The voice-over and background music sections edit one shared useapi.net
+    token, so the input shows the saved value on every run and writes only
+    when edited; the useapi.net video source edits the same config key.
+    """
+    app_settings = config.snapshot_config_with_pending(config.app)
+    st.session_state[widget_key] = str(app_settings.get("useapi_api_token", "") or "")
+    st.text_input(
+        tr("useapi.net Audio API Token"),
+        type="password",
+        help=tr("useapi.net Audio API Token Help"),
+        key=widget_key,
+        on_change=_save_settings_change,
+        args=("app", "useapi_api_token", widget_key, lambda value: value.strip()),
+    )
+
+
+def _useapi_audio_token():
+    return useapi_audio.get_api_key(config.snapshot_config_with_pending(config.app))
+
+
+def _get_useapi_kling_voice_catalog():
+    """
+    Kling voices come from the user's connected Kling account. Load them once
+    per token and session, and show why the list is empty instead of an
+    unexplained empty selector.
+    """
+    api_token = _useapi_audio_token()
+    if not api_token:
+        return []
+    cache = st.session_state.setdefault("useapi_kling_voice_catalog_cache", {})
+    cache_key = _credential_signature(api_token)
+    if cache_key not in cache:
+        try:
+            cache[cache_key] = useapi_audio.kling_voices(api_token)
+        except useapi_audio.UseAPIAudioError as exc:
+            logger.warning(f"load useapi.net Kling voices failed: {exc}")
+            st.error(tr("Kling Voices Load Failed").format(error=str(exc)))
+            return []
+    voices = cache.get(cache_key)
+    return voices if isinstance(voices, list) else []
+
+
+def _render_useapi_kling_emotion(catalog, voice_name):
+    """Offer the selected Kling voice's emotions; Kling rejects other values."""
+    speaker_id = voice.parse_useapi_kling_speaker_id(voice_name)
+    emotions = next(
+        (
+            list(item.get("emotions") or [])
+            for item in catalog
+            if item.get("speaker_id") == speaker_id
+        ),
+        [],
+    )
+    saved_emotion = str(config.app.get("useapi_kling_tts_emotion", "") or "")
+    if not emotions:
+        if saved_emotion:
+            _set_runtime_config("app", "useapi_kling_tts_emotion", "")
+        return
+    emotion = stable_selectbox(
+        tr("Kling Voice Emotion"),
+        options=["", *emotions],
+        default_value=saved_emotion if saved_emotion in emotions else "",
+        key=f"useapi_kling_emotion_select_{speaker_id}",
+        format_func=lambda value: value or tr("Kling Voice Emotion Default"),
+    )
+    if emotion != saved_emotion:
+        _set_runtime_config("app", "useapi_kling_tts_emotion", emotion)
 
 
 def _voice_rate_not_supported_help(tts_server, voice_name):
@@ -8111,6 +8266,10 @@ def _voice_rate_not_supported_help(tts_server, voice_name):
         return tr("MiMo TTS Speed Not Supported")
     if tts_server == "voxcpm" or (voice_name and voice.is_voxcpm_voice(voice_name)):
         return tr("VoxCPM Speed Not Supported")
+    if tts_server == "useapi-vids" or (
+        voice_name and voice.is_useapi_vids_voice(voice_name)
+    ):
+        return tr("Google Vids Speed Not Supported")
     return ""
 
 
@@ -8165,6 +8324,8 @@ def _render_audio_settings(panel, params):
                 ("kokoro", "Kokoro TTS"),
                 ("fish_audio", "Fish Audio TTS"),
                 ("voxcpm", "VoxCPM TTS"),
+                ("useapi-kling", "Kling TTS (useapi.net)"),
+                ("useapi-vids", "Google Vids Voices (useapi.net)"),
             ]
 
             tts_server_values = [server_value for server_value, _ in tts_servers]
@@ -8200,6 +8361,16 @@ def _render_audio_settings(panel, params):
             minimax_voice_labels = {}
             if tts_mode_enabled and selected_tts_server == "minimax-tts":
                 minimax_voices, minimax_voice_labels = _render_minimax_tts_settings()
+
+            # useapi.net voices read the token before the voice list loads; the
+            # Google Flow Music source below reuses this input instead of a second one.
+            useapi_token_rendered = False
+            kling_voice_catalog = []
+            if tts_mode_enabled and selected_tts_server in {"useapi-kling", "useapi-vids"}:
+                _render_useapi_audio_token_input("useapi_tts_api_token_input")
+                useapi_token_rendered = True
+            if tts_mode_enabled and selected_tts_server == "useapi-kling":
+                kling_voice_catalog = _get_useapi_kling_voice_catalog()
 
             # 根据选择的TTS服务器获取声音列表
             filtered_voices = []
@@ -8242,6 +8413,13 @@ def _render_audio_settings(panel, params):
                 filtered_voices = voice.get_fish_audio_voices()
             elif selected_tts_server == "voxcpm":
                 filtered_voices = voice.get_voxcpm_voices()
+            elif selected_tts_server == "useapi-kling":
+                filtered_voices = [
+                    f"{voice.USEAPI_KLING_VOICE_PREFIX}{item['speaker_id']}:{item['name']}"
+                    for item in kling_voice_catalog
+                ]
+            elif selected_tts_server == "useapi-vids":
+                filtered_voices = voice.get_useapi_vids_voices()
             else:
                 # 获取Azure的声音列表
                 all_voices = voice.get_all_azure_voices(filter_locals=None)
@@ -8277,6 +8455,12 @@ def _render_audio_settings(panel, params):
                     )
                 if voice.is_voxcpm_voice(v):
                     return v.split(":", 1)[1] or DEFAULT_VOXCPM_VOICE
+                if voice.is_useapi_kling_voice(v):
+                    parts = v.split(":", 2)
+                    return parts[2] if len(parts) >= 3 and parts[2] else parts[1]
+                if voice.is_useapi_vids_voice(v):
+                    name, _, style = v.split(":", 1)[1].partition("-")
+                    return f"{name} ({style})" if style else name
                 return (
                     v.replace("Female", tr("Female"))
                     .replace("Male", tr("Male"))
@@ -8346,6 +8530,9 @@ def _render_audio_settings(panel, params):
                             "voice_id",
                             voice_name.split(":", 1)[1],
                         )
+
+                if selected_tts_server == "useapi-kling":
+                    _render_useapi_kling_emotion(kling_voice_catalog, voice_name)
 
                 params.voice_name = voice_name
                 if not voice.is_no_voice(voice_name):
@@ -8809,6 +8996,7 @@ def _render_audio_settings(panel, params):
             uploaded_bgm_file = _render_background_music_settings(
                 params,
                 elevenlabs_api_key_rendered=elevenlabs_api_key_rendered,
+                useapi_token_rendered=useapi_token_rendered,
             )
     return uploaded_audio_file, uploaded_bgm_file, voice_mode
 
@@ -9474,6 +9662,27 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("ElevenLabs API Key Required"))
+            st.stop()
+
+        if (
+            params.bgm_type == "flowmusic"
+            and bgm_service.should_use_bgm(params.bgm_type, params.bgm_volume)
+            and not _useapi_audio_token()
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Flow Music Token Required"))
+            st.stop()
+
+        if (
+            voice_mode == VOICE_MODE_TTS
+            and (
+                voice.is_useapi_kling_voice(params.voice_name)
+                or voice.is_useapi_vids_voice(params.voice_name)
+            )
+            and not _useapi_audio_token()
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("useapi.net Voice Token Required"))
             st.stop()
 
         if params.video_source == "local" and not has_local_materials:

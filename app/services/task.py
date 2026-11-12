@@ -35,6 +35,7 @@ from app.services import (
     task_artifacts,
     twelvelabs,
     useapi,
+    useapi_flowmusic,
     video,
     volcengine_seedance,
     voice,
@@ -97,6 +98,15 @@ _VIDEO_MUSIC_PROVIDERS = {
         "warning_code": "elevenlabs_bgm_failed",
         "display_name": "ElevenLabs",
     },
+    # useapi.net (third-party API): an instrumental Lyria track generated on the
+    # user's own Google Flow Music account, then fitted to the video length.
+    "flowmusic": {
+        "service": useapi_flowmusic,
+        "error_type": useapi_flowmusic.FlowMusicError,
+        "suffix": ".mp3",
+        "warning_code": "flowmusic_bgm_failed",
+        "display_name": "Google Flow Music",
+    },
 }
 
 
@@ -118,6 +128,12 @@ def _get_video_music_prompt(params: VideoParams) -> str:
     prompt = str(params.video_music_prompt or "").strip()
     if params.bgm_type == "sonilo" and not prompt:
         prompt = str(params.sonilo_bgm_prompt or "").strip()
+    if params.bgm_type == "flowmusic" and not prompt:
+        # Google Flow Music writes music from text only (it does not see the video),
+        # so an empty style becomes a prompt built from the video subject.
+        prompt = useapi_flowmusic.default_prompt(
+            params.video_subject, params.video_script
+        )
     return prompt
 
 

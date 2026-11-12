@@ -252,6 +252,27 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "VoxCPM Prompt Pair Required",
         "VoxCPM Prompt Invalid",
         "None (Animation)",
+        # useapi.net voice-over and Google Flow Music background music.
+        "Flow Music Background Music",
+        "Flow Music Background Music Help",
+        "Flow Music Prompt",
+        "Flow Music Prompt Help",
+        "Flow Music Model",
+        "Flow Music Credits Notice",
+        "Flow Music Multiple Videos Warning",
+        "Test Flow Music Connection",
+        "Flow Music Connection Test Succeeded",
+        "Flow Music Connection Test Failed",
+        "Flow Music Token Required",
+        "Flow Music BGM Fallback Warning",
+        "useapi.net Audio API Token",
+        "useapi.net Audio API Token Help",
+        "useapi.net Audio API Token Shared",
+        "useapi.net Voice Token Required",
+        "Kling Voices Load Failed",
+        "Kling Voice Emotion",
+        "Kling Voice Emotion Default",
+        "Google Vids Speed Not Supported",
     }
 )
 FORMAT_PLACEHOLDER_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")

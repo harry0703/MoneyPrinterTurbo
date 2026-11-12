@@ -56,6 +56,10 @@ USEAPI_TOKEN_URL = (
     "?utm_source=moneyprinterturbo&utm_medium=referral"
     "&utm_campaign=mpt-integration"
 )
+# useapi.net voice-over (Kling TTS, Google Vids voices) and Google Flow Music
+# background music read the same token as the useapi.net video source.
+USEAPI_VOICE_PREFIXES = ("useapi-kling:", "useapi-vids:")
+USEAPI_BGM_TYPES = {"flowmusic"}
 INFISTAR_VIDEO_API_KEY_URL = "https://infistar.cc/keys"
 JALAPENO_API_KEY_URL = "https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"
 PEXELS_API_KEY_URL = "https://www.pexels.com/api/"
@@ -425,6 +429,13 @@ def _requires_llm(cli_args: list[str]) -> bool:
     )
 
 
+def _uses_useapi_audio(cli_args: list[str]) -> bool:
+    """Whether the run reads its voice-over or background music via useapi.net."""
+    voice_name = _last_cli_value(cli_args, "--voice-name").lower()
+    bgm_type = _last_cli_value(cli_args, "--bgm-type").lower()
+    return voice_name.startswith(USEAPI_VOICE_PREFIXES) or bgm_type in USEAPI_BGM_TYPES
+
+
 def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[str]]:
     """Return the active provider and only the fields required by this run."""
     text = config_path.read_text(encoding="utf-8")
@@ -563,6 +574,14 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         value = _plain_config_value(text, f"{source}_api_keys")
         if not _has_configured_value(value):
             missing.append(f"{source}_api_keys")
+    if _uses_useapi_audio(cli_args) and "useapi_api_token" not in missing:
+        # Same order as useapi_audio.get_api_key: the config key, then USEAPI_TOKEN.
+        value = (
+            _plain_config_value(text, "useapi_api_token").strip()
+            or os.environ.get("USEAPI_TOKEN", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("useapi_api_token")
     return provider, missing
 
 
