@@ -504,6 +504,15 @@ def search_videos_pexels(
     return []
 
 
+def _pixabay_rendition_area(rendition: tuple[str, Any]) -> float:
+    """Sort key for the files of a Pixabay video: pixel count, malformed last."""
+    _, video = rendition
+    try:
+        return int(video["width"]) * int(video["height"])
+    except (KeyError, OverflowError, TypeError, ValueError):
+        return math.inf
+
+
 def search_videos_pixabay(
     search_term: str,
     minimum_duration: int,
@@ -592,8 +601,13 @@ def search_videos_pixabay(
             video_files = v.get("videos")
             if not isinstance(video_files, dict):
                 continue
-            # loop through each url to determine the best quality
-            for video_type, video in video_files.items():
+            # Pixabay lists large (usually 3840x2160) before medium (usually
+            # 1920x1080). As for Pexels, try the files from the smallest up and
+            # keep the first that fills the output: a larger file only takes
+            # longer to download and decode before it is scaled down.
+            for video_type, video in sorted(
+                video_files.items(), key=_pixabay_rendition_area
+            ):
                 if not isinstance(video, dict):
                     continue
                 try:
