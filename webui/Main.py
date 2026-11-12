@@ -6752,6 +6752,17 @@ def _get_voice_preview_sample(voice_name: str) -> str:
         vietnamese_chars = set("àáâãèéêìíòóôõùúýăđơưÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝĂĐƠƯ")
         if any(char in vietnamese_chars for char in display):
             return "Xin chào, đây là đoạn âm thanh thử nghiệm giọng nói."
+    # Edge and Azure voice names start with their locale, as in
+    # en-US-JennyNeural-Female, and the voice reads the language of that
+    # locale. Edge returns no audio for text a voice cannot read: an en-US
+    # voice gets none for the Chinese sample. Use the sample in the voice's
+    # language, or the English one when no WebUI language has a sample.
+    if voice.is_azure_v1_voice(voice_name) or voice.is_azure_v2_voice(voice_name):
+        language = voice_name.split("-", 1)[0].lower()
+        for code in (language, "en"):
+            sample = locales.get(code, {}).get("Translation", {}).get("Voice Example")
+            if sample:
+                return sample
     return tr("Voice Example")
 
 
