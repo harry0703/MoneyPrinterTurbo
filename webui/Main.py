@@ -2836,8 +2836,11 @@ def _format_file_size(size_bytes):
     size = float(max(0, size_bytes))
     units = ("B", "KB", "MB", "GB", "TB")
     for unit in units:
-        if size < 1024 or unit == units[-1]:
-            return f"{size:.0f} {unit}" if unit in ("B", "KB") else f"{size:.2f} {unit}"
+        # B/KB use integer rounding, MB+ use two decimals. Step to the next
+        # unit when that rounding would display as 1024 of the current unit.
+        label = f"{size:.0f}" if unit in ("B", "KB") else f"{size:.2f}"
+        if float(label) < 1024 or unit == units[-1]:
+            return f"{label} {unit}"
         size /= 1024
     return f"{size_bytes} B"
 

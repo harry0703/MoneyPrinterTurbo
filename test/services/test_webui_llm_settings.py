@@ -3,6 +3,7 @@ import json
 from unittest.mock import patch
 
 import requests
+import pytest
 from streamlit.testing.v1 import AppTest
 
 from app.config import config
@@ -40,14 +41,16 @@ def _make_kimi_poll_due(app):
     return app.run()
 
 
-def test_fluxionai_settings_defaults_and_connection_button():
+@pytest.mark.parametrize("provider,base_url,model,tip", [
+    ("fluxionai", "https://fluxionai.space/v1", "gpt-5.5", "OpenAI 接口分组"),
+    ("apixo", "https://llm.apixo.ai/v1", "gpt-5.4-mini", "OpenAI Responses API"),
+])
+def test_gateway_settings_defaults_and_connection_button(provider, base_url, model, tip):
     """真实运行 Streamlit 组件：检查默认值、配置覆盖及连接测试入口，不写用户配置。"""
     app_config = dict(
         config.app,
-        llm_provider="fluxionai",
-        fluxionai_api_key="",
-        fluxionai_base_url="",
-        fluxionai_model_name="",
+        llm_provider=provider,
+        **{f"{provider}_{suffix}": "" for suffix in ("api_key", "base_url", "model_name")},
     )
     with (
         patch.object(config, "app", app_config),
@@ -63,30 +66,30 @@ def test_fluxionai_settings_defaults_and_connection_button():
         app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
-        assert _widget_by_key(app.selectbox, "llm_provider_select").value == "fluxionai"
+        assert _widget_by_key(app.selectbox, "llm_provider_select").value == provider
         assert (
-            _widget_by_key(app.text_input, "fluxionai_base_url_custom_input").value
-            == "https://fluxionai.space/v1"
+            _widget_by_key(app.text_input, f"{provider}_base_url_custom_input").value
+            == base_url
         )
         assert (
-            _widget_by_key(app.text_input, "fluxionai_model_name_input").value
-            == "gpt-5.5"
+            _widget_by_key(app.text_input, f"{provider}_model_name_input").value
+            == model
         )
-        assert app_config["fluxionai_base_url"] == ""
-        assert app_config["fluxionai_model_name"] == ""
-        assert any("OpenAI 接口分组" in str(item.value) for item in app.info)
-        _widget_by_key(app.text_input, "fluxionai_api_key_input").set_value(
+        assert app_config[f"{provider}_base_url"] == ""
+        assert app_config[f"{provider}_model_name"] == ""
+        assert any(tip in str(item.value) for item in app.info)
+        _widget_by_key(app.text_input, f"{provider}_api_key_input").set_value(
             "test-ui-key"
         ).run()
-        _widget_by_key(app.text_input, "fluxionai_model_name_input").set_value(
+        _widget_by_key(app.text_input, f"{provider}_model_name_input").set_value(
             "custom-model"
         ).run()
-        _widget_by_key(app.text_input, "fluxionai_base_url_custom_input").set_value(
+        _widget_by_key(app.text_input, f"{provider}_base_url_custom_input").set_value(
             "https://gateway.example.com/v1"
         ).run()
-        assert app_config["fluxionai_api_key"] == "test-ui-key"
-        assert app_config["fluxionai_model_name"] == "custom-model"
-        assert app_config["fluxionai_base_url"] == "https://gateway.example.com/v1"
+        assert app_config[f"{provider}_api_key"] == "test-ui-key"
+        assert app_config[f"{provider}_model_name"] == "custom-model"
+        assert app_config[f"{provider}_base_url"] == "https://gateway.example.com/v1"
         _widget_by_key(app.button, "test_llm_connection_button").click().run()
         test_connection.assert_called_once()
         assert not app.exception

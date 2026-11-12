@@ -659,6 +659,13 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             cheapaimodel.model_docs_url, "https://cheapaimodel.ai/models"
         )
+        uberllm = get_llm_provider("uberllm")
+        self.assertEqual(uberllm.default_model, "deepseek/deepseek-v4-flash")
+        self.assertEqual(uberllm.default_base_url, "https://api.uberllm.dev/v1")
+        self.assertEqual(uberllm.adapter, "openai_compatible")
+        self.assertTrue(uberllm.requires_api_key)
+        self.assertEqual(uberllm.api_key_url, "https://uberllm.dev/signup")
+        self.assertEqual(uberllm.model_docs_url, "https://uberllm.dev/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -722,6 +729,8 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "minimax",
                 "mimo",
                 "iflytek",
+                "apixo",
+                "apinebula",
                 "jalapeno",
                 "infistar",
                 "shengsuanyun",
@@ -744,6 +753,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "runcrate",
                 "cloudgpu",
                 "cheapaimodel",
+                "uberllm",
                 "ollama",
                 "claude_code",
                 "oneapi",
