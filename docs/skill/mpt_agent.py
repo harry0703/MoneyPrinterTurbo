@@ -775,7 +775,7 @@ def generate_video(
     root: Path,
     subject: str,
     cli_args: list[str],
-) -> tuple[list[Path], Path, Path, Path]:
+) -> tuple[list[Path], Path, Path, Path, list]:
     """Run one traceable CLI task and return only its final video files."""
     uv = shutil.which("uv")
     if not uv:
@@ -825,15 +825,21 @@ def generate_video(
     log(f"starting video generation, task ID: {task_id}")
     log(f"full generation log: {log_path}")
     try:
-        with log_path.open("w", encoding="utf-8") as log_file:
+        with (
+            log_path.open("w", encoding="utf-8") as log_file,
+            tempfile.TemporaryFile(mode="w+", encoding="utf-8") as cli_stdout,
+        ):
             result = subprocess.run(
                 command,
                 cwd=root,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
+                stdout=cli_stdout,
+                stderr=log_file,
                 text=True,
                 check=False,
             )
+            cli_stdout.seek(0)
+            output = cli_stdout.read()
+            log_file.write(output)
     except OSError as exc:
         error = f"video generation could not start: {exc}; log: {log_path}"
         write_result_manifest(
@@ -891,6 +897,12 @@ def generate_video(
             },
         )
         raise SkillError(error)
+    try:
+        warnings = json.loads(output)["result"]["warnings"] or []
+    except (ValueError, KeyError, TypeError, AttributeError):
+        # Older installed CLI versions may not emit the current JSON result.
+        # Do not claim the video has music when its warnings cannot be checked.
+        warnings = [{"code": "warnings_unavailable"}]
     result_path = write_result_manifest(
         root,
         {
@@ -900,9 +912,10 @@ def generate_video(
             "task_dir": str(task_dir.resolve()),
             "log_file": str(log_path.resolve()),
             "video_files": [str(video) for video in videos],
+            "warnings": warnings,
         },
     )
-    return videos, task_dir.resolve(), log_path.resolve(), result_path
+    return videos, task_dir.resolve(), log_path.resolve(), result_path, warnings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -934,7 +947,7 @@ def main(argv: list[str] | None = None) -> int:
                 },
             )
             return report_invalid_pexels_config()
-        videos, task_dir, log_path, result_path = generate_video(
+        videos, task_dir, log_path, result_path, warnings = generate_video(
             root, args.subject, args.cli_args
         )
     except (OSError, SkillError, urllib.error.URLError, zipfile.BadZipFile) as exc:
@@ -944,6 +957,8 @@ def main(argv: list[str] | None = None) -> int:
     print("MPT_RESULT")
     for video in videos:
         print(f"VIDEO_FILE={video}")
+    for warning in warnings:
+        print(f"MPT_WARNING={json.dumps(warning, ensure_ascii=False)}")
     print(f"TASK_DIR={task_dir}")
     print(f"LOG_FILE={log_path}")
     print(f"RESULT_FILE={result_path}")

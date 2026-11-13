@@ -88,15 +88,17 @@ class TestMptAgentSkill(unittest.TestCase):
                 video, task, log = root / "owned.mp4", root / "task", root / "log"
                 video.write_bytes(b"owned output boundary fixture")
                 manifest = root / "result.json"
+                output = io.StringIO()
                 with (
                     patch.dict(os.environ, {}, clear=True),
                     patch.object(mpt_agent, "validate_pexels_config", wraps=mpt_agent.validate_pexels_config) as validation,
-                    patch.object(mpt_agent, "generate_video", return_value=([video], task, log, manifest)) as generate,
+                    patch.object(mpt_agent, "generate_video", return_value=([video], task, log, manifest, [{"code": "bgm_mix_failed", "video_index": 1}])) as generate,
                     patch.object(mpt_agent.urllib.request, "urlopen", side_effect=AssertionError("local source must not probe Pexels")),
-                    redirect_stdout(io.StringIO()),
+                    redirect_stdout(output),
                 ):
                     status = mpt_agent.main(["--subject", "owned topic", "--root", str(root), "--", *forwarded])
                 self.assertEqual(status, 0)
+                self.assertIn('MPT_WARNING={"code": "bgm_mix_failed", "video_index": 1}', output.getvalue())
                 validation.assert_called_once()
                 generate.assert_called_once_with(root.resolve(), "owned topic", forwarded)
 
@@ -1093,6 +1095,9 @@ class TestMptAgentSkill(unittest.TestCase):
                 task_dir = root / "storage" / "tasks" / task_id
                 task_dir.mkdir(parents=True)
                 (task_dir / "final-1.mp4").write_bytes(b"video")
+                kwargs["stdout"].write(json.dumps({"result": {"warnings": [
+                    {"code": "bgm_mix_failed", "video_index": 1}
+                ]}}))
                 return SimpleNamespace(returncode=0)
 
             with (
@@ -1103,7 +1108,7 @@ class TestMptAgentSkill(unittest.TestCase):
                     mpt_agent.subprocess, "run", side_effect=finish_cli
                 ) as run_mock,
             ):
-                videos, task_dir, log_path, result_path = mpt_agent.generate_video(
+                videos, task_dir, log_path, result_path, warnings = mpt_agent.generate_video(
                     root,
                     "测试主题",
                     ["--video-aspect", "16:9", "--stop-at", "script"],
@@ -1114,12 +1119,34 @@ class TestMptAgentSkill(unittest.TestCase):
             result = json.loads(result_path.read_text(encoding="utf-8"))
             self.assertEqual(result["status"], "completed")
             self.assertEqual(result["video_files"], [str(videos[0])])
+            self.assertEqual(warnings, [{"code": "bgm_mix_failed", "video_index": 1}])
+            self.assertEqual(result["warnings"], warnings)
             command = run_mock.call_args.args[0]
             voice_index = command.index("--voice-name")
             self.assertEqual(
                 command[voice_index + 1], mpt_agent.DEFAULT_VOICE_NAME
             )
             self.assertEqual(command[-2:], ["--stop-at", "video"])
+
+    def test_generation_with_legacy_cli_reports_unavailable_warnings(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_id = "12345678-1234-1234-1234-123456789abc"
+            def finish_cli(command, **kwargs):
+                task_dir = root / "storage" / "tasks" / task_id
+                task_dir.mkdir(parents=True)
+                (task_dir / "final-1.mp4").write_bytes(b"video")
+                kwargs["stdout"].write('{"result": {"videos": ["final-1.mp4"]}}\n')
+                return SimpleNamespace(returncode=0)
+            with (
+                patch.object(mpt_agent.shutil, "which", return_value="uv"),
+                patch.object(mpt_agent, "run_checked"),
+                patch.object(mpt_agent.uuid, "uuid4", return_value=task_id),
+                patch.object(mpt_agent.subprocess, "run", side_effect=finish_cli),
+            ):
+                _, _, _, manifest, warnings = mpt_agent.generate_video(root, "topic", [])
+            self.assertEqual(warnings, [{"code": "warnings_unavailable"}])
+            self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["warnings"], warnings)
 
     def test_generation_failure_prints_original_model_error(self):
         """生成失败时保留模型原始错误，避免 Skill 层猜测供应商语义。"""

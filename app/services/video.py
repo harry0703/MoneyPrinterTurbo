@@ -1963,7 +1963,11 @@ def generate_video(
                     bgm_file=params.bgm_file,
                 )
             )
-        bgm_mix_succeeded = True
+        # Missing local music also produces a silent fallback. An empty
+        # provider override is intentional and already reported by the caller.
+        bgm_mix_succeeded = not (
+            bgm_enabled and bgm_file_override is None and not bgm_file
+        )
         if bgm_file:
             try:
                 bgm_effects = [afx.MultiplyVolume(params.bgm_volume)]

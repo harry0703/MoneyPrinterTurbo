@@ -2158,6 +2158,10 @@ def _render_generation_task_snapshot(task_id, task):
                     index=warning.get("video_index", ""), count=warning.get("count", 0)
                 )
             )
+        elif isinstance(warning, Mapping) and warning.get("code") == "bgm_mix_failed":
+            st.warning(
+                tr("BGM Mix Fallback Warning").format(index=warning.get("video_index", ""))
+            )
         elif isinstance(warning, Mapping) and warning.get("code") == "sonilo_bgm_failed":
             st.warning(
                 tr("Sonilo BGM Fallback Warning").format(

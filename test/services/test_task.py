@@ -400,6 +400,22 @@ class TestTaskService(unittest.TestCase):
         generate_bgm.assert_not_called()
         self.assertEqual(generate.call_args.kwargs["bgm_file_override"], "")
 
+    def test_generate_final_videos_warns_when_local_bgm_fails(self):
+        params = VideoParams(video_subject="test", bgm_type="random")
+        with (
+            patch.object(tm.video, "combine_videos"),
+            patch.object(tm.video, "generate_video", return_value=False),
+            patch.object(tm.sm.state, "update_task") as update,
+        ):
+            final_paths, _, warnings = tm.generate_final_videos(
+                task_id="local-bgm-fallback", params=params,
+                downloaded_videos=["material.mp4"], audio_file="audio.mp3",
+                subtitle_path="", audio_duration=5,
+            )
+        self.assertEqual(len(final_paths), 1)
+        self.assertEqual(warnings, [{"code": "bgm_mix_failed", "video_index": 1}])
+        self.assertEqual(update.call_args.kwargs["warnings"], warnings)
+
     def test_generate_final_videos_warns_when_sonilo_mix_fails(self):
         """Sonilo 生成成功但最终混音失败时，任务必须保留视频并返回警告。"""
         params = VideoParams(video_subject="test", bgm_type="sonilo")
