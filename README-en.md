@@ -247,6 +247,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Access Seedance, Wan, and other text-to-video models through [OFox](https://ofox.ai) with a single API key
 - [x] Generate 3–12 second AI video materials through the asynchronous [MuAPI](https://muapi.ai) text-to-video API, with configurable endpoint, aspect ratio, resolution, and polling
 - [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services, custom image gateways, or the included [local SDXL image server](docs/local-image-server/README.md); choose static or slow-zoom motion for local and generated images
+- [x] Mix free Pixabay footage with that same text-to-image service in a single video, picking a source per script term by ratio, alternation, or keyword — see [docs/mixed-source.md](docs/mixed-source.md)
 - [x] Use [OpenAI - Codex image generation](docs/codex-provider.md) with the shared ChatGPT sign-in and a separate image model selector; the account and selected model must have image-generation access
 - [x] Adjust clip duration, playback speed, and transitions; choose crop-to-fill or letterbox fitting and random or sequential footage order
 - [x] Optionally use [TwelveLabs](https://playground.twelvelabs.io/) to rerank stock-footage search terms by video topic

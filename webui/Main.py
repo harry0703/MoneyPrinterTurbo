@@ -145,7 +145,7 @@ VIDEO_SOURCE_GROUPS = {
         "wavespeed",
         "muapi",
     ),
-    "ai_image": ("openai_image", "codex_image"),
+    "ai_image": ("openai_image", "codex_image", "mixed"),
     "local": ("local",),
 }
 # Upload-Post 的 API Key 与发布用户分别在两个页面管理，并且发布用户名称
@@ -3419,6 +3419,7 @@ def _material_provider_labels():
         "muapi": tr("MuAPI AI Video"),
         "openai_image": tr("OpenAI Compatible Text-to-Image"),
         "codex_image": tr("codex.image.label"),
+        "mixed": tr("Mixed Pixabay and AI Images"),
         "local": tr("Local file"),
     }
 
@@ -4198,6 +4199,50 @@ def _render_material_provider_settings(provider):
                 "openai_image_prompt_template",
                 openai_image_prompt_template.strip(),
             )
+    elif provider == "mixed":
+        st.markdown(f"**{tr('Mixed Pixabay and AI Images')}**")
+        st.caption(tr("Mixed Pixabay and AI Images Help"))
+
+        mixed_ratio = st.slider(
+            tr("Mixed Source Ratio"),
+            min_value=0.0,
+            max_value=1.0,
+            value=float(app_settings.get("mixed_source_pixabay_weight", 0.5) or 0.5),
+            step=0.1,
+            help=tr("Mixed Source Ratio Help"),
+            key="mixed_source_pixabay_weight_input",
+            on_change=_save_settings_change,
+            args=(
+                "app",
+                "mixed_source_pixabay_weight",
+                "mixed_source_pixabay_weight_input",
+                lambda value: value,
+            ),
+        )
+        _set_runtime_config("app", "mixed_source_pixabay_weight", mixed_ratio)
+
+        mixed_strategy_options = ("ratio", "alternate", "prompt_based")
+        mixed_strategy_labels = {
+            "ratio": tr("Mixed Strategy Ratio"),
+            "alternate": tr("Mixed Strategy Alternate"),
+            "prompt_based": tr("Mixed Strategy Prompt Based"),
+        }
+        saved_mixed_strategy = str(
+            app_settings.get("mixed_source_strategy", "ratio") or "ratio"
+        )
+        if saved_mixed_strategy not in mixed_strategy_options:
+            saved_mixed_strategy = "ratio"
+        mixed_strategy = stable_selectbox(
+            tr("Mixed Source Strategy"),
+            options=mixed_strategy_options,
+            default_value=saved_mixed_strategy,
+            key="mixed_source_strategy_select",
+            format_func=mixed_strategy_labels.get,
+            help=tr("Mixed Source Strategy Help"),
+        )
+        _set_runtime_config("app", "mixed_source_strategy", mixed_strategy)
+
+        st.caption(tr("Mixed Reuses OpenAI Image Settings"))
 
 
 @st.dialog(
@@ -6051,6 +6096,7 @@ def _render_video_settings(panel, params):
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
                 "codex_image": tr("codex.image.label"),
+                "mixed": tr("Mixed Pixabay and AI Images"),
                 "local": tr("Local file"),
             }
             saved_video_source_name = str(

@@ -90,7 +90,11 @@ tls_verify = true
 
 # Available values: "pexels", "pixabay", "coverr", "wavespeed",
 # "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "loomloom",
-# "openai_image", "infistar", "local".
+# "openai_image", "infistar", "local", "mixed".
+# "mixed" picks, per script term, either a free Pixabay clip or an image from
+# the same "openai_image" endpoint configured below (so it needs
+# openai_image_base_url and openai_image_model set too). See
+# mixed_source_pixabay_weight and mixed_source_strategy below.
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
 # "loomloom" is a paid Shengsuan Cloud source and requires explicit
@@ -248,6 +252,19 @@ twelvelabs_rerank_terms = false
 # Match search terms and downloaded materials to the script narrative order.
 # 默认关闭，开启后会减少随机性，使素材顺序更贴近文案结构。
 match_materials_to_script = false
+
+# Only used when video_source = "mixed". Fraction of script terms sent to the
+# openai_image endpoint instead of Pixabay (0.0 = all Pixabay, 1.0 = all
+# generated images). The WebUI's own request value takes precedence; this is
+# only the CLI/API default when the request omits source_mix_ratio.
+mixed_source_pixabay_weight = 0.5
+# How "mixed" assigns a source per term: "ratio" spreads
+# mixed_source_pixabay_weight evenly across the script instead of bunching it
+# at the start; "alternate" alternates API/Pixabay term by term;
+# "prompt_based" sends abstract-sounding terms (e.g. "freedom", "progress")
+# to the image API and concrete/physical terms (e.g. "shipyard", "tank") to
+# Pixabay.
+mixed_source_strategy = "ratio"
 
 # Optional Sonilo video-matched original background music.
 # Create a key at https://platform.sonilo.com/dashboard. The WebUI can also save

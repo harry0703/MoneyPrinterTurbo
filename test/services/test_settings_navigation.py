@@ -29,6 +29,7 @@ FIELDS = {
     "muapi": ("ai_video", "muapi_api_key_input"),
     "openai_image": ("ai_image", "openai_image_base_url_input"),
     "codex_image": ("ai_image", "codex_image_timeout_input"),
+    "mixed": ("ai_image", "mixed_source_pixabay_weight_input"),
 }
 
 
@@ -144,6 +145,7 @@ PROVIDER_LABELS = {
     "muapi": "MuAPI AI Video",
     "openai_image": "OpenAI Compatible Text-to-Image",
     "codex_image": "codex.image.label",
+    "mixed": "Mixed Pixabay and AI Images",
 }
 
 
@@ -202,7 +204,10 @@ def test_only_selected_provider_in_each_material_section_is_rendered(provider):
         run(app)
         selected = assert_material_sections(app, "en")
         assert selected[group] == provider
-        present = {x.key for x in app.text_input}
+        # "mixed" has no text_input of its own: its ratio control is a
+        # slider, so the "exactly one provider's own widget is mounted"
+        # check below must look at both widget types, not just text_input.
+        present = {x.key for x in app.text_input} | {x.key for x in app.slider}
         assert field in present
         for section, selected_provider in selected.items():
             assert FIELDS[selected_provider][1] in present

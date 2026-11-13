@@ -102,6 +102,9 @@ def configured_material_providers(settings, groups, codex_connected=False):
             "jalapeno": jalapeno_video.is_enabled(settings),
             "muapi": muapi.is_enabled(settings),
             "openai_image": material.is_openai_image_enabled(settings),
+            # "mixed" reuses the same openai_image_* endpoint for its API
+            # half, so it is only ready once that endpoint is configured.
+            "mixed": material.is_openai_image_enabled(settings),
             "codex_image": bool(
                 codex_connected and _text(settings.get("codex_image_model_name"))
             ),
