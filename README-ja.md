@@ -127,23 +127,23 @@
 
 ## 作者によるもう 1 つのオープンソースプロジェクト: MangoDisk ⭐
 
-<p align="center">
-  <a href="https://mangodisk.app/ja">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/ja/dark-01-deep-cleanup.jpg?ver=1.1.0">
-      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/ja/light-01-deep-cleanup.jpg?ver=1.1.0">
-      <img src="https://assets.mangodisk.app/images/screenshots/ja/light-01-deep-cleanup.jpg?ver=1.1.0" width="900" alt="MangoDisk ディープクリーン画面">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <strong>macOS・Windows 向けのオープンソースのディスククリーンアップ、容量分析、システム最適化ツール</strong><br>
+<p align="left">
+  <strong>macOS・Windows・Linux 向けのオープンソースのディスククリーンアップ、容量分析、システム最適化ツール</strong><br>
   キャッシュ、大容量ファイル、重複ファイル、アプリの残骸を整理し、容量分析、アプリのアンインストール、スタートアップ管理、システム最適化・メンテナンスにも対応します。
 </p>
 
-<p align="center">
+<p align="left">
   <a href="https://mangodisk.app/ja">MangoDisk 公式サイト</a> · <a href="https://github.com/harry0703/MangoDisk">GitHub で見る</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/ja/dark-01-deep-cleanup.jpg?ver=2.0.0">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/ja/light-01-deep-cleanup.jpg?ver=2.0.0">
+      <img src="https://assets.mangodisk.app/images/screenshots/ja/light-01-deep-cleanup.jpg?ver=2.0.0" width="900" alt="MangoDisk ディープクリーン画面">
+    </picture>
+  </a>
 </p>
 
 ---

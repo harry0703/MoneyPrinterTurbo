@@ -198,23 +198,23 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 
 ## Another Open-Source Project from the Creator: MangoDisk ⭐
 
-<p align="center">
-  <a href="https://mangodisk.app">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/en/dark-01-deep-cleanup.jpg?ver=1.1.0">
-      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=1.1.0">
-      <img src="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=1.1.0" width="900" alt="MangoDisk Deep Cleanup interface">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <strong>An open-source disk cleaner, storage analyzer, and system optimizer for macOS and Windows</strong><br>
+<p align="left">
+  <strong>An open-source disk cleaner, storage analyzer, and system optimizer for macOS, Windows, and Linux</strong><br>
   Clean caches, large files, duplicates, and app leftovers; analyze disk usage; manage apps and startup items; and maintain your system.
 </p>
 
-<p align="center">
+<p align="left">
   <a href="https://mangodisk.app">Visit the MangoDisk Website</a> · <a href="https://github.com/harry0703/MangoDisk">View on GitHub</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/en/dark-01-deep-cleanup.jpg?ver=2.0.0">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=2.0.0">
+      <img src="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=2.0.0" width="900" alt="MangoDisk Deep Cleanup interface">
+    </picture>
+  </a>
 </p>
 
 ---
