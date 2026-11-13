@@ -366,7 +366,7 @@ Windows をお使いの場合は、Microsoft のドキュメントを参照し�
 1. [WSL をインストールする](https://learn.microsoft.com/en-us/windows/wsl/install)
 2. [WSL で Docker コンテナを使用する](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
-初回起動の前に、コンテナにマウントするため `config.example.toml` を `config.toml` にコピーしてください。既に `config.toml` がある場合は、そのまま保持してください。
+初回起動の前に、コンテナにマウントするため `MoneyPrinterTurbo` ディレクトリ内で `config.example.toml` を `config.toml` にコピーしてください。既に `config.toml` がある場合は、そのまま保持してください。
 
 ```shell
 cd MoneyPrinterTurbo

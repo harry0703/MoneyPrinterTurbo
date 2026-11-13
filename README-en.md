@@ -439,7 +439,7 @@ If you are using a Windows system, please refer to Microsoft's documentation:
 1. [Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
 2. [Use Docker containers with WSL](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
-Before the first start, copy `config.example.toml` to `config.toml` for the container mount. Keep your existing `config.toml` if you already have one.
+Before the first start, copy `config.example.toml` to `config.toml` in the `MoneyPrinterTurbo` directory for the container mount. Keep your existing `config.toml` if you already have one.
 
 ```shell
 cd MoneyPrinterTurbo
