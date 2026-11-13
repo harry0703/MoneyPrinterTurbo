@@ -60,6 +60,11 @@ Issues = "https://github.com/harry0703/MoneyPrinterTurbo/issues"
 twelvelabs = [
     "twelvelabs>=1.2.8",
 ]
+# Optional Motion Studio renderer (docs/motion-studio.md): drives headless Chrome to draw frames.
+# Install with `uv sync --extra motion`, plus `playwright install chromium` if Chrome isn't installed.
+motion = [
+    "playwright>=1.49",
+]
 
 [dependency-groups]
 dev = [
@@ -105,6 +110,7 @@ packages = ["app", "webui"]
 "resource/fonts/UTM Kabel KT.ttf" = "app/_assets/resource/fonts/UTM Kabel KT.ttf"
 "resource/songs" = "app/_assets/resource/songs"
 "resource/public" = "app/_assets/resource/public"
+"resource/motion" = "app/_assets/resource/motion"
 
 [tool.hatch.build]
 exclude = ["**/.DS_Store", "**/__pycache__", "**/*.pyc", "**/.streamlit"]
@@ -114,7 +120,7 @@ exclude = ["**/.DS_Store", "**/__pycache__", "**/*.pyc", "**/.streamlit"]
 include = [
     "/app", "/cli.py", "/webui", "/config.example.toml", "/pyproject.toml",
     "/uv.lock", "/LICENSE", "/docs/pypi-description.md", "/docs/packaging.md",
-    "/test/services/test_packaging.py", "/resource/songs", "/resource/public",
+    "/test/services/test_packaging.py", "/resource/songs", "/resource/public", "/resource/motion",
     "/resource/fonts/STHeitiMedium.ttc", "/resource/fonts/MicrosoftYaHeiBold.ttc",
     "/resource/fonts/BeVietnamPro-Bold.ttf", "/resource/fonts/BeVietnamPro-Medium.ttf",
     "/resource/fonts/Charm-Bold.ttf", "/resource/fonts/Charm-Regular.ttf",

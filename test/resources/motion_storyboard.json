@@ -1,0 +1,66 @@
+{
+  "beats": [
+    {
+      "say": "Credit card bill में Minimum Due भरके खुश हो? ये सबसे महंगी गलती है।",
+      "layout": "hook",
+      "mood": "shocked",
+      "emphasis": "महंगी",
+      "headline": "Minimum Due भरके खुश हो?",
+      "kicker": "सबसे महंगी गलती!",
+      "tone": "bad"
+    },
+    {
+      "say": "बाकी पूरे amount पर लगभग साढ़े तीन प्रतिशत interest लगता है, हर महीने।",
+      "layout": "big_number",
+      "mood": "neutral",
+      "emphasis": "साढ़े",
+      "label": "बाकी amount पर interest",
+      "value": "3.5%",
+      "headline": "हर महीने",
+      "tone": "bad"
+    },
+    {
+      "say": "यानी Minimum Due भरने पर साल का चालीस प्रतिशत से भी ज़्यादा, और Total भरने पर zero.",
+      "layout": "compare",
+      "mood": "shocked",
+      "emphasis": "zero",
+      "headline": "एक साल का interest",
+      "left": { "label": "Minimum Due भरा", "value": "42%", "tone": "bad" },
+      "right": { "label": "Total Due भरा", "value": "₹0", "tone": "good" },
+      "kicker": "फर्क देखो!"
+    },
+    {
+      "say": "Rule simple है। हमेशा Total Amount Due भरो, auto-pay लगाओ, और उतना ही खर्च करो जितना भर सको।",
+      "layout": "list",
+      "mood": "happy",
+      "emphasis": "Total",
+      "headline": "Rule simple है",
+      "items": [
+        { "text": "हमेशा Total Amount Due भरो", "tone": "good" },
+        { "text": "Auto-pay लगा दो", "tone": "good" },
+        { "text": "Minimum Due का जाल", "tone": "bad" }
+      ]
+    },
+    {
+      "say": "याद रखो, card आपका दोस्त है, जब तक आप हर महीने पूरा bill भरते हो।",
+      "layout": "statement",
+      "mood": "wink",
+      "emphasis": "पूरा",
+      "headline": "Card दोस्त है, जब तक आप पूरा bill भरते हो",
+      "kicker": "याद रखो"
+    },
+    {
+      "say": "ये video उस दोस्त को भेजो जो minimum due भरता है। ऐसी money tips के लिए follow करो।",
+      "layout": "outro",
+      "mood": "happy",
+      "emphasis": "follow",
+      "headline": "Follow करो",
+      "label": "Rate हर card में अलग होता है · सिर्फ जानकारी के लिए"
+    }
+  ],
+  "youtube": {
+    "title": "Credit card का Minimum Due = सबसे महंगी गलती",
+    "description": "Minimum Due भरने से late fee बचती है, interest नहीं। बाकी amount पर लगभग 3.5% महीना लगता है। हमेशा Total Amount Due भरो.\nसिर्फ जानकारी के लिए, financial advice नहीं।",
+    "hashtags": ["#CreditCard", "MinimumDue", "#PersonalFinance", "#MoneyTips"]
+  }
+}

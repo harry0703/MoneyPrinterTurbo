@@ -1,0 +1,66 @@
+/* Beat layouts for auto.html. Content stays between y 200 and 960, above the host and captions.
+   Every text box has a fixed size; auto.js shrinks the font until the text fits. */
+.fit { position: absolute; left: 90px; width: 900px; display: flex; align-items: center; justify-content: center;
+  text-align: center; line-height: 1.12; font-weight: 800; opacity: 0; }
+.fit > .t { max-width: 100%; }
+.fit.wrap-any > .t { overflow-wrap: anywhere; }
+.muted { color: var(--muted); font-weight: 700; }
+.tone-good { color: var(--accent); }
+.tone-bad { color: var(--danger); }
+.tone-neutral { color: var(--ink); }
+.kick > .t { background: var(--accent); color: var(--ink); padding: 0 0.6em 0.12em; border-radius: 999px; border: var(--bw) solid var(--ink); box-shadow: var(--hard-sm); }
+.kick.tone-bad > .t { background: var(--danger); }
+
+/* hook */
+.hook-head { top: 250px; height: 340px; }
+.hook-kick { top: 630px; height: 250px; }
+
+/* big_number */
+.big-label { top: 250px; height: 110px; }
+.big-value { top: 360px; height: 300px; font-variant-numeric: tabular-nums; }
+.big-sub { top: 690px; height: 220px; }
+
+/* compare */
+.cmp-head { top: 220px; height: 170px; }
+.card { position: absolute; top: 420px; width: 430px; height: 370px; background: var(--paper); border: var(--bw) solid var(--ink);
+  border-top-width: 20px; border-radius: 24px; box-shadow: var(--hard); opacity: 0; }
+.card[data-tone="good"] { border-top-color: var(--accent-deep); }
+.card[data-tone="bad"] { border-top-color: var(--danger); }
+.cmp-left { left: 90px; }
+.cmp-right { left: 560px; }
+.card .fit, .item .fit, .st-card .fit { opacity: 1; }
+.card .c-label { left: 20px; width: 380px; top: 22px; height: 120px; }
+.card .c-value { left: 20px; width: 380px; top: 150px; height: 170px; }
+.cmp-kick { top: 830px; height: 130px; }
+
+/* list */
+.list-head { top: 215px; height: 165px; }
+.item { position: absolute; left: 90px; width: 900px; height: 116px; background: var(--paper); border: 4px solid var(--ink);
+  border-radius: 24px; box-shadow: var(--hard-sm); display: flex; align-items: center; gap: 24px; padding: 0 30px 0 22px; opacity: 0; }
+.item .badge { flex: 0 0 72px; height: 72px; border-radius: 50%; border: 4px solid var(--ink); display: grid; place-items: center;
+  font-size: 40px; font-weight: 800; line-height: 1; background: var(--paper); }
+.item[data-tone="good"] .badge { background: var(--accent); }
+.item[data-tone="bad"] .badge { background: var(--danger); }
+.item .fit { position: relative; left: auto; top: auto; width: auto; flex: 1; height: 100px; justify-content: flex-start; text-align: left; }
+.item .badge svg { width: 40px; height: 40px; fill: var(--ink); }
+.item .badge .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--ink); }
+
+/* statement: the optional label is a sticker stamped on the card's top-right corner */
+.st-kick { top: 322px; left: auto; right: 64px; width: 560px; height: 110px; justify-content: flex-end; z-index: 2; }
+.st-kick > .t { transform: rotate(-5deg); }
+.st-card { position: absolute; left: 90px; top: 380px; width: 900px; height: 520px; background: var(--paper);
+  border: var(--bw) solid var(--ink); border-radius: 24px; box-shadow: var(--hard); opacity: 0; }
+.st-card .fit { left: 50px; top: 40px; width: 800px; height: 440px; }
+mark { color: inherit; background: linear-gradient(var(--accent), var(--accent)) 0 88% / 0% 72% no-repeat; padding: 0 0.12em; }
+
+/* outro */
+.out-label { top: 300px; height: 170px; }
+.out-cta { top: 520px; height: 220px; }
+
+/* Image host (host2d.js): a transparent PNG stands on the disc as a cut-out; a photo becomes a round portrait. */
+.img-host { position: absolute; will-change: transform; }
+.img-host img { display: block; width: 100%; height: 100%; }
+.img-host.cutout { left: 50px; top: 0; width: 460px; height: 540px; transform-origin: 50% 100%; }
+.img-host.cutout img { object-fit: contain; object-position: 50% 100%; filter: drop-shadow(7px 7px 0 var(--ink)); }
+.img-host.portrait { left: 100px; top: 92px; width: 360px; height: 360px; transform-origin: 50% 60%; }
+.img-host.portrait img { object-fit: cover; border-radius: 50%; border: 6px solid var(--ink); }
