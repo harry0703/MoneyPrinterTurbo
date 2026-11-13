@@ -82,6 +82,8 @@ RESULT_FILE=<absolute path>/latest-result.json
 
 `mpt_agent.py` emits `VIDEO_FILE` only after confirming that the file exists and is non-empty. Do not run another `ls`, `stat`, or file validation command.
 
+Report any `MPT_WARNING` alongside the video. In particular, `bgm_mix_failed` means the output lacks background music; `warnings_unavailable` means the installed CLI did not provide a readable warning result, so do not assert that music is present. The same warnings are saved in `latest-result.json`.
+
 If the terminal reports `exitCode=0` but truncates the output or returns a history-file reference without `MPT_RESULT`, do not infer failure and do not inspect old logs. Read this file once:
 
 ```text
@@ -94,7 +96,7 @@ Treat `status=completed` as success. Return only the absolute video path and a c
 The video is ready.
 Topic: ...
 Video file: /absolute/path/to/final-1.mp4
-Summary: Chinese portrait video with voice-over, subtitles, and background music.
+Summary: Chinese portrait video with voice-over and subtitles.
 ```
 
 ### Exit code 10: request credentials once
