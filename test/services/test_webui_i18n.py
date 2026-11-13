@@ -14,6 +14,11 @@ I18N_DIR = ROOT_DIR / "webui" / "i18n"
 LLM_PROVIDER_TIPS_PREFIX = "llm_provider_tips."
 TTS_PROVIDER_TIPS_PREFIX = "tts_provider_tips."
 SECONDARY_LOCALES = ("az", "ca", "de", "es", "fr", "id", "it", "ko", "pt", "ru", "tr", "vi")
+# 已全量翻译（含 Provider 长说明与英文回退 key）的次要语言。
+FULLY_TRANSLATED_LOCALES = ("vi",)
+PARTIAL_SECONDARY_LOCALES = tuple(
+    locale for locale in SECONDARY_LOCALES if locale not in FULLY_TRANSLATED_LOCALES
+)
 PROVIDER_TIPS_PREFIXES = (
     LLM_PROVIDER_TIPS_PREFIX,
     TTS_PROVIDER_TIPS_PREFIX,
@@ -402,7 +407,7 @@ class TestWebuiI18n(unittest.TestCase):
     def test_secondary_locales_do_not_duplicate_provider_tips(self):
         # Provider 配置长说明只维护中英文，其它语言运行时回退英文。
         # 禁止复制这些 key，避免出现不会持续维护的半翻译内容。
-        for locale in SECONDARY_LOCALES:
+        for locale in PARTIAL_SECONDARY_LOCALES:
             with self.subTest(locale=locale):
                 locale_keys = set(_load_translation(locale))
                 duplicated_keys = sorted(
@@ -411,7 +416,7 @@ class TestWebuiI18n(unittest.TestCase):
                 self.assertEqual(duplicated_keys, [])
 
     def test_secondary_locales_do_not_duplicate_english_fallback_keys(self):
-        for locale in SECONDARY_LOCALES:
+        for locale in PARTIAL_SECONDARY_LOCALES:
             with self.subTest(locale=locale):
                 locale_keys = set(_load_translation(locale))
                 self.assertEqual(sorted(ENGLISH_FALLBACK_KEYS & locale_keys), [])
@@ -428,6 +433,24 @@ class TestWebuiI18n(unittest.TestCase):
                     sorted(visitor.keys - locale_keys - ENGLISH_FALLBACK_KEYS),
                     [],
                 )
+
+    def test_fully_translated_locales_cover_every_english_key(self):
+        en_translations = _load_translation("en")
+
+        for locale in FULLY_TRANSLATED_LOCALES:
+            locale_translations = _load_translation(locale)
+            with self.subTest(locale=locale):
+                self.assertEqual(sorted(set(en_translations) - set(locale_translations)), [])
+            for key, value in en_translations.items():
+                with self.subTest(locale=locale, key=key):
+                    self.assertEqual(
+                        _format_placeholders(locale_translations[key]),
+                        _format_placeholders(value),
+                    )
+                    self.assertEqual(
+                        _markdown_urls(locale_translations[key]),
+                        _markdown_urls(value),
+                    )
 
     def test_secondary_locales_preserve_format_placeholders(self):
         en_translations = _load_translation("en")
