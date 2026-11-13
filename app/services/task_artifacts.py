@@ -26,6 +26,28 @@ def _script_file(task_id: str) -> Path:
     return Path(utils.task_dir(task_id)) / "script.json"
 
 
+def _video_plan_file(task_id: str) -> Path:
+    """Return the opt-in scene plan path without changing legacy script.json."""
+    return Path(utils.task_dir(task_id)) / "video_plan.v1.json"
+
+
+def _scene_media_file(task_id: str) -> Path:
+    """Return the opt-in per-scene media assignment artifact path."""
+    return Path(utils.task_dir(task_id)) / "scene_media.v1.json"
+
+
+def _scene_timeline_file(task_id: str) -> Path:
+    return Path(utils.task_dir(task_id)) / "scene_timeline.v1.json"
+
+
+def _video_quality_file(task_id: str) -> Path:
+    return Path(utils.task_dir(task_id)) / "video_quality.v1.json"
+
+
+def _video_render_metrics_file(task_id: str) -> Path:
+    return Path(utils.task_dir(task_id)) / "video_render_metrics.v1.json"
+
+
 def _write_json_atomic(target: Path, payload: Mapping[str, Any]) -> None:
     """
     在目标目录内原子写入 JSON，避免进程中断留下半个文件。
@@ -104,3 +126,99 @@ def patch_script_data(task_id: str, **updates: Any) -> bool:
             f"error={type(exc).__name__}, detail={exc}"
         )
         return False
+
+
+def write_video_plan(task_id: str, plan: Mapping[str, Any]) -> None:
+    """Atomically persist the versioned scene plan in its own artifact."""
+    with _script_lock(task_id):
+        _write_json_atomic(_video_plan_file(task_id), plan)
+
+
+def read_video_plan(task_id: str) -> dict[str, Any] | None:
+    """Read a scene plan artifact; legacy tasks without one return ``None``."""
+    target = _video_plan_file(task_id)
+    try:
+        with _script_lock(task_id):
+            with target.open("r", encoding="utf-8") as source:
+                payload = json.load(source)
+        if not isinstance(payload, dict):
+            raise ValueError("video plan artifact must contain a JSON object")
+        return payload
+    except FileNotFoundError:
+        return None
+
+
+def write_scene_media_manifest(task_id: str, manifest: Mapping[str, Any]) -> None:
+    """Atomically persist scene assignments independently from legacy artifacts."""
+    with _script_lock(task_id):
+        _write_json_atomic(_scene_media_file(task_id), manifest)
+
+
+def read_scene_media_manifest(task_id: str) -> dict[str, Any] | None:
+    """Return a stored scene media manifest, or ``None`` for legacy tasks."""
+    target = _scene_media_file(task_id)
+    try:
+        with _script_lock(task_id):
+            with target.open("r", encoding="utf-8") as source:
+                payload = json.load(source)
+        if not isinstance(payload, dict):
+            raise ValueError("scene media artifact must contain a JSON object")
+        return payload
+    except FileNotFoundError:
+        return None
+
+
+def write_scene_timeline(task_id: str, timeline: Mapping[str, Any]) -> None:
+    with _script_lock(task_id):
+        _write_json_atomic(_scene_timeline_file(task_id), timeline)
+
+
+def read_scene_timeline(task_id: str) -> dict[str, Any] | None:
+    target = _scene_timeline_file(task_id)
+    try:
+        with _script_lock(task_id):
+            with target.open("r", encoding="utf-8") as source:
+                payload = json.load(source)
+        if not isinstance(payload, dict):
+            raise ValueError("scene timeline artifact must contain a JSON object")
+        return payload
+    except FileNotFoundError:
+        return None
+
+
+def write_video_quality_reports(task_id: str, reports: list[Mapping[str, Any]]) -> None:
+    payload = {"schema_version": "1.0", "reports": list(reports)}
+    with _script_lock(task_id):
+        _write_json_atomic(_video_quality_file(task_id), payload)
+
+
+def read_video_quality_reports(task_id: str) -> dict[str, Any] | None:
+    target = _video_quality_file(task_id)
+    try:
+        with _script_lock(task_id):
+            with target.open("r", encoding="utf-8") as source:
+                payload = json.load(source)
+        if not isinstance(payload, dict):
+            raise ValueError("video quality artifact must contain a JSON object")
+        return payload
+    except FileNotFoundError:
+        return None
+
+
+def write_video_render_metrics(task_id: str, reports: list[Mapping[str, Any]]) -> None:
+    payload = {"schema_version": "1.0", "renders": list(reports)}
+    with _script_lock(task_id):
+        _write_json_atomic(_video_render_metrics_file(task_id), payload)
+
+
+def read_video_render_metrics(task_id: str) -> dict[str, Any] | None:
+    target = _video_render_metrics_file(task_id)
+    try:
+        with _script_lock(task_id):
+            with target.open("r", encoding="utf-8") as source:
+                payload = json.load(source)
+        if not isinstance(payload, dict):
+            raise ValueError("video render metrics artifact must contain a JSON object")
+        return payload
+    except FileNotFoundError:
+        return None

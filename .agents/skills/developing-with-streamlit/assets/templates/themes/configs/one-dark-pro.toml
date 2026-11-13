@@ -1,0 +1,41 @@
+# One Dark Pro Theme for Streamlit
+# The beloved Atom/VS Code theme with vibrant syntax colors
+# Perfect balance of contrast and aesthetics
+
+[theme]
+base = "dark"
+primaryColor = "#61afef"
+backgroundColor = "#282c34"
+secondaryBackgroundColor = "#21252b"
+codeBackgroundColor = "#1e2127"
+textColor = "#abb2bf"
+linkColor = "#61afef"
+borderColor = "#3e4451"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "6px"
+buttonRadius = "6px"
+font = "'IBM Plex Sans':https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+codeFontSize = "13px"
+codeTextColor = "#abb2bf"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["30px", "24px", "20px", "16px", "14px", "12px"]
+headingFontWeights = [600, 600, 500, 500, 500, 500]
+linkUnderline = false
+chartCategoricalColors = ["#61afef", "#98c379", "#e5c07b", "#e06c75", "#c678dd", "#56b6c2", "#d19a66"]
+
+# One Dark Pro syntax colors
+blueColor = "#61afef"
+greenColor = "#98c379"
+yellowColor = "#e5c07b"
+redColor = "#e06c75"
+violetColor = "#c678dd"
+orangeColor = "#d19a66"
+
+[theme.sidebar]
+backgroundColor = "#21252b"
+secondaryBackgroundColor = "#282c34"
+codeBackgroundColor = "#1e2127"
+borderColor = "#3e4451"

@@ -60,8 +60,13 @@ class ImageMotion(str, Enum):
 
 SubtitleDisplayMode = Literal["sentence", "word_by_word"]
 SubtitleAnimation = Literal["none", "pop_spring"]
+SubtitlePreset = Literal[
+    "classic", "cinematic", "modern", "documentary", "viral", "minimalist"
+]
+VideoExportProfile = Literal["legacy", "shorts", "high_quality", "fast"]
 _SUBTITLE_DISPLAY_MODES = ("sentence", "word_by_word")
 _SUBTITLE_ANIMATIONS = ("none", "pop_spring")
+_SUBTITLE_PRESETS = ("classic", "cinematic", "modern", "documentary", "viral", "minimalist")
 
 
 def _get_valid_ui_choice(key: str, allowed_values: tuple[str, ...], default: str) -> str:
@@ -74,6 +79,10 @@ def _get_valid_ui_choice(key: str, allowed_values: tuple[str, ...], default: str
     """
     configured_value = config.ui.get(key, default)
     return configured_value if configured_value in allowed_values else default
+
+
+def _get_valid_config_choice(value: str, allowed_values: tuple[str, ...], default: str) -> str:
+    return value if value in allowed_values else default
 
 
 _Config = ConfigDict(
@@ -91,6 +100,32 @@ class MaterialInfo:
     # 本地上传素材不需要填写；写入任务文件前仍会按字段白名单重新构造，
     # 避免外部请求传入的签名 URL、凭据或无关字段进入持久化数据。
     source_info: Optional[dict[str, Any]] = None
+
+
+class SoundEffectCue(BaseModel):
+    """Optional local effect; files are resolved only inside storage/sound_effects."""
+
+    model_config = ConfigDict(extra="forbid")
+    file_name: str = Field(min_length=1, max_length=180)
+    scene_id: str | None = Field(default=None, max_length=80)
+    start_seconds: float = Field(default=0, ge=0, allow_inf_nan=False)
+    duration_seconds: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    volume: float = Field(default=0.35, ge=0, le=1, allow_inf_nan=False)
+    fade_in_seconds: float = Field(default=0.08, ge=0, le=5, allow_inf_nan=False)
+    fade_out_seconds: float = Field(default=0.15, ge=0, le=5, allow_inf_nan=False)
+
+    @pydantic.field_validator("file_name")
+    @classmethod
+    def validate_file_name(cls, value: str) -> str:
+        if (
+            value in {".", ".."}
+            or "/" in value
+            or "\\" in value
+            or any(ord(char) < 32 for char in value)
+            or not value.lower().endswith((".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"))
+        ):
+            raise ValueError("sound effect must be an audio filename without a path")
+        return value
 
 
 class VideoParams(BaseModel):
@@ -121,6 +156,27 @@ class VideoParams(BaseModel):
     match_materials_to_script: bool = False
     video_count: int = Field(default=1, ge=1)
 
+    # Opt-in foundation for scene-based generation. Existing requests remain on
+    # the legacy pipeline unless they explicitly select "scene".
+    video_pipeline: Literal["legacy", "scene"] = _get_valid_config_choice(
+        config.app.get("video_pipeline", "legacy"), ("legacy", "scene"), "legacy"
+    )
+    scene_plan_fallback: Literal["legacy", "fail"] = _get_valid_config_choice(
+        config.app.get("scene_plan_fallback", "legacy"), ("legacy", "fail"), "legacy"
+    )
+    scene_media_visual_validation: bool = bool(
+        config.app.get("scene_media_visual_validation", False)
+    )
+    video_export_profile: VideoExportProfile = _get_valid_config_choice(
+        config.app.get("video_export_profile", "legacy"),
+        ("legacy", "shorts", "high_quality", "fast"),
+        "legacy",
+    )
+    audio_ducking_enabled: bool = bool(config.app.get("audio_ducking_enabled", False))
+    audio_normalization_enabled: bool = bool(config.app.get("audio_normalization_enabled", False))
+    audio_peak_guard_enabled: bool = bool(config.app.get("audio_peak_guard_enabled", False))
+    sound_effects: list[SoundEffectCue] = Field(default_factory=list, max_length=24)
+
     video_source: Optional[str] = "pexels"
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
@@ -137,6 +193,8 @@ class VideoParams(BaseModel):
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = Field(default=0.2, allow_inf_nan=False)
+    bgm_fade_in_seconds: float = Field(default=config.app.get("bgm_fade_in_seconds", 0.0), ge=0, le=10, allow_inf_nan=False)
+    bgm_fade_out_seconds: float = Field(default=config.app.get("bgm_fade_out_seconds", 3.0), ge=0, le=30, allow_inf_nan=False)
     # 视频配乐供应商共用提示词，WebUI 新任务统一写入该字段。保留下面的
     # Sonilo 专用字段以兼容旧任务记录和现有 CLI 参数。
     video_music_prompt: str = Field(default="", max_length=2000)
@@ -152,6 +210,13 @@ class VideoParams(BaseModel):
     subtitle_animation: SubtitleAnimation = _get_valid_ui_choice(
         "subtitle_animation", _SUBTITLE_ANIMATIONS, "none"
     )
+    subtitle_preset: SubtitlePreset = _get_valid_ui_choice(
+        "subtitle_preset", _SUBTITLE_PRESETS, "classic"
+    )
+    subtitle_highlight_color: str = Field(
+        default=config.ui.get("subtitle_highlight_color", "#FFE45E"), max_length=32
+    )
+    scene_graphics_enabled: bool = bool(config.ui.get("scene_graphics_enabled", False))
     custom_position: float = Field(
         default=config.ui.get("custom_position", 70.0), ge=0, le=100, allow_inf_nan=False
     )
@@ -184,6 +249,12 @@ class SubtitleRequest(BaseModel):
     )
     subtitle_animation: SubtitleAnimation = _get_valid_ui_choice(
         "subtitle_animation", _SUBTITLE_ANIMATIONS, "none"
+    )
+    subtitle_preset: SubtitlePreset = _get_valid_ui_choice(
+        "subtitle_preset", _SUBTITLE_PRESETS, "classic"
+    )
+    subtitle_highlight_color: str = Field(
+        default=config.ui.get("subtitle_highlight_color", "#FFE45E"), max_length=32
     )
     font_name: Optional[str] = "STHeitiMedium.ttc"
     text_fore_color: Optional[str] = "#FFFFFF"

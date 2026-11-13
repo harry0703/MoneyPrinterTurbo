@@ -244,6 +244,22 @@ twelvelabs_rerank_terms = false
 # Optional model overrides. Uncomment only when a different model is required.
 # twelvelabs_marengo_model = "marengo3.0"
 # twelvelabs_pegasus_model = "pegasus1.5"
+# Image assessment uses Pegasus 1.6 (the endpoint supports image inputs).
+# twelvelabs_pegasus_image_model = "pegasus1.6"
+# Optional Marengo relevance score is auxiliary; it never decides acceptance.
+scene_media_semantic_scoring = false
+
+# Scene-level stock search limits. Scene selection is activated per video request
+# with video_pipeline="scene". Pegasus validation is separately opt-in on that
+# request with scene_media_visual_validation=true and requires TwelveLabs above.
+video_pipeline = "legacy" # legacy or scene; legacy remains the compatibility default
+scene_plan_fallback = "legacy" # legacy or fail
+scene_media_visual_validation = false
+scene_media_max_scenes_per_task = 30
+scene_media_max_queries_per_scene = 2
+scene_media_max_candidates_per_scene = 8
+scene_media_search_concurrency = 4
+scene_media_visual_checks_per_scene = 3
 
 # Match search terms and downloaded materials to the script narrative order.
 # 默认关闭，开启后会减少随机性，使素材顺序更贴近文案结构。
@@ -642,6 +658,23 @@ subtitle_provider = "edge"
 # "h264_mf", "h264_videotoolbox".
 # video_codec = "libx264"
 
+# Optional audio post-mix processing. Defaults preserve the existing mix.
+audio_ducking_enabled = false
+audio_normalization_enabled = false
+audio_peak_guard_enabled = false
+audio_duck_gain = 0.25
+audio_duck_attack_seconds = 0.15
+audio_duck_release_seconds = 0.45
+bgm_fade_in_seconds = 0.0 # Set to e.g. 0.7 for a gradual music entrance; legacy default is immediate.
+
+# Final-only output profile. Intermediate scene clips keep their current settings.
+# shorts: 1080 output from existing aspect settings, 30 fps, H.264/AAC, BT.709,
+#         8 Mb/s video and MP4 fast start.
+# high_quality raises bitrate but does not request an upscale resolution.
+# fast uses libx264 ultrafast and a lower bitrate; hardware encoders keep defaults.
+video_export_profile = "legacy" # legacy, shorts, high_quality, fast
+video_export_profiles = { shorts = { fps = 30, video_bitrate = "8M", audio_bitrate = "192k", cpu_preset = "medium", faststart = true }, high_quality = { fps = 30, video_bitrate = "14M", audio_bitrate = "256k", cpu_preset = "slow", faststart = true }, fast = { fps = 30, video_bitrate = "5M", audio_bitrate = "160k", cpu_preset = "ultrafast", faststart = true } }
+
 # -----------------------------------------------------------------------------
 # Storage and Task Runtime / 存储与任务运行
 # -----------------------------------------------------------------------------
@@ -865,6 +898,9 @@ open_task_folder_on_completion = true
 # subtitle_enabled = true
 # subtitle_display_mode = "sentence" # "sentence" or "word_by_word"
 # subtitle_animation = "none"        # "none" or "pop_spring"
+# subtitle_preset = "classic"         # classic, cinematic, modern, documentary, viral, minimalist
+# subtitle_highlight_color = "#FFE45E"
+# scene_graphics_enabled = false      # Adds a scene subject label only in the scene pipeline.
 # font_name = "MicrosoftYaHeiBold.ttc"
 # font_size = 60
 # text_fore_color = "#FFFFFF"
@@ -875,3 +911,15 @@ open_task_folder_on_completion = true
 # subtitle_background_enabled = false
 # subtitle_background_color = "#000000"
 # rounded_subtitle_background = false
+# Preset defaults can be adjusted without changing application code. Request or
+# WebUI values that differ from the legacy defaults keep precedence.
+[ui.subtitle_presets.modern]
+font_size = 64
+text_fore_color = "#FFFFFF"
+highlight_color = "#FFE45E"
+stroke_width = 2
+subtitle_position = "safe_bottom"
+background = "#111827"
+rounded_background = true
+animation = "pop_spring"
+display_mode = "word_by_word"

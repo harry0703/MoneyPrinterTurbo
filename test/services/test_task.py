@@ -119,6 +119,82 @@ class TestTaskService(unittest.TestCase):
             params.video_fit_mode,
         )
 
+    def test_generate_final_videos_uses_scene_timeline_when_available(self):
+        params = VideoParams(video_subject="test", video_pipeline="scene")
+        timeline = object()
+        with (
+            patch.object(tm.video, "combine_scene_timeline") as combine_scene,
+            patch.object(tm.video, "combine_videos") as combine_legacy,
+            patch.object(tm.video, "generate_video"),
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            tm.generate_final_videos(
+                task_id="scene-render",
+                params=params,
+                downloaded_videos=["scene-asset.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=3,
+                scene_timeline=timeline,
+            )
+
+        self.assertIs(combine_scene.call_args.kwargs["timeline"], timeline)
+        self.assertEqual(combine_scene.call_args.kwargs["video_transition_mode"], params.video_transition_mode)
+        self.assertFalse(combine_scene.call_args.kwargs["show_scene_labels"])
+        combine_legacy.assert_not_called()
+
+    def test_scene_render_failure_falls_back_to_legacy_montage(self):
+        params = VideoParams(video_subject="test", video_pipeline="scene")
+        with (
+            patch.object(
+                tm.video,
+                "combine_scene_timeline",
+                side_effect=RuntimeError("fixture render failure"),
+            ),
+            patch.object(tm.video, "combine_videos") as combine_legacy,
+            patch.object(tm.video, "generate_video"),
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            _, _, warnings = tm.generate_final_videos(
+                task_id="scene-render-fallback",
+                params=params,
+                downloaded_videos=["legacy-asset.mp4"],
+                audio_file="audio.mp3",
+                subtitle_path="",
+                audio_duration=3,
+                scene_timeline=object(),
+            )
+
+        combine_legacy.assert_called_once()
+        self.assertEqual(warnings[0]["code"], "scene_render_fallback_legacy")
+
+    def test_scene_render_failure_obeys_fail_policy(self):
+        params = VideoParams(
+            video_subject="test", video_pipeline="scene", scene_plan_fallback="fail"
+        )
+        with (
+            patch.object(
+                tm.video,
+                "combine_scene_timeline",
+                side_effect=RuntimeError("fixture render failure"),
+            ),
+            patch.object(tm.video, "combine_videos") as combine_legacy,
+            patch.object(tm.video, "generate_video"),
+            patch.object(tm.sm.state, "update_task"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "scene timeline render failed"):
+                tm.generate_final_videos(
+                    task_id="scene-render-fail-policy",
+                    params=params,
+                    downloaded_videos=["legacy-asset.mp4"],
+                    audio_file="audio.mp3",
+                    subtitle_path="",
+                    audio_duration=3,
+                    scene_timeline=object(),
+                )
+
+        combine_legacy.assert_not_called()
+
     def test_stage_progress_reporter_maps_fraction_into_stage_range(self):
         """
         阶段内 0~1 的完成比例要换算到该阶段占用的进度区间，并保留任务已有的
@@ -454,13 +530,127 @@ class TestTaskService(unittest.TestCase):
         with (
             patch.object(tm.utils, "check_ffmpeg_ready", return_value=False) as check,
             patch.object(tm, "generate_script", return_value="脚本") as generate_script,
+            patch.object(tm.scene_planner, "plan_script") as plan_script,
             patch.object(tm.sm, "state", state),
         ):
             result = tm.start("ffmpeg-missing-script-stage", params, stop_at="script")
 
         check.assert_not_called()
         generate_script.assert_called_once()
+        plan_script.assert_not_called()
         self.assertEqual(result, {"script": "脚本"})
+
+    def test_scene_pipeline_plans_script_before_completing_script_stage(self):
+        from app.models.video_plan import Scene, SceneTiming, Shot, VideoPlan, VisualBrief
+
+        params = VideoParams(video_subject="Sunrise", video_pipeline="scene")
+        state = MemoryState()
+        plan = VideoPlan(
+            script_sha256="a" * 64,
+            subject="Sunrise",
+            scenes=[
+                Scene(
+                    scene_id="scene-001",
+                    order=0,
+                    narration_text="Narration",
+                    timing=SceneTiming(estimated_duration_ms=1000, confidence=0.5),
+                    visual=VisualBrief(
+                        subject=["Sun"],
+                        action="rises",
+                        description="Sunrise above the horizon",
+                        visual_prompt="Sunrise",
+                        search_queries=["sunrise"],
+                        recommended_material_type=["stock_video"],
+                    ),
+                    shots=[Shot(shot_id="scene-001-shot-001")],
+                )
+            ],
+        )
+
+        with (
+            patch.object(tm, "generate_script", return_value="Narration"),
+            patch.object(tm.scene_planner, "plan_script", return_value=plan) as planner,
+            patch.object(tm.scene_media, "select_plan_materials") as select_media,
+            patch.object(tm.task_artifacts, "write_video_plan") as write_plan,
+            patch.object(tm.sm, "state", state),
+        ):
+            select_media.return_value.assignments = []
+            result = tm.start("scene-script-stage", params, stop_at="script")
+
+        self.assertEqual(result, {"script": "Narration"})
+        planner.assert_called_once()
+        self.assertEqual(planner.call_args.kwargs["subject"], "Sunrise")
+        write_plan.assert_called_once_with(
+            "scene-script-stage", plan.model_dump(mode="json")
+        )
+        select_media.assert_called_once()
+        self.assertEqual(state.get_task("scene-script-stage")["state"], tm.const.TASK_STATE_COMPLETE)
+
+    def test_scene_plan_failure_defaults_to_legacy_with_warning(self):
+        params = VideoParams(video_subject="test", video_script="Narration", video_pipeline="scene")
+        state = MemoryState()
+        with (
+            patch.object(tm.scene_planner, "plan_script", side_effect=RuntimeError("provider offline")),
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("scene-fallback", params, stop_at="script")
+
+        self.assertEqual(result, {"script": "Narration"})
+        task_state = state.get_task("scene-fallback")
+        self.assertEqual(task_state["state"], tm.const.TASK_STATE_COMPLETE)
+        self.assertEqual(task_state["warnings"][0]["code"], "scene_plan_fallback_legacy")
+
+    def test_scene_plan_failure_can_be_configured_to_fail_task(self):
+        params = VideoParams(
+            video_subject="test",
+            video_script="Narration",
+            video_pipeline="scene",
+            scene_plan_fallback="fail",
+        )
+        state = MemoryState()
+        with (
+            patch.object(tm.scene_planner, "plan_script", side_effect=RuntimeError("provider offline")),
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("scene-strict-failure", params, stop_at="script")
+
+        self.assertEqual(result["state"], tm.const.TASK_STATE_FAILED)
+        self.assertEqual(result["failed_stage"], "scene_plan")
+        self.assertIn("provider offline", result["error"])
+
+    def test_scene_media_failure_does_not_block_legacy_pipeline(self):
+        params = VideoParams(
+            video_subject="test",
+            video_script="Narration",
+            video_pipeline="scene",
+        )
+        state = MemoryState()
+        manifest = MagicMock()
+        manifest.assignments = []
+        with (
+            patch.object(tm.scene_planner, "plan_script", return_value=MagicMock(
+                model_dump=lambda **_kwargs: {
+                    "schema_version": "1.0",
+                    "plan_id": "plan-test-123456",
+                    "script_sha256": "a" * 64,
+                    "subject": "test",
+                    "language": "",
+                    "scenes": [],
+                }
+            )),
+            patch.object(tm.scene_media, "select_plan_materials", side_effect=RuntimeError("search offline")),
+            patch.object(tm.task_artifacts, "write_video_plan"),
+            patch.object(tm.sm, "state", state),
+        ):
+            result = tm.start("scene-media-legacy-fallback", params, stop_at="script")
+
+        self.assertEqual(result, {"script": "Narration"})
+        task_state = state.get_task("scene-media-legacy-fallback")
+        self.assertEqual(task_state["state"], tm.const.TASK_STATE_COMPLETE)
+        self.assertEqual(
+            task_state["warnings"][0]["code"],
+            "scene_media_search_failed_legacy",
+        )
 
     def test_custom_script_keeps_literal_error_text(self):
         """A user's narration about errors is not an LLM provider failure."""

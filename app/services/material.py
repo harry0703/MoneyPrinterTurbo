@@ -2141,6 +2141,36 @@ def _search_videos_with_cache(
         return items
 
 
+def search_stock_videos(
+    provider: str,
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+) -> List[MaterialInfo]:
+    """Search one supported stock provider through the existing cache boundary.
+
+    Scene-level search needs to compare results from multiple configured stock
+    sources without changing the legacy ``video_source`` selection behavior.
+    Keep provider selection and cache rules here beside the existing adapters.
+    """
+    providers = {
+        "pexels": search_videos_pexels,
+        "pixabay": search_videos_pixabay,
+        "coverr": search_videos_coverr,
+    }
+    normalized_provider = str(provider or "").strip().lower()
+    search = providers.get(normalized_provider)
+    if search is None:
+        raise ValueError(f"unsupported stock video provider: {provider!r}")
+    return _search_videos_with_cache(
+        provider=normalized_provider,
+        search_videos=search,
+        search_term=search_term,
+        minimum_duration=minimum_duration,
+        video_aspect=VideoAspect(video_aspect),
+    )
+
+
 def _search_terms_in_parallel(
     search_terms: List[str],
     search_videos: Callable[[str, int, VideoAspect], List[MaterialInfo]],
