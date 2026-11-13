@@ -788,6 +788,17 @@ model_id = "kokoro"
 # from the server (GET {base_url}/audio/voices).
 voices = []
 
+[voicestudio]
+# Local VoiceStudio app (OpenAI-compatible speech API, default port 3900).
+# model_id "tts-1" uses VoiceStudio's active engine; you can also name an
+# engine directly, e.g. "omnivoice" or "kittentts".
+base_url = "http://127.0.0.1:3900/v1"
+api_key = ""
+model_id = "tts-1"
+# Voice ids (alloy, nova, ... or your own profile ids). Leave empty to read the
+# list from VoiceStudio, including your cloned voices.
+voices = []
+
 [fish_audio]
 # Fish Audio TTS service: https://fish.audio
 # API key: https://fish.audio/app/developers

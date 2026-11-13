@@ -113,6 +113,10 @@ DEFAULT_KOKORO_BASE_URL = "http://127.0.0.1:8880/v1"
 DEFAULT_KOKORO_MODEL = "kokoro"
 # empty = ask the server for its voice list (GET {base_url}/audio/voices)
 DEFAULT_KOKORO_VOICES: list[str] = []
+DEFAULT_VOICESTUDIO_BASE_URL = voice.VOICESTUDIO_DEFAULT_BASE_URL
+DEFAULT_VOICESTUDIO_MODEL = voice.VOICESTUDIO_DEFAULT_MODEL
+# empty = list voices (incl. your cloned profiles) from the VoiceStudio app
+DEFAULT_VOICESTUDIO_VOICES: list[str] = []
 DEFAULT_VOXCPM_BASE_URL = voice.VOXCPM_DEFAULT_BASE_URL
 DEFAULT_VOXCPM_VOICE = voice.VOXCPM_DEFAULT_VOICE
 VOXCPM_REFERENCE_AUDIO_SESSION_KEY = "voxcpm_reference_audio"
@@ -254,6 +258,7 @@ _RUNTIME_CONFIG_SECTIONS = {
     "azure": config.azure,
     "chatterbox": config.chatterbox,
     "kokoro": config.kokoro,
+    "voicestudio": config.voicestudio,
     "elevenlabs": config.elevenlabs,
     "minimax_tts": config.minimax_tts,
     "siliconflow": config.siliconflow,
@@ -583,6 +588,82 @@ def _get_kokoro_voice_options(saved_voice_name: str) -> list[str]:
         if voice.is_kokoro_voice(saved_voice_name) and saved_voice_name not in options:
             options.insert(0, saved_voice_name)
     return options or [f"kokoro:{voice.KOKORO_DEFAULT_VOICE}"]
+
+
+def _sync_voicestudio_config_from_session_state():
+    # 音色目录先于设置输入框渲染，先同步浏览器状态，确保本次 rerun 就使用
+    # 新端点和手工音色配置，不必再操作一次控件。
+    _set_runtime_config(
+        "voicestudio",
+        "base_url",
+        (
+            st.session_state.get(
+                "voicestudio_base_url_input",
+                config.voicestudio.get("base_url") or DEFAULT_VOICESTUDIO_BASE_URL,
+            )
+            or ""
+        ).strip(),
+    )
+    _set_runtime_config(
+        "voicestudio",
+        "api_key",
+        st.session_state.get(
+            "voicestudio_api_key_input", config.voicestudio.get("api_key", "")
+        ),
+    )
+    _set_runtime_config(
+        "voicestudio",
+        "model_id",
+        (
+            st.session_state.get(
+                "voicestudio_model_input",
+                config.voicestudio.get("model_id") or DEFAULT_VOICESTUDIO_MODEL,
+            )
+            or DEFAULT_VOICESTUDIO_MODEL
+        ).strip(),
+    )
+    _set_runtime_config(
+        "voicestudio",
+        "voices",
+        _parse_chatterbox_voices(
+            st.session_state.get(
+                "voicestudio_voices_input",
+                config.voicestudio.get("voices") or DEFAULT_VOICESTUDIO_VOICES,
+            )
+        ),
+    )
+
+
+def _get_voicestudio_voice_options(saved_voice_name: str) -> list[str]:
+    """会话内短缓存远端目录，断线时保留上次选择，不把故障当成用户改音色。"""
+    if config.voicestudio.get("voices"):
+        return voice.get_voicestudio_voices()
+
+    # 仅保留当前服务的一条缓存。更换端点/凭据立即重查，缓存不保存明文 Key；
+    # 30 秒内的其他 UI 操作不重复阻塞 5 秒等待一个已知离线的服务。
+    signature = (
+        (config.voicestudio.get("base_url") or "").strip().rstrip("/"),
+        _credential_signature(config.voicestudio.get("api_key", "")),
+    )
+    catalog = st.session_state.get("voicestudio_voice_catalog", {})
+    if catalog.get("signature") != signature:
+        catalog = {"signature": signature, "voices": [], "checked_at": None}
+    now = time.monotonic()
+    if catalog["checked_at"] is None or now - catalog["checked_at"] >= 30:
+        fetched = voice.get_voicestudio_voices(fallback=False)
+        catalog.update(checked_at=now, available=bool(fetched))
+        if fetched:
+            catalog["voices"] = fetched
+        st.session_state["voicestudio_voice_catalog"] = catalog
+
+    options = list(catalog["voices"])
+    if not catalog["available"]:
+        st.warning(tr("VoiceStudio Voices Unavailable"))
+        # 首次打开时可能没有缓存，仍保留配置文件中的真实选择；恢复连接后
+        # 只有成功返回的新目录才能判定某个旧音色确实已被服务器删除。
+        if voice.is_voicestudio_voice(saved_voice_name) and saved_voice_name not in options:
+            options.insert(0, saved_voice_name)
+    return options or [f"voicestudio:{voice.VOICESTUDIO_DEFAULT_VOICE}"]
 
 
 def _detect_audio_mime(audio_file: str, audio_bytes: bytes) -> str:
@@ -1518,6 +1599,8 @@ def _infer_tts_server_from_voice(voice_name):
         return "chatterbox"
     if voice.is_kokoro_voice(voice_name):
         return "kokoro"
+    if voice.is_voicestudio_voice(voice_name):
+        return "voicestudio"
     if voice.is_fish_audio_voice(voice_name):
         return "fish_audio"
     if voice.is_voxcpm_voice(voice_name):
@@ -7060,6 +7143,12 @@ def _get_voice_preview_provider_signature(tts_server: str) -> dict:
             "model_id": config.kokoro.get("model_id", ""),
             "credential": _credential_signature(config.kokoro.get("api_key", "")),
         }
+    if tts_server == "voicestudio":
+        return {
+            "base_url": config.voicestudio.get("base_url", ""),
+            "model_id": config.voicestudio.get("model_id", ""),
+            "credential": _credential_signature(config.voicestudio.get("api_key", "")),
+        }
     if tts_server == "voxcpm":
         return {
             "base_url": config.voxcpm.get("base_url", ""),
@@ -7094,6 +7183,8 @@ def _synthesize_voice_preview(
         _sync_chatterbox_config_from_session_state()
     if selected_tts_server == "kokoro":
         _sync_kokoro_config_from_session_state()
+    if selected_tts_server == "voicestudio":
+        _sync_voicestudio_config_from_session_state()
 
     temp_dir = utils.storage_dir("temp", create=True)
     audio_file = os.path.join(temp_dir, f"tmp-voice-{str(uuid4())}.mp3")
@@ -7981,6 +8072,7 @@ def _render_audio_settings(panel, params):
                 ("elevenlabs", "ElevenLabs TTS"),
                 ("chatterbox", "Chatterbox TTS"),
                 ("kokoro", "Kokoro TTS"),
+                ("voicestudio", "VoiceStudio TTS"),
                 ("fish_audio", "Fish Audio TTS"),
                 ("voxcpm", "VoxCPM TTS"),
             ]
@@ -8056,6 +8148,10 @@ def _render_audio_settings(panel, params):
                 # 自托管 Kokoro 服务的音色：[kokoro] voices 为空时从服务端 /audio/voices 读取
                 _sync_kokoro_config_from_session_state()
                 filtered_voices = _get_kokoro_voice_options(saved_voice_name)
+            elif selected_tts_server == "voicestudio":
+                # 自托管 VoiceStudio 服务的音色：[voicestudio] voices 为空时从服务端 /audio/voices 读取
+                _sync_voicestudio_config_from_session_state()
+                filtered_voices = _get_voicestudio_voice_options(saved_voice_name)
             elif selected_tts_server == "fish_audio":
                 filtered_voices = voice.get_fish_audio_voices()
             elif selected_tts_server == "voxcpm":
@@ -8081,6 +8177,10 @@ def _render_audio_settings(panel, params):
                 if voice.is_elevenlabs_voice(v):
                     parts = v.split(":", 2)
                     return parts[2] if len(parts) >= 3 else v
+                if voice.is_voicestudio_voice(v):
+                    voice_id = v.split(":", 1)[1]
+                    name = voice.VOICESTUDIO_VOICE_NAMES.get(voice_id)
+                    return f"{name} ({voice_id})" if name and name.lower() != voice_id else voice_id
                 if voice.is_chatterbox_voice(v) or voice.is_kokoro_voice(v):
                     name = v.split(":", 1)[1] if ":" in v else v
                     return name.replace("-Female", "").replace("-Male", "")
@@ -8542,6 +8642,59 @@ def _render_audio_settings(panel, params):
                     "kokoro",
                     "voices",
                     _parse_chatterbox_voices(kokoro_voices),
+                )
+
+            # VoiceStudio API settings section (self-hosted, OpenAI-compatible; voices listed from the server when left empty)
+            if tts_mode_enabled and (
+                selected_tts_server == "voicestudio"
+                or (voice_name and voice.is_voicestudio_voice(voice_name))
+            ):
+                voicestudio_base_url = st.text_input(
+                    tr("VoiceStudio Base URL"),
+                    value=config.voicestudio.get("base_url")
+                    or DEFAULT_VOICESTUDIO_BASE_URL,
+                    key="voicestudio_base_url_input",
+                    placeholder=tr("VoiceStudio Base URL Placeholder"),
+                )
+                _set_runtime_config(
+                    "voicestudio", "base_url", (voicestudio_base_url or "").strip()
+                )
+
+                voicestudio_api_key = st.text_input(
+                    tr("VoiceStudio API Key"),
+                    value=config.voicestudio.get("api_key", ""),
+                    type="password",
+                    key="voicestudio_api_key_input",
+                )
+                _set_runtime_config("voicestudio", "api_key", voicestudio_api_key)
+
+                voicestudio_model = st.text_input(
+                    tr("VoiceStudio Model"),
+                    value=config.voicestudio.get("model_id") or DEFAULT_VOICESTUDIO_MODEL,
+                    key="voicestudio_model_input",
+                )
+                _set_runtime_config(
+                    "voicestudio",
+                    "model_id",
+                    (voicestudio_model or DEFAULT_VOICESTUDIO_MODEL).strip(),
+                )
+
+                _saved_voicestudio_voices = (
+                    _parse_chatterbox_voices(config.voicestudio.get("voices"))
+                    or DEFAULT_VOICESTUDIO_VOICES
+                )
+                if isinstance(_saved_voicestudio_voices, list):
+                    _saved_voicestudio_voices = ", ".join(_saved_voicestudio_voices)
+                voicestudio_voices = st.text_input(
+                    tr("VoiceStudio Voices"),
+                    value=str(_saved_voicestudio_voices or ""),
+                    key="voicestudio_voices_input",
+                    placeholder=tr("VoiceStudio Voices Placeholder"),
+                )
+                _set_runtime_config(
+                    "voicestudio",
+                    "voices",
+                    _parse_chatterbox_voices(voicestudio_voices),
                 )
 
             # 三种模式只渲染当前任务真正需要的控件。自动配音可调音量和语速；
