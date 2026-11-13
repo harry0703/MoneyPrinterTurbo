@@ -361,7 +361,9 @@ def test_terminal_task_renders_subject_named_video_download(
         "st": fake_st,
         "tr": lambda key: (
             "Video {index} reused {count} source clips."
-            if key == "Batch Material Reuse Warning" else key
+            if key == "Batch Material Reuse Warning" else
+            "Video {index} has no background music."
+            if key == "BGM Mix Fallback Warning" else key
         ),
         "_render_generation_logs": lambda _task_id: None,
     }
@@ -376,7 +378,8 @@ def test_terminal_task_renders_subject_named_video_download(
             "videos": [str(video_path)] if has_video else [],
             "error": "OSError: second encoder failed",
             "warnings": [
-                {"code": "batch_materials_reused", "video_index": 2, "count": 3}
+                {"code": "batch_materials_reused", "video_index": 2, "count": 3},
+                {"code": "bgm_mix_failed", "video_index": 1},
             ],
             "video_subject": "A day: in / Shanghai?",
         },
@@ -395,7 +398,7 @@ def test_terminal_task_renders_subject_named_video_download(
         open_task_folder.assert_not_called()
         return
     assert fake_st.videos == [str(video_path)]
-    assert fake_st.warnings == ["Video 2 reused 3 source clips."]
+    assert fake_st.warnings == ["Video 2 reused 3 source clips.", "Video 1 has no background music."]
     assert fake_st.downloads == [
         (
             "Download Video",

@@ -1150,17 +1150,16 @@ def generate_final_videos(
             params=params,
             bgm_file_override=bgm_file_override,
         )
-        if (
-            video_music_provider is not None
-            and bgm_file_override
-            and not bgm_mix_succeeded
-        ):
-            # 第三方已成功返回并通过 FFmpeg 校验，但 MoviePy 最终混音仍可能
-            # 因运行环境失败。视频服务会保留无 BGM 成片；API 生成失败时
-            # override 为空，因此不会重复追加警告。
+        if not bgm_mix_succeeded:
+            # Keep the completed video but expose a failed local or generated
+            # music mix. Provider failures with an empty override have already
+            # recorded their own warning and do not reach this branch.
             warnings.append(
                 {
-                    "code": video_music_provider["warning_code"],
+                    "code": (
+                        video_music_provider["warning_code"]
+                        if video_music_provider else "bgm_mix_failed"
+                    ),
                     "video_index": index,
                 }
             )
