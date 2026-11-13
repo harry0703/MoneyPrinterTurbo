@@ -293,6 +293,46 @@ def test_kling_model_access_refusal_is_a_plain_rejection():
     assert post.call_count == 1
 
 
+# The exact answer useapi.net returned on 2026-11-12 for a Kling 2.6 video on an
+# account without credits: HTTP 200, no task, Kling's error.
+OUT_OF_CREDITS = {
+    "task": None,
+    "works": [],
+    "status": 52,
+    "message": "积分消费失败",
+    "limitation": None,
+    "userPoints": None,
+    "userTickets": None,
+    "editProject": None,
+    "taskWorks": [],
+    "failedCount": 0,
+    "error": {
+        "type": "TASK.PointNotEnough",
+        "detail": "Credit are insufficient, you can upgrade your membership or purchase credit.",
+        "subType": "",
+        "extra": {"traceId": "trace"},
+        "brief": "Credit are insufficient, you can upgrade your membership or purchase credit.",
+    },
+}
+
+
+def test_kling_out_of_credits_is_a_plain_rejection_with_kling_reason():
+    with (
+        patch.object(useapi.requests, "post", return_value=_response(OUT_OF_CREDITS)) as post,
+        patch.object(useapi.requests, "get") as get,
+        patch.object(useapi.time, "sleep") as sleep,
+    ):
+        with pytest.raises(useapi.UseAPIError) as raised:
+            useapi.generate_videos("city", 5, VideoAspect.portrait)
+    assert not isinstance(raised.value, useapi.UseAPIUnconfirmedTaskError)
+    assert "nothing was created" in str(raised.value)
+    assert "Credit are insufficient" in str(raised.value)
+    assert "TASK.PointNotEnough" in str(raised.value)
+    assert post.call_count == 1
+    get.assert_not_called()
+    sleep.assert_not_called()
+
+
 def test_kling_completed_task_without_video_keeps_job_id():
     with (
         patch.object(useapi.requests, "post", return_value=_response(_submitted(user_id=None))),

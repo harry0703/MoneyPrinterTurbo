@@ -989,6 +989,16 @@ def _submit_response(
                 job_id = str(task_id)
             elif isinstance(task_id, str) and task_id.strip().isdigit():
                 job_id = task_id.strip()
+            # Kling refuses some jobs with HTTP 200, no task and an error, e.g.
+            # out of credits (TASK.PointNotEnough). Nothing was created, so
+            # this is a plain rejection with Kling's reason, not an unknown state.
+            error = body.get("error")
+            if not job_id and task is None and isinstance(error, dict) and error.get("type"):
+                detail = error.get("detail") or error.get("brief") or "no reason given"
+                raise UseAPIError(
+                    f"Kling refused the {what} request, nothing was created: "
+                    + _redact_secret(f"{detail} ({error['type']})", api_token)
+                )
         else:
             # Async Google Flow answers carry "jobid"; the sync shape uses "jobId".
             job_id = _valid_job_id(body.get("jobid") or body.get("jobId"))
