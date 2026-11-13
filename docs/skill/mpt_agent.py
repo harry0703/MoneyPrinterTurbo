@@ -180,10 +180,20 @@ def ensure_project(root: Path) -> None:
     log("project download completed")
 
 
+def runtime_root(root: Path) -> Path:
+    """Match the CLI's MPT_HOME resolution from its project working directory."""
+    override = os.environ.get("MPT_HOME", "").strip()
+    if not override:
+        return root
+    target = Path(override).expanduser()
+    return (target if target.is_absolute() else root / target).resolve()
+
+
 def ensure_config(root: Path) -> Path:
     """Create the initial configuration without overwriting an existing file."""
-    config_path = root / "config.toml"
+    config_path = runtime_root(root) / "config.toml"
     if not config_path.exists():
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(root / "config.example.toml", config_path)
         log(f"created configuration file: {config_path}")
     return config_path
@@ -518,8 +528,7 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("codex_image_model_name")
         # This bootstrap helper runs without application dependencies. Presence
         # is only a hint; the runtime validates/decrypts the shared session.
-        runtime_root = Path(os.environ.get("MPT_HOME") or config_path.parent)
-        connected = (runtime_root / "storage" / "auth" / "openai_codex.bin").is_file()
+        connected = (config_path.parent / "storage" / "auth" / "openai_codex.bin").is_file()
         if not connected:
             missing.append("codex_sign_in")
     elif source == "openai_image":
@@ -783,7 +792,7 @@ def generate_video(
     run_checked([uv, "sync", "--frozen"], cwd=root)
 
     task_id = str(uuid.uuid4())
-    task_dir = root / "storage" / "tasks" / task_id
+    task_dir = runtime_root(root) / "storage" / "tasks" / task_id
     log_dir = root / ".agent-logs" / "moneyprinterturbo-video"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"run-{task_id}.log"
