@@ -347,6 +347,81 @@ def get_kokoro_voices(*, fallback: bool = True) -> list[str]:
     return voices or ([f"kokoro:{KOKORO_DEFAULT_VOICE}"] if fallback else [])
 
 
+VOICESTUDIO_DEFAULT_BASE_URL = "http://127.0.0.1:3900/v1"
+VOICESTUDIO_DEFAULT_MODEL = "tts-1"
+VOICESTUDIO_DEFAULT_VOICE = "alloy"
+# voice id -> display name, filled from VoiceStudio's /audio/voices response
+VOICESTUDIO_VOICE_NAMES: dict[str, str] = {}
+
+
+def _voicestudio_base_url() -> str:
+    return (
+        (config.voicestudio.get("base_url", "") or VOICESTUDIO_DEFAULT_BASE_URL)
+        .strip()
+        .rstrip("/")
+    )
+
+
+def _normalize_voicestudio_voices(entries) -> list[str]:
+    """Accept manual "id" strings or VoiceStudio /audio/voices objects."""
+    if isinstance(entries, str):
+        entries = entries.split(",")
+    if not isinstance(entries, list):
+        return []
+    result = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            name = entry.get("id") or entry.get("voice_id")
+        else:
+            name = entry
+        if not isinstance(name, str):
+            continue
+        name = name.strip().removeprefix("voicestudio:").strip()
+        if name:
+            value = f"voicestudio:{name}"
+            if value not in result:
+                result.append(value)
+    return result
+
+
+def get_voicestudio_voices(*, fallback: bool = True) -> list[str]:
+    """Manual [voicestudio] voices win; otherwise list them from the app.
+
+    VoiceStudio returns OpenAI alias voices (alloy, nova, ...) plus the
+    user's own voice profiles (including cloned voices) from /audio/voices.
+    """
+    voices = _normalize_voicestudio_voices(config.voicestudio.get("voices"))
+    if not voices:
+        try:
+            headers = {}
+            api_key = config.voicestudio.get("api_key", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            response = trace_http_call(
+                "GET", requests.get,
+                f"{_voicestudio_base_url()}/audio/voices", headers=headers, timeout=5
+            )
+            if response.status_code == 200:
+                data = response.json()
+                listed = data.get("voices", []) if isinstance(data, dict) else data
+                voices = _normalize_voicestudio_voices(listed)
+                for entry in listed if isinstance(listed, list) else []:
+                    if isinstance(entry, dict):
+                        vid = entry.get("id") or entry.get("voice_id")
+                        name = entry.get("name")
+                        if isinstance(vid, str) and isinstance(name, str) and name.strip():
+                            VOICESTUDIO_VOICE_NAMES[vid.strip()] = name.strip()
+                if not voices:
+                    logger.warning("voicestudio voice list contains no valid voice IDs")
+            else:
+                logger.warning(
+                    f"voicestudio voices request failed with status {response.status_code}"
+                )
+        except Exception as e:
+            logger.warning(f"voicestudio voice list unavailable ({type(e).__name__})")
+    return voices or ([f"voicestudio:{VOICESTUDIO_DEFAULT_VOICE}"] if fallback else [])
+
+
 def get_fish_audio_voices() -> list[str]:
     """Return configured Fish Audio voices.
 
@@ -495,6 +570,10 @@ def is_kokoro_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("kokoro:")
 
 
+def is_voicestudio_voice(voice_name: str) -> bool:
+    return (voice_name or "").startswith("voicestudio:")
+
+
 def is_fish_audio_voice(voice_name: str) -> bool:
     return (voice_name or "").startswith("fish_audio:")
 
@@ -546,6 +625,8 @@ def is_azure_v1_voice(voice_name: str | None) -> bool:
     if is_chatterbox_voice(name):
         return False
     if is_kokoro_voice(name):
+        return False
+    if is_voicestudio_voice(name):
         return False
     if is_fish_audio_voice(name):
         return False
@@ -764,6 +845,16 @@ def _single_tts(
             )
         else:
             logger.error(f"Invalid kokoro voice name format: {voice_name}")
+            return None
+    elif is_voicestudio_voice(voice_name):
+        # 格式: voicestudio:<voice_id>，voice_id 为 VoiceStudio 预设或克隆音色 ID
+        parts = voice_name.split(":", 1)
+        if len(parts) >= 2 and parts[1].strip():
+            return voicestudio_tts(
+                text, parts[1].strip(), voice_file, voice_rate, voice_volume
+            )
+        else:
+            logger.error(f"Invalid voicestudio voice name format: {voice_name}")
             return None
     elif is_fish_audio_voice(voice_name):
         parts = voice_name.split(":")
@@ -2911,6 +3002,42 @@ def kokoro_tts(
         model_id = config.kokoro.get("model_id", "kokoro") or "kokoro"
     return _openai_compatible_tts(
         "kokoro", base_url, api_key, model_id, voice, text, voice_rate, voice_file
+    )
+
+
+def voicestudio_tts(
+    text: str,
+    voice: str,
+    voice_file: str,
+    voice_rate: float = 1.0,
+    voice_volume: float = 1.0,
+    model_id: str = "",
+) -> Union[SubMaker, None]:
+    """Generate speech with a locally running VoiceStudio app.
+
+    VoiceStudio exposes an OpenAI-compatible ``/v1/audio/speech`` endpoint
+    (default ``http://127.0.0.1:3900/v1``). ``model`` may be an OpenAI alias
+    such as ``tts-1`` (uses VoiceStudio's active engine) or an engine id such
+    as ``omnivoice``; ``voice`` is an alias (``alloy``) or a voice-profile id.
+
+    No word-level timestamps are returned, so set
+    ``subtitle_provider = "whisper"`` for tighter subtitle sync.
+    """
+    text = (text or "").strip()
+    if not text:
+        logger.error("VoiceStudio TTS text is empty")
+        return None
+    if not any(character.isalnum() for character in text):
+        logger.error("VoiceStudio TTS text contains no speakable characters")
+        return None
+    api_key = config.voicestudio.get("api_key", "")
+    if not model_id:
+        model_id = (
+            config.voicestudio.get("model_id", "") or VOICESTUDIO_DEFAULT_MODEL
+        )
+    return _openai_compatible_tts(
+        "voicestudio", _voicestudio_base_url(), api_key, model_id, voice, text,
+        voice_rate, voice_file,
     )
 
 
