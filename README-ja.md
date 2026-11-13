@@ -366,6 +366,8 @@ Windows をお使いの場合は、Microsoft のドキュメントを参照し�
 1. [WSL をインストールする](https://learn.microsoft.com/en-us/windows/wsl/install)
 2. [WSL で Docker コンテナを使用する](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
+初回起動の前に、コンテナにマウントするため `config.example.toml` を `config.toml` にコピーしてください。既に `config.toml` がある場合は、そのまま保持してください。
+
 ```shell
 cd MoneyPrinterTurbo
 docker compose -f docker-compose.release.yml up
@@ -373,7 +375,6 @@ docker compose -f docker-compose.release.yml up
 
 > 既定では `docker-compose.release.yml` を推奨します。GitHub Container Registry からビルド済みイメージ `ghcr.io/harry0703/moneyprinterturbo:latest` を取得します。
 > ローカルでイメージをビルドする必要がある場合は、これまでどおり `docker compose up` を実行できます。
-> 初回起動の前に、`config.example.toml` を `config.toml` にコピーしておくと、コンテナにマウントされます。
 
 #### ② WebUI にアクセスする
 
