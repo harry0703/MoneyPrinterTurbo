@@ -1,6 +1,7 @@
 """验证安装入口、可写目录与资源初始化的关键边界。"""
 
 from concurrent.futures import ThreadPoolExecutor
+import errno
 import json
 import os
 from pathlib import Path
@@ -62,6 +63,81 @@ def test_concurrent_resource_seeding_preserves_existing_files(monkeypatch, tmp_p
     assert (target / "default.ttf").read_bytes() == (fonts / "default.ttf").read_bytes()
     assert (target / "custom.ttf").read_bytes() == b"user font"
     assert not list(target.glob(".resource-*"))
+
+
+def _prepare_seeding_fixture(monkeypatch, tmp_path):
+    """构造安装版补齐场景：指向独立运行目录与一份内置字体。"""
+    bundle = tmp_path / "bundle"
+    fonts = bundle / "resource/fonts"
+    fonts.mkdir(parents=True)
+    (fonts / "default.ttf").write_bytes(b"bundled font" * 5000)
+    home = tmp_path / "user"
+    monkeypatch.setattr(paths, "is_source_checkout", lambda: False)
+    monkeypatch.setattr(paths, "BUNDLED_ROOT", bundle)
+    monkeypatch.setenv("MPT_HOME", str(home))
+    return fonts / "default.ttf", home / "resource/fonts"
+
+
+def _refuse_hard_links(source, destination, *args, **kwargs):
+    # link(2) 对没有硬链接的文件系统（Linux vfat/exfat 为 EPERM，macOS
+    # exFAT/MS-DOS 为 ENOTSUP）返回相应 errno；这里模拟内核的拒绝。
+    raise PermissionError(errno.EPERM, "Operation not permitted")
+
+
+def test_resource_seeding_falls_back_without_hard_links(monkeypatch, tmp_path):
+    """exFAT/FAT 盘或部分网络挂载作为运行目录时，补齐仍应完成而不是抛异常。"""
+    source_file, target_dir = _prepare_seeding_fixture(monkeypatch, tmp_path)
+    monkeypatch.setattr(os, "link", _refuse_hard_links)
+
+    target = paths.resource_directory("fonts")
+
+    assert (target / "default.ttf").read_bytes() == source_file.read_bytes()
+    assert not list(target.glob(".resource-*"))
+
+
+def test_fallback_keeps_a_concurrent_winner(monkeypatch, tmp_path):
+    """占位独占创建遇到并发胜者时，必须保留胜者文件且不视为失败。"""
+    _, target_dir = _prepare_seeding_fixture(monkeypatch, tmp_path)
+    winner = target_dir / "default.ttf"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(os, "link", _refuse_hard_links)
+    real_open = os.open
+
+    def winner_claims_the_name(path, flags, *args, **kwargs):
+        # 独占创建执行前，另一个进程发布了同名文件：真实 os.open 随即
+        # 返回 EEXIST，本次补齐应当放弃而不是覆盖它。
+        if os.fspath(path) == str(winner) and flags & os.O_EXCL:
+            winner.write_bytes(b"winner font")
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", winner_claims_the_name)
+
+    target = paths.resource_directory("fonts")
+
+    assert (target / "default.ttf").read_bytes() == b"winner font"
+    assert not list(target.glob(".resource-*"))
+
+
+def test_fallback_cleans_up_when_the_swap_fails(monkeypatch, tmp_path):
+    """独占占位后换入失败时，目标名不能留下空文件，错误必须向上抛出。"""
+    source_file = tmp_path / "source.ttf"
+    source_file.write_bytes(b"bundled font")
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+    target_file = target_dir / "default.ttf"
+    monkeypatch.setattr(os, "link", _refuse_hard_links)
+
+    def failing_swap(source, destination, *args, **kwargs):
+        raise OSError(errno.EIO, "Input/output error")
+
+    monkeypatch.setattr(os, "replace", failing_swap)
+
+    with pytest.raises(OSError) as excinfo:
+        paths._copy_missing_resource(source_file, target_file)
+
+    assert excinfo.value.errno == errno.EIO
+    assert not target_file.exists()
+    assert not list(target_dir.glob(".resource-*"))
 
 
 def test_cli_preserves_arguments_and_exit_status(monkeypatch):
