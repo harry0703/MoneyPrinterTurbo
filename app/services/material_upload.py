@@ -62,9 +62,11 @@ _UNSAFE_FILENAME_CHARACTERS = frozenset(
         *range(0x2066, 0x206A),
     )
 )
+# Pillow reports camera JPEGs carrying a Multi-Picture Format index (common for
+# phone and dual-lens photos) as MPO; the primary image is still a plain JPEG.
 _IMAGE_FORMATS_BY_EXTENSION = {
-    ".jpg": frozenset({"JPEG"}),
-    ".jpeg": frozenset({"JPEG"}),
+    ".jpg": frozenset({"JPEG", "MPO"}),
+    ".jpeg": frozenset({"JPEG", "MPO"}),
     ".png": frozenset({"PNG"}),
     ".bmp": frozenset({"BMP"}),
 }

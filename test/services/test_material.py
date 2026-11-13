@@ -1002,12 +1002,104 @@ class TestMaterialTlsVerification(unittest.TestCase):
                 self.assertEqual(material.save_video(url, save_dir=temp_dir), "")
                 self.assertFalse((Path(temp_dir) / cached_name).exists())
                 self.assertEqual(
-                    material.save_video(url, save_dir=temp_dir),
-                    str(Path(temp_dir) / cached_name),
+                    Path(material.save_video(url, save_dir=temp_dir)),
+                    Path(temp_dir) / cached_name,
                 )
 
             self.assertEqual(get.call_count, 2)
             self.assertEqual((Path(temp_dir) / cached_name).read_bytes(), b"valid")
+
+    def test_corrupt_existing_cache_is_redownloaded_and_replaced(self):
+        """A stale nonempty cache entry must repair itself on the next request."""
+        url = "https://example.com/corrupt-cache.mp4"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        class FakeVideoFileClip:
+            fps = 24
+
+            def __init__(self, path):
+                self.duration = 0 if Path(path).read_bytes() == b"corrupt" else 1
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"corrupt")
+            with (
+                patch(
+                    "app.services.material.requests.get",
+                    return_value=_FakeVideoDownloadResponse(b"valid"),
+                ) as get,
+                patch("app.services.material.VideoFileClip", FakeVideoFileClip),
+                patch("app.services.material.material_upload._validate_video"),
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"valid")
+            get.assert_called_once()
+
+    def test_validation_service_failure_preserves_existing_cache(self):
+        """Validator outages must not turn a healthy cached asset into data loss."""
+        url = "https://example.com/signed-video.mp4?expires=soon"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        class FakeVideoFileClip:
+            duration = 1
+            fps = 24
+
+            def __init__(self, path):
+                pass
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"healthy cached video")
+            with (
+                patch("app.services.material.requests.get") as get,
+                patch("app.services.material.VideoFileClip", FakeVideoFileClip),
+                patch(
+                    "app.services.material.material_upload._validate_video",
+                    side_effect=material.material_upload.MaterialServiceError(
+                        "FFmpeg material validation timed out"
+                    ),
+                ),
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"healthy cached video")
+            get.assert_not_called()
+
+    def test_metadata_probe_failure_preserves_existing_cache(self):
+        """MoviePy failing to start FFmpeg is not evidence of corrupt media."""
+        url = "https://example.com/signed-video.mp4?expires=soon"
+        cached_name = f"vid-{material.utils.md5(url)}.mp4"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_path = Path(temp_dir) / cached_name
+            cached_path.write_bytes(b"healthy cached video")
+            with (
+                patch("app.services.material.requests.get") as get,
+                patch(
+                    "app.services.material.VideoFileClip",
+                    side_effect=FileNotFoundError("MoviePy FFmpeg is unavailable"),
+                ),
+                patch(
+                    "app.services.material.material_upload._validate_video"
+                ) as validate,
+            ):
+                result = material.save_video(url, save_dir=temp_dir)
+
+            self.assertEqual(Path(result), cached_path)
+            self.assertEqual(cached_path.read_bytes(), b"healthy cached video")
+            # save_video joins with "/", Path uses "\\" on Windows: compare as paths.
+            validate.assert_called_once()
+            self.assertEqual(Path(validate.call_args.args[0]), cached_path)
+            get.assert_not_called()
 
     def test_nonfinite_video_metadata_is_not_published(self):
         class FakeVideoFileClip:
@@ -1201,6 +1293,68 @@ class TestMaterialTlsVerification(unittest.TestCase):
         self.assertEqual(
             [source["local_file"] for source in recorded_sources],
             ["a1.mp4", "b1.mp4", "a2.mp4"],
+        )
+
+    def test_script_order_keeps_the_slot_of_a_repeated_term(self):
+        """
+        When the script returns to a topic (forest, city, forest, mountain), the
+        repeated term gets the same search results. It must keep its own slot and
+        use the next unused candidate instead of being dropped, which would move
+        every later topic up one slot.
+        """
+
+        def fake_search(search_term, minimum_duration, video_aspect):
+            return [
+                material.MaterialInfo(
+                    provider="pexels",
+                    url=f"https://v.example/{search_term}-{n}.mp4",
+                    duration=10,
+                    source_info={
+                        "provider": "pexels",
+                        "search_term": search_term,
+                        "asset_id": f"{search_term}-{n}",
+                    },
+                )
+                for n in (1, 2, 3)
+            ]
+
+        def fake_save_video(video_url, save_dir=""):
+            return f"/tmp/{video_url.rsplit('/', 1)[-1]}"
+
+        with (
+            patch.dict(config.app, {"material_directory": ""}),
+            patch.object(material, "search_videos_pexels", side_effect=fake_search),
+            patch.object(material, "save_video", side_effect=fake_save_video),
+            patch.object(
+                material.material_cache,
+                "load_material_search_cache",
+                return_value=None,
+            ),
+            patch.object(material.material_cache, "save_material_search_cache"),
+            patch.object(
+                material.task_artifacts,
+                "patch_script_data",
+                return_value=True,
+            ),
+        ):
+            result = material.download_videos(
+                task_id="ordered-repeated-term",
+                search_terms=["forest", "city", "forest", "mountain"],
+                source="pexels",
+                audio_duration=20,
+                max_clip_duration=5,
+                match_script_order=True,
+            )
+
+        self.assertEqual(
+            result,
+            [
+                "/tmp/forest-1.mp4",
+                "/tmp/city-1.mp4",
+                "/tmp/forest-2.mp4",
+                "/tmp/mountain-1.mp4",
+                "/tmp/forest-3.mp4",
+            ],
         )
 
     def test_script_order_uses_next_candidate_after_failed_download(self):
@@ -2178,6 +2332,34 @@ class TestWaveSpeedProvider(unittest.TestCase):
 
         self.assertEqual(results, [])
         get.assert_not_called()
+
+    def test_generate_wavespeed_returns_empty_on_plain_text_client_error(self):
+        """
+        4xx 是明确拒绝,即使响应体是网关返回的纯文本也不能误报为"可能已计费"。
+        2xx 响应体无法解析时仍按状态不明处理。
+        """
+
+        def unreadable():
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+        for status in (401, 429):
+            with self.subTest(status=status):
+                rejected = SimpleNamespace(status_code=status, json=unreadable)
+                with (
+                    patch("app.services.material.requests.post", return_value=rejected),
+                    patch("app.services.material.requests.get") as get,
+                ):
+                    results = material.generate_videos_wavespeed(
+                        "sunrise", minimum_duration=5
+                    )
+
+                self.assertEqual(results, [])
+                get.assert_not_called()
+
+        accepted = SimpleNamespace(status_code=200, json=unreadable)
+        with patch("app.services.material.requests.post", return_value=accepted):
+            with self.assertRaises(material.WaveSpeedUnconfirmedTaskError):
+                material.generate_videos_wavespeed("sunrise", minimum_duration=5)
 
     def test_generate_wavespeed_never_retries_submission_on_network_error(self):
         """

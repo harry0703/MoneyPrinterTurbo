@@ -1,6 +1,7 @@
 """Stage subtitle artifacts beside their destination before publication."""
 from contextlib import contextmanager
 import os
+import re
 import tempfile
 
 from loguru import logger
@@ -27,11 +28,15 @@ def staged_subtitle_file(destination):
 def has_subtitle_cue(content) -> bool:
     """Return True when the body carries at least one timed SRT cue.
 
-    An SRT body without a single ``-->`` timing line holds no caption any player
+    An SRT body without a complete timestamp timing line holds no caption any player
     can display, so a publication built from it is a failed write rather than a
     valid empty result.
     """
-    return any("-->" in line for line in str(content or "").splitlines())
+    timestamp = r"[0-9]{2,}:[0-5][0-9]:[0-5][0-9],[0-9]{3}"
+    return any(
+        re.fullmatch(rf"\s*{timestamp}\s+-->\s+{timestamp}(?:\s+.*)?\s*", line)
+        for line in str(content or "").splitlines()
+    )
 
 
 def write_subtitle_file(destination, content) -> bool:

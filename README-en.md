@@ -33,14 +33,17 @@ English | [简体中文](README.md) | [日本語](README-ja.md) | [Releases](htt
 ## Special Thanks ❤️
 
 <div align="center">
-  <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="https://gcdn.moonshot.cn/growth-cdn/sponsor/kimi-en.png" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
+  <a href="https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo" target="_blank"><img src="docs/sponsors/kimi-k3.1-pro-banner-en.webp" alt="Kimi sponsors MoneyPrinterTurbo" width="100%"></a>
 </div>
 
-Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo) for sponsoring this project! [Kimi K3](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) is Moonshot AI's most capable model and the world's first open 3T-class model. With native vision and a 1-million-token context window, K3 delivers frontier performance across knowledge work, reasoning, and long-horizon tasks. Within MoneyPrinterTurbo, K3 powers video creation by writing scripts and extracting the search keywords that determine the final footage—the better it understands the content, the more relevant the results.
+Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo) for sponsoring this project! [Kimi K3.1 Pro](https://www.kimi.com/blog/kimi-k3?aff=moneyprinterturbo) is Moonshot AI's most capable 3T-class open-weight model to date. With native vision and a 1-million-token context window, K3.1 Pro delivers frontier performance across knowledge work, reasoning, and long-horizon tasks. Within MoneyPrinterTurbo, K3.1 Pro powers video creation by writing scripts and extracting the search keywords that determine the final footage—the better it understands the content, the more relevant the results.
 
-**Exclusive offer for MoneyPrinterTurbo users: new users who register through the dedicated link receive bonus API credit equal to 10% of their first successful top-up, up to CNY 1,000. The offer ends December 31, 2026. Visit the Kimi Open Platform ([中文站](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo) | [Global](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)) to try the API.**
+**Exclusive offer for MoneyPrinterTurbo users: new users who register through the dedicated link receive bonus API credit equal to 10% of their first successful top-up. The offer ends December 31, 2026. Visit the Kimi Open Platform ([中文站](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo) | [Global](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)) to try the API.**
 
 <br>
+
+> [<img src="https://whop.com/favicon.ico" alt="Whop" width="14" height="14">](https://go.nli.one/moneyprinter) **Sponsored by [Whop](https://go.nli.one/moneyprinter)**: the platform to sell digital products, software and communities, and get paid worldwide.
+
 <table align="center">
   <tr>
     <td align="center" width="120">
@@ -107,19 +110,70 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
       <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money"><strong>AstraFlow</strong></a>
     </td>
     <td align="left">
-      Thanks to <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">AstraFlow</a> for sponsoring this project!<br>
+      Thanks to <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">AstraFlow</a> for sponsoring this project! <a href="https://f.howxm.com/xs/u/HVFW5X8EIYV1">Claim CNY 50 in compute credits</a>.<br>
       🎬 <strong>One platform for leading video models</strong>: access MiniMax-H3, Seedance-2.5, and more. Generate scripts and videos in one place, without separate accounts or integrations.<br>
       🚀 <strong>200+ AI models, with new models available on release day</strong>: access DeepSeek V4.1, Kimi K3, Qwen 3.8 Max, GLM 5.3, and more through a single platform.<br>
       💰 <strong>Built by publicly listed UCloud, with transparent billing and cost control</strong>: track costs by API key and view detailed usage records.<br>
-      🎁 <strong>Exclusive offer for MoneyPrinterTurbo users</strong>: register through <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">our referral link</a> to receive new-user credits and get started right away! <a href="https://f.howxm.com/xs/u/HVFW5X8EIYV1">Claim CNY 50 in compute credits</a>.
+      🎁 <strong>Exclusive offer for MoneyPrinterTurbo users</strong>: register through <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">our referral link</a> to receive new-user credits and get started right away!
     </td>
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo"><img src="docs/sponsors/sidrune-logo.png" alt="Sidrune AI" width="120"></a>
+      <a href="https://www.runninghub.ai/call-api?source=github"><img src="docs/sponsors/runninghub-logo.png" alt="RunningHub" width="56"></a><br>
+      <a href="https://www.runninghub.ai/call-api?source=github">RunningHub API</a>
     </td>
     <td align="left">
-      Thanks to <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo">Sidrune AI</a> for sponsoring this project! <strong>One gateway to access and manage leading AI models worldwide.</strong> Built for individual developers, technical teams, and enterprises, Sidrune AI offers a unified API to access and manage leading models. It dynamically selects between multiple routes to improve availability, with transparent model performance, response times, and costs. Depending on the model and route, <strong>API costs can be 40%–98% lower than official or benchmark rates</strong>. Sign up through <a href="https://sidrune.ai/register?source=github&amp;campaign=moneyprinterturbo&amp;promo=moneyprinterturbo">our exclusive link</a> to receive <strong>&#36;3 in API credits</strong>.
+      Thanks to <a href="https://www.runninghub.ai/call-api?source=github">RunningHub API</a> for sponsoring this project!<br>
+      Access <strong>400+ leading AI models</strong> via API—including Seedance, Kling, MiniMax, Nano Banana, Veo, and more—at <strong>highly competitive prices</strong>.<br>
+      <strong>High-concurrency support</strong> · <strong>Free API testing</strong> · <strong>End-to-end encryption</strong><br>
+      For discounts and free testing, contact <a href="mailto:zhenyuedong@haima.me">zhenyuedong@haima.me</a>, or <a href="https://www.runninghub.ai/call-api?source=github">test the API for free</a>.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><img src="docs/sponsors/jalapeno-logo.png" alt="Jalapeno Cloud" width="56"></a><br>
+      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><strong>Jalapeno Cloud</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Jalapeno Cloud</a> for sponsoring this project!<br>
+      Access multiple AI models through OpenAI- and Anthropic-compatible APIs for application development and content creation.<br>
+      New users receive free credits, with <strong>up to 20% bonus credits on top-ups</strong>. Get <strong>up to 50% off</strong> models including DeepSeek-V4.1-flash and GLM-5.3-flash, plus an <strong>ongoing 10% discount on Doubao-Seedance-2.5</strong>. Official model sources with quality assurance.<br>
+      👉 <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Sign up and claim exclusive trial credits</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://apinebula.ai/ref/luDuqJIb"><img src="docs/sponsors/apinebula-logo.png" alt="APINEBULA" width="56" height="56"></a><br>
+      <a href="https://apinebula.ai/ref/luDuqJIb"><strong>APINEBULA</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://apinebula.ai/ref/luDuqJIb">APINEBULA</a> for sponsoring this project!<br>
+      APINEBULA brings leading AI models together in one platform, giving developers, teams, and businesses reliable, cost-effective API access.<br>
+      Use Claude, GPT, and Gemini through a single API, with prices <strong>as low as 6% of standard rates</strong>. Built for high-concurrency workloads, APINEBULA also offers <strong>enterprise contracts, corporate bank transfers, and invoicing</strong>.<br>
+      <a href="https://apinebula.ai/ref/luDuqJIb">Sign up through our referral link</a> and use the promo code <strong>MPT</strong> when topping up to get <strong>10% off</strong>!
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://apixo.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_logo"><img src="docs/sponsors/apixo-seedream-en.png" alt="APIXO AI: Seedream 5.5, 30% off, from &#36;0.014/image" width="100" height="100"></a><br>
+      <a href="https://apixo.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_brand"></a>
+    </td>
+    <td align="left">
+      <strong><a href="https://apixo.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_brand">APIXO AI</a>: AI Image &amp; Video Creation in One Place</strong><br>
+      Create AI images and videos in your browser with <strong>APIXO AI</strong>, or connect your apps and workflows through the API.<br>
+      <strong><a href="https://apixo.ai/models/seedream-5-5?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_model">Seedream 5.5</a> text-to-image API: from &#36;0.014/image, 30% off the official starting price for a limited time.</strong><br>
+      <a href="https://apixo.ai/deals/black-friday?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=harry0703&amp;utm_content=moneyprinterturbo_text_deals">Explore APIXO AI Models &amp; Deals →</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://www.openlux.ai/register?channel=c_rejpjkhg"><img src="docs/sponsors/openlux-logo.png" alt="OpenLux" width="100"></a><br>
+      <a href="https://www.openlux.ai/register?channel=c_rejpjkhg"></a>
+    </td>
+    <td align="left">
+      Thank you to <a href="https://www.openlux.ai/register?channel=c_rejpjkhg">OpenLux</a> for sponsoring this project!<br>OpenLux is an <strong>all-in-one AI platform</strong> for businesses, bringing together leading AI models from major providers worldwide. With fast, reliable service and responsive technical support, OpenLux offers base pricing for Claude, OpenAI, and Gemini models <strong>as low as 8.82%, 4%, and 8% of official rates</strong>, respectively.<br>
+      Exclusive offer for MoneyPrinterTurbo users: Sign up through our referral link and enjoy <strong>up to 7.5% off credit top-ups</strong>!<br>
+      <a href="https://www.openlux.ai/register?channel=c_rejpjkhg">Get started with OpenLux →</a>
     </td>
   </tr>
   <tr>
@@ -172,36 +226,45 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Use **AI Agent, WebUI, API, or CLI** workflows for quick creation or automated production
 - [x] Go from a topic to script, voiceover, footage, subtitles, music, and editing automatically, while retaining control over every stage
 - [x] Generate multiple output variants in batches, review task history, and import or export generation settings and API keys
+- [x] Track progress through script generation, voiceover, footage downloads, clip processing, and final rendering
 
 ### Scripts and Model Providers
 
+- [x] Use a ChatGPT subscription through [OpenAI - Codex](docs/codex-provider.md), with device-code sign-in and a dynamic model selector
+- [x] Explicitly choose [ChatGPT Native OAuth](docs/chatgpt-provider.md) for official app authorization and account-specific models; account/workspace eligibility and a local browser/runtime are required
 - [x] Generate or rewrite **multilingual video scripts** with AI, or supply a complete custom script
-- [x] Use leading providers including [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo), [OpenAI](https://platform.openai.com/api-keys), [Anthropic Claude](https://platform.claude.com/settings/keys), [Google Gemini](https://aistudio.google.com/app/apikey), [DeepSeek](https://platform.deepseek.com/api_keys), [Alibaba Cloud Qwen](https://qwen.ai/apiplatform), [Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI), [ByteDance VolcEngine Ark](https://console.volcengine.com/ark), [xAI Grok](https://console.x.ai/), [MiniMax](https://platform.minimax.io/), and [Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
-- [x] Connect through [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
+- [x] Use leading providers including [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo), [OpenAI](https://platform.openai.com/api-keys), [Anthropic Claude](https://platform.claude.com/settings/keys), [Google Gemini](https://aistudio.google.com/app/apikey), [DeepSeek](https://platform.deepseek.com/api_keys), [Alibaba Cloud Qwen](https://qwen.ai/apiplatform), [Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI), [ByteDance VolcEngine Ark](https://console.volcengine.com/ark), [xAI Grok](https://console.x.ai/), [MiniMax](https://platform.minimax.io/), [Muse Spark](https://dev.meta.ai/docs/authentication), [iFlytek Spark](https://maas.xfyun.cn/), and [Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
+- [x] Connect through [APIXO AI](https://apixo.ai/dashboard/api-keys), [APINEBULA](https://apinebula.ai/ref/luDuqJIb), [Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo), [Infistar](https://infistar.cc/keys), [Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO), [Cheaper Inference](https://cheaperinference.com/signup), [Requesty](https://app.requesty.ai/api-keys), [FutureInfra](https://futureinfra.ai/console/?screen=ai-router), [Y-API](https://y-api.bestvirtualgoods.com/app/keys), [Opper](https://platform.opper.ai), [onomeo](https://onomeo.com/dashboard), [EmpirioLabs AI](https://platform.empiriolabs.ai/dashboard/api-keys), [Runcrate](https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing), [CloudGPU](https://cloudgpu.app), [cheapaimodel](https://console.cheapaimodel.ai/keys), [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Kimi Code](https://www.kimi.ai/code?aff=moneyprinterturbo), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
 
 ### Video and Image Footage
 
 - [x] Upload your own **local images and videos**, or get HD stock footage from [Pexels (free)](https://www.pexels.com/api/), [Pixabay (free)](https://pixabay.com/api/docs/), and [Coverr](https://coverr.co/developers?ctx=header_navigation)
 - [x] Generate `768P` or `2K` source footage with [Metaso MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT), with 4–15 second clips in `9:16`, `16:9`, or `1:1`
-- [x] Create multiple AI video clips with [Shengsuan Cloud AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), then combine them with the project's voiceover, subtitle, and editing workflow
+- [x] Review a quote and confirm the charge to generate multiple clips with [Shengsuan Cloud LoomLoom AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), then combine them with the project's voiceover, subtitle, and editing workflow
+- [x] Generate AI video footage through [Infistar](https://infistar.cc/keys) and [Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo)
 - [x] Use the native [Volcano Engine Ark Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey) integration to generate cohesive visuals from individual script segments
 - [x] Turn script keywords into original video footage with [WaveSpeed AI](https://wavespeed.ai)
 - [x] Access Seedance, Wan, and other text-to-video models through [OFox](https://ofox.ai) with a single API key
 - [x] Generate 3–12 second AI video materials through the asynchronous [MuAPI](https://muapi.ai) text-to-video API, with configurable endpoint, aspect ratio, resolution, and polling
-- [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services or custom image gateways and turn generated images into animated video clips
-- [x] Adjust clip duration, frame fitting, and material order to suit different aspect ratios and storytelling styles
+- [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services, custom image gateways, or the included [local SDXL image server](docs/local-image-server/README.md); choose static or slow-zoom motion for local and generated images
+- [x] Use [OpenAI - Codex image generation](docs/codex-provider.md) with the shared ChatGPT sign-in and a separate image model selector; the account and selected model must have image-generation access
+- [x] Adjust clip duration, playback speed, and transitions; choose crop-to-fill or letterbox fitting and random or sequential footage order
+- [x] Optionally use [TwelveLabs](https://playground.twelvelabs.io/) to rerank stock-footage search terms by video topic
 
 ### Voiceover, Subtitles, and Background Music
 
 - [x] Choose automatic voiceover, uploaded audio, or no voiceover, with voice samples and full narration previews
 - [x] Use **Edge TTS (free, no API key required)**, Azure Speech, SiliconFlow, Google Gemini, Xiaomi MiMo, MiniMax, ElevenLabs, Chatterbox, Kokoro, Fish Audio, ModelBest VoxCPM, and other voice services
-- [x] Generate subtitles and configure their font, position, color, size, outline, and background style
-- [x] Use random, local, or AI-generated background music with independent volume control
+- [x] Clone voices from reference audio with ModelBest VoxCPM, and control Edge TTS narration pauses with tags such as `[pause: 2s]`
+- [x] Generate subtitles from TTS timestamps or local Whisper transcription, with sentence or word-by-word display, pop-up spring animation, and configurable font, position, color, size, outline, and background style
+- [x] Use random music, preview preset songs, or upload local tracks; generate video-matched music with [Sonilo](https://platform.sonilo.com/dashboard) or [ElevenLabs Video-to-Music](https://elevenlabs.io/), with independent volume control
 
 ### Output and Publishing
 
 - [x] Export portrait `9:16 (1080×1920)`, landscape `16:9 (1920×1080)`, or square `1:1 (1080×1080)` videos
 - [x] Publish completed videos directly to **TikTok, Instagram, and YouTube Shorts**
+- [x] Generate publishing titles, captions, and hashtags with an LLM, and configure YouTube visibility and whether the video is made for kids
+- [x] Use the separate [local video project CLI](docs/video-projects.md) to revise scenes, compare versions, and reuse unchanged render artifacts
 
 ## Gallery 🎬
 
@@ -261,8 +324,9 @@ All examples below were generated with MoneyPrinterTurbo.
 ### Recommended Paths
 
 - If you do not want to install or configure the project manually: generate videos with an AI Agent
+- If you already have Python and want a direct installation: [install the official package with pip](#install-the-official-package-with-pip)
 - Windows users: use the one-click package first for the fastest local trial
-- macOS / Linux users: use `uv` for the primary local setup path
+- For source deployment or development: use `uv` to manage the environment and dependencies
 - If you want a more isolated runtime: use Docker deployment
 
 ### Generate Videos with an AI Agent
@@ -301,7 +365,56 @@ Use the local setup or Docker instructions below.
 
 ## Installation & Deployment 📥
 
-### Prerequisites
+### Install the Official Package with pip
+
+The official PyPI package is **[mpt](https://pypi.org/project/mpt/)**,
+maintained by `harry0703`. The `MoneyPrinterTurbo` package on PyPI is maintained by a third party.
+
+No repository clone is needed. Requires Python 3.11 or later; Python 3.11 is recommended.
+
+**① Create and activate a virtual environment**
+
+macOS / Linux:
+
+```shell
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**② Install and start**
+
+```shell
+python -m pip install mpt
+mpt webui
+```
+
+The WebUI opens in your browser automatically. Use `mpt webui --port 8503 --headless`
+to select a port without opening a browser. For CLI video generation, see `mpt cli --help`.
+
+**③ Configure services and find your files**
+
+The application creates `config.toml` on first launch. Add the required API keys
+for online models, footage, or speech services in the WebUI basic settings.
+The installed application stores configuration and generated files here by default:
+
+| System  | Data directory                                                            |
+| ------- | ------------------------------------------------------------------------- |
+| macOS   | `~/Library/Application Support/MoneyPrinterTurbo`                         |
+| Windows | `%LOCALAPPDATA%\MoneyPrinterTurbo`                                        |
+| Linux   | `~/.local/share/MoneyPrinterTurbo`, or `$XDG_DATA_HOME/MoneyPrinterTurbo` |
+
+Set `MPT_HOME` before launch to choose another directory. Generated videos are under
+`storage/tasks` in that directory. To upgrade, activate your virtual environment and
+run `python -m pip install --upgrade mpt`.
+
+### Source Deployment Prerequisites
 
 - Local deployment requires Python 3.11 or later
 - On Windows, avoid project paths containing non-ASCII characters, special characters, or spaces

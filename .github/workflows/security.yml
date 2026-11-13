@@ -1,0 +1,64 @@
+name: Container security
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - requirements*.txt
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/security.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - requirements*.txt
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/security.yml
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image with current base packages
+        run: >-
+          docker build --pull --tag mpt:security
+          --build-arg DOCKER_BUILD_MIRROR=default
+          --build-arg PIP_USE_OFFICIAL=1 .
+
+      - name: Record all high and critical findings
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        env:
+          TRIVY_SKIP_VERSION_CHECK: "true"
+        with:
+          version: v0.74.0
+          image-ref: mpt:security
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          format: json
+          output: trivy-report.json
+          exit-code: "0"
+          timeout: 10m
+
+      - name: Upload the complete report, including unfixed findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+          if-no-files-found: warn
+
+      - name: Fail on high or critical findings with an available fix
+        run: >-
+          trivy image --cache-dir .cache/trivy --scanners vuln --severity HIGH,CRITICAL
+          --ignore-unfixed --exit-code 1 --skip-version-check
+          --timeout 10m mpt:security

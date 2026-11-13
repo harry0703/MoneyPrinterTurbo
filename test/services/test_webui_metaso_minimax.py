@@ -86,7 +86,8 @@ def test_invalid_metaso_resolution_requires_an_explicit_replacement():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.session_state["ui_language"] = "zh"
         app.session_state["settings_dialog_open"] = True
-        app.session_state["settings_dialog_target_tab"] = "material"
+        app.session_state["settings_dialog_target_tab"] = "video"
+        app.session_state["settings_material_providers"] = {"ai_video": "metaso_minimax"}
         app.run()
 
         resolution = _widget_by_key(

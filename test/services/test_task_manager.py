@@ -270,6 +270,7 @@ class TestRedisTaskManager(unittest.TestCase):
         )
         self.addCleanup(patcher.stop)
         from_url = patcher.start()
+        self.redis_client.eval.return_value = None
         self.manager = RedisTaskManager(
             max_concurrent_tasks=1,
             redis_url="redis://localhost:6379/0",
@@ -280,8 +281,7 @@ class TestRedisTaskManager(unittest.TestCase):
     def test_resume_queued_tasks_fills_available_slots_after_restart(self):
         """Persisted Redis entries should run without waiting for a new API request."""
         self.manager.max_concurrent_tasks = 2
-        self.redis_client.llen.return_value = 2
-        self.redis_client.lpop.side_effect = [
+        self.redis_client.eval.side_effect = [
             _queued_payload("start", task_id="first", params=_video_params()),
             _queued_payload("start", task_id="second", params=_video_params()),
         ]
@@ -291,7 +291,7 @@ class TestRedisTaskManager(unittest.TestCase):
 
         self.assertEqual(execute_task.call_count, 2)
         self.assertEqual(self.manager.current_tasks, 2)
-        self.assertEqual(self.redis_client.lpop.call_count, 2)
+        self.assertEqual(self.redis_client.eval.call_count, 2)
 
     def test_enqueue_serializes_video_params_without_mutating_task(self):
         """
@@ -529,9 +529,10 @@ class TestRedisTaskManager(unittest.TestCase):
         可用任务，而不是把整个队列留在原地。
         """
         self.manager.current_tasks = 1
-        self.redis_client.lpop.side_effect = [
+        self.redis_client.eval.side_effect = [
             _queued_payload("retired-entry"),
             _queued_payload("start", task_id="task-next", params=_video_params()),
+            None,
         ]
 
         with patch.object(self.manager, "execute_task") as execute_task:

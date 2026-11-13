@@ -27,8 +27,9 @@ def test_unterminated_sse_line_is_rejected_before_reading_more(monkeypatch):
 
 def test_multiline_event_cannot_bypass_aggregate_limit(monkeypatch):
     monkeypatch.setattr(voice, "_VOXCPM_SSE_MAX_EVENT_BYTES", 32, raising=False)
-    with pytest.raises(ValueError, match="size limit"):
+    with pytest.raises(ValueError) as exc_info:
         list(voice._iter_voxcpm_sse_events(response_for([b'data: {"value":\ndata: "' + b"x" * 24 + b'"}\n\n'])))
+    assert "size limit" in str(exc_info.value)
 
 
 def test_utf8_fragmented_multiline_crlf_and_trailing_events(monkeypatch):

@@ -1,5 +1,7 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+FROM python:3.11-slim-trixie
+
+COPY --from=ghcr.io/astral-sh/uv:0.12.12 /uv /usr/local/bin/uv
 
 # Set the working directory in the container
 WORKDIR /MoneyPrinterTurbo
@@ -23,12 +25,14 @@ RUN set -u; \
     write_debian_sources() { \
         main_url="$1"; \
         security_url="$2"; \
-        printf 'deb %s bullseye main\ndeb %s bullseye-updates main\ndeb %s bullseye-security main\n' \
+        rm -f /etc/apt/sources.list.d/debian.sources; \
+        printf 'deb %s trixie main\ndeb %s trixie-updates main\ndeb %s trixie-security main\n' \
             "$main_url" "$main_url" "$security_url" > /etc/apt/sources.list; \
         rm -rf /var/lib/apt/lists/*; \
     }; \
     install_system_dependencies() { \
         apt-get update && \
+        apt-get upgrade -y && \
         apt-get install -y --no-install-recommends git ffmpeg; \
     }; \
     retry_system_dependencies() { \
@@ -79,16 +83,21 @@ RUN set -u; \
     fi; \
     rm -rf /var/lib/apt/lists/*
 
-# Copy only the requirements.txt first to leverage Docker cache
-COPY requirements.txt ./
+# Copy dependency inputs first to reuse the Docker dependency layer
+COPY requirements.txt requirements-security.txt ./
 
 # 本地默认优先国内 PyPI 镜像；GHCR 发布使用官方 PyPI，避免海外 runner 因跨境镜像访问变慢。
-RUN if [ "$PIP_USE_OFFICIAL" = "1" ]; then \
-        pip install --no-cache-dir --retries 3 --timeout 60 -r requirements.txt; \
+RUN export UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=3; \
+    install_python_dependencies() { \
+        uv pip install --system --no-cache --overrides requirements-security.txt \
+            "$@" -r requirements.txt 'setuptools>=82.0.1' 'wheel>=0.46.2'; \
+    }; \
+    if [ "$PIP_USE_OFFICIAL" = "1" ]; then \
+        install_python_dependencies; \
     else \
-        pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com --retries 3 --timeout 60 -r requirements.txt || \
-        pip install --no-cache-dir -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/ --trusted-host mirrors.tuna.tsinghua.edu.cn --retries 3 --timeout 60 -r requirements.txt || \
-        pip install --no-cache-dir --retries 3 --timeout 60 -r requirements.txt; \
+        install_python_dependencies --default-index https://mirrors.aliyun.com/pypi/simple/ || \
+        install_python_dependencies --default-index https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/ || \
+        install_python_dependencies; \
     fi
 
 # Now copy the rest of the codebase into the image

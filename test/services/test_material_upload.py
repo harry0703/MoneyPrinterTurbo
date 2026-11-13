@@ -216,6 +216,35 @@ class TestMaterialUploadService(unittest.TestCase):
                     )
             self.assertEqual(os.listdir(temp_dir), [])
 
+    def test_multi_picture_camera_jpeg_is_accepted(self):
+        # Phones and dual-lens cameras embed an MPF index in ordinary .jpg
+        # photos; Pillow reports those files as MPO rather than JPEG.
+        output = io.BytesIO()
+        Image.new("RGB", (4, 4), color="red").save(
+            output,
+            format="MPO",
+            save_all=True,
+            append_images=[Image.new("RGB", (2, 2), color="blue")],
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                material_upload, "uploaded_material_dir", return_value=temp_dir
+            ):
+                stored_name = material_upload.save_material_upload(
+                    "IMG_0001.JPG", io.BytesIO(output.getvalue())
+                )
+                with self.assertRaisesRegex(
+                    material_upload.MaterialUploadError, "does not match"
+                ):
+                    material_upload.save_material_upload(
+                        "renamed.png", io.BytesIO(output.getvalue())
+                    )
+
+            self.assertTrue(stored_name.endswith(".jpg"))
+            with Image.open(os.path.join(temp_dir, stored_name)) as image:
+                self.assertEqual(image.format, "MPO")
+                self.assertEqual(image.size, (4, 4))
+
     def test_webm_and_bmp_materials_are_accepted(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             with (

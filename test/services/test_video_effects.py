@@ -77,6 +77,8 @@ class TestFadeAndSlideTransitions(unittest.TestCase):
             with self.subTest(side=side):
                 transitioned = video_effects.slidein_transition(clip, 1, side)
                 self.addCleanup(transitioned.close)
+                # The black background is opaque, so no per-frame mask.
+                self.assertIsNone(transitioned.mask)
                 moving_clip = transitioned.clips[1]
                 self.assertEqual(moving_clip.pos(0), expected_start)
                 self.assertEqual(moving_clip.pos(1), (0, 0))
@@ -100,6 +102,7 @@ class TestFadeAndSlideTransitions(unittest.TestCase):
             with self.subTest(side=side):
                 transitioned = video_effects.slideout_transition(clip, 1, side)
                 self.addCleanup(transitioned.close)
+                self.assertIsNone(transitioned.mask)
                 moving_clip = transitioned.clips[1]
                 self.assertEqual(moving_clip.pos(0.5), (0, 0))
                 self.assertEqual(moving_clip.pos(2.5), expected_end)
@@ -193,3 +196,17 @@ class TestZoomTransitions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_slideout_short_scene_completes_requested_direction():
+    """A one-second transition must finish inside a 0.2-second scene."""
+    for side in ("left", "right", "top", "bottom"):
+        clip = ImageClip(np.full((64, 64, 3), 255, dtype=np.uint8)).with_duration(0.2)
+        outgoing = video_effects.slideout_transition(clip, 1.0, side)
+        try:
+            assert np.mean(outgoing.get_frame(0.0)) == 255
+            assert np.mean(outgoing.get_frame(0.199)) < 10
+            assert outgoing.duration == 0.2
+        finally:
+            outgoing.close()
+            clip.close()

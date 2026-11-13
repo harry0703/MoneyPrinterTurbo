@@ -12,6 +12,7 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 from loguru import logger
 from moviepy import (
     ImageClip,
@@ -229,6 +230,9 @@ class TestVideoService(unittest.TestCase):
 
         try:
             self.assertEqual(tuple(fitted.size), (90, 160))
+            # Opaque output: a transparency mask would be rebuilt and encoded
+            # for every frame although the black bars already cover the canvas.
+            self.assertIsNone(fitted.mask)
             frame = fitted.get_frame(0)
             self.assertEqual(frame[0, 45].tolist(), [0, 0, 0])
             self.assertEqual(frame[80, 45].tolist(), source_color)
@@ -315,6 +319,56 @@ class TestVideoService(unittest.TestCase):
         writer.assert_called_once()
         self.assertEqual(source_video.close_calls, 2)
         self.assertEqual(voice_source.close_calls, 1)
+
+    def test_generate_video_composites_subtitles_on_an_opaque_canvas(self):
+        """
+        The subtitle composite must stay opaque. A transparent canvas makes
+        MoviePy build a second full-size mask composite for every frame and
+        pipe it to FFmpeg as an alpha channel, which the MP4 output drops.
+        """
+        params = vd.VideoParams(video_subject="test", bgm_type="")
+        width, height = vd.VideoAspect(params.video_aspect).to_resolution()
+        source_color = [17, 34, 51]
+        source_video = ImageClip(
+            np.full((height, width, 3), source_color, dtype=np.uint8)
+        ).with_duration(2)
+        voice_source = _FakeMoviePyClip(duration=2)
+        rendered = {}
+
+        def capture_final_clip(clip, *_args, **_kwargs):
+            rendered["mask"] = clip.mask
+            rendered["duration"] = clip.duration
+            rendered["captioned"] = clip.get_frame(0.5)
+            rendered["plain"] = clip.get_frame(1.5)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subtitle = Path(tmp_dir) / "subtitle.srt"
+            subtitle.write_text(
+                "1\n00:00:00,000 --> 00:00:01,000\nHello\n\n", encoding="utf-8"
+            )
+            with (
+                patch.object(vd, "_open_video_clip_quietly", return_value=source_video),
+                patch.object(vd, "AudioFileClip", return_value=voice_source),
+                patch.object(
+                    vd,
+                    "_write_videofile_with_codec_fallback",
+                    side_effect=capture_final_clip,
+                ),
+                patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+            ):
+                vd.generate_video(
+                    video_path="combined.mp4",
+                    audio_path="voice.mp3",
+                    subtitle_path=str(subtitle),
+                    output_file=os.path.join(tmp_dir, "final.mp4"),
+                    params=params,
+                )
+
+        self.assertIsNone(rendered["mask"])
+        self.assertEqual(rendered["duration"], 2)
+        self.assertTrue((rendered["plain"] == source_color).all())
+        self.assertFalse((rendered["captioned"] == source_color).all())
+        self.assertEqual(rendered["captioned"][0, 0].tolist(), source_color)
 
     def test_generate_video_reports_successful_bgm_mix_and_closes_sources(self):
         """BGM 混合成功后应返回 True，并释放所有原始文件 reader。"""
@@ -530,11 +584,9 @@ class TestVideoService(unittest.TestCase):
         m = MaterialInfo()
         m.url = os.path.basename(safe_img_path)
         m.provider = "local"
-        print(m)
 
         try:
             materials = vd.preprocess_video([m], clip_duration=4)
-            print(materials)
 
             # verify result
             self.assertIsNotNone(materials)
@@ -544,7 +596,7 @@ class TestVideoService(unittest.TestCase):
             # moviepy get video info
             clip = VideoFileClip(materials[0].url)
             try:
-                print(clip)
+                self.assertGreater(clip.duration, 0)
             finally:
                 clip.close()
 
@@ -558,6 +610,11 @@ class TestVideoService(unittest.TestCase):
     def test_image_zoom_renders_keep_distinct_clip_durations(self):
         """Two tasks must not overwrite one image render with another duration."""
         class FakeImageClip:
+            mask = None
+
+            def get_frame(self, _time):
+                return np.zeros((2, 2, 3), dtype=np.uint8)
+
             def __init__(self, _path):
                 self.duration = 0
 
@@ -572,7 +629,7 @@ class TestVideoService(unittest.TestCase):
                 return self
 
         class FakeCompositeClip:
-            def __init__(self, clips):
+            def __init__(self, clips, bg_color=None):
                 self.duration = clips[0].duration
 
             def write_videofile(self, output, **_kwargs):
@@ -594,6 +651,11 @@ class TestVideoService(unittest.TestCase):
     def test_failed_image_zoom_render_preserves_previous_complete_clip(self):
         """A failed rerender must leave the last verified MP4 available."""
         class FakeImageClip:
+            mask = None
+
+            def get_frame(self, _time):
+                return np.zeros((2, 2, 3), dtype=np.uint8)
+
             duration = 0
 
             def __init__(self, _path):
@@ -612,7 +674,7 @@ class TestVideoService(unittest.TestCase):
         writes = 0
 
         class FakeCompositeClip:
-            def __init__(self, _clips):
+            def __init__(self, _clips, bg_color=None):
                 pass
 
             def write_videofile(self, output, **_kwargs):
@@ -1389,6 +1451,33 @@ class TestVideoService(unittest.TestCase):
         self.assertLess(command.index("-t"), len(command) - 1)
         self.assertNotEqual(command[-1], output_file)
 
+    def test_concat_video_clips_never_reads_the_console(self):
+        """
+        FFmpeg reads keys from its stdin, the console of webui.bat, main.py or
+        cli.py. A "q" typed there ends the joined video early and a "c" makes
+        FFmpeg wait for Enter. The other FFmpeg calls pass -nostdin too.
+        """
+
+        def fake_run(command, capture_output, text, check, **kwargs):
+            Path(command[-1]).write_bytes(b"encoded-video")
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with patch.object(vd.subprocess, "run", side_effect=fake_run) as run:
+                vd.concat_video_clips_with_ffmpeg(
+                    clip_files=[clip_file],
+                    output_file=output_file,
+                    threads=1,
+                    output_dir=temp_dir,
+                )
+
+        command = run.call_args.args[0]
+        self.assertIn("-nostdin", command[: command.index("-i")])
+
     def test_concat_video_clips_logs_heartbeat_while_ffmpeg_runs(self):
         """
         拼接时 subprocess.run 会阻塞到 ffmpeg 退出，期间项目不再产生任何日志，用户
@@ -1831,7 +1920,6 @@ class TestVideoService(unittest.TestCase):
                 font=font_path,
                 fontsize=30
             )
-            print(wrapped_text_en, text_height_en)
             # verify text is wrapped
             self.assertIn("\n", wrapped_text_en)
             
@@ -1843,7 +1931,6 @@ class TestVideoService(unittest.TestCase):
                 font=font_path,
                 fontsize=30
             )   
-            print(wrapped_text_zh, text_height_zh)
             # verify chinese text is wrapped
             self.assertIn("\n", wrapped_text_zh)
         except Exception as e:
