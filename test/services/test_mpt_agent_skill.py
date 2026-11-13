@@ -36,6 +36,7 @@ volcengine_seedance_api_key = ""
 ofox_api_key = ""
 metaso_minimax_api_key = ""
 muapi_api_key = ""
+useapi_api_token = ""
 infistar_video_api_key = ""
 jalapeno_api_key = ""
 jalapeno_video_api_key = ""
@@ -202,6 +203,7 @@ class TestMptAgentSkill(unittest.TestCase):
             seedance_key = "secret-ark-key"
             metaso_key = "secret-metaso-key"
             muapi_key = "secret-muapi-key"
+            useapi_token = "secret-useapi-token"
 
             with patch.dict(
                 os.environ,
@@ -212,6 +214,7 @@ class TestMptAgentSkill(unittest.TestCase):
                     "MPT_VOLCENGINE_ARK_API_KEY": seedance_key,
                     "MPT_METASO_MINIMAX_API_KEY": metaso_key,
                     "MPT_MUAPI_API_KEY": muapi_key,
+                    "MPT_USEAPI_TOKEN": useapi_token,
                 },
                 clear=True,
             ), redirect_stdout(output):
@@ -226,6 +229,8 @@ class TestMptAgentSkill(unittest.TestCase):
             )
             self.assertIn(f'metaso_minimax_api_key = "{metaso_key}"', config)
             self.assertIn(f'muapi_api_key = "{muapi_key}"', config)
+            self.assertIn(f'useapi_api_token = "{useapi_token}"', config)
+            self.assertNotIn(useapi_token, output.getvalue())
             self.assertNotIn(llm_key, output.getvalue())
             self.assertNotIn(pexels_key, output.getvalue())
             self.assertNotIn(seedance_key, output.getvalue())
@@ -626,6 +631,99 @@ class TestMptAgentSkill(unittest.TestCase):
                 )
             self.assertEqual(missing, [])
 
+    def test_useapi_source_requires_its_own_token_and_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "useapi"]
+                )
+            self.assertEqual(missing, ["useapi_api_token", "confirm_useapi_charge"])
+
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'useapi_api_token = ""', 'useapi_api_token = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, confirmed_missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "useapi", "--confirm-useapi-charge"],
+                )
+            self.assertEqual(confirmed_missing, [])
+
+    def test_useapi_image_source_requires_the_shared_token_only(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "useapi_image"]
+                )
+            self.assertEqual(missing, ["useapi_api_token"])
+            with patch.dict(os.environ, {"USEAPI_TOKEN": "env-token"}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "useapi_image"]
+                )
+            self.assertEqual(missing, [])
+
+    def test_useapi_kling_image_model_requires_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ).replace(
+                    'useapi_api_token = ""',
+                    'useapi_api_token = "configured"\n'
+                    'useapi_image_model = "kling-omni-image-v3"',
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                _, missing = mpt_agent.missing_config(
+                    config_path, ["--video-source", "useapi_image"]
+                )
+                self.assertEqual(missing, ["confirm_useapi_charge"])
+                _, missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "useapi_image", "--confirm-useapi-charge"],
+                )
+                self.assertEqual(missing, [])
+
+    def test_useapi_source_accepts_provider_environment_token(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                MINIMAL_CONFIG.replace(
+                    'moonshot_api_key = ""', 'moonshot_api_key = "configured"'
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {"USEAPI_TOKEN": "environment-useapi-token"},
+                clear=True,
+            ):
+                _, missing = mpt_agent.missing_config(
+                    config_path,
+                    ["--video-source", "useapi", "--confirm-useapi-charge"],
+                )
+            self.assertEqual(missing, [])
+
     def test_infistar_source_uses_video_credentials_and_charge_confirmation(self):
         """预检与实际视频服务使用相同凭据，不能误用 Infistar 大模型 Key。"""
         from app.services import infistar_video
@@ -961,6 +1059,23 @@ class TestMptAgentSkill(unittest.TestCase):
         self.assertIn("MUAPI_API_KEY_ENV=MPT_MUAPI_API_KEY", text)
         self.assertIn(
             "MUAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-muapi-charge", text
+        )
+        self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
+
+    def test_missing_useapi_inputs_report_token_environment_and_charge_flag(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = mpt_agent.report_missing_config(
+                "deepseek", ["useapi_api_token", "confirm_useapi_charge"]
+            )
+
+        text = output.getvalue()
+        self.assertEqual(code, mpt_agent.NEEDS_INPUT_EXIT_CODE)
+        self.assertIn(f"USEAPI_TOKEN_URL={mpt_agent.USEAPI_TOKEN_URL}", text)
+        self.assertIn("utm_source=moneyprinterturbo", mpt_agent.USEAPI_TOKEN_URL)
+        self.assertIn("USEAPI_TOKEN_ENV=MPT_USEAPI_TOKEN", text)
+        self.assertIn(
+            "USEAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-useapi-charge", text
         )
         self.assertNotIn("LLM_PROVIDER_OPTIONS_BEGIN", text)
 

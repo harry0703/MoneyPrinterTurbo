@@ -36,12 +36,14 @@ SUPPORTED_SOURCES = {
     "ofox",
     "metaso_minimax",
     "muapi",
+    "useapi",
     "infistar",
     "jalapeno",
     # Keep this list aligned with ``_CLI_VIDEO_SOURCES`` in cli.py. A source that
     # the CLI accepts must not be rejected here as unsupported.
     "openai_image",
     "codex_image",
+    "useapi_image",
     "local",
 }
 VOLCENGINE_ARK_API_KEY_URL = (
@@ -49,6 +51,15 @@ VOLCENGINE_ARK_API_KEY_URL = (
 )
 OFOX_API_KEY_URL = "https://ofox.ai"
 MUAPI_API_KEY_URL = "https://muapi.ai"
+USEAPI_TOKEN_URL = (
+    "https://useapi.net/docs/start-here/setup-useapi"
+    "?utm_source=moneyprinterturbo&utm_medium=referral"
+    "&utm_campaign=mpt-integration"
+)
+# useapi.net voice-over (Kling TTS, Google Vids voices) and Google Flow Music
+# background music read the same token as the useapi.net video source.
+USEAPI_VOICE_PREFIXES = ("useapi-kling:", "useapi-vids:")
+USEAPI_BGM_TYPES = {"flowmusic"}
 INFISTAR_VIDEO_API_KEY_URL = "https://infistar.cc/keys"
 JALAPENO_API_KEY_URL = "https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"
 PEXELS_API_KEY_URL = "https://www.pexels.com/api/"
@@ -266,6 +277,7 @@ def apply_environment_config(config_path: Path) -> None:
         "MPT_METASO_MINIMAX_API_KEY", ""
     ).strip()
     muapi_key = os.environ.get("MPT_MUAPI_API_KEY", "").strip()
+    useapi_token = os.environ.get("MPT_USEAPI_TOKEN", "").strip()
     infistar_video_key = os.environ.get("MPT_INFISTAR_VIDEO_API_KEY", "").strip()
     jalapeno_video_key = os.environ.get("MPT_JALAPENO_VIDEO_API_KEY", "").strip()
     if not any(
@@ -279,6 +291,7 @@ def apply_environment_config(config_path: Path) -> None:
             ofox_key,
             metaso_minimax_key,
             muapi_key,
+            useapi_token,
             infistar_video_key,
             jalapeno_video_key,
         )
@@ -320,6 +333,9 @@ def apply_environment_config(config_path: Path) -> None:
     if muapi_key:
         text = _replace_config_value(text, "muapi_api_key", muapi_key)
         changes.append("muapi_api_key")
+    if useapi_token:
+        text = _replace_config_value(text, "useapi_api_token", useapi_token)
+        changes.append("useapi_api_token")
     if infistar_video_key:
         text = _replace_config_value(text, "infistar_video_api_key", infistar_video_key)
         changes.append("infistar_video_api_key")
@@ -413,6 +429,13 @@ def _requires_llm(cli_args: list[str]) -> bool:
     )
 
 
+def _uses_useapi_audio(cli_args: list[str]) -> bool:
+    """Whether the run reads its voice-over or background music via useapi.net."""
+    voice_name = _last_cli_value(cli_args, "--voice-name").lower()
+    bgm_type = _last_cli_value(cli_args, "--bgm-type").lower()
+    return voice_name.startswith(USEAPI_VOICE_PREFIXES) or bgm_type in USEAPI_BGM_TYPES
+
+
 def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[str]]:
     """Return the active provider and only the fields required by this run."""
     text = config_path.read_text(encoding="utf-8")
@@ -492,6 +515,24 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("muapi_api_key")
         if not has_cli_option(cli_args, "--confirm-muapi-charge"):
             missing.append("confirm_muapi_charge")
+    elif source in {"useapi", "useapi_image"}:
+        # Same order as useapi.get_api_key: the config key, then USEAPI_TOKEN.
+        # Video and image sources share one token.
+        value = (
+            _plain_config_value(text, "useapi_api_token").strip()
+            or os.environ.get("USEAPI_TOKEN", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("useapi_api_token")
+        # Videos and Kling images spend credits on the user's own account;
+        # Nano Banana images do not, so they need no charge confirmation.
+        spends_credits = source == "useapi" or _plain_config_value(
+            text, "useapi_image_model"
+        ).strip().startswith("kling-")
+        if spends_credits and not has_cli_option(
+            cli_args, "--confirm-useapi-charge"
+        ):
+            missing.append("confirm_useapi_charge")
     elif source == "infistar":
         # 视频凭据独立于同品牌 LLM，预检必须与 infistar_video.get_api_key 一致。
         value = (
@@ -533,6 +574,14 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
         value = _plain_config_value(text, f"{source}_api_keys")
         if not _has_configured_value(value):
             missing.append(f"{source}_api_keys")
+    if _uses_useapi_audio(cli_args) and "useapi_api_token" not in missing:
+        # Same order as useapi_audio.get_api_key: the config key, then USEAPI_TOKEN.
+        value = (
+            _plain_config_value(text, "useapi_api_token").strip()
+            or os.environ.get("USEAPI_TOKEN", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("useapi_api_token")
     return provider, missing
 
 
@@ -607,6 +656,11 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print("MUAPI_API_KEY_ENV=MPT_MUAPI_API_KEY")
     if "confirm_muapi_charge" in missing:
         print("MUAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-muapi-charge")
+    if "useapi_api_token" in missing:
+        print(f"USEAPI_TOKEN_URL={USEAPI_TOKEN_URL}")
+        print("USEAPI_TOKEN_ENV=MPT_USEAPI_TOKEN")
+    if "confirm_useapi_charge" in missing:
+        print("USEAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-useapi-charge")
     if "infistar_video_api_key" in missing:
         print(f"INFISTAR_VIDEO_API_KEY_URL={INFISTAR_VIDEO_API_KEY_URL}")
         print("INFISTAR_VIDEO_API_KEY_ENV=MPT_INFISTAR_VIDEO_API_KEY")

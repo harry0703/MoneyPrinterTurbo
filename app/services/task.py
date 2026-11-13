@@ -34,6 +34,8 @@ from app.services import (
     subtitle,
     task_artifacts,
     twelvelabs,
+    useapi,
+    useapi_flowmusic,
     video,
     volcengine_seedance,
     voice,
@@ -96,13 +98,23 @@ _VIDEO_MUSIC_PROVIDERS = {
         "warning_code": "elevenlabs_bgm_failed",
         "display_name": "ElevenLabs",
     },
+    # useapi.net (third-party API): an instrumental Lyria track generated on the
+    # user's own Google Flow Music account, then fitted to the video length.
+    "flowmusic": {
+        "service": useapi_flowmusic,
+        "error_type": useapi_flowmusic.FlowMusicError,
+        "suffix": ".mp3",
+        "warning_code": "flowmusic_bgm_failed",
+        "display_name": "Google Flow Music",
+    },
 }
 
 
 _SUPPORTED_VIDEO_SOURCES = frozenset({
     "pexels", "pixabay", "coverr", "local", "wavespeed",
-    "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
-    "loomloom", "openai_image", "codex_image", "infistar", "jalapeno",
+    "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "useapi",
+    "loomloom", "openai_image", "codex_image", "useapi_image", "infistar",
+    "jalapeno",
 })
 
 
@@ -116,6 +128,12 @@ def _get_video_music_prompt(params: VideoParams) -> str:
     prompt = str(params.video_music_prompt or "").strip()
     if params.bgm_type == "sonilo" and not prompt:
         prompt = str(params.sonilo_bgm_prompt or "").strip()
+    if params.bgm_type == "flowmusic" and not prompt:
+        # Google Flow Music writes music from text only (it does not see the video),
+        # so an empty style becomes a prompt built from the video subject.
+        prompt = useapi_flowmusic.default_prompt(
+            params.video_subject, params.video_script
+        )
     return prompt
 
 
@@ -932,6 +950,19 @@ def get_video_materials(
                 details=details,
             )
             return None
+        except useapi.UseAPIError as exc:
+            # useapi.net jobs spend credits on the user's own account once they
+            # start. Keep the job ID on an unconfirmed or post-completion
+            # failure so the user can look it up with GET /jobs on useapi.net.
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = {"useapi_job_id": remote_task_id} if remote_task_id else None
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
         if not downloaded_videos:
             _mark_task_failed(
                 task_id,
@@ -1656,6 +1687,28 @@ def _run_pipeline(
             "preflight",
             "MuAPI video generation requires a MuAPI API key",
         )
+
+    if stop_at in {"materials", "video"} and params.video_source == "useapi":
+        # Check the token, model and ratio before the script, voice and
+        # subtitles are generated, so a setup error costs nothing.
+        try:
+            if not useapi.is_enabled():
+                raise useapi.UseAPIError(
+                    "useapi.net video generation requires a useapi.net API token"
+                )
+            useapi.check_aspect(useapi.model_id(), params.video_aspect)
+        except useapi.UseAPIError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
+
+    if stop_at in {"materials", "video"} and params.video_source == "useapi_image":
+        try:
+            if not useapi.is_enabled():
+                raise useapi.UseAPIError(
+                    "useapi.net image generation requires a useapi.net API token"
+                )
+            useapi.image_model_id()
+        except useapi.UseAPIError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
 
     if (
         stop_at in {"materials", "video"}

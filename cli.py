@@ -48,8 +48,10 @@ _CLI_VIDEO_SOURCES = (
     "jalapeno",
     "metaso_minimax",
     "muapi",
+    "useapi",
     "openai_image",
     "codex_image",
+    "useapi_image",
     "local",
 )
 
@@ -234,7 +236,8 @@ def _image_motion(value: str) -> str:
 # 只有这些取值会请求外部音乐生成服务，因此只有它们消费配乐提示词。取值需与
 # app/services/task.py 的 _VIDEO_MUSIC_PROVIDERS 保持一致；集中定义后，新增
 # 配乐供应商不会再次遗漏 --bgm-type 校验、批量校验和提示词参数。
-_CLI_MUSIC_BGM_TYPES = ("sonilo", "elevenlabs")
+_CLI_MUSIC_BGM_TYPES = ("sonilo", "elevenlabs", "flowmusic")
+_CLI_MUSIC_BGM_TYPES_TEXT = "sonilo, elevenlabs or flowmusic"
 _BGM_TYPE_CHOICES_TEXT = "none, random, custom, " + ", ".join(_CLI_MUSIC_BGM_TYPES)
 _BGM_TYPE_METAVAR = "{none,random,custom," + ",".join(_CLI_MUSIC_BGM_TYPES) + "}"
 
@@ -248,6 +251,13 @@ def _bgm_type(value: str) -> str:
     raise argparse.ArgumentTypeError(
         f"bgm-type must be one of: {_BGM_TYPE_CHOICES_TEXT}"
     )
+
+
+def _useapi_image_needs_confirmation() -> bool:
+    """Kling image models spend Kling credits; Nano Banana models do not."""
+    from app.services import useapi
+
+    return useapi.image_requires_confirmation()
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -422,6 +432,16 @@ Batch manifests:
             "with --video-source muapi for materials or video output"
         ),
     )
+    material_group.add_argument(
+        "--confirm-useapi-charge",
+        action="store_true",
+        help=(
+            "confirm that useapi.net videos and Kling images spend credits on "
+            "your own Google AI plan, Kling AI account or Dreamina account; "
+            "required with --video-source useapi, and with useapi_image when "
+            "useapi_image_model is a Kling model, for materials or video output"
+        ),
+    )
 
     video_group = parser.add_argument_group("video output")
     video_group.add_argument(
@@ -510,7 +530,9 @@ Batch manifests:
             "instead, unless this option is given. "
             "Use 'no-voice' for silent output. Provider-specific identifiers "
             "use prefixes such as gemini:, mimo:, elevenlabs:, chatterbox:, "
-            "kokoro:, and voxcpm:"
+            "kokoro:, voxcpm:, useapi-kling: (Kling TTS through useapi.net, "
+            "useapi-kling:<speakerId>) and useapi-vids: (Google Vids voices "
+            "through useapi.net, for example useapi-vids:Holt)"
         ),
     )
     audio_group.add_argument(
@@ -548,7 +570,9 @@ Batch manifests:
         metavar=_BGM_TYPE_METAVAR,
         help=(
             "background music mode; Sonilo reads its API key from config.toml or "
-            "SONILO_API_KEY, ElevenLabs from config.toml or ELEVENLABS_API_KEY; "
+            "SONILO_API_KEY, ElevenLabs from config.toml or ELEVENLABS_API_KEY "
+            "and flowmusic (Google Flow Music through useapi.net) reads its token from "
+            "useapi_api_token in config.toml or USEAPI_TOKEN; "
             "--bgm-file implies custom when omitted (default: random)"
         ),
     )
@@ -562,7 +586,8 @@ Batch manifests:
         default=None,
         help=(
             "optional music style prompt for the selected AI background music "
-            "provider (sonilo or elevenlabs); the provider's own length limit "
+            "provider (" + _CLI_MUSIC_BGM_TYPES_TEXT + "); the provider's own "
+            "length limit "
             "is enforced before generation"
         ),
     )
@@ -802,6 +827,26 @@ Batch manifests:
         parser.error(
             "--confirm-muapi-charge is required with --video-source muapi"
         )
+    if (
+        not args.batch_file
+        and args.video_source == "useapi"
+        and stage_requires_materials
+        and not args.confirm_useapi_charge
+    ):
+        parser.error(
+            "--confirm-useapi-charge is required with --video-source useapi"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "useapi_image"
+        and stage_requires_materials
+        and not args.confirm_useapi_charge
+        and _useapi_image_needs_confirmation()
+    ):
+        parser.error(
+            "--confirm-useapi-charge is required with --video-source "
+            "useapi_image when useapi_image_model is a Kling model"
+        )
 
     if (not args.batch_file and args.video_source == "infistar"
             and stage_requires_materials and not args.confirm_infistar_charge):
@@ -833,7 +878,7 @@ Batch manifests:
         and args.bgm_type not in _CLI_MUSIC_BGM_TYPES
     ):
         parser.error(
-            "--video-music-prompt requires --bgm-type sonilo or elevenlabs"
+            "--video-music-prompt requires --bgm-type " + _CLI_MUSIC_BGM_TYPES_TEXT
         )
 
     if (
@@ -1215,6 +1260,7 @@ def _validate_batch_task_params(
     muapi_charge_confirmed: bool,
     infistar_charge_confirmed: bool = False,
     jalapeno_charge_confirmed: bool = False,
+    useapi_charge_confirmed: bool = False,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
@@ -1283,6 +1329,23 @@ def _validate_batch_task_params(
         and not muapi_charge_confirmed
     ):
         raise ValueError("--confirm-muapi-charge is required for MuAPI video generation")
+    if (
+        params.video_source == "useapi"
+        and stop_at in {"materials", "video"}
+        and not useapi_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-useapi-charge is required for useapi.net video generation"
+        )
+    if (
+        params.video_source == "useapi_image"
+        and stop_at in {"materials", "video"}
+        and not useapi_charge_confirmed
+        and _useapi_image_needs_confirmation()
+    ):
+        raise ValueError(
+            "--confirm-useapi-charge is required for useapi.net Kling images"
+        )
 
     if (params.video_source == "infistar" and stop_at in {"materials", "video"}
             and not infistar_charge_confirmed):
@@ -1358,7 +1421,7 @@ def _validate_batch_task_params(
         raise ValueError("sonilo_bgm_prompt requires bgm_type=sonilo")
     if params.video_music_prompt and params.bgm_type not in _CLI_MUSIC_BGM_TYPES:
         raise ValueError(
-            "video_music_prompt requires bgm_type=sonilo or elevenlabs"
+            "video_music_prompt requires bgm_type=" + _CLI_MUSIC_BGM_TYPES_TEXT
         )
 
 
@@ -1406,6 +1469,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                 muapi_charge_confirmed=args.confirm_muapi_charge,
                 infistar_charge_confirmed=args.confirm_infistar_charge,
                 jalapeno_charge_confirmed=args.confirm_jalapeno_charge,
+                useapi_charge_confirmed=args.confirm_useapi_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc

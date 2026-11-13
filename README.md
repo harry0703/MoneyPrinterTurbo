@@ -244,6 +244,7 @@
 - [x] 支持 [WaveSpeed AI](https://wavespeed.ai) 文生视频，可根据脚本关键词快速生成原创素材
 - [x] 支持 [OFox](https://ofox.ai) 多模型文生视频，一个 API Key 即可调用 Seedance、Wan 等模型
 - [x] 通过异步 [MuAPI](https://muapi.ai) 文生视频接口生成 3～12 秒 AI 视频素材，并支持配置 Endpoint、画幅、分辨率和轮询参数
+- [x] 支持 [useapi.net](https://useapi.net/docs/api-google-flow-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) AI 视频和图片：使用你自己的 Google AI 订阅通过 Google Flow 或 [Google Vids](https://useapi.net/docs/api-google-vids-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) 生成 Veo 3.1、Gemini Omni Flash 视频（付费套餐可免费放大到 1080p，限 10 秒以内的片段），并生成 Nano Banana 图片，使用你自己的 [Kling](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) 账号生成 Kling 视频和图片，使用你自己的 [Dreamina](https://useapi.net/docs/api-dreamina-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) 账号生成 Seedance 视频
 - [x] 支持 [OpenAI 兼容文生图](https://platform.openai.com/docs/guides/image-generation)，可连接云端服务、自定义图片网关或项目配套的[本地 SDXL 图片服务](docs/local-image-server/README.md)；本地及生成图片均可选择静止或缓慢缩放效果
 - [x] 支持 [OpenAI - Codex 生图](docs/codex-provider.md)，复用 ChatGPT 登录并独立选择生图模型；需账号及所选模型具备生图权限
 - [x] 支持调整片段时长、播放速度与转场，选择裁剪填满或留边适配，并按随机或顺序模式匹配素材
@@ -254,6 +255,7 @@
 - [x] 支持自动配音、上传配音和无配音三种方式，并提供音色试听与完整配音预览
 - [x] 集成 **Edge TTS（免费、无需 API Key）**、Azure Speech、SiliconFlow、Google Gemini、小米 MiMo、MiniMax、ElevenLabs、Chatterbox、Kokoro、Fish Audio 和 ModelBest VoxCPM 等配音服务
 - [x] 支持 ModelBest VoxCPM 参考音频声音克隆；Edge TTS 支持用 `[pause: 2s]` 等标签控制口播停顿
+- [x] 支持通过 [useapi.net](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) 配音（Kling 文字转语音，所有 Kling 套餐均免费；Google Vids 音色）和 AI 背景音乐（[Google Flow Music](https://useapi.net/docs/api-flowmusic-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration)，Lyria，包含在 Google AI 套餐中）
 - [x] 支持使用 TTS 时间戳或本地 Whisper 自动生成字幕，提供整句、逐词显示及弹簧弹出动画，并可调整字体、位置、颜色、大小、描边和背景样式
 - [x] 支持随机配乐、预设歌曲试听和本地音乐上传，也可通过 [Sonilo](https://platform.sonilo.com/dashboard) 或 [ElevenLabs Video-to-Music](https://elevenlabs.io/) 根据视频生成配乐，并独立控制音量
 
