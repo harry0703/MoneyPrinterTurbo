@@ -165,6 +165,31 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Confirm MuAPI Charge",
         "Confirm MuAPI Charge Help",
         "Confirm MuAPI Charge Required",
+        "useapi.net AI Video",
+        "useapi.net AI Video Help",
+        "useapi.net API Token",
+        "useapi.net API Token Help",
+        "useapi.net Video Model",
+        "useapi.net Video Model Help",
+        "Please Enter the useapi.net API Token",
+        "useapi.net Billing Notice",
+        "useapi.net Billing Notice Without Script",
+        "Confirm useapi.net Charge",
+        "Confirm useapi.net Charge Help",
+        "Confirm useapi.net Charge Required",
+        "useapi.net Nano Banana Images",
+        "useapi.net Nano Banana Images Help",
+        "useapi.net Image Model",
+        "useapi.net Image Model Help",
+        "useapi_model_label.veo-3.1-lite-low-priority",
+        "useapi_model_label.veo-3.1-fast",
+        "useapi_model_label.veo-3.1-quality",
+        "useapi_model_label.omni-flash",
+        "useapi.net Resolution",
+        "useapi.net Resolution Help",
+        "useapi.net Upscale",
+        "useapi.net Upscale None",
+        "useapi.net Upscale Help",
         "Infistar AI Video",
         "Infistar AI Video Help",
         "Infistar Video Key Help",
@@ -389,6 +414,15 @@ class TestWebuiI18n(unittest.TestCase):
             with self.subTest(locale=locale):
                 label = _load_translation(locale)["Metaso MiniMax API Key"]
                 self.assertEqual(_markdown_urls(label), {expected_url})
+
+    def test_useapi_token_label_keeps_mpt_referral_link(self):
+        """useapi.net 的 Token 入口与 Provider 使用同一个带来源参数的地址。"""
+        from app.services import useapi
+
+        for locale in ("zh", "en"):
+            with self.subTest(locale=locale):
+                label = _load_translation(locale)["useapi.net API Token"]
+                self.assertEqual(_markdown_urls(label), {useapi.TOKEN_URL})
 
     def test_secondary_locales_cover_english_locale(self):
         en_translations = _load_translation("en")

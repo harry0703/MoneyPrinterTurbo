@@ -69,6 +69,13 @@ class TestConfigPersistence:
         assert app_config["muapi_resolution"]
         assert app_config["muapi_min_duration"] == 3
         assert app_config["muapi_max_duration"] == 12
+        assert app_config["useapi_api_token"] == ""
+        assert app_config["useapi_video_model"] == "veo-3.1-lite"
+        assert app_config["useapi_resolution"] == ""
+        assert app_config["useapi_upscale"] == ""
+        assert app_config["useapi_poll_interval"] == 10
+        assert app_config["useapi_run_timeout"] == 1800
+        assert app_config["useapi_image_model"] == "nano-banana-2-lite"
         assert "loomloom_market_listing_id" not in app_config
         assert "loomloom_video_market_listing_id" not in app_config
         assert app_config["shengsuanyun_api_key"] == ""
