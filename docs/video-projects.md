@@ -158,3 +158,20 @@ completed narration/footage paths, retain scene IDs, and consume export/revision
 receipts without changing provider ownership. Existing creative-outcome records
 can reference a completed revision ID without introducing automated publishing
 or treating observational performance as causal evidence.
+
+## Return to a previous revision
+
+```sh
+python -m app.services.video_project --project storage/projects/product-episode checkout OLD_REVISION
+python -m app.services.video_project --project storage/projects/product-episode plan
+python -m app.services.video_project --project storage/projects/product-episode render
+```
+
+Checkout changes the current revision pointer under the project lock. It retains
+all revision specifications, statuses, source snapshots, artifacts and the last
+successful export. Rendering then reuses verified artifacts where available and
+promotes the selected revision's successful export. Checking out a revision does
+not reset a failed/cancelled render; use `render --retry` when required. Edits
+created after checkout use the selected revision as their parent. If another
+revision is already rendering, it can finish, but can promote only while it is
+still the current revision. This command does not remove or cancel other work.
