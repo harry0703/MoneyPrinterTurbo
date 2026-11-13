@@ -1,5 +1,6 @@
 """统一源码版和安装版的资源、配置及运行数据目录。"""
 
+import errno
 import os
 import shutil
 import sys
@@ -57,8 +58,30 @@ def _copy_missing_resource(source: Path, target: Path) -> None:
                 os.link(temporary, target)
         except FileExistsError:
             pass
+        except OSError as exc:
+            # exFAT/FAT 及部分网络挂载不支持硬链接，link(2) 返回 EPERM/ENOTSUP；
+            # 资源补齐是启动必经路径，降级为独占占位 + 原子换入完成同样的发布。
+            if exc.errno not in (errno.EPERM, errno.ENOTSUP):
+                raise
+            _publish_without_hard_links(temporary, target)
     finally:
         Path(temporary).unlink(missing_ok=True)
+
+
+def _publish_without_hard_links(temporary: Path, target: Path) -> None:
+    """无硬链接文件系统上的降级发布：独占占位目标名，再原子换入内容。"""
+    try:
+        fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        # 并发进程已发布同名文件，保留胜者。
+        return
+    os.close(fd)
+    try:
+        os.replace(temporary, target)
+    except OSError:
+        # 换入失败时不能在目标名留下空占位文件。
+        target.unlink(missing_ok=True)
+        raise
 
 
 def resource_directory(sub_dir: str = "") -> Path:
