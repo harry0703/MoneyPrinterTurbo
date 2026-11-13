@@ -439,6 +439,8 @@ If you are using a Windows system, please refer to Microsoft's documentation:
 1. [Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
 2. [Use Docker containers with WSL](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
+Before the first start, copy `config.example.toml` to `config.toml` in the `MoneyPrinterTurbo` directory for the container mount. Keep your existing `config.toml` if you already have one.
+
 ```shell
 cd MoneyPrinterTurbo
 docker compose -f docker-compose.release.yml up
@@ -446,7 +448,6 @@ docker compose -f docker-compose.release.yml up
 
 > The recommended default is `docker-compose.release.yml`, which pulls the prebuilt image from GitHub Container Registry: `ghcr.io/harry0703/moneyprinterturbo:latest`.
 > If you need to build the image locally, you can still run `docker compose up`.
-> Before the first start, copy `config.example.toml` to `config.toml` so it can be mounted into the containers.
 
 #### ② Access the WebUI
 
