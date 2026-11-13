@@ -228,6 +228,12 @@ class TestCli(unittest.TestCase):
         params = cli.build_video_params(args)
         self.assertFalse(params.subtitle_enabled)
 
+    def test_arcmira_video_source_is_accepted_without_changing_default(self):
+        args = cli.parse_args(["--video-subject", "test", "--video-source", "arcmira"])
+        self.assertEqual(cli.build_video_params(args).video_source, "arcmira")
+        default = cli.parse_args(["--video-subject", "test"])
+        self.assertEqual(cli.build_video_params(default).video_source, "pexels")
+
     def test_coverr_video_source_accepted(self):
         args = cli.parse_args(["--video-subject", "test", "--video-source", "coverr"])
         params = cli.build_video_params(args)

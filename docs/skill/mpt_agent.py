@@ -31,6 +31,7 @@ SUPPORTED_SOURCES = {
     "pexels",
     "pixabay",
     "coverr",
+    "arcmira",
     "wavespeed",
     "volcengine_seedance",
     "ofox",

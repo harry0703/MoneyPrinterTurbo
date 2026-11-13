@@ -769,6 +769,10 @@
     "Configure Providers": "配置",
     "Active Provider": "正在使用：{provider}",
     "No Configured Providers": "尚未配置服务商。",
-    "Provider Configuration Changed": "配置已更改，请检查该服务商的设置。"
+    "Provider Configuration Changed": "配置已更改，请检查该服务商的设置。",
+    "Arcmira": "Arcmira",
+    "Arcmira API Key": "Arcmira API Key",
+    "Arcmira Transcript Search Help": "Find the moment something was said on YouTube, including podcasts on YouTube: the exact quote, often who said it, the channel, the date and a watch link cued to the second. Filter by who is speaking, by the person or company discussed, and by date. Use one topic per call. An empty result does not prove something was never said.",
+    "You need the rights to download, cut or reuse this video. Arcmira finds the moment and gives you the link and the seconds. It grants no rights to the video.": "You need the rights to download, cut or reuse this video. Arcmira finds the moment and gives you the link and the seconds. It grants no rights to the video."
   }
 }

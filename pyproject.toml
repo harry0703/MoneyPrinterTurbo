@@ -27,6 +27,7 @@ dependencies = [
     "av<19",
     "toml==0.10.2",
     "imageio-ffmpeg==0.6.0",
+    "yt-dlp==2026.10.26",
     "loguru==0.7.3",
     "dashscope==1.20.14",
     "azure-cognitiveservices-speech==1.41.1",

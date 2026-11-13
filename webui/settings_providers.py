@@ -101,6 +101,7 @@ def configured_material_providers(settings, groups, codex_connected=False):
             "infistar": infistar_video.is_enabled(settings),
             "jalapeno": jalapeno_video.is_enabled(settings),
             "muapi": muapi.is_enabled(settings),
+            "arcmira": bool(_text(settings.get("arcmira_api_key"))),
             "openai_image": material.is_openai_image_enabled(settings),
             "codex_image": bool(
                 codex_connected and _text(settings.get("codex_image_model_name"))

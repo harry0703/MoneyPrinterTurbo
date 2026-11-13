@@ -16,6 +16,7 @@ from app.services import chatgpt_oauth, codex_models, codex_oauth, voice
 
 ROOT = Path(__file__).resolve().parents[2]
 FIELDS = {
+    "arcmira": ("spoken_video", "arcmira_api_key_input"),
     "pexels": ("stock_video", "pexels_api_keys_input"),
     "pixabay": ("stock_video", "pixabay_api_keys_input"),
     "coverr": ("stock_video", "coverr_api_keys_input"),
@@ -124,13 +125,15 @@ def test_general_render_does_not_activate_or_mount_provider_forms_or_catalogs():
         login.assert_not_called()
 
 
-GROUP_ORDER = ("ai_video", "ai_image", "stock_video")
+GROUP_ORDER = ("ai_video", "ai_image", "stock_video", "spoken_video")
 GROUP_LABELS = (
     "AI Video Generation APIs",
     "AI Image Generation APIs",
     "Stock Video APIs",
+    "Arcmira",
 )
 PROVIDER_LABELS = {
+    "arcmira": "Arcmira",
     "pexels": "Pexels",
     "pixabay": "Pixabay",
     "coverr": "Coverr",
@@ -197,7 +200,7 @@ def assert_material_sections(app, locale):
 @pytest.mark.parametrize("provider", FIELDS)
 def test_only_selected_provider_in_each_material_section_is_rendered(provider):
     group, field = FIELDS[provider]
-    target = {"stock_video": "stock", "ai_video": "video", "ai_image": "image"}[group]
+    target = {"stock_video": "stock", "ai_video": "video", "ai_image": "image", "spoken_video": "spoken"}[group]
     with settings_app(target, provider=provider) as (app, settings, models, login):
         run(app)
         selected = assert_material_sections(app, "en")
@@ -223,7 +226,7 @@ def test_only_selected_provider_in_each_material_section_is_rendered(provider):
 
 @pytest.mark.parametrize(
     "target,group",
-    [("stock", "stock_video"), ("video", "ai_video"), ("image", "ai_image")],
+    [("stock", "stock_video"), ("video", "ai_video"), ("image", "ai_image"), ("spoken", "spoken_video")],
 )
 def test_general_opens_selected_section_without_activating_a_material_provider(
     target, group
@@ -318,6 +321,7 @@ def test_switching_video_preserves_final_edits_and_other_sections():
             "ai_video": "muapi",
             "ai_image": "openai_image",
             "stock_video": "pexels",
+            "spoken_video": "arcmira",
         }
         assert settings["video_source"] == "pexels"
 
@@ -352,6 +356,7 @@ def test_provider_memory_and_other_sections_survive_tabs_and_language_changes():
             "ai_video": "muapi",
             "ai_image": "openai_image",
             "stock_video": "pixabay",
+            "spoken_video": "arcmira",
         }
         assert settings["video_source"] == "pexels"
         assert app.session_state["video_source_select_en"] == "pexels"
@@ -565,7 +570,7 @@ def test_general_empty_categories_offer_configuration_without_activation():
         run(app)
         selector_keys = {item.key for item in app.selectbox}
         button_keys = {item.key for item in app.button}
-        for section in ("llm", "ai_video", "ai_image", "stock_video"):
+        for section in ("llm", "ai_video", "ai_image", "stock_video", "spoken_video"):
             assert f"settings_general_{section}_provider_select_en" not in selector_keys
             assert f"settings_general_use_{section}" not in button_keys
             assert not app.button(key=f"settings_general_configure_{section}").disabled
@@ -574,7 +579,7 @@ def test_general_empty_categories_offer_configuration_without_activation():
         )["Translation"]
         assert [item.value for item in app.info].count(
             translations["No Configured Providers"]
-        ) == 4
+        ) == 5
         assert settings["llm_provider"] == "openai_codex"
         assert settings["video_source"] == "pexels"
         models.assert_not_called()
@@ -666,3 +671,19 @@ def test_new_navigation_translations_are_present(locale):
         "Provider Configuration Changed",
     ):
         assert translations[key].strip()
+
+
+def test_arcmira_key_edit_persists_when_leaving_settings():
+    from app.services.arcmira import CLIP_RIGHTS_LINE
+
+    with settings_app("spoken", provider="arcmira") as (app, settings, _, _):
+        run(app)
+        assert any(item.value == CLIP_RIGHTS_LINE for item in app.warning)
+        app.text_input(key="arcmira_api_key_input").set_value(" synthetic-key ")
+        app.session_state["settings_dialog_target_tab"] = "general"
+        run(app)
+        assert settings["arcmira_api_key"] == "synthetic-key"
+        assert settings["video_source"] == "pexels"
+        app.session_state["settings_dialog_target_tab"] = "spoken"
+        run(app)
+        assert app.text_input(key="arcmira_api_key_input").value == "synthetic-key"
