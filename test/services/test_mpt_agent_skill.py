@@ -1111,7 +1111,8 @@ class TestMptAgentSkill(unittest.TestCase):
                 patch.object(mpt_agent.uuid, "uuid4", return_value=task_id),
                 patch.object(mpt_agent.subprocess, "run", side_effect=finish_cli),
             ):
-                videos, task_dir, _, manifest = mpt_agent.generate_video(root, "topic", [])
+                result = mpt_agent.generate_video(root, "topic", [])
+                videos, task_dir, _, manifest = result[:4]
             self.assertEqual(task_dir, (root / "relative-runtime" / "storage" / "tasks" / task_id).resolve())
             self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["video_files"], [str(videos[0])])
 
