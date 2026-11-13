@@ -1084,6 +1084,38 @@ class TestMptAgentSkill(unittest.TestCase):
 
             self.assertFalse(valid)
 
+    def test_runtime_home_config_uses_cli_working_directory(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "config.example.toml").write_text('[app]\nllm_provider = "ollama"\n', encoding="utf-8")
+            with patch.dict(os.environ, {"MPT_HOME": "relative-runtime"}):
+                config_path = mpt_agent.ensure_config(root)
+                self.assertEqual(config_path, root / "relative-runtime" / "config.toml")
+                config_path.write_text('[app]\nllm_provider = "existing"\n', encoding="utf-8")
+                self.assertEqual(mpt_agent.ensure_config(root).read_text(encoding="utf-8"), '[app]\nllm_provider = "existing"\n')
+            self.assertFalse((root / "config.toml").exists())
+
+    def test_generation_uses_runtime_home_for_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_id = "12345678-1234-1234-1234-123456789abc"
+            def finish_cli(command, **kwargs):
+                task_dir = root / "relative-runtime" / "storage" / "tasks" / task_id
+                task_dir.mkdir(parents=True)
+                (task_dir / "final-1.mp4").write_bytes(b"video")
+                return SimpleNamespace(returncode=0)
+            with (
+                patch.dict(os.environ, {"MPT_HOME": "relative-runtime"}),
+                patch.object(mpt_agent.shutil, "which", return_value="uv"),
+                patch.object(mpt_agent, "run_checked"),
+                patch.object(mpt_agent.uuid, "uuid4", return_value=task_id),
+                patch.object(mpt_agent.subprocess, "run", side_effect=finish_cli),
+            ):
+                result = mpt_agent.generate_video(root, "topic", [])
+                videos, task_dir, _, manifest = result[:4]
+            self.assertEqual(task_dir, (root / "relative-runtime" / "storage" / "tasks" / task_id).resolve())
+            self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["video_files"], [str(videos[0])])
+
     def test_generation_returns_only_non_empty_final_video(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
