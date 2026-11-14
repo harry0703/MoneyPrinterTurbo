@@ -1,0 +1,6 @@
+edge-tts>=7.0
+Pillow>=10.0
+numpy>=1.26
+imageio-ffmpeg>=0.5
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.2

@@ -1,0 +1,21 @@
+{
+  "_help": "Pixel calibration for YOUR character sheet. Save a copy as my/sheet.json next to my/sheet.png (same name, .json). Measure in any image editor (Paint shows the cursor's x,y at the bottom). Then run: .venv/Scripts/python skills/anime-talking-short/scripts/build_poses.py --check my/sheet.png and look at my/sheet-check.png.",
+  "BOX": [85, 100, 905, 1360],
+  "_BOX": "x0, y0, x1, y1 of the CLOSED-mouth figure on the sheet. MOUTH and TPL below are measured inside this box (subtract x0, y0).",
+  "MOUTH": [410, 720],
+  "_MOUTH": "centre of the closed lip line, inside BOX.",
+  "FACE_UP": 120,
+  "_FACE_UP": "pixels from the lip line up to the centre of the face (about the nose bridge).",
+  "FACE_W": 560,
+  "_FACE_W": "face width in pixels (ear to ear). The camera frames close-ups from this.",
+  "TPL": [240, 610, 580, 870],
+  "_TPL": "x0, y0, x1, y1 inside BOX around the mouth area (lips plus any mustache or beard). The importer finds this patch in every pose.",
+  "ART": [1290, 780, 1520, 900],
+  "_ART": "x0, y0, x1, y1 on the WHOLE sheet around the OPEN mouth of the second figure. Its art becomes the talking mouth shapes.",
+  "SEED": [110, 52],
+  "_SEED": "a pixel inside the dark interior of that open mouth, measured inside ART.",
+  "LIP": [172, 96, 80],
+  "LINE": [20, 10, 10],
+  "DARK": [67, 25, 28],
+  "_colours": "LIP = lip colour, LINE = outline colour, DARK = mouth interior colour (RGB)."
+}
