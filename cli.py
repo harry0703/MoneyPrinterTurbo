@@ -583,6 +583,15 @@ Batch manifests:
             "background music volume multiplier, a finite number >= 0 (default: 0.2)"
         ),
     )
+    audio_group.add_argument(
+        "--bgm-duck",
+        default=None,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            "lower the background music under narration and raise it back in "
+            "pauses (default: disabled)"
+        ),
+    )
 
     subtitle_group = parser.add_argument_group("subtitles")
     subtitle_group.add_argument(
@@ -986,6 +995,7 @@ def build_video_params(args: argparse.Namespace) -> VideoParams:
         "bgm_type",
         "bgm_file",
         "bgm_volume",
+        "bgm_duck",
         "sonilo_bgm_prompt",
         "video_music_prompt",
         "font_name",

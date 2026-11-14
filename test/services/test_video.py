@@ -413,6 +413,50 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(bgm_source.close_calls, 1)
         self.assertEqual(final_video.close_calls, 1)
 
+    def test_generate_video_ducks_bgm_under_narration_only_when_enabled(self):
+        """bgm_duck 打开时才用旁白包络压低配乐，默认混音保持不变。"""
+        for bgm_duck, expected_calls in ((True, 1), (False, 0)):
+            with self.subTest(bgm_duck=bgm_duck):
+                params = vd.VideoParams(
+                    video_subject="test",
+                    subtitle_enabled=False,
+                    bgm_type="sonilo",
+                    bgm_duck=bgm_duck,
+                )
+                source_video = _FakeMoviePyClip()
+                voice_source = _FakeMoviePyClip()
+                bgm_source = _FakeMoviePyClip()
+                source_video.with_audio_result = _FakeMoviePyClip()
+
+                with (
+                    patch.object(
+                        vd, "_open_video_clip_quietly", return_value=source_video
+                    ),
+                    patch.object(
+                        vd, "AudioFileClip", side_effect=[voice_source, bgm_source]
+                    ),
+                    patch.object(vd, "CompositeAudioClip") as composite_audio,
+                    patch.object(vd, "_duck_under_narration") as duck,
+                    patch.object(vd, "_write_videofile_with_codec_fallback"),
+                    patch.object(
+                        vd, "_get_configured_video_codec", return_value="libx264"
+                    ),
+                ):
+                    result = vd.generate_video(
+                        video_path="combined.mp4",
+                        audio_path="voice.mp3",
+                        subtitle_path="",
+                        output_file="final.mp4",
+                        params=params,
+                        bgm_file_override="sonilo.m4a",
+                    )
+
+                self.assertTrue(result)
+                self.assertEqual(duck.call_count, expected_calls)
+                if bgm_duck:
+                    self.assertIs(duck.call_args.args[1], voice_source)
+                    self.assertIn(duck.return_value, composite_audio.call_args.args[0])
+
     def test_generate_video_keeps_output_and_reports_failed_bgm_mix(self):
         """BGM 打开失败时仍应只写一次无 BGM 视频，并返回 False。"""
         params = vd.VideoParams(
