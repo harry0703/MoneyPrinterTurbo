@@ -630,6 +630,7 @@ class TestCli(unittest.TestCase):
                 "output001.mp3",
                 "--bgm-volume",
                 "0.3",
+                "--bgm-duck",
                 "--n-threads",
                 "4",
             ]
@@ -637,6 +638,7 @@ class TestCli(unittest.TestCase):
 
         params = cli.build_video_params(args)
 
+        self.assertTrue(params.bgm_duck)
         self.assertEqual(params.video_language, "en")
         self.assertEqual(params.paragraph_number, 3)
         self.assertEqual(params.video_script_prompt, "use a lighter tone")
