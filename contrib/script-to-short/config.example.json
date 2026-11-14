@@ -1,0 +1,20 @@
+{
+  "_help": "Copy to config.json (install.py does it) and fill in. config.json is git-ignored, so your details never get committed.",
+  "creator_name": "AJ",
+  "creator_name_spoken": "A J",
+  "youtube_channel": "@your_channel_handle",
+  "instagram_account": "",
+  "voice": "en-US-AndrewNeural",
+  "music": "my/music/bed.mp3",
+  "publish_time": "18:30",
+  "utc_offset": "+05:30",
+  "auto_publish": false,
+  "channel_style": "casual, unfiltered talking-head commentary; one idea per video",
+  "_notes": {
+    "creator_name / creator_name_spoken": "how the name appears in captions vs how the voice says it (initials read letter by letter: 'A J').",
+    "instagram_account": "username without @; leave empty to skip Instagram posting (you get the files to post by hand).",
+    "voice": "any edge-tts voice; list them with: .venv/Scripts/python -m edge_tts --list-voices",
+    "music": "optional royalty-free track (e.g. from the YouTube Audio Library); empty for none.",
+    "auto_publish": "false = Claude shows you the title and asks before every upload; true = posts without asking."
+  }
+}

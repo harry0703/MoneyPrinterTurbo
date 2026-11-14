@@ -28,3 +28,6 @@ logs/
 
 storage/
 config.toml
+
+# Optional add-ons that are not part of the application image
+contrib/

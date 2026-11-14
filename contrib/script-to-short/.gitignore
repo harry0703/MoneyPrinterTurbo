@@ -1,0 +1,19 @@
+# Your own data and accounts: never committed
+config.json
+my/*
+!my/sheet.example.json
+!my/README.md
+jobs/
+reels/
+*.mp4
+*.wav
+client_secret*.json
+token*.json
+token.txt
+.youtube-upload/
+.instagram-upload/
+# Generated
+.venv/
+tools/
+__pycache__/
+*.pyc
