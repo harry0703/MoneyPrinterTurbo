@@ -913,6 +913,55 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
     return ""
 
 
+_DUCK_STEP_SECONDS = 0.01
+# Music level under speech, relative to the level in pauses.
+_DUCK_SPEECH_GAIN = 0.3
+# Per-step smoothing factors (not seconds): duck fast, recover slowly.
+_DUCK_ATTACK = 0.5
+_DUCK_RELEASE = 0.04
+
+
+def _narration_duck_gain(voice_clip) -> np.ndarray:
+    """Return one music gain per 10 ms: 1.0 in pauses, lower under speech."""
+    step = max(int(voice_clip.fps * _DUCK_STEP_SECONDS), 1)
+    levels = []
+    # Chunked so a long narration is never decoded into memory at once.
+    for chunk in voice_clip.iter_chunks(chunksize=step * 100):
+        mono = np.asarray(chunk, dtype=np.float32).reshape(len(chunk), -1).mean(axis=1)
+        mono = np.pad(mono, (0, -len(mono) % step))
+        levels.append(np.sqrt((mono.reshape(-1, step) ** 2).mean(axis=1)))
+    if not levels:
+        return np.ones(1)
+    level = np.concatenate(levels)
+    # Relative threshold: independent of voice_volume and the TTS loudness.
+    speaking = np.clip(level / (np.percentile(level, 90) + 1e-9) * 3, 0, 1)
+    envelope = np.empty_like(speaking)
+    smoothed = 0.0
+    for index, value in enumerate(speaking):
+        smoothed += (value - smoothed) * (
+            _DUCK_ATTACK if value > smoothed else _DUCK_RELEASE
+        )
+        envelope[index] = smoothed
+    return 1.0 - (1.0 - _DUCK_SPEECH_GAIN) * envelope
+
+
+def _duck_under_narration(bgm_clip, voice_clip):
+    """Scale the music clip by the narration-driven gain envelope."""
+    gain = _narration_duck_gain(voice_clip)
+
+    def scale(get_frame, t):
+        frames = get_frame(t)
+        index = (np.asarray(t) / _DUCK_STEP_SECONDS).astype(int)
+        # Past the end of the narration the music is back at full level.
+        factor = np.where(
+            index < len(gain), gain[np.minimum(index, len(gain) - 1)], 1.0
+        )
+        # t is an array in audio chunks but a scalar for single samples.
+        return frames * (factor[..., None] if frames.ndim > factor.ndim else factor)
+
+    return bgm_clip.transform(scale)
+
+
 def _fit_clip_to_canvas(
     clip,
     *,
@@ -1976,6 +2025,8 @@ def generate_video(
                 bgm_effects.append(afx.AudioFadeOut(3))
                 bgm_source_clip = clip_stack.enter_context(AudioFileClip(bgm_file))
                 bgm_clip = bgm_source_clip.with_effects(bgm_effects)
+                if params.bgm_duck:
+                    bgm_clip = _duck_under_narration(bgm_clip, voice_source_clip)
                 audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
             except Exception:
                 bgm_mix_succeeded = False
