@@ -1199,7 +1199,7 @@ class TestVoiceService(unittest.TestCase):
         拆成两条字幕。
         """
         text = (
-            "The ocean isn't just sitting stil, it moves around the world like a massive "
+            "The ocean isn't just sitting still, it moves around the world like a massive "
             "amusement park ride! Cold water at the North and South Poles sinks to the "
             "bottom because it is heavy and salty. At the same time, warm water from the "
             "sunny equator flows along the top to take its place. This creates a giant "
