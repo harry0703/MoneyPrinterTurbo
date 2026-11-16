@@ -173,6 +173,7 @@
 - [x] [WaveSpeed AI](https://wavespeed.ai) によるテキスト動画生成で、台本のキーワードからオリジナル素材を作成可能
 - [x] [OFox](https://ofox.ai) のマルチモデルテキスト動画生成に対応し、1 つの API キーで Seedance、Wan などのモデルを利用可能
 - [x] 非同期の [MuAPI](https://muapi.ai) テキスト動画 API で 3～12 秒の AI 素材を生成し、Endpoint、アスペクト比、解像度、ポーリングを設定可能
+- [x] [useapi.net](https://useapi.net/docs/api-google-flow-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) の AI 動画と画像に対応し、ご自身の Google AI プランで Google Flow または [Google Vids](https://useapi.net/docs/api-google-vids-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) から Veo 3.1 と Gemini Omni Flash の動画を（有料プランでは 10 秒以内のクリップを 1080p に無料でアップスケール可能）、Google Flow から Nano Banana の画像を、ご自身の [Kling](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) アカウントで Kling の動画と画像を、ご自身の [Dreamina](https://useapi.net/docs/api-dreamina-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) アカウントで Seedance の動画を生成可能
 - [x] [OpenAI 互換の画像生成](https://platform.openai.com/docs/guides/image-generation)サービス、独自の画像ゲートウェイ、同梱の[ローカル SDXL 画像サーバー](docs/local-image-server/README.md) を接続可能。ローカル画像と生成画像は静止または緩やかなズームを選択可能
 - [x] [OpenAI - Codex の画像生成](docs/codex-provider.md) に対応し、ChatGPT ログインを共有しながら画像用モデルを個別に選択可能。アカウントと選択したモデルに画像生成の利用権限が必要
 - [x] クリップの長さ、再生速度、トランジションを調整し、クロップまたは黒帯付き表示、ランダムまたは順番どおりの素材配置を選択可能

@@ -58,6 +58,7 @@ from app.services import (
     jalapeno_video,
     ofox,
     subtitle,
+    useapi,
     video,
     volcengine_seedance,
     voice,
@@ -144,8 +145,9 @@ VIDEO_SOURCE_GROUPS = {
         "jalapeno",
         "wavespeed",
         "muapi",
+        "useapi",
     ),
-    "ai_image": ("openai_image", "codex_image"),
+    "ai_image": ("openai_image", "codex_image", "useapi_image"),
     "local": ("local",),
 }
 # Upload-Post 的 API Key 与发布用户分别在两个页面管理，并且发布用户名称
@@ -779,6 +781,7 @@ def _initialize_session_state():
         "ofox_confirm_charge": False,
         "metaso_minimax_confirm_charge": False,
         "muapi_confirm_charge": False,
+        "useapi_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -3417,8 +3420,10 @@ def _material_provider_labels():
         "jalapeno": tr("Jalapeno Cloud AI Video"),
         "wavespeed": tr("WaveSpeed AI Video"),
         "muapi": tr("MuAPI AI Video"),
+        "useapi": tr("useapi.net AI Video"),
         "openai_image": tr("OpenAI Compatible Text-to-Image"),
         "codex_image": tr("codex.image.label"),
+        "useapi_image": tr("useapi.net Nano Banana Images"),
         "local": tr("Local file"),
     }
 
@@ -4079,6 +4084,51 @@ def _render_material_provider_settings(provider):
             "muapi_resolution",
             muapi_resolution.strip() or muapi.DEFAULT_RESOLUTION,
         )
+    elif provider == "useapi":
+        st.markdown(f"**{tr('useapi.net AI Video')}**")
+        st.caption(tr("useapi.net AI Video Help"))
+        _render_useapi_token_input("useapi_api_token_input", app_settings)
+        useapi_model = stable_selectbox(
+            tr("useapi.net Video Model"),
+            options=list(useapi.MODELS),
+            default_value=_useapi_selected_model(),
+            key="useapi_video_model_select",
+            # Resolve labels now: the format function also runs outside the
+            # script run, where translations are not available.
+            format_func={
+                model_id: _useapi_model_label(model_id) for model_id in useapi.MODELS
+            }.get,
+            help=tr("useapi.net Video Model Help"),
+            on_change=_save_settings_change,
+            args=(
+                "app",
+                "useapi_video_model",
+                localized_widget_key("useapi_video_model_select"),
+                lambda value: value,
+            ),
+        )
+        _set_runtime_config("app", "useapi_video_model", useapi_model)
+        _render_useapi_quality_settings(useapi_model)
+    elif provider == "useapi_image":
+        st.markdown(f"**{tr('useapi.net Nano Banana Images')}**")
+        st.caption(tr("useapi.net Nano Banana Images Help"))
+        _render_useapi_token_input("useapi_image_api_token_input", app_settings)
+        useapi_image_model = stable_selectbox(
+            tr("useapi.net Image Model"),
+            options=list(useapi.IMAGE_MODELS),
+            default_value=_useapi_selected_image_model(),
+            key="useapi_image_model_select",
+            format_func=useapi.image_model_label,
+            help=tr("useapi.net Image Model Help"),
+            on_change=_save_settings_change,
+            args=(
+                "app",
+                "useapi_image_model",
+                localized_widget_key("useapi_image_model_select"),
+                lambda value: value,
+            ),
+        )
+        _set_runtime_config("app", "useapi_image_model", useapi_image_model)
     elif provider == "codex_image":
         st.markdown(f"**{tr('codex.image.label')}**")
         st.caption(tr("codex.image.help"))
@@ -6048,9 +6098,11 @@ def _render_video_settings(panel, params):
                 "ofox": tr("OFox AI Video"),
                 "metaso_minimax": tr("Metaso MiniMax H3"),
                 "muapi": tr("MuAPI AI Video"),
+                "useapi": tr("useapi.net AI Video"),
                 "loomloom": tr("Shengsuan Cloud AI Video"),
                 "openai_image": tr("OpenAI Compatible Text-to-Image"),
                 "codex_image": tr("codex.image.label"),
+                "useapi_image": tr("useapi.net Nano Banana Images"),
                 "local": tr("Local file"),
             }
             saved_video_source_name = str(
@@ -6101,6 +6153,10 @@ def _render_video_settings(panel, params):
                 st.caption(tr("Metaso MiniMax H3 Help"))
             if params.video_source == "muapi":
                 st.caption(tr("MuAPI AI Video Help"))
+            if params.video_source == "useapi":
+                st.caption(tr("useapi.net AI Video Help"))
+            if params.video_source == "useapi_image":
+                st.caption(tr("useapi.net Nano Banana Images Help"))
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
                 local_file_types = sorted(
@@ -6244,7 +6300,9 @@ def _render_video_settings(panel, params):
                 "ui", "video_fit_mode", params.video_fit_mode.value
             )
 
-            if params.video_source in {"local", "openai_image", "codex_image"}:
+            if params.video_source in {
+                "local", "openai_image", "codex_image", "useapi_image"
+            }:
                 image_motion_labels = {
                     ImageMotion.static.value: tr("Static Image"),
                     ImageMotion.zoom.value: tr("Slow Zoom"),
@@ -6285,6 +6343,12 @@ def _render_video_settings(panel, params):
                         muapi.DEFAULT_MAX_DURATION_SECONDS + 1,
                     )
                 )
+            elif params.video_source == "useapi":
+                # Each model has its own lengths; Veo is generated at 8 seconds
+                # and trimmed, so shorter clips are offered for it as well.
+                video_clip_durations = useapi.clip_duration_options(
+                    _useapi_selected_model()
+                )
             else:
                 video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]
             params.video_clip_duration = stable_selectbox(
@@ -6294,7 +6358,7 @@ def _render_video_settings(panel, params):
                     "video_clip_duration",
                     video_clip_durations,
                     5
-                    if params.video_source in {"metaso_minimax", "muapi"}
+                    if params.video_source in {"metaso_minimax", "muapi", "useapi"}
                     else 3,
                 ),
                 key="video_clip_duration_select",
@@ -6415,6 +6479,17 @@ def _render_video_settings(panel, params):
                 _render_metaso_minimax_video_settings(params)
             if params.video_source == "muapi":
                 _render_muapi_video_settings(params)
+            if params.video_source == "useapi":
+                _render_useapi_video_settings(
+                    params, _useapi_model_label(_useapi_selected_model())
+                )
+            if params.video_source == "useapi_image" and useapi.image_spends_credits(
+                _useapi_selected_image_model()
+            ):
+                # Kling images spend Kling credits; Nano Banana images do not.
+                _render_useapi_video_settings(
+                    params, useapi.image_model_label(_useapi_selected_image_model())
+                )
     return uploaded_files
 
 
@@ -6697,6 +6772,113 @@ def _render_muapi_video_settings(params):
         tr("Confirm MuAPI Charge"),
         key="muapi_confirm_charge",
         help=tr("Confirm MuAPI Charge Help"),
+    )
+
+
+def _render_useapi_token_input(widget_key, app_settings):
+    """
+    The video and image sections edit one shared token and can be on screen
+    together, so each shows the saved value and writes only when edited;
+    otherwise the section rendered last would overwrite the other's edit.
+    """
+    st.session_state[widget_key] = str(app_settings.get("useapi_api_token", "") or "")
+    st.text_input(
+        tr("useapi.net API Token"),
+        type="password",
+        help=tr("useapi.net API Token Help"),
+        key=widget_key,
+        on_change=_save_settings_change,
+        args=("app", "useapi_api_token", widget_key, lambda value: value.strip()),
+    )
+
+
+def _render_useapi_quality_settings(model):
+    """Resolution (Kling: quality mode) and Google Flow upscale for ``model``.
+
+    Only the values the selected model accepts are offered, and each model
+    keeps its own widget, so switching models never carries a value over to a
+    model that would reject it.
+    """
+    settings = dict(config.snapshot_config_with_pending(config.app))
+    settings["useapi_video_model"] = model
+    resolutions = useapi.resolution_options(model)
+    if resolutions:
+        resolution = stable_selectbox(
+            tr("useapi.net Resolution"),
+            options=list(resolutions),
+            default_value=useapi.resolution_for(model, settings),
+            key=f"useapi_resolution_select_{model}",
+            format_func={
+                value: useapi.resolution_label(model, value) for value in resolutions
+            }.get,
+            help=tr("useapi.net Resolution Help"),
+        )
+        _set_runtime_config("app", "useapi_resolution", resolution)
+        settings["useapi_resolution"] = resolution
+    upscales = useapi.upscale_options(model, settings)
+    if upscales:
+        upscale_labels = {
+            "": tr("useapi.net Upscale None"),
+            "720p": "720p",
+            "1080p": "1080p",
+            "4K": "4K",
+        }
+        upscale = stable_selectbox(
+            tr("useapi.net Upscale"),
+            options=list(upscales),
+            default_value=useapi.upscale_for(model, settings),
+            key=f"useapi_upscale_select_{model}",
+            format_func=upscale_labels.get,
+            help=tr("useapi.net Upscale Help"),
+        )
+        _set_runtime_config("app", "useapi_upscale", upscale)
+
+
+def _useapi_selected_image_model():
+    """The configured Nano Banana model, or the default when it is not offered."""
+    try:
+        return useapi.image_model_id(config.snapshot_config_with_pending(config.app))
+    except useapi.UseAPIError:
+        return useapi.DEFAULT_IMAGE_MODEL
+
+
+def _useapi_model_label(model):
+    """Model label for the UI; a few labels are translated, the rest are names."""
+    key = f"useapi_model_label.{model}"
+    translated = tr(key)
+    return useapi.model_label(model) if translated == key else translated
+
+
+def _useapi_selected_model():
+    """The configured useapi.net model, or the default when it is not offered."""
+    try:
+        return useapi.model_id(config.snapshot_config_with_pending(config.app))
+    except useapi.UseAPIError:
+        return useapi.DEFAULT_MODEL
+
+
+def _render_useapi_video_settings(params, model):
+    """Show an estimated clip count and require consent to spend account credits."""
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    if estimated_range := _estimate_voiceover_duration_range(
+        str(params.video_script or ""), params.voice_rate
+    ):
+        min_clips = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        max_clips = max(
+            math.ceil(estimated_range[1] * video_count / clip_duration), min_clips
+        )
+        st.warning(
+            tr("useapi.net Billing Notice").format(
+                min=min_clips, max=max_clips, model=model
+            )
+        )
+    else:
+        st.warning(tr("useapi.net Billing Notice Without Script").format(model=model))
+    st.checkbox(
+        tr("Confirm useapi.net Charge"),
+        key="useapi_confirm_charge",
+        help=tr("Confirm useapi.net Charge Help"),
     )
 
 
@@ -9078,9 +9260,11 @@ def _render_generation_controls(
             "ofox",
             "metaso_minimax",
             "muapi",
+            "useapi",
             "loomloom",
             "openai_image",
             "codex_image",
+            "useapi_image",
             "local",
         ]:
             _remove_active_generation_task(task_id)
@@ -9206,6 +9390,26 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm MuAPI Charge Required"))
+            st.stop()
+
+        if params.video_source in {"useapi", "useapi_image"} and not (
+            useapi.is_enabled(config.snapshot_config_with_pending(config.app))
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the useapi.net API Token"))
+            st.stop()
+
+        if (
+            params.video_source == "useapi"
+            or (
+                params.video_source == "useapi_image"
+                and useapi.image_requires_confirmation(
+                    config.snapshot_config_with_pending(config.app)
+                )
+            )
+        ) and not st.session_state.get("useapi_confirm_charge", False):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm useapi.net Charge Required"))
             st.stop()
 
         if params.video_source == "codex_image":
