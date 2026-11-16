@@ -1,0 +1,49 @@
+# Jupyter-inspired Streamlit Theme
+# Interactive computing aesthetic
+# Notebook-style with signature orange and clean cells
+
+[theme]
+base = "light"
+primaryColor = "#F37626"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F7F7"
+codeBackgroundColor = "#F7F7F7"
+textColor = "#212121"
+linkColor = "#2196F3"
+borderColor = "#E0E0E0"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "2px"
+buttonRadius = "2px"
+font = "'Source Sans 3':https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&display=swap"
+codeFont = "'Source Code Pro':https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500&display=swap"
+codeFontSize = "0.875rem"
+codeTextColor = "#212121"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["32px", "26px", "22px", "18px", "16px", "14px"]
+headingFontWeights = [700, 700, 600, 600, 600, 600]
+linkUnderline = true
+chartCategoricalColors = ["#F37626", "#2196F3", "#4CAF50", "#9C27B0", "#FF5722", "#607D8B", "#E91E63"]
+
+# Jupyter-inspired palette
+orangeColor = "#F37626"
+blueColor = "#2196F3"
+greenColor = "#4CAF50"
+violetColor = "#9C27B0"
+redColor = "#E91E63"
+yellowColor = "#FFC107"
+grayColor = "#607D8B"
+
+dataframeBorderColor = "#E0E0E0"
+dataframeHeaderBackgroundColor = "#F0F0F0"
+
+[theme.sidebar]
+backgroundColor = "#F7F7F7"
+secondaryBackgroundColor = "#EEEEEE"
+codeBackgroundColor = "#E8E8E8"
+textColor = "#212121"
+borderColor = "#CFCFCF"
+primaryColor = "#F37626"
+dataframeHeaderBackgroundColor = "#EEEEEE"
+dataframeBorderColor = "#CFCFCF"

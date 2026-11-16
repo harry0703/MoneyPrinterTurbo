@@ -1,0 +1,39 @@
+# Nord Theme for Streamlit
+# Arctic, north-bluish color palette with frost-inspired accents
+[theme]
+base = "dark"
+primaryColor = "#88c0d0"
+backgroundColor = "#2e3440"
+secondaryBackgroundColor = "#3b4252"
+codeBackgroundColor = "#3b4252"
+textColor = "#eceff4"
+linkColor = "#81a1c1"
+borderColor = "#4c566a"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "4px"
+buttonRadius = "4px"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+codeFontSize = "0.875rem"
+codeTextColor = "#d8dee9"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["32px", "24px", "20px", "16px", "14px", "12px"]
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+linkUnderline = false
+chartCategoricalColors = ["#88c0d0", "#81a1c1", "#5e81ac", "#a3be8c", "#ebcb8b", "#d08770", "#bf616a"]
+
+# Nord color palette (Frost + Aurora)
+blueColor = "#81a1c1"
+greenColor = "#a3be8c"
+yellowColor = "#ebcb8b"
+orangeColor = "#d08770"
+redColor = "#bf616a"
+violetColor = "#b48ead"
+
+[theme.sidebar]
+backgroundColor = "#3b4252"
+secondaryBackgroundColor = "#434c5e"
+codeBackgroundColor = "#434c5e"
+borderColor = "#4c566a"

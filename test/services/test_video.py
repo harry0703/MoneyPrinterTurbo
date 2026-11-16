@@ -23,7 +23,7 @@ from moviepy import (
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.config import config
-from app.models.schema import MaterialInfo
+from app.models.schema import MaterialInfo, SoundEffectCue
 from app.services import video as vd
 from app.utils import logging_utils, utils
 
@@ -78,6 +78,24 @@ class _FakeMoviePyClip:
         return self.with_audio_result
 
 
+class _FakePositionableClip:
+    def __init__(self, duration=3.0, width=200, height=60):
+        self.duration = duration
+        self.w = width
+        self.h = height
+
+    def with_duration(self, duration):
+        self.duration = duration
+        return self
+
+    def with_position(self, _position):
+        self.position = _position
+        return self
+
+    def with_opacity(self, _opacity):
+        return self
+
+
 class TestVideoService(unittest.TestCase):
     def setUp(self):
         self.original_app_config = dict(config.app)
@@ -99,6 +117,99 @@ class TestVideoService(unittest.TestCase):
             with self.subTest(value=value):
                 with patch.dict(config.app, {"video_clip_concurrency": value}):
                     self.assertEqual(vd._get_clip_processing_concurrency(), expected)
+
+    def test_scene_title_graphic_is_source_grounded_and_composed_in_safe_zone(self):
+        base = _FakePositionableClip()
+        label = _FakePositionableClip(width=180, height=44)
+        panel = _FakePositionableClip()
+        composed = _FakePositionableClip()
+        with (
+            patch.object(vd, "TextClip", return_value=label) as text_clip,
+            patch.object(vd, "ColorClip", return_value=panel),
+            patch.object(vd, "CompositeVideoClip", return_value=composed) as composite,
+        ):
+            result = vd._scene_label_overlay(
+                base, "Saturn and its rings", 1080, 1920, "bundled-font.ttf"
+            )
+        self.assertIs(result, composed)
+        self.assertEqual(text_clip.call_args.kwargs["text"], "Saturn and its rings")
+        self.assertEqual(composite.call_args.kwargs["size"], (1080, 1920))
+        layers = composite.call_args.args[0]
+        self.assertIs(layers[0], base)
+        self.assertIs(layers[1], panel)
+        self.assertIs(layers[2], label)
+        self.assertEqual(label.position, (82, 242))
+
+    def test_modern_word_preset_renders_a_real_subtitled_video(self):
+        """Exercise MoviePy composition and FFmpeg export with real word timestamps."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            source = Path(tmp_dir) / "source.mp4"
+            audio = Path(tmp_dir) / "voice.wav"
+            sound_effects_dir = Path(tmp_dir) / "sound_effects"
+            sound_effects_dir.mkdir()
+            sound_effect = sound_effects_dir / "chime.wav"
+            subtitle = Path(tmp_dir) / "subtitle.srt"
+            output = Path(tmp_dir) / "final.mp4"
+            command = [
+                vd.utils.get_ffmpeg_binary(), "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "color=c=0x18222f:s=1080x1920:r=24:d=1",
+                "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+                "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", str(source),
+            ]
+            subprocess.run(command, check=True, capture_output=True, timeout=30)
+            subprocess.run(
+                [
+                    vd.utils.get_ffmpeg_binary(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+                    "-c:a", "pcm_s16le", str(audio),
+                ],
+                check=True, capture_output=True, timeout=30,
+            )
+            subprocess.run(
+                [
+                    vd.utils.get_ffmpeg_binary(), "-y", "-hide_banner", "-loglevel", "error",
+                    "-f", "lavfi", "-i", "sine=frequency=880:duration=0.5",
+                    "-c:a", "pcm_s16le", str(sound_effect),
+                ],
+                check=True, capture_output=True, timeout=30,
+            )
+            subtitle.write_text(
+                "1\n00:00:00,000 --> 00:00:00,500\nHello\n\n"
+                "2\n00:00:00,500 --> 00:00:01,000\nworld\n",
+                encoding="utf-8",
+            )
+            params = vd.VideoParams(
+                video_subject="render check", subtitle_preset="modern",
+                subtitle_display_mode="word_by_word", bgm_type="",
+                video_export_profile="shorts",
+                sound_effects=[SoundEffectCue(file_name="chime.wav", volume=0.2)],
+            )
+            metrics = {}
+            with patch.object(vd.utils, "storage_dir", return_value=str(sound_effects_dir)):
+                vd.generate_video(
+                    str(source), str(audio), str(subtitle), str(output), params,
+                    render_metrics=metrics,
+                )
+            self.assertTrue(output.is_file())
+            with VideoFileClip(str(output)) as rendered:
+                self.assertGreater(rendered.duration, 0.9)
+                self.assertIsNotNone(rendered.audio)
+                self.assertAlmostEqual(rendered.fps, 30, delta=0.5)
+            encoded = output.read_bytes()
+            self.assertLess(encoded.find(b"moov"), encoded.find(b"mdat"))
+            probe = subprocess.run(
+                [vd.utils.get_ffmpeg_binary(), "-hide_banner", "-i", str(output),
+                 "-f", "null", os.devnull],
+                capture_output=True, text=True, check=False, timeout=30,
+            )
+            self.assertIn("Video: h264", probe.stderr)
+            self.assertIn("Audio: aac", probe.stderr)
+            self.assertEqual(metrics["export_profile"], "shorts")
+            self.assertEqual(metrics["used_codec"], "libx264")
+            self.assertGreater(metrics["output_bytes"], 0)
+            self.assertGreater(metrics["estimated_encode_fps"], 0)
+            self.assertEqual(metrics["sound_effect_count"], 1)
 
     def test_generate_video_rejects_font_outside_directory_before_opening_media(self):
         """WebUI、CLI 或内部调用绕过 API 时，渲染层也必须阻断越界字体。"""

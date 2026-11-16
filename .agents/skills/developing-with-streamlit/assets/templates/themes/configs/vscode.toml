@@ -1,0 +1,40 @@
+# VS Code Dark Theme for Streamlit
+# The classic Visual Studio Code default dark theme
+# Developer-friendly, easy on the eyes
+
+[theme]
+base = "dark"
+primaryColor = "#0078d4"
+backgroundColor = "#1e1e1e"
+secondaryBackgroundColor = "#252526"
+codeBackgroundColor = "#1e1e1e"
+textColor = "#cccccc"
+linkColor = "#3794ff"
+borderColor = "#3c3c3c"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "4px"
+buttonRadius = "4px"
+font = "'Segoe UI', 'Open Sans':https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap"
+codeFont = "'Fira Code':https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap"
+codeFontSize = "13px"
+codeTextColor = "#d4d4d4"
+baseFontSize = 14
+baseFontWeight = 400
+headingFontSizes = ["28px", "22px", "18px", "16px", "14px", "12px"]
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+linkUnderline = false
+chartCategoricalColors = ["#0078d4", "#4ec9b0", "#dcdcaa", "#ce9178", "#c586c0", "#569cd6", "#6a9955"]
+
+# VS Code syntax colors
+blueColor = "#569cd6"
+greenColor = "#6a9955"
+yellowColor = "#dcdcaa"
+orangeColor = "#ce9178"
+violetColor = "#c586c0"
+
+[theme.sidebar]
+backgroundColor = "#252526"
+secondaryBackgroundColor = "#333333"
+codeBackgroundColor = "#1e1e1e"
+borderColor = "#3c3c3c"

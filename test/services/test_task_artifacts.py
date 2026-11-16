@@ -96,6 +96,73 @@ class TestTaskArtifacts(unittest.TestCase):
         self.assertEqual(target.read_text(encoding="utf-8"), "{invalid-json")
         self.assertTrue(warning.called)
 
+    def test_video_plan_uses_separate_versioned_artifact(self):
+        plan = {"schema_version": "1.0", "scenes": [{"scene_id": "scene-001"}]}
+        task_artifacts.write_script_data("task-plan", {"script": "legacy script"})
+
+        task_artifacts.write_video_plan("task-plan", plan)
+
+        self.assertEqual(task_artifacts.read_video_plan("task-plan"), plan)
+        self.assertEqual(
+            json.loads((self.task_dir / "script.json").read_text(encoding="utf-8")),
+            {"script": "legacy script"},
+        )
+        self.assertEqual(
+            json.loads((self.task_dir / "video_plan.v1.json").read_text(encoding="utf-8")),
+            plan,
+        )
+
+    def test_missing_video_plan_is_compatible_with_legacy_tasks(self):
+        self.assertIsNone(task_artifacts.read_video_plan("legacy-task"))
+
+    def test_scene_media_manifest_is_separate_and_round_trips(self):
+        manifest = {
+            "schema_version": "1.0",
+            "plan_id": "plan-12345678",
+            "script_sha256": "a" * 64,
+            "assignments": [],
+        }
+        task_artifacts.write_script_data("task-scene-media", {"script": "legacy"})
+
+        task_artifacts.write_scene_media_manifest("task-scene-media", manifest)
+
+        self.assertEqual(
+            task_artifacts.read_scene_media_manifest("task-scene-media"), manifest
+        )
+        self.assertEqual(
+            json.loads((self.task_dir / "script.json").read_text(encoding="utf-8")),
+            {"script": "legacy"},
+        )
+        self.assertTrue((self.task_dir / "scene_media.v1.json").is_file())
+
+    def test_scene_timeline_is_separate_and_round_trips(self):
+        timeline = {
+            "schema_version": "1.0",
+            "plan_id": "plan-test-123",
+            "script_sha256": "a" * 64,
+            "audio_duration": 4.0,
+            "alignment_source": "estimated",
+            "synchronization": "estimated",
+            "items": [],
+        }
+
+        task_artifacts.write_scene_timeline("task-timeline", timeline)
+
+        self.assertEqual(task_artifacts.read_scene_timeline("task-timeline"), timeline)
+        self.assertTrue((self.task_dir / "scene_timeline.v1.json").is_file())
+
+    def test_render_metrics_are_persisted_separately(self):
+        metrics = [{
+            "video_index": 1, "status": "complete", "used_codec": "libx264",
+            "render_elapsed_seconds": 3.1, "output_bytes": 12000,
+        }]
+        task_artifacts.write_video_render_metrics("task-metrics", metrics)
+        self.assertEqual(
+            task_artifacts.read_video_render_metrics("task-metrics"),
+            {"schema_version": "1.0", "renders": metrics},
+        )
+        self.assertTrue((self.task_dir / "video_render_metrics.v1.json").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

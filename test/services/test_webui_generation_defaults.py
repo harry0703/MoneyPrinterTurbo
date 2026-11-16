@@ -105,6 +105,16 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         _widget_by_key(first_session.slider, "stroke_width_slider").set_value(2.5)
         first_session.run()
 
+        _widget_by_key(first_session.selectbox, "video_pipeline_select").set_value(
+            "scene"
+        ).run()
+        _widget_by_key(first_session.selectbox, "scene_failure_policy_select").set_value(
+            "fail"
+        ).run()
+        _widget_by_key(first_session.selectbox, "video_export_profile_select").set_value(
+            "shorts"
+        ).run()
+
         # Aspect is a per-source preference: Coverr's common landscape default
         # must not replace an explicit portrait choice or the Pexels preference.
         first_session.session_state["video_source_select_en"] = "coverr"
@@ -170,6 +180,9 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         assert "video_subject" not in test_app_config
         assert "video_script" not in test_app_config
         assert "video_terms" not in test_app_config
+        assert test_app_config["video_pipeline"] == "scene"
+        assert test_app_config["scene_plan_fallback"] == "fail"
+        assert test_app_config["video_export_profile"] == "shorts"
 
         second_session = _new_app()
         assert _widget_by_key(
@@ -187,6 +200,15 @@ def test_reusable_generation_settings_survive_a_new_webui_session():
         assert _widget_by_key(
             second_session.selectbox, "video_concat_mode_select"
         ).value == "sequential"
+        assert _widget_by_key(
+            second_session.selectbox, "video_pipeline_select"
+        ).value == "scene"
+        assert _widget_by_key(
+            second_session.selectbox, "scene_failure_policy_select"
+        ).value == "fail"
+        assert _widget_by_key(
+            second_session.selectbox, "video_export_profile_select"
+        ).value == "shorts"
         assert _widget_by_key(
             second_session.selectbox, "video_transition_mode_select"
         ).value == "FadeIn"

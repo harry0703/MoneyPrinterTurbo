@@ -1,0 +1,11 @@
+[project]
+name = "dashboard-stock-peers"
+version = "1.0.0"
+description = "Stock peer analysis dashboard: easily compare stocks against others in their peer group"
+requires-python = ">=3.11"
+dependencies = [
+    "altair>=5.5.0",
+    "pandas>=2.2.3",
+    "streamlit",
+    "yfinance>=0.2.55",
+]
