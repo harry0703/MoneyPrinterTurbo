@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Codex kullanım sınırınıza ulaştınız. Tekrar denemeden önce bekleyin.",
     "codex.models.refresh": "Modelleri yenile",
     "codex.models.choose": "Bir model seçin",
-    "codex.models.source": "Jarvys'teki gibi Codex için filtrelenmiş models.dev kataloğu. Kullanılabilirlik hesabınıza bağlıdır.",
+    "codex.models.source": "Codex için filtrelenmiş models.dev kataloğu. Kullanılabilirlik hesabınıza bağlıdır.",
     "codex.models.failed": "Katalog alınamadı. Model kimliğinizi koruyun veya girin ve yeniden yenileyin.",
     "codex.models.stale": "Katalog yenilenemedi; son kaydedilen liste gösteriliyor.",
     "codex.models.saved": "Kayıtlı modeliniz güncel katalogda yok. Otomatik değiştirilmeden korunur.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex tek bir tam ve geçerli görsel döndürmedi.",
     "codex.image.uncertain": "İstek işlenmiş olabilir. Yeniden denenmeden durduruldu.",
     "codex.image.save_failed": "Codex görseli kaydedilemedi. Yeniden denenmeden durduruldu.",
-    "codex.image.render_failed": "Codex görseli işlenemedi. Yeniden denenmeden durduruldu."
+    "codex.image.render_failed": "Codex görseli işlenemedi. Yeniden denenmeden durduruldu.",
+    "General Settings Tab": "Genel",
+    "General Providers Title": "Sağlayıcılarınızı seçin",
+    "General Providers Help": "Yapılandırılmış bir sağlayıcı seçip Kullan düğmesine basın. Kimlik bilgilerini sağlayıcının ayarlarından yönetin.",
+    "Configured Providers": "Yapılandırılmış sağlayıcılar",
+    "Use Provider": "Kullan",
+    "Configure Providers": "Yapılandır",
+    "Active Provider": "Kullanımda: {provider}",
+    "No Configured Providers": "Henüz yapılandırılmış sağlayıcı yok.",
+    "Provider Configuration Changed": "Yapılandırma değişti. Bu sağlayıcının ayarlarını gözden geçirin."
   }
 }

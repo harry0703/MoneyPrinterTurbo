@@ -69,6 +69,13 @@ class TestConfigPersistence:
         assert app_config["muapi_resolution"]
         assert app_config["muapi_min_duration"] == 3
         assert app_config["muapi_max_duration"] == 12
+        assert app_config["useapi_api_token"] == ""
+        assert app_config["useapi_video_model"] == "veo-3.1-lite"
+        assert app_config["useapi_resolution"] == ""
+        assert app_config["useapi_upscale"] == ""
+        assert app_config["useapi_poll_interval"] == 10
+        assert app_config["useapi_run_timeout"] == 1800
+        assert app_config["useapi_image_model"] == "nano-banana-2-lite"
         assert "loomloom_market_listing_id" not in app_config
         assert "loomloom_video_market_listing_id" not in app_config
         assert app_config["shengsuanyun_api_key"] == ""
@@ -153,13 +160,9 @@ class TestConfigPersistence:
             with (
                 patch.object(config, "config_file", str(config_path)),
                 patch.object(config.logger, "error") as error_mock,
+                pytest.raises(toml.TomlDecodeError),
             ):
-                try:
-                    config.load_config()
-                except toml.TomlDecodeError:
-                    pass
-                else:
-                    raise AssertionError("expected invalid TOML to be rejected")
+                config.load_config()
 
             error_message = str(error_mock.call_args.args[0])
             assert str(config_path) in error_message
@@ -324,6 +327,50 @@ class TestConfigPersistence:
         finally:
             config.app.clear()
             config.app.update(original_app)
+            config._cfg.clear()
+            config._cfg.update(original_cfg)
+
+    def test_save_config_round_trips_windows_paths_and_nbsp(self):
+        """
+        A Windows path with a folder that starts with "x" (xiaoming, x64) and
+        a non-breaking space must load back unchanged: toml 0.10.2's encoder
+        wrote such paths as invalid TOML and the space as the text "xa0".
+        """
+        values = {
+            ("app", "ffmpeg_path"): r"C:\Users\xiaoming\ffmpeg\bin\ffmpeg.exe",
+            ("app", "material_directory"): r"D:\videos\x64",
+            ("ui", "custom_bgm_file"): r"C:\Users\xiaoming\Music\bgm.mp3",
+            ("ui", "video_script_prompt"): "Ton\N{NO-BREAK SPACE}: humoristique",
+            # TOML, unlike JSON, requires DEL to be escaped.
+            ("ui", "custom_system_prompt"): "Say \"hi\".\n\tThen stop.\x7f",
+        }
+        sections = {"app": config.app, "ui": config.ui}
+        original_cfg = dict(config._cfg)
+        original_app = dict(config.app)
+        original_ui = dict(config.ui)
+        try:
+            with TemporaryDirectory() as temp_dir:
+                config_path = Path(temp_dir) / "config.toml"
+                for (section, key), value in values.items():
+                    sections[section][key] = value
+                with (
+                    patch.object(config, "root_dir", temp_dir),
+                    patch.object(config, "config_file", str(config_path)),
+                ):
+                    config.save_config()
+
+                content = config_path.read_text(encoding="utf-8")
+                for loaded in (
+                    config._load_toml_config(str(config_path)),
+                    tomllib.loads(content),
+                ):
+                    for (section, key), value in values.items():
+                        assert loaded[section][key] == value
+        finally:
+            config.app.clear()
+            config.app.update(original_app)
+            config.ui.clear()
+            config.ui.update(original_ui)
             config._cfg.clear()
             config._cfg.update(original_cfg)
 

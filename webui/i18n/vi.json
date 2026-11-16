@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Bạn đã đạt giới hạn sử dụng Codex. Hãy chờ trước khi thử lại.",
     "codex.models.refresh": "Làm mới mô hình",
     "codex.models.choose": "Chọn một mô hình",
-    "codex.models.source": "Danh mục models.dev được lọc cho Codex như trong Jarvys. Khả năng sử dụng phụ thuộc vào tài khoản của bạn.",
+    "codex.models.source": "Danh mục models.dev được lọc cho Codex. Khả năng sử dụng phụ thuộc vào tài khoản của bạn.",
     "codex.models.failed": "Không thể tải danh mục. Giữ nguyên hoặc nhập ID mô hình rồi làm mới lại.",
     "codex.models.stale": "Không thể làm mới danh mục; đang hiển thị danh sách đã lưu gần nhất.",
     "codex.models.saved": "Mô hình đã lưu không có trong danh mục hiện tại. Mô hình được giữ nguyên, không tự động thay đổi.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex không trả về một ảnh hoàn chỉnh hợp lệ duy nhất.",
     "codex.image.uncertain": "Yêu cầu có thể đã được xử lý. Đã dừng mà không thử lại.",
     "codex.image.save_failed": "Không lưu được ảnh Codex. Đã dừng mà không thử lại.",
-    "codex.image.render_failed": "Không kết xuất được ảnh Codex. Đã dừng mà không thử lại."
+    "codex.image.render_failed": "Không kết xuất được ảnh Codex. Đã dừng mà không thử lại.",
+    "General Settings Tab": "Chung",
+    "General Providers Title": "Chọn nhà cung cấp",
+    "General Providers Help": "Chọn nhà cung cấp đã cấu hình rồi nhấn Sử dụng. Quản lý thông tin xác thực trong phần cài đặt của nhà cung cấp.",
+    "Configured Providers": "Nhà cung cấp đã cấu hình",
+    "Use Provider": "Sử dụng",
+    "Configure Providers": "Cấu hình",
+    "Active Provider": "Đang sử dụng: {provider}",
+    "No Configured Providers": "Chưa có nhà cung cấp nào được cấu hình.",
+    "Provider Configuration Changed": "Cấu hình đã thay đổi. Hãy kiểm tra cài đặt của nhà cung cấp này."
   }
 }

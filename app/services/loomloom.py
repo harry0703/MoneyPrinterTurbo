@@ -954,7 +954,10 @@ class LoomLoomVideoBackend(LoomLoomScriptBackend):
         downloaded_bytes = 0
         response = None
         try:
-            response = self._session.get(
+            # 与 _request 及其它付费素材下载一致地接入共享请求追踪。tracer 只
+            # 记录脱敏后的地址与状态码，不访问流式响应正文；开关关闭时零改变。
+            response = trace_http_call(
+                "GET", self._session.get,
                 access_url,
                 stream=True,
                 timeout=(5.0, self.settings.request_timeout_seconds),

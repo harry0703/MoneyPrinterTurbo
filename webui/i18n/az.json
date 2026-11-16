@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Codex istifadə limitinə çatmısınız. Yenidən cəhd etməzdən əvvəl gözləyin.",
     "codex.models.refresh": "Modelləri yenilə",
     "codex.models.choose": "Model seçin",
-    "codex.models.source": "Jarvys-də olduğu kimi Codex üçün süzülmüş models.dev kataloqu. Əlçatanlıq hesabınızdan asılıdır.",
+    "codex.models.source": "Codex üçün süzülmüş models.dev kataloqu. Əlçatanlıq hesabınızdan asılıdır.",
     "codex.models.failed": "Kataloq alınmadı. Model ID-sini saxlayın və ya daxil edin, sonra yenidən yeniləyin.",
     "codex.models.stale": "Kataloq yenilənmədi; son saxlanmış siyahı göstərilir.",
     "codex.models.saved": "Saxlanmış model cari kataloqda yoxdur. Avtomatik dəyişdirilmədən saxlanılır.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex tək tam və etibarlı şəkil qaytarmadı.",
     "codex.image.uncertain": "Sorğu işlənmiş ola bilər. Təkrarlanmadan dayandırıldı.",
     "codex.image.save_failed": "Codex şəklini saxlamaq mümkün olmadı. Təkrarlanmadan dayandırıldı.",
-    "codex.image.render_failed": "Codex şəklini emal etmək mümkün olmadı. Təkrarlanmadan dayandırıldı."
+    "codex.image.render_failed": "Codex şəklini emal etmək mümkün olmadı. Təkrarlanmadan dayandırıldı.",
+    "General Settings Tab": "Ümumi",
+    "General Providers Title": "Provayderlərinizi seçin",
+    "General Providers Help": "Tənzimlənmiş provayder seçin və İstifadə et düyməsini basın. Giriş məlumatlarını onun parametrlərində idarə edin.",
+    "Configured Providers": "Tənzimlənmiş provayderlər",
+    "Use Provider": "İstifadə et",
+    "Configure Providers": "Tənzimlə",
+    "Active Provider": "İstifadədə: {provider}",
+    "No Configured Providers": "Hələ tənzimlənmiş provayder yoxdur.",
+    "Provider Configuration Changed": "Parametrlər dəyişib. Bu provayderin parametrlərini yoxlayın."
   }
 }

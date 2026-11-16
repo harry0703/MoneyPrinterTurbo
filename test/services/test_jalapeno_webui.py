@@ -26,12 +26,19 @@ def test_defaults_campaign_links_and_shared_key_are_visible(language):
         app = AppTest.from_file(str(WEBUI), default_timeout=60)
         app.session_state["ui_language"] = language
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
+        app.session_state["settings_material_providers"] = {"ai_video": "jalapeno"}
         app.run()
         assert not app.exception
         assert (
             app.text_input(key="jalapeno_model_name_input").value
             == "DeepSeek-V4.1-Flash"
         )
+        tips = "\n".join(item.value for item in app.info)
+        assert provider.CAMPAIGN_URL in tips and provider.MODELS_URL in tips
+        app.session_state["settings_dialog_target_tab"] = "video"
+        app.run()
+        assert not app.exception
         assert (
             app.text_input(key="jalapeno_video_model_input").value
             == provider.DEFAULT_MODEL
@@ -46,8 +53,6 @@ def test_defaults_campaign_links_and_shared_key_are_visible(language):
             provider.CAMPAIGN_URL
             in app.text_input(key="jalapeno_video_api_key_input").label
         )
-        tips = "\n".join(item.value for item in app.info)
-        assert provider.CAMPAIGN_URL in tips and provider.MODELS_URL in tips
         if language == "de":
             assert any(
                 "Jalapeno Cloud bills each generated clip." in item.value
@@ -79,6 +84,8 @@ def test_video_key_override_and_endpoint_are_independent_of_llm(llm_provider):
         app = AppTest.from_file(str(WEBUI), default_timeout=60)
         app.session_state["ui_language"] = "en"
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "video"
+        app.session_state["settings_material_providers"] = {"ai_video": "jalapeno"}
         app.run()
         assert not app.exception
         app.checkbox(key="jalapeno_confirm_charge").check().run()

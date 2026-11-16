@@ -21,7 +21,7 @@
     "codex.oauth.rate_limit": "Dein Codex-Nutzungslimit ist erreicht. Warte vor dem nächsten Versuch.",
     "codex.models.refresh": "Modelle aktualisieren",
     "codex.models.choose": "Modell auswählen",
-    "codex.models.source": "models.dev-Katalog, wie in Jarvys für Codex gefiltert. Die Verfügbarkeit hängt von deinem Konto ab.",
+    "codex.models.source": "Für Codex gefilterter models.dev-Katalog. Die Verfügbarkeit hängt von deinem Konto ab.",
     "codex.models.failed": "Der Katalog konnte nicht geladen werden. Behalte die Modell-ID bei oder gib sie ein und aktualisiere erneut.",
     "codex.models.stale": "Der Katalog konnte nicht aktualisiert werden; die zuletzt gespeicherte Liste wird angezeigt.",
     "codex.models.saved": "Dein gespeichertes Modell fehlt im aktuellen Katalog. Es wird beibehalten und nicht automatisch gewechselt.",
@@ -497,6 +497,15 @@
     "codex.image.invalid_result": "Codex lieferte kein einzelnes vollständiges gültiges Bild.",
     "codex.image.uncertain": "Die Bildanfrage wurde möglicherweise verarbeitet. Ohne Wiederholung angehalten.",
     "codex.image.save_failed": "Codex-Bild konnte nicht gespeichert werden. Ohne Wiederholung angehalten.",
-    "codex.image.render_failed": "Codex-Bild konnte nicht gerendert werden. Ohne Wiederholung angehalten."
+    "codex.image.render_failed": "Codex-Bild konnte nicht gerendert werden. Ohne Wiederholung angehalten.",
+    "General Settings Tab": "Allgemein",
+    "General Providers Title": "Anbieter auswählen",
+    "General Providers Help": "Wähle einen eingerichteten Anbieter und klicke auf Verwenden. Zugangsdaten verwaltest du in seinen Einstellungen.",
+    "Configured Providers": "Eingerichtete Anbieter",
+    "Use Provider": "Verwenden",
+    "Configure Providers": "Konfigurieren",
+    "Active Provider": "Aktiv: {provider}",
+    "No Configured Providers": "Noch keine Anbieter eingerichtet.",
+    "Provider Configuration Changed": "Die Konfiguration hat sich geändert. Prüfe die Einstellungen dieses Anbieters."
   }
 }

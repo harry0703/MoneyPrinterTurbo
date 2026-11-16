@@ -1,5 +1,6 @@
 import copy
 import errno
+import json
 import os
 import shutil
 import socket
@@ -539,6 +540,15 @@ def load_config():
             # Another initializer already removed this empty bind-mount stub.
             pass
         except OSError as exc:
+            if exc.errno == errno.EBUSY:
+                # The directory is the bind mount itself, so it cannot be
+                # removed from inside the container; it must be fixed on the host.
+                raise IsADirectoryError(
+                    f"{config_file} is a directory because config.toml did not exist "
+                    "on the host when Docker mounted it. Stop the containers, delete "
+                    "the empty config.toml folder next to the docker-compose file, "
+                    "copy config.example.toml to config.toml there, then start again"
+                ) from exc
             # Another initializer may already have replaced the empty Docker
             # stub with its complete regular file. Accept only that race, not
             # permission failures or a still-present/nonempty directory.
@@ -561,6 +571,26 @@ def load_config():
     logger.info(f"load config from file: {config_file}")
 
     return _load_toml_config(config_file)
+
+
+class _ConfigTomlEncoder(toml.TomlEncoder):
+    """
+    Write strings as JSON strings, which are also valid TOML basic strings.
+
+    toml 0.10.2's own string encoder (uiri/toml#404) drops the escaping of
+    every backslash up to the last one followed by "x", so a Windows path
+    with a folder such as "xiaoming" or "x64" is written as invalid TOML.
+    It also writes a non-breaking space as the text "xa0".
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.dump_funcs[str] = self._dump_str
+
+    @staticmethod
+    def _dump_str(value):
+        # TOML, unlike JSON, also requires DEL to be escaped.
+        return json.dumps(str(value), ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
 def save_config():
@@ -592,7 +622,7 @@ def save_config():
         config_to_save["voxcpm"] = dict(voxcpm)
         config_to_save["ui"] = dict(ui)
         config_to_save["diagnostics"] = dict(diagnostics)
-        serialized_config = toml.dumps(config_to_save)
+        serialized_config = toml.dumps(config_to_save, encoder=_ConfigTomlEncoder())
 
         # WebUI 完整 rerun 结束时会调用保存。内容没有变化时直接返回，避免每次
         # 点击普通控件都产生一次磁盘写入和 fsync。

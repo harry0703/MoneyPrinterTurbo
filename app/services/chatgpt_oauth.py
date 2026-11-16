@@ -9,6 +9,7 @@ import time
 import requests
 
 from app.services import chatgpt_auth as auth
+from app.utils.request_logging import trace_http_call
 
 RESPONSES_URL = auth.RESOURCE + "/responses"
 MODELS_URL = auth.RESOURCE + "/models"
@@ -79,7 +80,13 @@ def _authorized_request(method, url, timeout, **kwargs):
         if remaining <= 0:
             raise ChatGPTError("timeout")
         try:
-            with requests.request(
+            # The opt-in request tracer covers the Responses transport too. The
+            # access token only travels in the untraced Authorization header,
+            # so the diagnostic log keeps the request shape without the
+            # credential.
+            with trace_http_call(
+                "REQUEST",
+                requests.request,
                 method,
                 url,
                 timeout=(min(15, remaining), remaining),

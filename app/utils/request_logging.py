@@ -17,16 +17,24 @@ from app.utils.logging_utils import get_logging_options
 _REDACTED = "[REDACTED]"
 _MAX_STRING = 1000
 _MAX_PAYLOAD = 12000
+# 凭据字段名一律遮盖。设备登录流程的会话标识同样是凭据：Kimi 用
+# ``device_code``，Codex 用 ``device_auth_id``，两者都必须留在日志之外。
 _SECRET_KEY = re.compile(
     r"authorization|cookie|password|passwd|secret|credential|signature|"
-    r"apikey|accesskey|privatekey|clientkey|devicecode|usercode|authorizationcode|"
-    r"(?:access|refresh|id|auth|api|bearer)token"
+    r"apikey|accesskey|privatekey|clientkey|devicecode|deviceauthid|usercode|"
+    r"authorizationcode|(?:access|refresh|id|auth|api|bearer)token"
 )
 _TOKEN = re.compile(
     r"\b(?:sk|rk|sess|ghp|github_pat)[-_][A-Za-z0-9_-]{8,}|"
     r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
 )
 _URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+# Some providers put the account email inside ids (useapi.net job and media
+# ids, for example), in URL paths and in request bodies; traces must not reveal it.
+_EMAIL = re.compile(
+    r"[A-Za-z0-9._%+*-]+(?:@|%40)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}",
+    re.IGNORECASE,
+)
 _MEDIA_KEYS = frozenset(
     {
         "audio",
@@ -52,8 +60,9 @@ def _safe_url(value: str) -> str:
         parts = urlsplit(value)
         netloc = parts.netloc.rsplit("@", 1)[-1]
         query = urlencode([(k, _REDACTED) for k, _ in parse_qsl(parts.query)])
+        path = _EMAIL.sub(_REDACTED, parts.path)
         return _TOKEN.sub(
-            _REDACTED, urlunsplit((parts.scheme, netloc, parts.path, query, ""))
+            _REDACTED, urlunsplit((parts.scheme, netloc, path, query, ""))
         )[:_MAX_STRING]
     except ValueError:
         return "[invalid URL]"
@@ -65,6 +74,7 @@ def _safe_string(value: str) -> str:
     if len(value) >= 256 and re.fullmatch(r"[A-Za-z0-9+/=\r\n]+", value):
         return "[base64 omitted]"
     value = _TOKEN.sub(_REDACTED, value)
+    value = _EMAIL.sub(_REDACTED, value)
     value = _URL.sub(lambda match: _safe_url(match.group()), value)
     return value[:_MAX_STRING] + ("… [truncated]" if len(value) > _MAX_STRING else "")
 

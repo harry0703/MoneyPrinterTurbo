@@ -399,6 +399,23 @@ LLM_PROVIDER_REGISTRY = (
     ),
     # 聚合与统一接入平台
     LLMProviderSpec(
+        "apixo",
+        "APIXO AI",
+        adapter="openai_responses",
+        api_key_url="https://apixo.ai/dashboard/api-keys",
+        default_model="gpt-5.4-mini",
+        default_base_url="https://llm.apixo.ai/v1",
+        model_docs_url="https://apixo.ai/docs/models/text/openai-responses",
+    ),
+    LLMProviderSpec(
+        "apinebula",
+        "APINEBULA",
+        api_key_url="https://apinebula.ai/ref/luDuqJIb",
+        default_model="gpt-6.1-sol",
+        default_base_url="https://apinebula.ai/v1",
+        model_docs_url="https://apinebula.ai/zh/pricing",
+    ),
+    LLMProviderSpec(
         "jalapeno",
         "Jalapeno Cloud",
         api_key_url="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo",
@@ -562,6 +579,38 @@ LLM_PROVIDER_REGISTRY = (
         default_model="qwen3-8-flash",
         default_base_url="https://api.empiriolabs.ai/v1",
         model_docs_url="https://docs.empiriolabs.ai/models-pricing",
+    ),
+    LLMProviderSpec(
+        "runcrate",
+        "Runcrate",
+        api_key_url="https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        default_model="deepseek-ai/DeepSeek-V4.1-Flash",
+        default_base_url="https://api.runcrate.ai/v1",
+        model_docs_url="https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+    ),
+    LLMProviderSpec(
+        "cloudgpu",
+        "CloudGPU",
+        api_key_url="https://cloudgpu.app",
+        default_model="deepseek-v4-flash",
+        default_base_url="https://cloudgpu.app/v1",
+        model_docs_url="https://cloudgpu.app/v1/models",
+    ),
+    LLMProviderSpec(
+        "cheapaimodel",
+        "cheapaimodel",
+        api_key_url="https://console.cheapaimodel.ai/keys",
+        default_model="deepseek-v4-1-flash",
+        default_base_url="https://api.cheapaimodel.ai/v1",
+        model_docs_url="https://cheapaimodel.ai/models",
+    ),
+    LLMProviderSpec(
+        "uberllm",
+        "UberLLM",
+        api_key_url="https://uberllm.dev/signup",
+        default_model="deepseek/deepseek-v4-flash",
+        default_base_url="https://api.uberllm.dev/v1",
+        model_docs_url="https://uberllm.dev/models",
     ),
     # 本地部署与通用网关
     LLMProviderSpec(

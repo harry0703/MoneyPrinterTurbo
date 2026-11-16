@@ -28,6 +28,7 @@ def test_logging_form_applies_runtime_and_persisted_settings():
                 default_timeout=15,
             )
             app.session_state["settings_dialog_open"] = True
+            app.session_state["settings_dialog_target_tab"] = "interface"
             app.run()
             assert not app.exception
             app.selectbox(key="diagnostic_log_level").select("ERROR")

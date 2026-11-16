@@ -34,6 +34,7 @@ from app.services import (
     subtitle,
     task_artifacts,
     twelvelabs,
+    useapi,
     video,
     volcengine_seedance,
     voice,
@@ -101,8 +102,9 @@ _VIDEO_MUSIC_PROVIDERS = {
 
 _SUPPORTED_VIDEO_SOURCES = frozenset({
     "pexels", "pixabay", "coverr", "local", "wavespeed",
-    "volcengine_seedance", "ofox", "metaso_minimax", "muapi",
-    "loomloom", "openai_image", "codex_image", "infistar", "jalapeno",
+    "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "useapi",
+    "loomloom", "openai_image", "codex_image", "useapi_image", "infistar",
+    "jalapeno",
 })
 
 
@@ -836,6 +838,7 @@ def get_video_materials(
                 ),
                 audio_duration=audio_duration * params.video_count,
                 max_clip_duration=params.video_clip_duration,
+                clip_speed=params.video_clip_speed,
                 match_script_order=params.match_materials_to_script,
                 image_motion=params.image_motion,
                 # 素材阶段占用 40%~50%：每下完一个文件推进一次，慢速网络下
@@ -924,6 +927,19 @@ def get_video_materials(
             # user can recover it from the provider dashboard.
             remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
             details = {"muapi_task_id": remote_task_id} if remote_task_id else None
+            _mark_task_failed(
+                task_id,
+                "materials",
+                str(exc),
+                details=details,
+            )
+            return None
+        except useapi.UseAPIError as exc:
+            # useapi.net jobs spend credits on the user's own account once they
+            # start. Keep the job ID on an unconfirmed or post-completion
+            # failure so the user can look it up with GET /jobs on useapi.net.
+            remote_task_id = str(getattr(exc, "task_id", "") or "").strip()
+            details = {"useapi_job_id": remote_task_id} if remote_task_id else None
             _mark_task_failed(
                 task_id,
                 "materials",
@@ -1655,6 +1671,28 @@ def _run_pipeline(
             "preflight",
             "MuAPI video generation requires a MuAPI API key",
         )
+
+    if stop_at in {"materials", "video"} and params.video_source == "useapi":
+        # Check the token, model and ratio before the script, voice and
+        # subtitles are generated, so a setup error costs nothing.
+        try:
+            if not useapi.is_enabled():
+                raise useapi.UseAPIError(
+                    "useapi.net video generation requires a useapi.net API token"
+                )
+            useapi.check_aspect(useapi.model_id(), params.video_aspect)
+        except useapi.UseAPIError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
+
+    if stop_at in {"materials", "video"} and params.video_source == "useapi_image":
+        try:
+            if not useapi.is_enabled():
+                raise useapi.UseAPIError(
+                    "useapi.net image generation requires a useapi.net API token"
+                )
+            useapi.image_model_id()
+        except useapi.UseAPIError as exc:
+            return _mark_task_failed(task_id, "preflight", str(exc))
 
     if (
         stop_at in {"materials", "video"}

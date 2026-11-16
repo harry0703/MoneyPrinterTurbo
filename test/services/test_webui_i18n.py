@@ -89,8 +89,14 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.opper",
         "llm_provider_label.onomeo",
         "llm_provider_label.empiriolabs",
+        "llm_provider_label.runcrate",
+        "llm_provider_label.cloudgpu",
+        "llm_provider_label.cheapaimodel",
+        "llm_provider_label.uberllm",
         "llm_provider_label.shengsuanyun",
         "llm_provider_label.infistar",
+        "llm_provider_label.apinebula",
+        "llm_provider_label.apixo",
         "llm_provider_label.jalapeno",
         "Jalapeno Cloud AI Video",
         "Jalapeno Cloud Video Help",
@@ -159,6 +165,31 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Confirm MuAPI Charge",
         "Confirm MuAPI Charge Help",
         "Confirm MuAPI Charge Required",
+        "useapi.net AI Video",
+        "useapi.net AI Video Help",
+        "useapi.net API Token",
+        "useapi.net API Token Help",
+        "useapi.net Video Model",
+        "useapi.net Video Model Help",
+        "Please Enter the useapi.net API Token",
+        "useapi.net Billing Notice",
+        "useapi.net Billing Notice Without Script",
+        "Confirm useapi.net Charge",
+        "Confirm useapi.net Charge Help",
+        "Confirm useapi.net Charge Required",
+        "useapi.net Nano Banana Images",
+        "useapi.net Nano Banana Images Help",
+        "useapi.net Image Model",
+        "useapi.net Image Model Help",
+        "useapi_model_label.veo-3.1-lite-low-priority",
+        "useapi_model_label.veo-3.1-fast",
+        "useapi_model_label.veo-3.1-quality",
+        "useapi_model_label.omni-flash",
+        "useapi.net Resolution",
+        "useapi.net Resolution Help",
+        "useapi.net Upscale",
+        "useapi.net Upscale None",
+        "useapi.net Upscale Help",
         "Infistar AI Video",
         "Infistar AI Video Help",
         "Infistar Video Key Help",
@@ -174,6 +205,8 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Infistar Video Base URL",
         "Script Generation Method",
         "Script Generation Method Help",
+        "Video Script Generation Failed",
+        "Video Keywords Generation Failed",
         "Shengsuan Cloud AI Video",
         "Shengsuan Cloud AI Video Help",
         "Shengsuan Cloud API Key",
@@ -189,6 +222,8 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "Stop Tracking LoomLoom Run Help",
         "Unavailable AI Video Model",
         "VoxCPM Speed Not Supported",
+        "Gemini TTS Speed Not Supported",
+        "MiMo TTS Speed Not Supported",
         "VoxCPM Reference Audio",
         "VoxCPM Reference Audio Help",
         "VoxCPM Reference Audio Notice",
@@ -242,6 +277,19 @@ class _TrKeyVisitor(ast.NodeVisitor):
 def _load_translation(locale):
     data = json.loads((I18N_DIR / f"{locale}.json").read_text(encoding="utf-8"))
     return data.get("Translation", {})
+
+
+def _support_locales():
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "support_locales"
+            for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    return None
 
 
 def _duplicate_translation_keys(path):
@@ -367,6 +415,15 @@ class TestWebuiI18n(unittest.TestCase):
                 label = _load_translation(locale)["Metaso MiniMax API Key"]
                 self.assertEqual(_markdown_urls(label), {expected_url})
 
+    def test_useapi_token_label_keeps_mpt_referral_link(self):
+        """useapi.net 的 Token 入口与 Provider 使用同一个带来源参数的地址。"""
+        from app.services import useapi
+
+        for locale in ("zh", "en"):
+            with self.subTest(locale=locale):
+                label = _load_translation(locale)["useapi.net API Token"]
+                self.assertEqual(_markdown_urls(label), {useapi.TOKEN_URL})
+
     def test_secondary_locales_cover_english_locale(self):
         en_translations = _load_translation("en")
         required_en_keys = _required_translation_keys(en_translations)
@@ -431,22 +488,27 @@ class TestWebuiI18n(unittest.TestCase):
                     )
 
     def test_script_language_options_include_russian_and_catalan(self):
-        tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
-        support_locales = None
-
-        for node in tree.body:
-            if not isinstance(node, ast.Assign):
-                continue
-            if any(
-                isinstance(target, ast.Name) and target.id == "support_locales"
-                for target in node.targets
-            ):
-                support_locales = ast.literal_eval(node.value)
-                break
+        support_locales = _support_locales()
 
         self.assertIsNotNone(support_locales)
         self.assertIn("ru-RU", support_locales)
         self.assertIn("ca-ES", support_locales)
+
+    def test_script_language_options_include_indonesian_with_builtin_voices(self):
+        """印尼语必须可选且内置音色覆盖 id-ID，避免界面已翻译却无法生成印尼语视频。"""
+        support_locales = _support_locales()
+        self.assertIsNotNone(support_locales)
+        self.assertIn("id-ID", support_locales)
+
+        voices = json.loads(
+            (ROOT_DIR / "app" / "services" / "data" / "azure_voices.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        indonesian_voices = {
+            item["name"] for item in voices if item["name"].startswith("id-ID-")
+        }
+        self.assertGreaterEqual(len(indonesian_voices), 2)
 
     def test_locale_files_do_not_redefine_a_translation_key(self):
         """

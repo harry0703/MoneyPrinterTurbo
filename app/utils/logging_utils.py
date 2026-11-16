@@ -1,6 +1,7 @@
 import functools
 import os
 import re
+import sys
 import threading
 
 from loguru import logger
@@ -138,6 +139,30 @@ def format_log_record(record):
     # 前缀相同，按子串替换会把它们改成 `.-backup`、`.2` 这样错误的路径。
     record["message"] = _PROJECT_ROOT_IN_MESSAGE_RE.sub(".", record["message"])
     return LOG_RECORD_FORMAT
+
+
+def force_utf8_console() -> None:
+    """
+    Switch stdout and stderr to UTF-8 before anything is logged or printed.
+
+    When they go to a file or a pipe on Windows, as with
+    ``webui.bat > webui.log 2>&1``, Python encodes them in the ANSI code page,
+    such as cp1252 on English and cp936 on Chinese Windows. A log record with
+    a character outside it (the circled digits of generate_video(), Chinese
+    on cp1252, emoji on cp936) raises UnicodeEncodeError in the terminal sink,
+    and Loguru drops the record and prints "Logging error in Loguru Handler"
+    in its place. The CLI's final print() failed the same way after the video
+    was written. Streams that cannot be switched, such as None under pythonw,
+    are left as they are.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            continue
 
 
 def configure_terminal_logger(sink, level: str, colorize: bool = True) -> int:

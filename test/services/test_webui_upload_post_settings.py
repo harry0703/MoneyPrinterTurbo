@@ -25,6 +25,7 @@ def test_webui_upload_post_setup_guide_links_to_required_pages():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.run()
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "publish"
         app.run()
 
         setup_guide = next(
@@ -53,6 +54,7 @@ def test_webui_upload_post_checkboxes_stay_decoupled():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.run()
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "publish"
         app.run()
 
         enabled_box = _widget_by_key(app.checkbox, "upload_post_enabled_checkbox")
@@ -86,6 +88,7 @@ def test_webui_upload_post_youtube_privacy_fallback_to_public():
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60)
         app.run()
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "publish"
         app.run()
 
         # The selectbox should be rendered and its value should fallback to "public"
@@ -101,6 +104,7 @@ def test_youtube_audience_selection_persists_on_first_change(saved):
     with patch.object(config, "app", values), patch.object(config, "try_save_config", return_value=True):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60).run()
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "publish"
         app.run()
         assert not app.exception
         selector = _widget_by_key(app.selectbox, "upload_post_youtube_made_for_kids_selectbox")
@@ -120,6 +124,7 @@ def test_youtube_audience_hidden_for_other_platforms():
     with patch.object(config, "app", values), patch.object(config, "try_save_config", return_value=True):
         app = AppTest.from_file(str(WEBUI_MAIN), default_timeout=60).run()
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "publish"
         app.run()
         assert not app.exception
         assert not any(item.key == "upload_post_youtube_made_for_kids_selectbox" for item in app.selectbox)

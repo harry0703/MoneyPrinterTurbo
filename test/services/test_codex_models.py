@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import time
 from unittest.mock import MagicMock, patch
 
@@ -155,8 +156,9 @@ def test_real_settings_select_and_refresh_preserve_saved_model():
         patch("app.services.codex_oauth.account_status", return_value=True),
         patch.object(models, "get_catalog", return_value=original) as catalog,
     ):
-        app = AppTest.from_file("webui/Main.py", default_timeout=60)
+        app = AppTest.from_file(Path(__file__).resolve().parents[2] / "webui/Main.py", default_timeout=60)
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
         assert (
@@ -191,8 +193,9 @@ def test_ui_outage_preserves_manual_model_then_recovers():
             side_effect=models.CatalogError("codex.models.failed"),
         ) as catalog,
     ):
-        app = AppTest.from_file("webui/Main.py", default_timeout=60)
+        app = AppTest.from_file(Path(__file__).resolve().parents[2] / "webui/Main.py", default_timeout=60)
         app.session_state["settings_dialog_open"] = True
+        app.session_state["settings_dialog_target_tab"] = "llm"
         app.run()
         assert not app.exception
         assert (

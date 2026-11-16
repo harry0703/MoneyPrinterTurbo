@@ -203,6 +203,20 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertEqual(result, "")
         self.assertEqual(generate_response.call_count, llm._max_retries)
 
+    def test_generate_script_strips_markdown_code_fence(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            return_value="\x60\x60\x60text\n第一段。\n\n第二段。\n\x60\x60\x60",
+        ):
+            result = llm.generate_script(
+                video_subject="テスト",
+                paragraph_number=2,
+            )
+
+        self.assertEqual(result, "第一段。\n\n第二段。")
+        self.assertNotIn("\x60\x60\x60", result)
+
     def test_generate_script_strips_each_bracket_group_independently(self):
         """
         format_response must remove each [bracket] and (paren) group in
@@ -614,6 +628,44 @@ class TestLiteLLMProvider(unittest.TestCase):
             empiriolabs.model_docs_url,
             "https://docs.empiriolabs.ai/models-pricing",
         )
+        runcrate = get_llm_provider("runcrate")
+        self.assertEqual(runcrate.default_model, "deepseek-ai/DeepSeek-V4.1-Flash")
+        self.assertEqual(runcrate.default_base_url, "https://api.runcrate.ai/v1")
+        self.assertEqual(runcrate.adapter, "openai_compatible")
+        self.assertTrue(runcrate.requires_api_key)
+        self.assertEqual(
+            runcrate.api_key_url,
+            "https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        )
+        self.assertEqual(
+            runcrate.model_docs_url,
+            "https://www.runcrate.ai/inference/pricing?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing",
+        )
+        cloudgpu = get_llm_provider("cloudgpu")
+        self.assertEqual(cloudgpu.default_model, "deepseek-v4-flash")
+        self.assertEqual(cloudgpu.default_base_url, "https://cloudgpu.app/v1")
+        self.assertEqual(cloudgpu.adapter, "openai_compatible")
+        self.assertTrue(cloudgpu.requires_api_key)
+        self.assertEqual(cloudgpu.api_key_url, "https://cloudgpu.app")
+        self.assertEqual(cloudgpu.model_docs_url, "https://cloudgpu.app/v1/models")
+        cheapaimodel = get_llm_provider("cheapaimodel")
+        self.assertEqual(cheapaimodel.default_model, "deepseek-v4-1-flash")
+        self.assertEqual(cheapaimodel.default_base_url, "https://api.cheapaimodel.ai/v1")
+        self.assertEqual(cheapaimodel.adapter, "openai_compatible")
+        self.assertTrue(cheapaimodel.requires_api_key)
+        self.assertEqual(
+            cheapaimodel.api_key_url, "https://console.cheapaimodel.ai/keys"
+        )
+        self.assertEqual(
+            cheapaimodel.model_docs_url, "https://cheapaimodel.ai/models"
+        )
+        uberllm = get_llm_provider("uberllm")
+        self.assertEqual(uberllm.default_model, "deepseek/deepseek-v4-flash")
+        self.assertEqual(uberllm.default_base_url, "https://api.uberllm.dev/v1")
+        self.assertEqual(uberllm.adapter, "openai_compatible")
+        self.assertTrue(uberllm.requires_api_key)
+        self.assertEqual(uberllm.api_key_url, "https://uberllm.dev/signup")
+        self.assertEqual(uberllm.model_docs_url, "https://uberllm.dev/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -677,6 +729,8 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "minimax",
                 "mimo",
                 "iflytek",
+                "apixo",
+                "apinebula",
                 "jalapeno",
                 "infistar",
                 "shengsuanyun",
@@ -696,6 +750,10 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "opper",
                 "onomeo",
                 "empiriolabs",
+                "runcrate",
+                "cloudgpu",
+                "cheapaimodel",
+                "uberllm",
                 "ollama",
                 "claude_code",
                 "oneapi",
@@ -1412,7 +1470,7 @@ class TestLiteLLMProvider(unittest.TestCase):
 
     def _patch_dashscope_generation(self, response):
         class FakeGenerationResponse(dict):
-            pass
+            """dict de resposta que também aceita atributos como status_code."""
 
         fake_response = FakeGenerationResponse(response)
         fake_response.status_code = response.get("status_code", 200)
@@ -1927,7 +1985,7 @@ class TestLiteLLMProvider(unittest.TestCase):
         config.app["ollama_base_url"] = base_url
         config.app["ollama_model_name"] = "llama3"
 
-    def _assert_ollama_base_url(self, expected_base_url: str):
+    def _call_ollama_generate_response(self):
         class FakeCompletions:
             def create(self, **kwargs):
                 self.kwargs = kwargs
@@ -1946,9 +2004,22 @@ class TestLiteLLMProvider(unittest.TestCase):
         ):
             result = llm._generate_response("Say hello")
 
-        openai_client.assert_called_once_with(
-            api_key="ollama",
-            base_url=expected_base_url,
+        return openai_client, fake_completions, result
+
+    def test_ollama_default_base_url_uses_localhost_outside_container(self):
+        """
+        普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。
+        """
+        self._use_ollama_provider()
+
+        with patch.object(config, "is_running_in_container", return_value=False):
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://localhost:11434/v1"},
         )
         self.assertEqual(
             fake_completions.kwargs,
@@ -1958,15 +2029,6 @@ class TestLiteLLMProvider(unittest.TestCase):
             },
         )
         self.assertEqual(result, "hello\nollama")
-
-    def test_ollama_default_base_url_uses_localhost_outside_container(self):
-        """
-        普通本机运行时，Ollama 默认仍然使用 localhost，避免影响已有用户。
-        """
-        self._use_ollama_provider()
-
-        with patch.object(config, "is_running_in_container", return_value=False):
-            self._assert_ollama_base_url("http://localhost:11434/v1")
 
     def test_ollama_default_base_url_uses_host_gateway_inside_container(self):
         """
@@ -1979,7 +2041,22 @@ class TestLiteLLMProvider(unittest.TestCase):
             patch.object(config, "is_running_in_container", return_value=True),
             patch.object(config, "_can_resolve_hostname", return_value=True),
         ):
-            self._assert_ollama_base_url("http://host.docker.internal:11434/v1")
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://host.docker.internal:11434/v1"},
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_default_base_url_falls_back_to_container_gateway(self):
         """
@@ -1995,7 +2072,22 @@ class TestLiteLLMProvider(unittest.TestCase):
                 config, "get_container_default_gateway_ip", return_value="172.17.0.1"
             ),
         ):
-            self._assert_ollama_base_url("http://172.17.0.1:11434/v1")
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://172.17.0.1:11434/v1"},
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_ollama_explicit_base_url_takes_precedence(self):
         """
@@ -2004,7 +2096,22 @@ class TestLiteLLMProvider(unittest.TestCase):
         self._use_ollama_provider(base_url="http://ollama:11434/v1")
 
         with patch.object(config, "is_running_in_container", return_value=True):
-            self._assert_ollama_base_url("http://ollama:11434/v1")
+            openai_client, fake_completions, result = (
+                self._call_ollama_generate_response()
+            )
+
+        self.assertEqual(
+            openai_client.call_args.kwargs,
+            {"api_key": "ollama", "base_url": "http://ollama:11434/v1"},
+        )
+        self.assertEqual(
+            fake_completions.kwargs,
+            {
+                "model": "llama3",
+                "messages": [{"role": "user", "content": "Say hello"}],
+            },
+        )
+        self.assertEqual(result, "hello\nollama")
 
     def test_mimo_provider_uses_openai_compatible_client(self):
         """
