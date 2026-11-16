@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 
 import pytest
 
@@ -96,21 +97,18 @@ def test_resource_seeding_falls_back_without_hard_links(monkeypatch, tmp_path):
 
 
 def test_fallback_keeps_a_concurrent_winner(monkeypatch, tmp_path):
-    """占位独占创建遇到并发胜者时，必须保留胜者文件且不视为失败。"""
+    """发布时发现目标已存在（并发胜者或用户文件），必须保留且不视为失败。"""
     _, target_dir = _prepare_seeding_fixture(monkeypatch, tmp_path)
     winner = target_dir / "default.ttf"
     target_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(os, "link", _refuse_hard_links)
-    real_open = os.open
 
-    def winner_claims_the_name(path, flags, *args, **kwargs):
-        # 独占创建执行前，另一个进程发布了同名文件：真实 os.open 随即
-        # 返回 EEXIST，本次补齐应当放弃而不是覆盖它。
-        if os.fspath(path) == str(winner) and flags & os.O_EXCL:
-            winner.write_bytes(b"winner font")
-        return real_open(path, flags, *args, **kwargs)
+    def winner_publishes_during_copy(source, destination, *args, **kwargs):
+        # 复制期间另一进程发布了同名文件：link 随即失败，本次补齐应当
+        # 放弃而不是覆盖已经存在的完整文件。
+        winner.write_bytes(b"winner font")
+        raise PermissionError(errno.EPERM, "Operation not permitted")
 
-    monkeypatch.setattr(os, "open", winner_claims_the_name)
+    monkeypatch.setattr(os, "link", winner_publishes_during_copy)
 
     target = paths.resource_directory("fonts")
 
@@ -138,6 +136,120 @@ def test_fallback_cleans_up_when_the_swap_fails(monkeypatch, tmp_path):
     assert excinfo.value.errno == errno.EIO
     assert not target_file.exists()
     assert not list(target_dir.glob(".resource-*"))
+
+
+def test_concurrent_reader_never_sees_partial_publication(monkeypatch, tmp_path):
+    """发布窗口内的并发读者必须拿到完整字体：最终资源名上永不出现空占位。"""
+    source_file, target_dir = _prepare_seeding_fixture(monkeypatch, tmp_path)
+    target_file = target_dir / "default.ttf"
+    monkeypatch.setattr(os, "link", _refuse_hard_links)
+    real_replace = os.replace
+    writer_paused = threading.Event()
+    reader_seeded = threading.Event()
+    pause_state = threading.Lock()
+    pause_taken = False
+
+    def first_publish_pauses_before_replace(source, destination, *args, **kwargs):
+        # 第一个到达换入的写入者停在 os.replace 之前，模拟发布窗口；
+        # 其余换入（并发读者的补齐）直接放行。
+        nonlocal pause_taken
+        with pause_state:
+            pause = not pause_taken and os.fspath(destination) == str(target_file)
+            pause_taken = pause_taken or pause
+        if pause:
+            writer_paused.set()
+            reader_seeded.wait(timeout=10)
+        return real_replace(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(os, "replace", first_publish_pauses_before_replace)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        writer = pool.submit(paths.resource_directory, "fonts")
+        assert writer_paused.wait(timeout=10)
+        # 写入者已停在换入前：此刻最终资源名上不能出现任何文件，
+        # 读者随后的补齐必须自己拿到完整内容，而不是读到空占位。
+        assert not target_file.exists()
+        reader = pool.submit(paths.resource_directory, "fonts")
+        reader_dir = reader.result(timeout=10)
+        reader_seeded.set()
+        writer_dir = writer.result(timeout=10)
+
+    assert reader_dir == writer_dir == target_dir
+    assert (target_dir / "default.ttf").read_bytes() == source_file.read_bytes()
+    assert not list(target_dir.glob(".resource-*"))
+
+
+def test_interrupted_writer_is_repaired_on_next_initialization(monkeypatch, tmp_path):
+    """发布前被杀死的写入进程留下的残留，必须在下次初始化时清扫并补齐。"""
+    bundle = tmp_path / "bundle"
+    fonts = bundle / "resource/fonts"
+    fonts.mkdir(parents=True)
+    (fonts / "default.ttf").write_bytes(b"bundled font" * 5000)
+    home = tmp_path / "user"
+    target_dir = home / "resource/fonts"
+    target_file = target_dir / "default.ttf"
+    # 子进程以真实文件操作模拟发布窗口内被杀死的写入进程。
+    killed_writer = f"""
+import errno
+import os
+import sys
+sys.path.insert(0, {str(paths.SOURCE_ROOT)!r})
+from pathlib import Path
+from app import paths
+
+paths.is_source_checkout = lambda: False
+paths.BUNDLED_ROOT = Path({str(bundle)!r})
+
+
+def refuse_hard_links(source, destination, *args, **kwargs):
+    raise PermissionError(errno.EPERM, "Operation not permitted")
+
+
+def die_before_publication(source, destination, *args, **kwargs):
+    os._exit(9)
+
+
+os.link = refuse_hard_links
+os.replace = die_before_publication
+paths.resource_directory("fonts")
+"""
+    env = os.environ.copy()
+    env["MPT_HOME"] = str(home)
+    killed = subprocess.run(
+        [sys.executable, "-c", killed_writer], env=env,
+        text=True, capture_output=True, timeout=30,
+    )
+    assert killed.returncode == 9, killed.stderr
+    # 最终资源名从未被发布：残留只有可识别的隐藏占位文件，不是空的目标文件。
+    assert not target_file.exists()
+    assert list(target_dir.glob(".resource-*"))
+    # 再次初始化：清扫残留占位并重新补齐完整资源。
+    monkeypatch.setattr(paths, "is_source_checkout", lambda: False)
+    monkeypatch.setattr(paths, "BUNDLED_ROOT", bundle)
+    monkeypatch.setenv("MPT_HOME", str(home))
+    assert paths.resource_directory("fonts") == target_dir
+    assert (target_dir / "default.ttf").read_bytes() == (fonts / "default.ttf").read_bytes()
+    assert not list(target_dir.glob(".resource-*"))
+
+
+def test_sweep_spares_reservations_held_by_live_writers(monkeypatch, tmp_path):
+    """启动清扫只移除崩溃残留：存活写入者仍锁定的占位必须保留。"""
+    fcntl = pytest.importorskip("fcntl")
+    source_file, target_dir = _prepare_seeding_fixture(monkeypatch, tmp_path)
+    target_dir.mkdir(parents=True)
+    orphan = target_dir / ".resource-orphan"
+    orphan.write_bytes(b"crashed writer residue")
+    held = target_dir / ".resource-live"
+    held.write_bytes(b"live writer is copying")
+    lock_fd = os.open(held, os.O_RDONLY)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert paths.resource_directory("fonts") == target_dir
+    finally:
+        os.close(lock_fd)
+    assert not orphan.exists()
+    assert held.exists()
+    assert (target_dir / "default.ttf").read_bytes() == source_file.read_bytes()
 
 
 def test_cli_preserves_arguments_and_exit_status(monkeypatch):
