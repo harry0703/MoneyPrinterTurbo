@@ -120,6 +120,16 @@ _ACTIVE_LOCK_FILENAME = ".active.lock"
 # a stale lock behind; this cutoff lets a task recover from that instead
 # of staying falsely "active" forever.
 _ACTIVE_LOCK_STALE_SECONDS = 3600
+# A real pipeline run can legitimately take longer than
+# _ACTIVE_LOCK_STALE_SECONDS -- age alone can't distinguish "still
+# running, just slow" from "the process that held this died". start()
+# below refreshes the lock's mtime on this interval for the whole
+# duration of the run (a renewable lease, not a one-shot timestamp), so
+# a genuinely alive task's lock never actually reaches the staleness
+# cutoff above. Comfortably inside that cutoff so a single missed tick
+# (GC pause, a loaded host) still leaves real margin before the lock
+# would be treated as stale.
+_ACTIVE_LOCK_HEARTBEAT_SECONDS = 300
 
 
 def _active_lock_path(task_id: str) -> str:
@@ -142,6 +152,14 @@ def _clear_task_active(task_id: str) -> None:
         pass
     except OSError as e:
         logger.warning(f"failed to remove active-task lock for {task_id}: {e}")
+
+
+def _active_lock_heartbeat_loop(task_id: str, stop_event: threading.Event) -> None:
+    # Event.wait() returns True the moment stop_event is set, instead of
+    # always sleeping the full interval -- so clearing the lock on a fast
+    # pipeline run isn't delayed by up to _ACTIVE_LOCK_HEARTBEAT_SECONDS.
+    while not stop_event.wait(_ACTIVE_LOCK_HEARTBEAT_SECONDS):
+        _mark_task_active(task_id)
 
 
 def is_task_actively_running(task_id: str) -> bool:
@@ -1970,6 +1988,19 @@ def start(
     默认值，让自定义音频始终受当前任务目录约束。
     """
     _mark_task_active(task_id)
+    # Renews the lock on _ACTIVE_LOCK_HEARTBEAT_SECONDS for as long as this
+    # run lasts, so is_task_actively_running() never treats a genuinely
+    # alive task as stale just because it's taking longer than
+    # _ACTIVE_LOCK_STALE_SECONDS -- see both constants' comments above.
+    # daemon=True: if the process itself is killed, this thread must never
+    # be what keeps it alive.
+    heartbeat_stop = threading.Event()
+    heartbeat_thread = threading.Thread(
+        target=_active_lock_heartbeat_loop,
+        args=(task_id, heartbeat_stop),
+        daemon=True,
+    )
+    heartbeat_thread.start()
     try:
         return _run_pipeline(
             task_id,
@@ -1992,6 +2023,8 @@ def start(
             f"{type(exc).__name__}: {exc}",
         )
     finally:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=5)
         _clear_task_active(task_id)
 
 

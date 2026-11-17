@@ -160,7 +160,14 @@ def test_webui_delete_keeps_task_state_when_file_removal_fails(tmp_path):
     namespace = {
         "_active_generation_tasks": lambda: {},
         "sm": SimpleNamespace(state=state),
-        "tm": SimpleNamespace(is_task_busy=lambda _task: False),
+        "tm": SimpleNamespace(
+            is_task_busy=lambda _task: False,
+            # _delete_task() now also consults a disk-based cross-process
+            # lock (see test_task_active_lock.py) alongside the in-process
+            # checks above -- this test is about a failed file removal, not
+            # about an active-elsewhere task, so it stays not-running.
+            is_task_actively_running=lambda _task_id: False,
+        ),
         "utils": SimpleNamespace(task_dir=lambda: str(tmp_path / "tasks")),
         "shutil": SimpleNamespace(rmtree=remove_directory),
         "logger": MagicMock(),

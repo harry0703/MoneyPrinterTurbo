@@ -31,7 +31,14 @@ def headless_task_app(tmp_path, monkeypatch):
     video_file = task_dir / "final-1.mp4"
     video_file.write_bytes(b"test video payload")
 
-    monkeypatch.setattr(utils, "task_dir", lambda: str(tasks_dir))
+    # utils.task_dir(sub_dir="") takes an optional task_id/sub_dir -- the
+    # real signature callers (including _active_lock_path()) rely on to
+    # get a specific task's own directory, not just the tasks root. A
+    # zero-arg stub broke with a TypeError the moment that real call site
+    # started passing task_id through.
+    monkeypatch.setattr(
+        utils, "task_dir", lambda sub_dir="": str(tasks_dir / sub_dir) if sub_dir else str(tasks_dir)
+    )
     monkeypatch.setattr(sm.state, "get_all_tasks", lambda *_args, **_kwargs: ([], 0))
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.delenv("DISPLAY", raising=False)
