@@ -12,7 +12,9 @@ import redis
 
 from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.manager.redis_manager import RedisTaskManager
+from app.models import const
 from app.models.schema import VideoParams
+from app.services import state as sm
 from app.services import task as tm
 
 
@@ -37,7 +39,152 @@ class TestRedisQueueAdmission(unittest.TestCase):
             self.managers[0].redis_client.delete,
             queue,
             f"{queue}:running",
+            f"{queue}:running:tasks",
         )
+        # The task records live in the configured state backend. Give every
+        # test its own so a record cannot leak into another test.
+        state_patcher = patch.object(sm, "state", sm.MemoryState())
+        self.state = state_patcher.start()
+        self.addCleanup(state_patcher.stop)
+
+    def _admit_task_whose_worker_dies(self, manager, task_id, progress=30):
+        """Reserve a running slot the way add_task() does, without a worker."""
+        self.state.update_task(task_id, progress=progress)
+        with patch.object(manager, "execute_task"):
+            manager.add_task(
+                tm.start,
+                task_id=task_id,
+                params=VideoParams(video_subject="Coffee"),
+            )
+        owners = manager.redis_client.hgetall(manager.running_tasks_key)
+        tokens = [
+            token.decode("utf-8")
+            for token, owner in owners.items()
+            if owner.decode("utf-8") == task_id
+        ]
+        self.assertEqual(len(tokens), 1)
+        return tokens[0]
+
+    def test_expired_slot_fails_the_task_its_worker_left_processing(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        token = self._admit_task_whose_worker_dies(manager, "crashed")
+
+        # The lease is still valid: the worker may simply be busy.
+        self.assertEqual(manager.fail_tasks_of_expired_slots(), 0)
+        self.assertEqual(
+            self.state.get_task("crashed")["state"], const.TASK_STATE_PROCESSING
+        )
+
+        # No heartbeat renews the lease of a killed process.
+        manager.redis_client.zadd(manager.running_slots_key, {token: 0})
+        self.assertEqual(self.managers[1].fail_tasks_of_expired_slots(), 1)
+
+        task = self.state.get_task("crashed")
+        self.assertEqual(task["state"], const.TASK_STATE_FAILED)
+        self.assertEqual(task["failed_stage"], "worker")
+        self.assertIn("worker process stopped", task["error"])
+        self.assertEqual(task["progress"], 30)
+        self.assertFalse(tm.is_task_busy(task))
+        self.assertEqual(manager.redis_client.hlen(manager.running_tasks_key), 0)
+        self.assertEqual(manager.fail_tasks_of_expired_slots(), 0)
+
+    def test_task_is_failed_after_a_new_request_reclaimed_its_slot(self):
+        manager = self.managers[0]
+        for item in self.managers:
+            item.max_concurrent_tasks = 1
+        token = self._admit_task_whose_worker_dies(manager, "crashed")
+        manager.redis_client.zadd(manager.running_slots_key, {token: 0})
+
+        # Admission prunes the expired lease and gives the slot to the new
+        # task, so the crashed slot no longer has a deadline to compare.
+        replacement = self._admit_task_whose_worker_dies(
+            self.managers[1], "replacement", progress=0
+        )
+        self.assertIsNone(
+            manager.redis_client.zscore(manager.running_slots_key, token)
+        )
+
+        self.assertEqual(manager.fail_tasks_of_expired_slots(), 1)
+        self.assertEqual(
+            self.state.get_task("crashed")["state"], const.TASK_STATE_FAILED
+        )
+        self.assertEqual(
+            self.state.get_task("replacement")["state"],
+            const.TASK_STATE_PROCESSING,
+        )
+        self.assertEqual(
+            manager.redis_client.hkeys(manager.running_tasks_key),
+            [replacement.encode("utf-8")],
+        )
+
+    def test_expired_slot_keeps_the_result_of_a_finished_task(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        token = self._admit_task_whose_worker_dies(manager, "finished")
+        # The worker finished, then lost Redis before releasing its slot.
+        self.state.update_task(
+            "finished",
+            state=const.TASK_STATE_COMPLETE,
+            progress=100,
+            videos=["final-1.mp4"],
+        )
+        manager.redis_client.zadd(manager.running_slots_key, {token: 0})
+
+        self.assertEqual(manager.fail_tasks_of_expired_slots(), 0)
+
+        task = self.state.get_task("finished")
+        self.assertEqual(task["state"], const.TASK_STATE_COMPLETE)
+        self.assertEqual(task["videos"], ["final-1.mp4"])
+        self.assertNotIn("error", task)
+        self.assertEqual(manager.redis_client.hlen(manager.running_tasks_key), 0)
+
+    def test_finished_worker_leaves_no_running_task_behind(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        self.state.update_task("done")
+
+        def finish(task_id):
+            self.state.update_task(
+                task_id, state=const.TASK_STATE_COMPLETE, progress=100
+            )
+
+        manager.add_task(finish, task_id="done")
+        deadline = time.monotonic() + 5
+        while manager.current_tasks and time.monotonic() < deadline:
+            time.sleep(0.01)
+
+        self.assertEqual(manager.current_tasks, 0)
+        self.assertEqual(manager.redis_client.hlen(manager.running_tasks_key), 0)
+        self.assertEqual(manager.redis_client.zcard(manager.running_slots_key), 0)
+        self.assertEqual(manager.fail_tasks_of_expired_slots(), 0)
+        self.assertEqual(
+            self.state.get_task("done")["state"], const.TASK_STATE_COMPLETE
+        )
+
+    def test_restart_dispatcher_fails_the_task_of_a_crashed_worker(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        token = self._admit_task_whose_worker_dies(manager, "crashed")
+        manager.redis_client.zadd(manager.running_slots_key, {token: 0})
+
+        # A replacement process only runs its lifespan startup.
+        restarted = self.managers[1]
+        restarted.max_concurrent_tasks = 1
+        restarted.resume_queued_tasks()
+        restarted.start_queue_dispatcher()
+        self.addCleanup(restarted.stop_queue_dispatcher)
+
+        deadline = time.monotonic() + 2
+        while (
+            self.state.get_task("crashed")["state"] == const.TASK_STATE_PROCESSING
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.01)
+
+        task = self.state.get_task("crashed")
+        self.assertEqual(task["state"], const.TASK_STATE_FAILED)
+        self.assertEqual(task["failed_stage"], "worker")
 
     def test_running_limit_is_shared_across_manager_instances(self):
         for manager in self.managers:
