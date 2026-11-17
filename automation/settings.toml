@@ -1,0 +1,99 @@
+# Settings for the automated video agent (agent.py).
+# After changing [schedule], run:  .venv/bin/python agent.py install-schedule
+
+[content]
+# Target narration length; the agent asks for a shorter rewrite if a script runs over.
+max_script_words = 85
+niche = "growing-up health education for teens (12-17): how the body changes during puberty, hormones, hygiene, sleep, emotions, friendships, body image, and consent/boundaries basics, like a friendly school health class"
+audience = "teens 12-17 and their parents"
+language = "en-US"
+# Topic selection guidance (used by the agent when asking Claude for a topic).
+topic_good = """"Why your voice cracks during puberty", "Teens really do need more sleep than adults", \
+"Acne is not caused by being dirty", "Why growth spurts make your knees ache", \
+"Why sweat starts to smell around age 12", "Periods can be irregular for the first two years", \
+"Why you feel everything more intensely at 14", "Consent is not just about sex: asking before a hug", \
+"Why one foot grows before the other", "Mood swings have a hormone timetable\""""
+topic_bad = "anything about sexual activity, techniques, pornography, attraction tips, or body comparison; anything a school nurse would not say to a 12-year-old"
+topic_rules = """The topic must be something a school nurse or health teacher would cover with 12-year-olds: \
+medically accurate, reassuring, normalising, never explicit, never sexualising, inclusive of all bodies. \
+Prefer facts teens secretly worry about and that nobody explains."""
+# Criteria for the independent safety review that runs before every post.
+safety_criteria = """Reject if ANY apply: describes or encourages sexual activity; erotic or explicit \
+language; sexualises minors in any way; instructions about sex; shaming or body comparison; medical \
+claims that are inaccurate or not mainstream; dangerous advice; content TikTok would classify as \
+adult/sexual rather than health education. Accept only if a careful school nurse would be comfortable \
+saying all of it to a class of 12-year-olds, exactly as written."""
+caption_rules = """Everything must be suitable for a 12-year-old and for platform rules: no innuendo, \
+nothing sexual, no shaming, no medical advice beyond "talk to a doctor or trusted adult"."""
+# Rules for stock-footage search terms.
+stock_rules = """Any people shown must be fully clothed in everyday situations (studying, sport, sleeping, \
+eating, friends talking, walking to school, family at home). Never: swimwear, underwear, bathroom or \
+bedroom-intimacy scenes, medical close-ups of bodies, anything that could read as sexual."""
+# Visual rules for AI scene prompts (abstract and symbolic, never realistic bodies).
+visual_rules = """Visuals are symbolic and friendly: a recurring mascot (a soft rounded teal blob character with big eyes, \
+no human anatomy), icons, metaphors (a thermostat for hormones, a construction site for growth, a clock for sleep), \
+glowing diagrams, everyday objects. STRICT: no realistic human bodies, no nudity, no underwear, no private anatomy, \
+no realistic children or teenagers, no medical gore. Any people must be fully clothed stylized cartoon figures \
+shown from a distance."""
+# Extra instructions for the script writer (passed to MoneyPrinterTurbo).
+script_requirements = """Write the narration for a 30-second vertical short video on a teen \
+health-education channel (viewers are 12-17 and their parents). Tone: warm, matter-of-fact, \
+reassuring, like a friendly school nurse talking to one student; never embarrassing, never jokey \
+about bodies, never preachy. Structure: (1) HOOK - the first sentence states the surprising or \
+reassuring fact bluntly in under 12 words, e.g. "Your voice cracks because your throat is \
+rebuilding itself." No "did you know", no questions. (2) One or two concrete, accurate details \
+with an everyday comparison or a real number. (3) A short "here is the part nobody tells you" line. \
+(4) A one-line reassuring takeaway that normalises it, and when relevant says to talk to a \
+trusted adult or doctor. STRICT RULES: medically accurate and mainstream (what the NHS, CDC or \
+paediatric associations say); correct anatomical words are fine when needed, otherwise plain \
+words; NO sexual activity, NO explicit or erotic description, NO instructions about sex, NO \
+shaming, inclusive of all bodies and families. Short sentences, 65-80 words total (about 30 \
+seconds spoken), no emojis, hashtags, stage directions or quotation marks."""
+
+[video]
+# "pexels" / "pixabay" = real stock footage (needs the API key in config.toml);
+# "openai_image" = AI image per scene from the local image server.
+source = "pixabay"
+scene_count = 8          # search terms / scenes per video (~4 s each)
+clip_duration = 4        # max seconds per clip before cutting to the next
+image_style = "3d"       # "3d" (Pixar-like renders) or "photo" (photoreal)
+# Big headline text shown over the first seconds of the video (ffmpeg drawtext).
+headline_enabled = true
+headline_seconds = 2.8
+voice = "en-US-AriaNeural-Female"
+subtitle_display_mode = "phrase"         # "sentence", "word_by_word" or "phrase"
+phrase_words = 7                         # max words per subtitle chunk (breaks early at punctuation)
+subtitle_animation = "none"              # "none" or "pop_spring"
+subtitle_position = "center"             # top, center, bottom, two_thirds_bottom, custom
+subtitle_custom_position = 68            # % from top when position = "custom"
+font_name = "BeVietnamPro-Bold.ttf"      # file in resource/fonts
+font_size = 42
+text_color = "#FFFFFF"
+stroke_color = "#000000"
+stroke_width = 2.5
+# The agent asks Claude for stock-friendly search terms; keep this false.
+match_materials_to_script = false
+
+[schedule]
+# Local times (24h) at which the agent makes and posts one video each.
+times = ["10:00", "14:00"]
+# Safety cap: never post more than this many videos per calendar day.
+max_videos_per_day = 2
+
+[youtube]
+# Set to true after running:  .venv/bin/python agent.py youtube-auth
+enabled = false
+privacy = "public"        # "public", "unlisted" or "private"
+category_id = "28"        # 28 = Science & Technology, 27 = Education
+made_for_kids = false
+
+[tiktok]
+enabled = true
+# TikTok blocks most headless browsers; keep false (a Chrome window opens briefly).
+headless = false
+
+[housekeeping]
+# Delete generated task folders and cached stock clips older than this many days.
+keep_days = 7
+# How many times to retry a failed upload on later runs before giving up.
+max_upload_attempts = 3

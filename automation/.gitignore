@@ -1,0 +1,6 @@
+.venv/
+secrets/
+state/
+logs/
+__pycache__/
+.venv-images/

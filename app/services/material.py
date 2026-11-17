@@ -1,4 +1,5 @@
 import base64
+import re
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 import io
@@ -513,6 +514,31 @@ def _pixabay_rendition_area(rendition: tuple[str, Any]) -> float:
         return math.inf
 
 
+# Clips tagged like this are keying/overlay assets, not usable background footage.
+_PIXABAY_SKIP_TAGS = (
+    "green screen", "greenscreen", "chroma", "black background", "alpha channel",
+    "transparent", "overlay", "icon", "animation", "animated", "motion graphic",
+    # not suitable for general-audience / family content
+    "bikini", "lingerie", "underwear", "swimsuit", "sexy", "erotic", "nude",
+)
+
+
+_PIXABAY_STOPWORDS = {"the", "a", "an", "of", "and", "in", "on", "at", "with", "closeup", "close", "up"}
+
+
+def _pixabay_tags_match(search_term: str, tags: str) -> bool:
+    """Pixabay matches any single query word loosely; require the tags to carry
+    (nearly) all of the meaningful words so "friends laughing" cannot return a
+    mushroom clip tagged only "laughing" or nothing at all."""
+    words = [w for w in re.findall(r"[a-z]+", search_term.lower()) if w not in _PIXABAY_STOPWORDS]
+    if not words:
+        return True
+    tag_text = tags.lower()
+    matched = sum(1 for w in words if w.rstrip("s") in tag_text)
+    needed = len(words) if len(words) <= 2 else len(words) - 1
+    return matched >= needed
+
+
 def search_videos_pixabay(
     search_term: str,
     minimum_duration: int,
@@ -526,7 +552,10 @@ def search_videos_pixabay(
     # Build URL
     params = {
         "q": search_term,
-        "video_type": "all",  # Accepted values: "all", "film", "animation"
+        # "film" only: "animation" results are mostly green-screen icons and
+        # black-background motion graphics that look broken in a stock montage.
+        "video_type": "film",  # Accepted values: "all", "film", "animation"
+        "safesearch": "true",
         "per_page": 50,
         "key": api_key,
     }
@@ -598,6 +627,11 @@ def search_videos_pixabay(
                 or duration < minimum_duration
             ):
                 continue
+            tags = str(v.get("tags", "")).lower()
+            if any(bad in tags for bad in _PIXABAY_SKIP_TAGS):
+                continue
+            if not _pixabay_tags_match(search_term, tags):
+                continue
             video_files = v.get("videos")
             if not isinstance(video_files, dict):
                 continue
@@ -620,9 +654,13 @@ def search_videos_pixabay(
                     continue
                 # Pixabay 很少返回原生方形视频；1:1 输出继续接受满足分辨率的
                 # 候选并由合成阶段裁剪。横竖屏则必须严格匹配目标方向。
+                # Pixabay has few native vertical clips, but many 4K landscape
+                # ones. Any clip whose dimensions cover the target canvas can be
+                # centre-cropped by the "cover" fit mode without upscaling, so
+                # orientation only matters when the file is too small to crop.
                 orientation_matches = aspect == VideoAspect.square or (
                     _matches_video_aspect(w, h, aspect)
-                )
+                ) or (w >= video_width and h >= video_height)
                 if orientation_matches and w >= video_width and h >= video_height:
                     item = MaterialInfo()
                     item.provider = "pixabay"

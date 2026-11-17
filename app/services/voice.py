@@ -3685,28 +3685,72 @@ def _build_subtitle_items_from_legacy_submaker(
     return sub_items
 
 
-def _build_subtitle_items_from_edge_cues_words(sub_maker: SubMaker) -> list[str]:
+def _script_punctuation_flags(text: str) -> list[tuple[str, bool]]:
+    """(normalised word, ends-a-clause) for each word of the narration script."""
+    flags = []
+    for token in (text or "").split():
+        word = re.sub(r"[^\w']+", "", token).lower()
+        if word:
+            flags.append((word, token[-1] in ".!?;:,"))
+    return flags
+
+
+def _build_subtitle_items_from_edge_cues_words(
+    sub_maker: SubMaker, text: str = ""
+) -> list[str]:
     """
     Directly format edge_tts cues into single-word / cue-level SRT items.
     """
     formatter = _build_subtitle_formatter()
     sub_items = []
     sub_index = 0
+    # MPT_SUBTITLE_PHRASE_WORDS=N groups word cues into short N-word phrases
+    # (breaking early at sentence punctuation), the short-caption style used
+    # by many short-video channels. Unset or 1 keeps one word per cue.
+    try:
+        phrase_words = max(1, int(os.environ.get("MPT_SUBTITLE_PHRASE_WORDS", "1")))
+    except ValueError:
+        phrase_words = 1
+    # Edge word cues carry no punctuation, so clause ends are looked up by
+    # aligning each cue with the script text.
+    script_words = _script_punctuation_flags(text) if phrase_words > 1 else []
+    script_pos = 0
+
+    def ends_clause(word: str) -> bool:
+        nonlocal script_pos
+        key = re.sub(r"[^\w']+", "", word).lower()
+        for offset in range(0, 4):  # tolerate small mismatches between script and cues
+            idx = script_pos + offset
+            if idx < len(script_words) and script_words[idx][0] == key:
+                script_pos = idx + 1
+                return script_words[idx][1]
+        return word[-1] in ".!?;:," if word else False
+
+    group: list = []
+
+    def flush():
+        nonlocal sub_index
+        if not group:
+            return
+        sub_index += 1
+        sub_items.append(
+            formatter(
+                idx=sub_index,
+                start_time=int(group[0].start.total_seconds() * 10000000),
+                end_time=int(group[-1].end.total_seconds() * 10000000),
+                sub_text=" ".join(unescape(c.content).strip() for c in group),
+            )
+        )
+        group.clear()
+
     for cue in sub_maker.cues:
         cue_text = unescape(cue.content).strip()
         if not cue_text:
             continue
-        sub_index += 1
-        start_time = int(cue.start.total_seconds() * 10000000)
-        end_time = int(cue.end.total_seconds() * 10000000)
-        sub_items.append(
-            formatter(
-                idx=sub_index,
-                start_time=start_time,
-                end_time=end_time,
-                sub_text=cue_text,
-            )
-        )
+        group.append(cue)
+        if len(group) >= phrase_words or ends_clause(cue_text):
+            flush()
+    flush()
     return sub_items
 
 
@@ -3793,7 +3837,7 @@ def create_subtitle(
     try:
         if word_level:
             if hasattr(sub_maker, "cues") and sub_maker.cues:
-                sub_items = _build_subtitle_items_from_edge_cues_words(sub_maker)
+                sub_items = _build_subtitle_items_from_edge_cues_words(sub_maker, text)
             else:
                 sub_items = _build_subtitle_items_from_legacy_submaker_words(sub_maker)
             if sub_items:
