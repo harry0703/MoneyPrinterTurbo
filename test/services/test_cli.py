@@ -516,6 +516,114 @@ class TestCli(unittest.TestCase):
             self.assertEqual(accepted, 0)
             start.assert_called_once()
 
+    def test_useapi_video_source_requires_explicit_charge_confirmation(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(
+                ["--video-subject", "test", "--video-source", "useapi"]
+            )
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "useapi",
+                "--confirm-useapi-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "useapi")
+
+    def test_useapi_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "useapi",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "useapi")
+
+    def test_useapi_image_source_needs_no_charge_confirmation(self):
+        # Nano Banana images on Google Flow spend no plan credits.
+        with patch.dict(app_config.app, {"useapi_image_model": "nano-banana-pro"}):
+            args = cli.parse_args(
+                ["--video-subject", "test", "--video-source", "useapi_image"]
+            )
+        params = cli.build_video_params(args)
+        self.assertEqual(params.video_source, "useapi_image")
+
+    def test_useapi_kling_image_model_requires_charge_confirmation(self):
+        # Kling images spend the user's Kling credits.
+        with patch.dict(app_config.app, {"useapi_image_model": "kling-kolors-v3-0"}):
+            with self.assertRaises(SystemExit) as raised, redirect_stderr(io.StringIO()):
+                cli.parse_args(
+                    ["--video-subject", "test", "--video-source", "useapi_image"]
+                )
+            self.assertEqual(raised.exception.code, 2)
+            args = cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--video-source",
+                    "useapi_image",
+                    "--confirm-useapi-charge",
+                ]
+            )
+            self.assertEqual(args.video_source, "useapi_image")
+            with self.assertRaises(ValueError):
+                cli._validate_batch_task_params(
+                    cli.build_video_params(args),
+                    stop_at="materials",
+                    custom_position_is_explicit=False,
+                    wavespeed_charge_confirmed=False,
+                    seedance_charge_confirmed=False,
+                    ofox_charge_confirmed=False,
+                    metaso_minimax_charge_confirmed=False,
+                    muapi_charge_confirmed=False,
+                    useapi_charge_confirmed=False,
+                )
+
+    def test_batch_useapi_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [{"video_subject": "useapi batch task", "video_source": "useapi"}]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-useapi"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-useapi-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
     def test_batch_seedance_source_uses_global_charge_confirmation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             manifest = Path(temp_dir) / "tasks.json"

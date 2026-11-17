@@ -27,8 +27,10 @@ FIELDS = {
     "jalapeno": ("ai_video", "jalapeno_video_api_key_input"),
     "wavespeed": ("ai_video", "wavespeed_api_keys_input"),
     "muapi": ("ai_video", "muapi_api_key_input"),
+    "useapi": ("ai_video", "useapi_api_token_input"),
     "openai_image": ("ai_image", "openai_image_base_url_input"),
     "codex_image": ("ai_image", "codex_image_timeout_input"),
+    "useapi_image": ("ai_image", "useapi_image_api_token_input"),
 }
 
 
@@ -142,8 +144,10 @@ PROVIDER_LABELS = {
     "jalapeno": "Jalapeno Cloud AI Video",
     "wavespeed": "WaveSpeed AI Video",
     "muapi": "MuAPI AI Video",
+    "useapi": "useapi.net AI Video",
     "openai_image": "OpenAI Compatible Text-to-Image",
     "codex_image": "codex.image.label",
+    "useapi_image": "useapi.net Nano Banana Images",
 }
 
 

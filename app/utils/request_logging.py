@@ -29,6 +29,12 @@ _TOKEN = re.compile(
     r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
 )
 _URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+# Some providers put the account email inside ids (useapi.net job and media
+# ids, for example), in URL paths and in request bodies; traces must not reveal it.
+_EMAIL = re.compile(
+    r"[A-Za-z0-9._%+*-]+(?:@|%40)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}",
+    re.IGNORECASE,
+)
 _MEDIA_KEYS = frozenset(
     {
         "audio",
@@ -54,8 +60,9 @@ def _safe_url(value: str) -> str:
         parts = urlsplit(value)
         netloc = parts.netloc.rsplit("@", 1)[-1]
         query = urlencode([(k, _REDACTED) for k, _ in parse_qsl(parts.query)])
+        path = _EMAIL.sub(_REDACTED, parts.path)
         return _TOKEN.sub(
-            _REDACTED, urlunsplit((parts.scheme, netloc, parts.path, query, ""))
+            _REDACTED, urlunsplit((parts.scheme, netloc, path, query, ""))
         )[:_MAX_STRING]
     except ValueError:
         return "[invalid URL]"
@@ -67,6 +74,7 @@ def _safe_string(value: str) -> str:
     if len(value) >= 256 and re.fullmatch(r"[A-Za-z0-9+/=\r\n]+", value):
         return "[base64 omitted]"
     value = _TOKEN.sub(_REDACTED, value)
+    value = _EMAIL.sub(_REDACTED, value)
     value = _URL.sub(lambda match: _safe_url(match.group()), value)
     return value[:_MAX_STRING] + ("… [truncated]" if len(value) > _MAX_STRING else "")
 
