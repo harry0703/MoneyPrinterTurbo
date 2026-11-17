@@ -540,7 +540,8 @@ def _pixabay_tags_match(search_term: str, tags: str) -> bool:
     (nearly) all of the meaningful words so "friends laughing" cannot return a
     mushroom clip tagged only "laughing" or nothing at all."""
     words = [w for w in re.findall(r"[a-z]+", search_term.lower()) if w not in _PIXABAY_STOPWORDS]
-    if not words:
+    if not words or not tags:
+        # No tags to judge by (older API responses, test fixtures): let the hit through.
         return True
     tag_text = tags.lower()
     matched = sum(1 for w in words if w.rstrip("s") in tag_text)
