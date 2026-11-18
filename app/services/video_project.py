@@ -119,6 +119,9 @@ class RenderSettings:
     fps: int = 30
     narration_volume: float = 1.0
     bgm_volume: float = 0.15
+    subtitles: bool = False
+    subtitle_font: str = "Arial"
+    subtitle_font_size: int = 56
 
     @classmethod
     def parse(cls, value: dict) -> RenderSettings:
@@ -142,6 +145,22 @@ class RenderSettings:
                 or not math.isfinite(number)
             ):
                 raise ProjectError(f"{name} must be finite and between 0 and 4")
+        if type(result.subtitles) is not bool:
+            raise ProjectError("subtitles must be true or false")
+        if (
+            not isinstance(result.subtitle_font, str)
+            or not result.subtitle_font.strip()
+            or len(result.subtitle_font) > 100
+            or "," in result.subtitle_font
+        ):
+            raise ProjectError(
+                "subtitle_font must be a font family name under 100 characters"
+            )
+        if (
+            type(result.subtitle_font_size) is not int
+            or not 8 <= result.subtitle_font_size <= 200
+        ):
+            raise ProjectError("subtitle_font_size must be an integer from 8 to 200")
         return result
 
 
@@ -152,6 +171,62 @@ class Stage:
     fingerprint: str
     dependencies: tuple[str, ...]
     scene_id: str | None = None
+
+
+def _ass_timestamp(seconds: float) -> str:
+    centiseconds = max(0, round(seconds * 100))
+    hours, rest = divmod(centiseconds, 360000)
+    minutes, rest = divmod(rest, 6000)
+    seconds, fraction = divmod(rest, 100)
+    return f"{hours}:{minutes:02d}:{seconds:02d}.{fraction:02d}"
+
+
+def _ass_text(value: str) -> str:
+    """Keep narration inside one ASS event and out of override blocks.
+
+    Braces open ASS styling blocks, so they become plain parentheses instead of
+    letting storyboard text change rendering. Newlines would split an event and
+    are collapsed to spaces like the rest of the whitespace.
+    """
+    return " ".join(value.split()).replace("{", "(").replace("}", ")")
+
+
+def subtitle_document(events: list[tuple[str, float]], settings: RenderSettings) -> str:
+    """One full-screen ASS document: a single subtitle line per scene."""
+    margin = max(8, settings.height // 18)
+    lines = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        f"PlayResX: {settings.width}",
+        f"PlayResY: {settings.height}",
+        "WrapStyle: 0",
+        "ScaledBorderAndShadow: yes",
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, "
+        "ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
+        "MarginL, MarginR, MarginV, Encoding",
+        f"Style: Default,{settings.subtitle_font},{settings.subtitle_font_size},"
+        f"&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,3,0,2,"
+        f"80,80,{margin},1",
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
+        "Effect, Text",
+    ]
+    start = 0.0
+    for text, duration in events:
+        if not text.strip():
+            start += duration
+            continue
+        end = start + max(0.1, duration)
+        lines.append(
+            f"Dialogue: 0,{_ass_timestamp(start)},{_ass_timestamp(end)},"
+            f"Default,,0,0,0,,{_ass_text(text)}"
+        )
+        start = end
+    return "\n".join(lines) + "\n"
 
 
 def _tool_version(executable: str) -> str:
@@ -227,7 +302,16 @@ def stage_graph(spec: dict) -> list[Stage]:
         scene_fingerprints.append(render)
     assembly = _fingerprint([transform, "assembly", scene_fingerprints])
     final = _fingerprint(
-        [transform, "export", assembly, spec.get("bgm"), settings.bgm_volume]
+        [
+            transform,
+            "export",
+            assembly,
+            spec.get("bgm"),
+            settings.bgm_volume,
+            settings.subtitles,
+            settings.subtitle_font,
+            settings.subtitle_font_size,
+        ]
     )
     stages.extend(
         [
@@ -493,7 +577,13 @@ class VideoProject:
                 self._revision_path(revision) / "cancel.json", {"cancelled": True}
             )
 
-    def _run(self, arguments: list[str], cancel: Path, timeout: float) -> str:
+    def _run(
+        self,
+        arguments: list[str],
+        cancel: Path,
+        timeout: float,
+        cwd: str | None = None,
+    ) -> str:
         if cancel.exists():
             raise RenderCancelled("revision cancelled")
         # Prepared media may contain playlist references. Never let an input
@@ -505,7 +595,11 @@ class VideoProject:
             secured_arguments.append(argument)
         with tempfile.TemporaryFile() as errors:
             process = subprocess.Popen(
-                secured_arguments, stdout=subprocess.PIPE, stderr=errors, text=True
+                secured_arguments,
+                stdout=subprocess.PIPE,
+                stderr=errors,
+                text=True,
+                cwd=cwd,
             )
             deadline = time.monotonic() + timeout
             try:
@@ -796,38 +890,64 @@ class VideoProject:
                     cancel,
                     timeout,
                 )
-            elif spec["bgm"] and settings.bgm_volume:
-                mix = f"[1:a]volume={settings.bgm_volume}[music];[0:a][music]amix=inputs=2:duration=first:normalize=0[a]"
-                self._run(
-                    base
-                    + [
-                        "-i",
-                        results["assembly"]["path"],
-                        "-stream_loop",
-                        "-1",
-                        "-format_whitelist",
-                        PREPARED_FORMATS,
-                        "-i",
-                        str(self._asset_path(spec["bgm"])),
-                        "-filter_complex",
-                        mix,
-                        "-map",
-                        "0:v:0",
-                        "-map",
-                        "[a]",
-                        "-c:v",
-                        "copy",
-                        "-c:a",
-                        "aac",
-                        "-movflags",
-                        "+faststart",
-                        str(output),
-                    ],
-                    cancel,
-                    timeout,
-                )
             else:
-                shutil.copyfile(results["assembly"]["path"], output)
+                events = [
+                    (
+                        scene_spec.get("narration", ""),
+                        self._read(
+                            Path(results[f"{scene_spec['id']}:timing"]["path"])
+                        )["duration"],
+                    )
+                    for scene_spec in spec["scenes"]
+                ]
+                burn = settings.subtitles and any(text.strip() for text, _ in events)
+                mix_bgm = bool(spec["bgm"] and settings.bgm_volume)
+                if not burn and not mix_bgm:
+                    shutil.copyfile(results["assembly"]["path"], output)
+                else:
+                    if burn:
+                        # Written beside the temporary output and referenced by a
+                        # relative name, so no drive colon, quote or separator from
+                        # the filesystem reaches the filter graph.
+                        (temporary / "subtitles.ass").write_text(
+                            subtitle_document(events, settings), encoding="utf-8"
+                        )
+                    arguments = base + ["-i", results["assembly"]["path"]]
+                    if mix_bgm:
+                        arguments += [
+                            "-stream_loop",
+                            "-1",
+                            "-format_whitelist",
+                            PREPARED_FORMATS,
+                            "-i",
+                            str(self._asset_path(spec["bgm"])),
+                        ]
+                    filters = []
+                    if burn:
+                        filters.append("[0:v]ass=subtitles.ass[v]")
+                        arguments += [
+                            "-map",
+                            "[v]",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "veryfast",
+                            "-pix_fmt",
+                            "yuv420p",
+                        ]
+                    else:
+                        arguments += ["-map", "0:v:0", "-c:v", "copy"]
+                    if mix_bgm:
+                        filters.append(
+                            f"[1:a]volume={settings.bgm_volume}[music];"
+                            "[0:a][music]amix=inputs=2:duration=first:normalize=0[a]"
+                        )
+                        arguments += ["-map", "[a]", "-c:a", "aac"]
+                    else:
+                        arguments += ["-map", "0:a:0", "-c:a", "copy"]
+                    arguments += ["-filter_complex", ";".join(filters)]
+                    arguments += ["-movflags", "+faststart", str(output)]
+                    self._run(arguments, cancel, timeout, cwd=str(temporary))
             if cancel.exists():
                 raise RenderCancelled("revision cancelled")
             with output.open("r+b") as completed:
