@@ -666,6 +666,13 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(uberllm.requires_api_key)
         self.assertEqual(uberllm.api_key_url, "https://uberllm.dev/signup")
         self.assertEqual(uberllm.model_docs_url, "https://uberllm.dev/models")
+        gmi = get_llm_provider("gmi")
+        self.assertEqual(gmi.default_model, "deepseek-ai/DeepSeek-V4-Flash")
+        self.assertEqual(gmi.default_base_url, "https://api.gmi-serving.com/v1")
+        self.assertEqual(gmi.adapter, "openai_compatible")
+        self.assertTrue(gmi.requires_api_key)
+        self.assertEqual(gmi.api_key_url, "https://console.gmicloud.ai/user-setting/api-keys")
+        self.assertEqual(gmi.model_docs_url, "https://docs.gmicloud.ai/model-quickstarts/text/overview")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -754,6 +761,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "cloudgpu",
                 "cheapaimodel",
                 "uberllm",
+                "gmi",
                 "ollama",
                 "claude_code",
                 "oneapi",

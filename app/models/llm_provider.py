@@ -612,6 +612,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.uberllm.dev/v1",
         model_docs_url="https://uberllm.dev/models",
     ),
+    LLMProviderSpec(
+        "gmi",
+        "GMI Cloud",
+        api_key_url="https://console.gmicloud.ai/user-setting/api-keys",
+        default_model="deepseek-ai/DeepSeek-V4-Flash",
+        default_base_url="https://api.gmi-serving.com/v1",
+        model_docs_url="https://docs.gmicloud.ai/model-quickstarts/text/overview",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

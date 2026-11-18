@@ -480,6 +480,13 @@ uberllm_api_key = ""
 uberllm_base_url = ""
 uberllm_model_name = ""
 
+# GMI Cloud, an AI cloud with an OpenAI-compatible inference API.
+# API key: https://console.gmicloud.ai/user-setting/api-keys
+# Model list: https://docs.gmicloud.ai/model-quickstarts/text/overview
+gmi_api_key = ""
+gmi_base_url = ""
+gmi_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
