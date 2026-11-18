@@ -1,3 +1,4 @@
+import hashlib
 import json
 import math
 import os
@@ -7,10 +8,12 @@ import tempfile
 import threading
 import time
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from functools import partial
 from os import path
 from uuid import uuid4
 
+from filelock import FileLock, Timeout as FileLockTimeout
 from loguru import logger
 
 from app.config import config
@@ -119,6 +122,36 @@ def _get_video_music_prompt(params: VideoParams) -> str:
     if params.bgm_type == "sonilo" and not prompt:
         prompt = str(params.sonilo_bgm_prompt or "").strip()
     return prompt
+
+
+@contextmanager
+def task_directory_lock(task_id: str):
+    """Hold a task's directory against other processes; yield whether we got it.
+
+    A queue worker holds it while it runs the task, and every deletion entry
+    point takes it before removing files. The lock belongs to the operating
+    system: it is gone as soon as the holding process is killed, and still
+    held while that process is only paused. A task whose worker was declared
+    gone can therefore be deleted once the worker really cannot write anymore.
+    """
+    # Task IDs reach the delete endpoint as request input; never let one
+    # choose the file name.
+    name = hashlib.sha256(task_id.encode("utf-8")).hexdigest()
+    lock_file = path.join(utils.storage_dir("task_locks", create=True), f"{name}.lock")
+    lock = FileLock(lock_file)
+    try:
+        lock.acquire(timeout=0)
+    except (FileLockTimeout, OSError):
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        lock.release()
+        try:
+            os.remove(lock_file)
+        except OSError:
+            pass
 
 
 def is_task_busy(task: dict | None) -> bool:

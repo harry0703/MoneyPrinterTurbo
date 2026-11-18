@@ -40,6 +40,63 @@ return redis.call("DEL", KEYS[1])
 """
 
 
+# A queue worker writes its task record only while its running-slot token is
+# still recorded as the owner of that task. Checking the owner and writing in
+# one script means a worker that was declared gone cannot change, or re-create,
+# the record afterwards.
+_WRITE_OWNED_TASK_SCRIPT = """
+if redis.call("HGET", KEYS[2], ARGV[1]) ~= KEYS[1] then
+    return -1
+end
+if ARGV[2] == "1" then
+    if redis.call("TYPE", KEYS[1]).ok ~= "hash" then
+        return 0
+    end
+    if redis.call("HGET", KEYS[1], "task_id") ~= KEYS[1] then
+        return 0
+    end
+end
+
+for index = 3, #ARGV, 2 do
+    redis.call("HSET", KEYS[1], ARGV[index], ARGV[index + 1])
+end
+
+return 1
+"""
+
+
+# The caller listed this slot as expired a moment ago. Everything it relied on
+# is read again here, in the operation that writes the failure: the slot may
+# have been released or renewed, and the task may have finished, in between.
+_FAIL_TASK_OF_EXPIRED_SLOT_SCRIPT = """
+if redis.call("HGET", KEYS[3], ARGV[1]) ~= KEYS[1] then
+    return -1
+end
+local deadline = redis.call("ZSCORE", KEYS[2], ARGV[1])
+if deadline and tonumber(deadline) > tonumber(ARGV[2]) then
+    return -1
+end
+
+local failed = 0
+if redis.call("TYPE", KEYS[1]).ok == "hash"
+    and redis.call("HGET", KEYS[1], "task_id") == KEYS[1]
+    and redis.call("HGET", KEYS[1], "state") == ARGV[3] then
+    for index = 4, #ARGV, 2 do
+        redis.call("HSET", KEYS[1], ARGV[index], ARGV[index + 1])
+    end
+    failed = 1
+end
+
+redis.call("HDEL", KEYS[3], ARGV[1])
+redis.call("ZREM", KEYS[2], ARGV[1])
+return failed
+"""
+
+
+class TaskOwnershipLostError(RuntimeError):
+    """The worker's running slot no longer owns the task it tried to write."""
+
+
 # Base class for state management
 class BaseState(ABC):
     @abstractmethod
@@ -62,6 +119,16 @@ class BaseState(ABC):
     @abstractmethod
     def patch_task(self, task_id: str, **kwargs) -> bool:
         """只更新已有任务的指定字段；任务不存在时返回 False。"""
+        pass
+
+    def bind_task_owner(self, task_id: str, owners_key: str, token: str):
+        """Tie this process's writes to a running-slot token.
+
+        Only a backend shared with other processes has a worker to fence off,
+        so the default does nothing.
+        """
+
+    def unbind_task_owner(self, task_id: str):
         pass
 
 
@@ -147,6 +214,68 @@ class RedisState(BaseState):
 
         self._redis = redis.StrictRedis(host=host, port=port, db=db, password=password)
 
+    # task_id -> (owners_key, token) for the tasks this process is running from
+    # the Redis queue. Pipeline stages write from several threads, so the
+    # binding belongs to the process, not to a thread.
+    _task_owners: dict = {}
+
+    def bind_task_owner(self, task_id: str, owners_key: str, token: str):
+        """Make this process's writes to ``task_id`` depend on its slot token."""
+        self._task_owners[task_id] = (owners_key, token)
+
+    def unbind_task_owner(self, task_id: str):
+        self._task_owners.pop(task_id, None)
+
+    def _write_owned_task(self, task_id: str, fields: dict, existing_only: bool):
+        """Write through the owner check; return None when no owner is bound."""
+        owner = self._task_owners.get(task_id)
+        if owner is None:
+            return None
+        owners_key, token = owner
+        arguments = []
+        for field, value in fields.items():
+            arguments.extend((field, self._serialize_field(field, value)))
+        return self._redis.eval(
+            _WRITE_OWNED_TASK_SCRIPT,
+            2,
+            task_id,
+            owners_key,
+            token,
+            "1" if existing_only else "0",
+            *arguments,
+        )
+
+    def fail_task_of_expired_slot(
+        self,
+        task_id: str,
+        slots_key: str,
+        owners_key: str,
+        token: str,
+        now_ms: int,
+        **fields,
+    ) -> bool | None:
+        """Fail ``task_id`` if its slot is still expired and it is still running.
+
+        Returns True when the task was failed, False when the slot was dropped
+        but the task had already reached a final state, and None when the slot
+        is no longer expired (released, renewed or reassigned meanwhile).
+        """
+        arguments = []
+        for field, value in fields.items():
+            arguments.extend((field, self._serialize_field(field, value)))
+        outcome = self._redis.eval(
+            _FAIL_TASK_OF_EXPIRED_SLOT_SCRIPT,
+            3,
+            task_id,
+            slots_key,
+            owners_key,
+            token,
+            now_ms,
+            self._serialize_field("state", const.TASK_STATE_PROCESSING),
+            *arguments,
+        )
+        return None if outcome == -1 else bool(outcome)
+
     def get_all_tasks(self, page: int, page_size: int):
         start = (page - 1) * page_size
         end = start + page_size
@@ -215,6 +344,14 @@ class RedisState(BaseState):
             **kwargs,
         }
 
+        owned = self._write_owned_task(task_id, fields, existing_only=False)
+        if owned is not None:
+            if owned == -1:
+                raise TaskOwnershipLostError(
+                    f"running slot no longer owns task {task_id}"
+                )
+            return
+
         # One HSET writes the whole task state atomically. Separate commands
         # could expose a new state with the previous progress or result fields
         # to readers, and leave a partially updated record on network failure.
@@ -253,6 +390,12 @@ class RedisState(BaseState):
     def patch_task(self, task_id: str, **kwargs) -> bool:
         if not kwargs:
             return False
+
+        owned = self._write_owned_task(task_id, kwargs, existing_only=True)
+        if owned is not None:
+            # A worker that lost its slot is told what a deleted task would
+            # tell it: there is no record for it to add to.
+            return owned == 1
 
         arguments = []
         for field, value in kwargs.items():

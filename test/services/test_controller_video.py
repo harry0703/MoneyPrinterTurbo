@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import contextmanager
 import os
 import shutil
 import tempfile
@@ -544,6 +545,38 @@ class TestVideoControllerTasks(unittest.TestCase):
 
         self.assertEqual(response["status"], 200)
         delete_task.assert_called_once_with("completed-task")
+
+    def test_delete_refuses_task_whose_directory_a_worker_still_holds(self):
+        """A failed task whose worker process is only paused stays undeletable."""
+        failed_task = {
+            "task_id": "paused-worker-task",
+            "state": const.TASK_STATE_FAILED,
+            "progress": 30,
+            "failed_stage": "worker",
+        }
+
+        @contextmanager
+        def held_by_worker(task_id):
+            yield False
+
+        with (
+            patch.object(
+                video_controller.sm.state, "get_task", return_value=failed_task
+            ),
+            patch.object(
+                video_controller.tm, "task_directory_lock", side_effect=held_by_worker
+            ),
+            patch.object(video_controller.shutil, "rmtree") as rmtree,
+            patch.object(video_controller.sm.state, "delete_task") as delete_task,
+        ):
+            with self.assertRaises(HttpException) as raised:
+                video_controller.delete_video(
+                    self._request(), task_id="paused-worker-task"
+                )
+
+        self.assertEqual(raised.exception.status_code, 409)
+        rmtree.assert_not_called()
+        delete_task.assert_not_called()
 
     def test_get_and_delete_missing_task_return_404(self):
         """查询或删除未知任务都应返回一致的 404，而不是空成功响应。"""

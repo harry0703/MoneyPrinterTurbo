@@ -353,19 +353,36 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
                 message=f"{request_id}: task is still running",
             )
 
-        tasks_dir = utils.task_dir()
-        current_task_dir = os.path.join(tasks_dir, task_id)
-        if os.path.exists(current_task_dir):
-            try:
-                shutil.rmtree(current_task_dir)
-            except FileNotFoundError:
-                # Another completed-task deletion may remove this directory
-                # after our existence check. Only accept an absent root;
-                # partial deletion and other filesystem errors must keep state.
-                if os.path.lexists(current_task_dir):
-                    raise
+        # A task can be failed because its worker stopped renewing its queue
+        # slot. A worker that was paused rather than killed still writes the
+        # task directory when it resumes, so hold the directory for the whole
+        # deletion and refuse while a worker process holds it.
+        with tm.task_directory_lock(task_id) as unused:
+            if not unused:
+                logger.warning(
+                    f"refuse to delete task held by a worker process, "
+                    f"request_id: {request_id}, task_id: {task_id}"
+                )
+                raise HttpException(
+                    task_id=task_id,
+                    status_code=409,
+                    message=f"{request_id}: task is still running",
+                )
 
-        sm.state.delete_task(task_id)
+            tasks_dir = utils.task_dir()
+            current_task_dir = os.path.join(tasks_dir, task_id)
+            if os.path.exists(current_task_dir):
+                try:
+                    shutil.rmtree(current_task_dir)
+                except FileNotFoundError:
+                    # Another completed-task deletion may remove this directory
+                    # after our existence check. Only accept an absent root;
+                    # partial deletion and other filesystem errors must keep
+                    # state.
+                    if os.path.lexists(current_task_dir):
+                        raise
+
+            sm.state.delete_task(task_id)
         logger.success(f"video deleted: {utils.to_json(task)}")
         return utils.get_response(200)
 
