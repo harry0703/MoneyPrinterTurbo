@@ -162,7 +162,7 @@ def test_webui_delete_keeps_task_state_when_file_removal_fails(tmp_path):
         "sm": SimpleNamespace(state=state),
         "tm": SimpleNamespace(
             is_task_busy=lambda _task: False,
-            task_directory_lock=lambda _task_id: nullcontext(True),
+            is_task_directory_held=lambda _task_id: False,
         ),
         "utils": SimpleNamespace(task_dir=lambda: str(tmp_path / "tasks")),
         "shutil": SimpleNamespace(rmtree=remove_directory),
@@ -182,7 +182,7 @@ def test_webui_delete_keeps_task_state_when_file_removal_fails(tmp_path):
     # A worker process that was declared gone but is only paused still holds
     # the directory: nothing is removed until it lets go.
     remove_directory.reset_mock()
-    namespace["tm"].task_directory_lock = lambda _task_id: nullcontext(False)
+    namespace["tm"].is_task_directory_held = lambda _task_id: True
     assert namespace["_delete_task"](
         "completed-task", str(task_path), const.TASK_STATE_COMPLETE
     ) is False

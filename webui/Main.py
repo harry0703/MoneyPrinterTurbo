@@ -1229,6 +1229,12 @@ def _delete_task(task_id, task_path, task_state=None):
         logger.warning(f"refused to delete running task: {task_id}")
         return False
 
+    # A queue worker that was declared gone may only be paused; it still holds
+    # the task directory and writes it again when it resumes.
+    if tm.is_task_directory_held(task_id):
+        logger.warning(f"refused to delete task held by a worker process: {task_id}")
+        return False
+
     tasks_root = os.path.abspath(utils.task_dir())
     normalized_path = os.path.abspath(task_path)
 
@@ -1239,21 +1245,12 @@ def _delete_task(task_id, task_path, task_state=None):
         return False
 
     try:
-        # A queue worker that was declared gone may only be paused; it still
-        # holds the task directory and writes it again when it resumes.
-        with tm.task_directory_lock(task_id) as unused:
-            if not unused:
-                logger.warning(
-                    f"refused to delete task held by a worker process: {task_id}"
-                )
-                return False
-            if os.path.isdir(normalized_path):
-                shutil.rmtree(normalized_path)
-            # Keep the persisted task available for retry when file removal
-            # fails (for example, a video is still locked by another process
-            # on Windows).
-            if hasattr(sm.state, "delete_task"):
-                sm.state.delete_task(task_id)
+        if os.path.isdir(normalized_path):
+            shutil.rmtree(normalized_path)
+        # Keep the persisted task available for retry when file removal fails
+        # (for example, a video is still locked by another process on Windows).
+        if hasattr(sm.state, "delete_task"):
+            sm.state.delete_task(task_id)
         logger.info(f"deleted task: {task_id}")
         return True
     except Exception as e:

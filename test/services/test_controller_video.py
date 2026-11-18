@@ -1,5 +1,4 @@
 import asyncio
-from contextlib import contextmanager
 import os
 import shutil
 import tempfile
@@ -555,16 +554,12 @@ class TestVideoControllerTasks(unittest.TestCase):
             "failed_stage": "worker",
         }
 
-        @contextmanager
-        def held_by_worker(task_id):
-            yield False
-
         with (
             patch.object(
                 video_controller.sm.state, "get_task", return_value=failed_task
             ),
             patch.object(
-                video_controller.tm, "task_directory_lock", side_effect=held_by_worker
+                video_controller.tm, "is_task_directory_held", return_value=True
             ),
             patch.object(video_controller.shutil, "rmtree") as rmtree,
             patch.object(video_controller.sm.state, "delete_task") as delete_task,

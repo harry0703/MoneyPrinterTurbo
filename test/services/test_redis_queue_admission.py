@@ -417,13 +417,11 @@ class TestRedisQueueAdmission(unittest.TestCase):
         # The task is failed and no longer busy, but its worker still exists
         # and writes the task directory as soon as it resumes.
         self.assertFalse(tm.is_task_busy(self.state.get_task(task_id)))
-        with tm.task_directory_lock(task_id) as unused:
-            self.assertFalse(unused)
+        self.assertTrue(tm.is_task_directory_held(task_id))
 
         resumed.set()
         self._wait_until_idle(manager)
-        with tm.task_directory_lock(task_id) as unused:
-            self.assertTrue(unused)
+        self.assertFalse(tm.is_task_directory_held(task_id))
 
     def test_running_limit_is_shared_across_manager_instances(self):
         for manager in self.managers:
