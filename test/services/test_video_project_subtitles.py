@@ -163,7 +163,6 @@ def test_native_export_burns_narration_over_mixed_music(tmp_path):
     assert _bottom_white_pixels(plain_export) == 0
 
     # Flipping subtitles off rebuilds only the export, not the scene media.
-    spec = project.revision()
     spec_without = json.loads(json.dumps(request))
     spec_without["settings"].pop("subtitles")
     spec_without["settings"].pop("subtitle_font_size")

@@ -347,18 +347,29 @@ def _request_image(prompt: str, aspect: VideoAspect, save_dir: Path) -> tuple[st
         raise CartoonStudioError(f"image endpoint returned no usable image: {exc}") from exc
 
 
+def _frame_identity(storyboard: Storyboard, scene: Scene, prompt: str) -> str:
+    """Identify a frame by prompt and the effective generation canvas.
+
+    The same prompt rendered at 9:16 and 16:9 produces different pixels, so the
+    aspect (and any configured override size) must take part in the cache key.
+    """
+    size = material._openai_image_size(storyboard.aspect)
+    identity = f"{prompt}|{storyboard.aspect.value}|{size}"
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
+
+
 def generate_scene_images(
     project_dir: str | Path,
     storyboard: Storyboard,
     *,
     request_image=_request_image,
 ) -> list[dict]:
-    """Generate one PNG per scene, reusing frames whose prompt did not change."""
+    """Generate one PNG per scene, reusing frames whose identity did not change."""
     images_dir = Path(project_dir) / "images"
     records = []
     for scene in storyboard.scenes:
         prompt = scene_prompt(storyboard, scene)
-        digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12]
+        digest = _frame_identity(storyboard, scene, prompt)
         target = images_dir / f"{scene.id}-{digest}.png"
         if target.is_file():
             records.append(
@@ -414,7 +425,10 @@ def narrate_scenes(
         duration = voice.get_audio_duration(str(target))
         if duration <= 0:
             raise CartoonStudioError(f"narration for scene {scene.id} has no duration")
-        result[scene.id] = (str(target), duration)
+        # Return absolute paths: callers may resolve them again against a
+        # relative project directory (VideoProject._asset joins ``relative_to``),
+        # which would otherwise duplicate the project prefix.
+        result[scene.id] = (str(target.resolve()), duration)
     return result
 
 
@@ -479,14 +493,20 @@ def build(
     render_clip=video.render_image_zoom_video,
 ) -> dict:
     """Turn a storyboard into images, clips and a rendered episode."""
-    project_dir = Path(project_dir)
-    if bgm and not Path(bgm).is_file():
-        raise CartoonStudioError(f"background music not found: {bgm}")
+    # Resolve once so a relative project directory cannot be joined twice by
+    # VideoProject._asset, and so music keeps its cwd-relative meaning.
+    project_dir = Path(project_dir).resolve()
+    if bgm:
+        bgm = str(Path(bgm).resolve())
+        if not Path(bgm).is_file():
+            raise CartoonStudioError(f"background music not found: {bgm}")
     if not math.isfinite(bgm_volume) or not 0 <= bgm_volume <= 4:
         raise CartoonStudioError("bgm volume must be finite and between 0 and 4")
     storyboard_path = write_storyboard(project_dir, storyboard)
     images = generate_scene_images(project_dir, storyboard, request_image=request_image)
-    images_by_id = {record["id"]: record["path"] for record in images}
+    images_by_id = {
+        record["id"]: str(Path(record["path"]).resolve()) for record in images
+    }
     narration = narrate_scenes(
         project_dir, storyboard, voice_name=voice_name, voice_rate=voice_rate
     )
