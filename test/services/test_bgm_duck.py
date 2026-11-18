@@ -54,6 +54,35 @@ def test_silent_narration_leaves_music_untouched():
     assert np.all(video._narration_duck_gain(silent) == 1.0)
 
 
+def test_long_narration_keeps_one_gain_per_10_ms():
+    # 24 kHz makes moviepy's chunks non-multiples of the 10 ms window.
+    fps, seconds = 24000, 120
+    t = np.arange(seconds * fps) / fps
+    speech = (t.astype(int) % 2 == 0) * 0.5 * np.sin(2 * np.pi * 220 * t)
+    clip = AudioArrayClip(np.stack([speech] * 2, axis=1), fps=fps)
+
+    gain = video._narration_duck_gain(clip)
+
+    assert len(gain) == seconds * 100
+    # Speech starts at every even second: the music must be down by its end
+    # and back up by the end of the following pause, even 110 s in.
+    assert _gain_at(gain, 110.9) == pytest.approx(video._DUCK_SPEECH_GAIN, abs=0.05)
+    assert _gain_at(gain, 111.9) > 0.95
+    assert _gain_at(gain, 54.9) == pytest.approx(video._DUCK_SPEECH_GAIN, abs=0.05)
+
+
+def test_opposite_phase_stereo_still_ducks():
+    wave = _tone(2, 0.5, channels=1)[:, 0]
+    pause = np.zeros(2 * FPS)
+    left = np.concatenate([wave, pause])
+    clip = AudioArrayClip(np.stack([left, -left], axis=1), fps=FPS)
+
+    gain = video._narration_duck_gain(clip)
+
+    assert _gain_at(gain, 1.5) == pytest.approx(video._DUCK_SPEECH_GAIN, abs=0.05)
+    assert _gain_at(gain, 3.8) > 0.95
+
+
 @pytest.mark.parametrize("channels", [1, 2])
 def test_ducked_music_follows_the_envelope(channels):
     music = AudioArrayClip(_tone(8, 0.4, channels), fps=FPS)

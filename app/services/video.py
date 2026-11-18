@@ -925,11 +925,21 @@ def _narration_duck_gain(voice_clip) -> np.ndarray:
     """Return one music gain per 10 ms: 1.0 in pauses, lower under speech."""
     step = max(int(voice_clip.fps * _DUCK_STEP_SECONDS), 1)
     levels = []
+    carry = np.empty(0, dtype=np.float32)
     # Chunked so a long narration is never decoded into memory at once.
     for chunk in voice_clip.iter_chunks(chunksize=step * 100):
-        mono = np.asarray(chunk, dtype=np.float32).reshape(len(chunk), -1).mean(axis=1)
-        mono = np.pad(mono, (0, -len(mono) % step))
-        levels.append(np.sqrt((mono.reshape(-1, step) ** 2).mean(axis=1)))
+        samples = np.asarray(chunk, dtype=np.float32).reshape(len(chunk), -1)
+        # Energy per channel, not the mean waveform: opposite-phase channels
+        # would cancel to silence. Chunk sizes are not multiples of the step,
+        # so the incomplete window rolls into the next chunk.
+        energy = np.concatenate([carry, (samples**2).mean(axis=1)])
+        whole = len(energy) // step * step
+        levels.append(np.sqrt(energy[:whole].reshape(-1, step).mean(axis=1)))
+        carry = energy[whole:]
+    if len(carry):
+        tail = np.pad(carry, (0, step - len(carry)))
+        levels.append(np.sqrt(tail.mean(keepdims=True)))
+    levels = [part for part in levels if len(part)]
     if not levels:
         return np.ones(1)
     level = np.concatenate(levels)
