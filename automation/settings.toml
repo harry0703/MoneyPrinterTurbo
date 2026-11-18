@@ -1,6 +1,46 @@
 # Settings for the automated video agent (agent.py).
 # After changing [schedule], run:  .venv/bin/python agent.py install-schedule
 
+[pipeline]
+# "stickman"     = animated stickman "What if..." videos (stickman-studio) voiced by MoneyPrinterTurbo; see [stickman]
+# "moneyprinter" = the original stock-footage teen-health videos; see [content] and [video]
+mode = "stickman"
+
+[stickman]
+studio_dir = "../../stickman-studio"     # relative to this folder
+# Any MoneyPrinterTurbo voice name works (Edge TTS, ElevenLabs, Gemini, ... as configured in config.toml).
+voice = "en-US-AndrewMultilingualNeural-Male"
+rate = 1.0                               # speech speed multiplier
+scene_count = 5
+max_words = 85
+example = "freeze-time"                  # hand-made scenes.swift shown to Claude as the quality bar
+compile_attempts = 5                     # Claude fix rounds for compiler/runtime/visual problems
+visual_review = true                     # Claude looks at rendered test frames before the final render
+model = ""                               # claude CLI model for the animation code; "" = CLI default
+niche = "\"What if...\" stories: an everyday person (a red-hoodie stickman) gets an impossible ability or the world changes in one strange way; it starts fun, a real fact raises the stakes, and it ends on a twist"
+audience = "general audience, teens and adults"
+language = "en-US"
+topic_good = """"What if you never had to sleep again?", "What if you could freeze time for 10 seconds every day?", \
+"What if you could hear everyone's thoughts for one day?", "What if the Moon disappeared tonight?", \
+"What if you could breathe underwater?", "What if every lie made your nose grow an inch?", \
+"What if you woke up 100 years in the future?", "What if gravity was half as strong?\""""
+topic_bad = "real people or brands, politics, religion, crime, death of loved ones, gore, self-harm, sexual themes, medical advice, anything scary for kids"
+topic_rules = """A single clear "What if..." question in at most 12 words that anyone instantly understands and \
+wants answered. It must be easy to draw with a stickman and simple props (rooms, streets, sky, everyday objects). \
+Vary the kind of premise: superpowers, a world rule changing, space/nature, time, everyday life twists."""
+script_requirements = """Tone: playful, curious, a storyteller talking to a friend; short punchy sentences; no emojis, \
+hashtags, stage directions or quotation marks. Structure across the scenes: (1) the hook: the question itself, \
+stated plainly, plus one line that makes it vivid; (2)-(3) the fun upside, told through concrete moments that can be \
+drawn (catching a falling mug, dodging rain); (4) a real fact or number that changes everything (it must be true \
+and mainstream science); (5) a twist ending that lands with a smile or a chill, never gore or violence. \
+Each scene is 1-3 sentences that describe something visible."""
+safety_criteria = """Reject if ANY apply: violence, gore, death or injury shown or described graphically; self-harm; \
+sexual content or innuendo; real people, brands or politics; hateful or shaming content; dangerous stunts a viewer \
+could copy; scientific or medical claims stated as fact that are false or not mainstream; anything frightening for \
+a 10-year-old. A mild spooky twist is fine. Accept only if it is a friendly animated short a family could watch."""
+caption_rules = """Everything must be family-friendly and platform-safe: no innuendo, nothing violent, no false claims, \
+no clickbait lies. The caption can restate the "What if" question."""
+
 [content]
 # Target narration length; the agent asks for a shorter rewrite if a script runs over.
 max_script_words = 85
@@ -79,6 +119,8 @@ match_materials_to_script = false
 times = ["10:00", "14:00"]
 # Safety cap: never post more than this many videos per calendar day.
 max_videos_per_day = 2
+# Days (YYYY-MM-DD) with no posting at all; scheduled runs resume automatically the next day.
+skip_dates = ["2026-11-18"]
 
 [youtube]
 # Set to true after running:  .venv/bin/python agent.py youtube-auth

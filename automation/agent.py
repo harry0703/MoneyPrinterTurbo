@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Autonomous short-video agent for MoneyPrinterTurbo.
 
-Each run: pick a fresh topic with Claude -> generate the video with
-MoneyPrinterTurbo -> write titles/captions -> post to YouTube and TikTok ->
-record history -> clean up old files.
+Each run: pick a fresh topic with Claude -> generate the video -> write
+titles/captions -> post to YouTube and TikTok -> record history -> clean up.
+The video comes from [pipeline] mode in settings.toml: "moneyprinter" (stock
+footage via MoneyPrinterTurbo) or "stickman" (stickman-studio animation with a
+MoneyPrinterTurbo voiceover, see stickman.py).
 
 Commands:
   run [--topic T] [--force] [--no-youtube] [--no-tiktok] [--tiktok-dry-run]
@@ -94,10 +96,10 @@ def _clean_env() -> dict:
     return env
 
 
-def ask_claude(prompt: str, timeout: int = 300) -> str:
+def ask_claude(prompt: str, timeout: int = 300, extra_args: list[str] | None = None) -> str:
     claude = shutil.which("claude") or str(Path.home() / ".local/bin/claude")
     result = subprocess.run(
-        [claude, "-p", prompt, "--output-format", "text"],
+        [claude, "-p", prompt, "--output-format", "text", *(extra_args or [])],
         cwd=STATE,
         env=_clean_env(),
         capture_output=True,
@@ -110,9 +112,13 @@ def ask_claude(prompt: str, timeout: int = 300) -> str:
 
 
 def ask_claude_json(prompt: str, attempts: int = 3) -> dict:
+    return ask_claude_json_args(prompt, None, attempts)
+
+
+def ask_claude_json_args(prompt: str, extra_args: list[str] | None, attempts: int = 3) -> dict:
     last_error = None
     for _ in range(attempts):
-        text = ask_claude(prompt)
+        text = ask_claude(prompt, extra_args=extra_args)
         match = re.search(r"\{.*\}", text, re.S)
         if match:
             try:
@@ -764,6 +770,45 @@ def cleanup(settings: dict, history: list[dict]) -> None:
 # --------------------------------------------------------------------------- commands
 
 
+def make_moneyprinter_video(settings: dict, history: list[dict], args) -> dict:
+    """Stock-footage pipeline: topic, script, safety review, MoneyPrinterTurbo video, headline."""
+    entry = None
+    for attempt in range(3):
+        topic = args.topic or pick_topic(settings, history)
+        log.info("Topic: %s", topic)
+        script = write_script(topic, settings)
+        metadata = write_metadata(topic, script, settings)
+        ok, reason = safety_check(topic, script, metadata, settings)
+        if not ok and reason:
+            # One revision pass: reviews often come with a concrete fix.
+            log.info("Safety review asked for changes; revising script once (%s)", reason[:160])
+            script = write_script(topic, settings, revision_note=reason)
+            metadata = write_metadata(topic, script, settings)
+            ok, reason = safety_check(topic, script, metadata, settings)
+        if ok:
+            entry = {"created": datetime.now().isoformat(timespec="seconds"),
+                     "topic": topic, "script": script, "metadata": metadata}
+            break
+        log.warning("Safety review rejected this script (%s); trying another topic", reason)
+        history.append({"created": datetime.now().isoformat(timespec="seconds"), "topic": topic,
+                        "note": f"rejected by safety review: {reason}"})
+        save_history(history)
+        if args.topic:
+            break
+    if entry is None:
+        raise RuntimeError("no script passed the safety review")
+    entry.update(generate_video(settings, topic, script=entry["script"]))
+    if settings["video"].get("headline_enabled", True):
+        try:
+            entry["video"] = add_headline(
+                entry["video"], entry["metadata"]["headline"],
+                float(settings["video"].get("headline_seconds", 2.8)),
+            )
+        except Exception as exc:
+            log.warning("Headline overlay failed (%s); posting without it", exc)
+    return entry
+
+
 def cmd_run(args) -> int:
     settings = load_settings()
     lock = open(STATE / "agent.lock", "w")
@@ -771,6 +816,11 @@ def cmd_run(args) -> int:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         log.warning("Another run is in progress; exiting")
+        return 0
+
+    today = datetime.now().date().isoformat()
+    if today in settings["schedule"].get("skip_dates", []) and not args.force:
+        log.info("%s is listed in schedule.skip_dates; not posting today", today)
         return 0
 
     history = load_history()
@@ -783,41 +833,13 @@ def cmd_run(args) -> int:
         log.info("Already made %d video(s) today; skipping (use --force to override)", made_today)
         return 0
 
+    pipeline = settings.get("pipeline", {}).get("mode", "moneyprinter")
     try:
-        entry = None
-        for attempt in range(3):
-            topic = args.topic or pick_topic(settings, history)
-            log.info("Topic: %s", topic)
-            script = write_script(topic, settings)
-            metadata = write_metadata(topic, script, settings)
-            ok, reason = safety_check(topic, script, metadata, settings)
-            if not ok and reason:
-                # One revision pass: reviews often come with a concrete fix.
-                log.info("Safety review asked for changes; revising script once (%s)", reason[:160])
-                script = write_script(topic, settings, revision_note=reason)
-                metadata = write_metadata(topic, script, settings)
-                ok, reason = safety_check(topic, script, metadata, settings)
-            if ok:
-                entry = {"created": datetime.now().isoformat(timespec="seconds"),
-                         "topic": topic, "script": script, "metadata": metadata}
-                break
-            log.warning("Safety review rejected this script (%s); trying another topic", reason)
-            history.append({"created": datetime.now().isoformat(timespec="seconds"), "topic": topic,
-                            "note": f"rejected by safety review: {reason}"})
-            save_history(history)
-            if args.topic:
-                break
-        if entry is None:
-            raise RuntimeError("no script passed the safety review")
-        entry.update(generate_video(settings, topic, script=entry["script"]))
-        if settings["video"].get("headline_enabled", True):
-            try:
-                entry["video"] = add_headline(
-                    entry["video"], entry["metadata"]["headline"],
-                    float(settings["video"].get("headline_seconds", 2.8)),
-                )
-            except Exception as exc:
-                log.warning("Headline overlay failed (%s); posting without it", exc)
+        if pipeline == "stickman":
+            import stickman
+            entry = stickman.make_video(settings, history, topic=args.topic)
+        else:
+            entry = make_moneyprinter_video(settings, history, args)
         history.append(entry)
         save_history(history)
         log.info("Video ready: %s", entry["video"])
@@ -833,6 +855,8 @@ def cmd_run(args) -> int:
         ok &= try_post("tiktok", settings, entry, history, dry_run=args.tiktok_dry_run)
 
     cleanup(settings, history)
+    if pipeline == "stickman":
+        stickman.cleanup(settings, history)
     if ok:
         notify(f"Posted: {entry['metadata']['youtube_title']}")
     return 0 if ok else 2
