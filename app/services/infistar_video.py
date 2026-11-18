@@ -1,4 +1,4 @@
-"""Infistar 异步文生视频：按已验证的模型规格下单，保留付费任务恢复线索。"""
+"""Infistar asynchronous text-to-video: order with verified model specs, keeping recovery hints for paid tasks."""
 
 import hashlib
 import math
@@ -19,7 +19,7 @@ from app.utils.request_logging import sanitize_payload, trace_http_call
 
 DEFAULT_BASE_URL = "https://infistar.cc/v1"
 DEFAULT_MODEL = "doubao-seedance-2-0-fast-260128"
-# 使用文档示例及实测的短片规格，避免套用其它模型的时长/尺寸约束。
+# Use the short-clip specs from the docs example and testing, avoiding applying other models' duration/size constraints.
 MODELS = {
     DEFAULT_MODEL: {"label": "Seedance 2.0 Fast", "seconds": 5, "size": "720p"},
     "MiniMax-H3": {"label": "MiniMax H3", "seconds": 6, "size": "768p"},
@@ -36,7 +36,7 @@ class InfistarVideoError(RuntimeError):
 
 
 class InfistarVideoUnconfirmedError(InfistarVideoError):
-    """付费提交或远端状态未确认，不能自动重新下单。"""
+    """A paid submission or remote state is unconfirmed, so it must not be reordered automatically."""
 
 
 def get_api_key(settings: Mapping | None = None) -> str:
@@ -60,7 +60,7 @@ def model_id(settings: Mapping | None = None) -> str:
 
 
 def _base_url() -> str:
-    # 视频配置独立于 LLM；切换大模型或修改其网关时，不改变视频的凭据和地址。
+    # Video config is independent of the LLM; switching LLMs or changing their gateway doesn't change the video credentials and address.
     value = (
         str(config.app.get("infistar_video_base_url", "") or DEFAULT_BASE_URL)
         .strip()
@@ -186,7 +186,7 @@ def _wait(task_id, base, headers, secret):
 
 
 def _download(task_id, base, headers, output_dir):
-    """仅向原始 content 端点发送 Key；重定向到对象存储后不携带凭据。"""
+    """Only send the Key to the original content endpoint; carry no credentials after redirecting to object storage."""
     generation_progress.downloading()
     url = f"{base}/videos/{quote(task_id, safe='')}/content"
     response = None
@@ -228,8 +228,8 @@ def _download(task_id, base, headers, output_dir):
                 generation_progress.downloading(count)
             if count == 0:
                 raise ValueError("Video download is empty")
-        # 复用素材验证：拒绝错误页、播放列表和仅有文件头的截断视频，
-        # 完整解码成功后才将原子落盘的文件交给后续素材编排。
+        # Reuse material validation: reject error pages, playlists and truncated videos with only a header,
+        # and only hand the atomically saved file to later material orchestration after a full decode succeeds.
         generation_progress.verifying()
         material_upload._validate_video(str(staged))
         from moviepy import VideoFileClip
@@ -276,8 +276,8 @@ def generate_video(*, search_term, video_aspect, output_dir) -> MaterialInfo:
         "seconds": str(profile["seconds"]),
         "size": size,
     }
-    # 当前 MiniMax 线路忽略 aspect_ratio，size 只接受分辨率档位。
-    # 明确生成横屏素材，竖屏成片由既有画面适配逻辑裁剪或留边；WebUI 同步提示。
+    # The current MiniMax route ignores aspect_ratio, and size only accepts resolution tiers.
+    # Landscape material is generated explicitly; portrait videos are cropped or padded by the existing frame adaptation logic, and the WebUI shows a matching hint.
     generation_progress.submitting("infistar")
     try:
         response = _request(

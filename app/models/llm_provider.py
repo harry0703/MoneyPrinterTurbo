@@ -6,7 +6,7 @@ DEFAULT_LLM_PROVIDER_ID = "moonshot"
 
 @dataclass(frozen=True, slots=True)
 class LLMProviderField:
-    """描述 Provider 除 API Key、Base URL、模型名之外的额外配置字段。"""
+    """Describes extra Provider config fields beyond API Key, Base URL and model name."""
 
     config_suffix: str
     label_key: str
@@ -17,7 +17,7 @@ class LLMProviderField:
 
 @dataclass(frozen=True, slots=True)
 class LLMProviderEndpoint:
-    """描述同一 Provider 在不同服务区域使用的配套入口和 API 地址。"""
+    """Describes the companion entry points and API addresses a Provider uses in different service regions."""
 
     endpoint_id: str
     default_label: str
@@ -29,11 +29,11 @@ class LLMProviderEndpoint:
 @dataclass(frozen=True, slots=True)
 class LLMProviderSpec:
     """
-    LLM Provider 的集中声明。
+    Central declaration of LLM Providers.
 
-    这里集中保存跨 WebUI、配置加载和服务调用都会使用的稳定元数据，包括默认
-    展示名称和 locale key，但不保存具体翻译文案，也不实现 API 请求。这样
-    Provider 的“是什么”由 Registry 维护，“怎么调用”仍由服务层适配器负责。
+    Stable metadata used across the WebUI, config loading and service calls is kept here, including the default
+    display name and locale key, but no translated text and no API request implementation. This way
+    "what a Provider is" is maintained by the Registry, while "how to call it" remains the job of service-layer adapters.
     """
 
     provider_id: str
@@ -82,14 +82,14 @@ class LLMProviderSpec:
         return f"{self.provider_id}_{suffix}"
 
     def resolve_model_name(self, configured_model: str | None) -> str:
-        """将空值或已废弃的历史默认值统一解析为当前默认模型。"""
+        """Resolve empty values or deprecated historical defaults to the current default model."""
         model_name = (configured_model or "").strip()
         if not model_name or model_name in self.deprecated_models:
             return self.default_model
         return model_name
 
     def resolve_base_url(self, configured_base_url: str | None) -> str:
-        """解析 Base URL，并将已经停用的历史地址迁移到当前默认值。"""
+        """Resolve the Base URL, migrating retired historical addresses to the current default."""
         base_url = (configured_base_url or "").strip()
         deprecated_urls = {url.rstrip("/") for url in self.deprecated_base_urls}
         if not base_url or base_url.rstrip("/") in deprecated_urls:
@@ -97,7 +97,7 @@ class LLMProviderSpec:
         return base_url
 
     def get_service_endpoint(self, endpoint_id: str) -> LLMProviderEndpoint | None:
-        """按稳定 ID 获取服务区域，避免业务逻辑依赖可变化的推广链接。"""
+        """Get a service region by stable ID, so business logic doesn't depend on changeable promo links."""
         return next(
             (
                 endpoint
@@ -109,37 +109,37 @@ class LLMProviderSpec:
 
     @property
     def default_service_endpoint(self) -> LLMProviderEndpoint | None:
-        """返回 Provider 声明的默认服务区域。"""
+        """Return the Provider's declared default service region."""
         return self.get_service_endpoint(self.default_service_endpoint_id)
 
     @property
     def international_service_endpoint(self) -> LLMProviderEndpoint | None:
-        """返回 Provider 声明的国际服务区域。"""
+        """Return the Provider's declared international service region."""
         return self.get_service_endpoint(self.international_service_endpoint_id)
 
     @property
     def effective_default_base_url(self) -> str:
-        """优先从默认服务区域读取 Base URL，普通 Provider 仍使用原字段。"""
+        """Read the Base URL from the default service region first; ordinary Providers still use the original field."""
         endpoint = self.default_service_endpoint
         return endpoint.base_url if endpoint else self.default_base_url
 
     def preferred_service_endpoint(
         self, *, prefer_international: bool
     ) -> LLMProviderEndpoint | None:
-        """根据界面区域返回首选入口，缺少国际入口时安全回退默认入口。"""
+        """Return the preferred entry by UI region, safely falling back to the default entry when there's no international one."""
         if prefer_international and self.international_service_endpoint:
             return self.international_service_endpoint
         return self.default_service_endpoint
 
     def effective_api_key_url(self, *, prefer_international: bool = False) -> str:
-        """统一解析 API Key 申请入口，避免 Endpoint Provider 重复维护链接。"""
+        """Resolve the API Key sign-up link in one place, so Endpoint Providers don't maintain duplicate links."""
         endpoint = self.preferred_service_endpoint(
             prefer_international=prefer_international
         )
         return endpoint.api_key_url if endpoint else self.api_key_url
 
     def effective_model_docs_url(self, *, prefer_international: bool = False) -> str:
-        """统一解析模型列表与文档入口，避免 Endpoint Provider 重复维护链接。"""
+        """Resolve the model list and docs link in one place, so Endpoint Providers don't maintain duplicate links."""
         endpoint = self.preferred_service_endpoint(
             prefer_international=prefer_international
         )
@@ -148,7 +148,7 @@ class LLMProviderSpec:
     def find_service_endpoint(
         self, configured_base_url: str | None
     ) -> LLMProviderEndpoint | None:
-        """根据已保存的 Base URL 识别 Provider 的标准服务区域。"""
+        """Identify the Provider's standard service region from the saved Base URL."""
         normalized_url = (configured_base_url or "").strip().rstrip("/")
         if not normalized_url:
             return None
@@ -169,12 +169,12 @@ class LLMProviderSpec:
         prefer_international: bool,
     ) -> LLMProviderEndpoint | None:
         """
-        选择 WebUI 应展示的标准服务区域。
+        Choose the standard service region the WebUI should show.
 
-        已明确保存的标准地址优先；未知地址保留为自定义。历史配置可能只有
-        API Key 而没有 Base URL，这类用户继续使用 Registry 默认区域，避免
-        升级后因界面语言不同而切换服务。只有全新配置才根据界面语言选择
-        国际入口。
+        An explicitly saved standard address wins; unknown addresses are kept as custom. Historical configs may only have
+        an API Key without a Base URL; those users keep using the Registry default region, so they don't
+        switch services after upgrading because of a different UI language. Only brand-new configs choose
+        the international entry based on the UI language.
         """
         configured_url = (configured_base_url or "").strip()
         if configured_url:
@@ -189,11 +189,11 @@ class LLMProviderSpec:
         )
 
 
-# 元组顺序就是 WebUI 下拉框顺序。新增普通 OpenAI-compatible Provider 时，
-# 通常只需要在这里增加一项并补充 locale；只有协议不同的 Provider 才需要在
-# app/services/llm.py 中增加对应 adapter 实现。
+# The tuple order is the WebUI dropdown order. Adding an ordinary OpenAI-compatible Provider
+# usually only needs one entry here plus locale text; only Providers with a different protocol need
+# a corresponding adapter implementation in app/services/llm.py.
 LLM_PROVIDER_REGISTRY = (
-    # 推荐 Provider
+    # Recommended Providers
     LLMProviderSpec(
         "moonshot",
         "Kimi / Moonshot AI",
@@ -233,10 +233,10 @@ LLM_PROVIDER_REGISTRY = (
         default_service_endpoint_id="china",
         international_service_endpoint_id="global",
     ),
-    # Kimi 订阅（Plus 及以上档位的 Kimi Code 权益）采用 OAuth 设备授权：
-    # 用户在浏览器里一键确认后，服务层直接携带 Bearer token 调用官方
-    # OpenAI 兼容端点，不需要申请按量 API Key。中国站和 Global 使用各自
-    # 独立的账号与授权体系，endpoint 同步授权页、API 地址与订阅链接。
+    # Kimi subscriptions (the Kimi Code benefit of Plus and above) use OAuth device authorization:
+    # after the user confirms with one click in the browser, the service layer calls the official
+    # OpenAI-compatible endpoint with a Bearer token directly, with no need for a pay-as-you-go API Key. The China and Global sites use their own
+    # separate account and authorization systems, and the endpoint syncs the authorization page, API address and subscription link.
     LLMProviderSpec(
         "kimi_code",
         "Kimi Code (Kimi subscription)",
@@ -269,7 +269,7 @@ LLM_PROVIDER_REGISTRY = (
         default_service_endpoint_id="china",
         international_service_endpoint_id="global",
     ),
-    # 主流模型原厂与云厂商
+    # Major model vendors and cloud providers
     LLMProviderSpec(
         "openai",
         "OpenAI",
@@ -386,9 +386,9 @@ LLM_PROVIDER_REGISTRY = (
         default_model="mimo-v2.5-pro",
         default_base_url="https://api.xiaomimimo.com/v1",
     ),
-    # 讯飞星辰 MaaS 的按量付费和 Token Plan 使用不同的 OpenAI 兼容地址，
-    # 两边的 API Key 不能混用。这里默认按量付费，Token Plan 用户在 Base URL
-    # 中改填 maas-token-api 的地址即可。
+    # iFlytek Xingchen MaaS uses different OpenAI-compatible addresses for pay-as-you-go and Token Plan,
+    # and API Keys can't be mixed between them. Pay-as-you-go is the default here; Token Plan users just change
+    # the Base URL to the maas-token-api address.
     LLMProviderSpec(
         "iflytek",
         "iFlytek Spark (Astron MaaS)",
@@ -397,7 +397,7 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://maas-api.cn-huabei-1.xf-yun.com/v2",
         model_docs_url="https://maas.xfyun.cn/modelSquare",
     ),
-    # 聚合与统一接入平台
+    # Aggregators and unified access platforms
     LLMProviderSpec(
         "apixo",
         "APIXO AI",
@@ -438,9 +438,9 @@ LLM_PROVIDER_REGISTRY = (
         default_model="deepseek/deepseek-v4-flash",
         default_base_url="https://router.shengsuanyun.com/api/v1",
     ),
-    # APIMart 同时提供 `/api/v1` 业务接口和 `/v1` OpenAI 兼容接口。
-    # 当前 LLM 服务层依赖 OpenAI SDK 直接读取 choices，因此必须使用不带
-    # code/data 外层包装的 `/v1` 入口，不能照搬异步业务接口的地址。
+    # APIMart provides both a `/api/v1` business API and a `/v1` OpenAI-compatible API.
+    # The current LLM service layer relies on the OpenAI SDK reading choices directly, so it must use the `/v1` entry
+    # without the code/data wrapper, not the address of the async business API.
     LLMProviderSpec(
         "apimart",
         "APIMart",
@@ -510,9 +510,9 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://www.api-route.com/v1",
         model_docs_url="https://www.api-route.com/pricing",
     ),
-    # Fluxion 的 OpenAI 分组使用 /v1 接口，复用现有 Chat Completions 适配器。
-    # 分组决定可用模型和地址，因此这里只提供默认值，保留用户覆盖配置的能力；
-    # Anthropic/Gemini 原生分组不能直接使用这个入口，避免协议不匹配。
+    # Fluxion's OpenAI group uses the /v1 API and reuses the existing Chat Completions adapter.
+    # The group determines the available models and address, so only defaults are provided here, keeping the ability to override in config;
+    # Fluxion's native Anthropic/Gemini groups can't use this entry directly, avoiding protocol mismatches.
     LLMProviderSpec(
         "fluxionai",
         "Fluxion AI",
@@ -612,16 +612,16 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.uberllm.dev/v1",
         model_docs_url="https://uberllm.dev/models",
     ),
-    # 本地部署与通用网关
+    # Local deployments and generic gateways
     LLMProviderSpec(
         "ollama",
         "Ollama",
         requires_api_key=False,
         show_api_key=False,
     ),
-    # Claude 订阅（Pro / Max / Team）不签发 API Key，凭证只能由 Claude Code
-    # 官方客户端使用，因此这个 Provider 不走 HTTP 接口，而是调用本机已登录
-    # 的 claude CLI。模型名留空即沿用 CLI 当前的默认模型。
+    # Claude subscriptions (Pro / Max / Team) don't issue API Keys, and the credentials can only be used by the official
+    # Claude Code client, so this Provider doesn't use an HTTP API but calls the locally logged-in
+    # claude CLI. An empty model name keeps the CLI's current default model.
     LLMProviderSpec(
         "claude_code",
         "Claude Code (Claude subscription)",
@@ -651,7 +651,7 @@ LLM_PROVIDER_REGISTRY = (
         show_api_key=False,
         show_base_url=False,
     ),
-    # 其它推理与公共服务
+    # Other inference and public services
     LLMProviderSpec(
         "groq",
         "Groq",
@@ -682,10 +682,10 @@ def get_llm_provider(provider_id: str) -> LLMProviderSpec | None:
 
 def normalize_provider_override(value: str | None, default_value: str | None) -> str:
     """
-    只保留与 Registry 默认值不同的用户覆盖值。
+    Keep only user overrides that differ from the Registry defaults.
 
-    WebUI 需要把默认值展示在输入框中，但不能因此把默认值固化到 config.toml；
-    否则后续升级 Registry 默认模型或地址时，旧配置会继续覆盖新默认值。
+    The WebUI needs to show defaults in input boxes, but that must not freeze defaults into config.toml;
+    otherwise, when the Registry's default model or address is upgraded later, old config would keep overriding the new defaults.
     """
     normalized_value = (value or "").strip()
     normalized_default = (default_value or "").strip()

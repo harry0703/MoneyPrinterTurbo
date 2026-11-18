@@ -1,4 +1,4 @@
-"""可选的请求参数追踪；不读取响应正文，不改变重试或网络传输行为。"""
+"""Optional request parameter tracing; never reads response bodies or changes retry or network transport behavior."""
 
 import json
 import re
@@ -17,8 +17,8 @@ from app.utils.logging_utils import get_logging_options
 _REDACTED = "[REDACTED]"
 _MAX_STRING = 1000
 _MAX_PAYLOAD = 12000
-# 凭据字段名一律遮盖。设备登录流程的会话标识同样是凭据：Kimi 用
-# ``device_code``，Codex 用 ``device_auth_id``，两者都必须留在日志之外。
+# Credential field names are always masked. Session identifiers in device login flows are credentials too: Kimi uses
+# ``device_code`` and Codex uses ``device_auth_id``, and both must stay out of the logs.
 _SECRET_KEY = re.compile(
     r"authorization|cookie|password|passwd|secret|credential|signature|"
     r"apikey|accesskey|privatekey|clientkey|devicecode|deviceauthid|usercode|"
@@ -55,7 +55,7 @@ _MEDIA_KEYS = frozenset(
 
 
 def _safe_url(value: str) -> str:
-    """查询参数全部遮盖，避免漏掉供应商自定义的签名字段。"""
+    """Mask all query parameters, so provider-specific signature fields aren't missed."""
     try:
         parts = urlsplit(value)
         netloc = parts.netloc.rsplit("@", 1)[-1]
@@ -80,7 +80,7 @@ def _safe_string(value: str) -> str:
 
 
 def _safe_query_params(value):
-    """与 URL 内的 query 保持一致，遮盖所有值，兼容 requests 的参数格式。"""
+    """Mask all values, consistent with queries in URLs and compatible with requests' parameter formats."""
     if isinstance(value, Mapping):
         return {_safe_string(str(key)): _REDACTED for key in islice(value, 30)}
     if isinstance(value, (list, tuple)):
@@ -93,7 +93,7 @@ def _safe_query_params(value):
 
 
 def sanitize_payload(value):
-    """限制深度、节点数和文本长度；未知对象只记录类型，不调用其 repr。"""
+    """Limit depth, node count and text length; unknown objects only have their type logged, without calling their repr."""
     remaining = 100
 
     def visit(item, depth=0):
@@ -142,7 +142,7 @@ def sanitize_payload(value):
 
 
 def _emit(event: dict) -> None:
-    # 诊断失败不能阻断付费提交、污染业务异常或触发额外重试。
+    # A diagnostics failure must not block paid submissions, pollute business exceptions or trigger extra retries.
     try:
         logger.bind(request_trace=True).info(
             "request_trace {}", json.dumps(event, ensure_ascii=False)
@@ -186,7 +186,7 @@ def _trace_call(kind, method, endpoint, payload, send, *args, **kwargs):
             }
         )
         raise
-    # 不访问 .content/.text/.json()，避免提前消耗 SSE、音频和大文件下载。
+    # .content/.text/.json() aren't accessed, so SSE, audio and large file downloads aren't consumed early.
     try:
         status = getattr(response, "status_code", None)
     except Exception:
@@ -203,15 +203,15 @@ def _trace_call(kind, method, endpoint, payload, send, *args, **kwargs):
 
 
 def trace_http_call(method, send, url, *args, **kwargs):
-    """包装项目显式发出的 requests 请求，原参数和返回对象保持不变。"""
+    """Wrap requests explicitly made by the project, leaving the original arguments and return object unchanged."""
     payload = {
         key: kwargs[key] for key in ("params", "json", "data", "files") if key in kwargs
     }
-    # 原始表单/二进制正文不能可靠按字段脱敏，只允许查看结构化参数。
+    # Raw form/binary bodies can't be reliably redacted per field, so only structured parameters may be inspected.
     if "data" in payload and not isinstance(payload["data"], Mapping):
         payload["data"] = "[raw body omitted]"
     if method.upper() == "REQUEST":
-        # Session.request 的第一个位置参数是 method，第二个才是 URL。
+        # The first positional argument of Session.request is method; the second is the URL.
         method, url, args = url, args[0], args[1:]
         return _trace_call(
             "http", method, url, payload, send, method, url, *args, **kwargs
@@ -220,5 +220,5 @@ def trace_http_call(method, send, url, *args, **kwargs):
 
 
 def trace_sdk_call(provider, endpoint, send, **kwargs):
-    """记录 SDK 调用参数；不声称覆盖 SDK 内部重试或其最终 wire JSON。"""
+    """Log SDK call parameters; doesn't claim to cover the SDK's internal retries or its final wire JSON."""
     return _trace_call("sdk", provider, endpoint, kwargs, send, **kwargs)

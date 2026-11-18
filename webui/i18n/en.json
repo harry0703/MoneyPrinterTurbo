@@ -169,7 +169,7 @@
     "Please Upload Voiceover File First": "Please upload a voiceover file first",
     "Background Music Source": "Background Music Source",
     "Speech Synthesis": "Voice (match script language)",
-    "Speech Region": "Region(:red[Required，[Get Region](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
+    "Speech Region": "Region(:red[Required, [Get Region](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Key": "Azure Speech API Key ([Get API Key](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices))",
     "Speech Volume": "Voice Volume",
     "Speech Rate": "Voice Speed",

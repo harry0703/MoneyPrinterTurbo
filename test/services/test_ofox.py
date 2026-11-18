@@ -144,8 +144,8 @@ class TestOFoxService(unittest.TestCase):
         config.app["ofox_resolution"] = "   "
         self.assertEqual(ofox._resolution(), ofox.DEFAULT_RESOLUTION)
 
-        # 分辨率白名单随远端模型目录变化，本地不做校验；配置值原样提交，
-        # 由服务端按模型给出明确的 400 拒绝（不创建付费任务）。
+        # The resolution allowlist changes with the remote model catalog, so it isn't validated locally; the config value is submitted as-is,
+        # and the server gives a clear 400 rejection per model (without creating a paid task).
         config.app["ofox_resolution"] = " 480p "
         self.assertEqual(ofox._resolution(), "480p")
 
@@ -160,7 +160,7 @@ class TestOFoxService(unittest.TestCase):
                 post.assert_not_called()
 
     def test_provider_pinning_defaults_to_byteplus_and_stays_configurable(self):
-        # 未配置时默认钉定国际厂商 byteplus（内容政策一致、路由可预期）。
+        # When not configured, the international vendor byteplus is pinned by default (consistent content policy, predictable routing).
         submit = self._response({"id": "vid-route", "status": "queued"}, 202)
         completed = self._response(
             {
@@ -179,7 +179,7 @@ class TestOFoxService(unittest.TestCase):
             post.call_args.kwargs["json"]["provider"], {"type": "byteplus"}
         )
 
-        # None 视同未配置（配置解析异常时的兜底），仍走默认。
+        # None is treated as not configured (a fallback for config parse errors) and still uses the default.
         config.app["ofox_provider"] = None
         with (
             patch.object(ofox.requests, "post", return_value=submit) as post,
@@ -190,7 +190,7 @@ class TestOFoxService(unittest.TestCase):
             post.call_args.kwargs["json"]["provider"], {"type": "byteplus"}
         )
 
-        # 显式配置为空字符串 = 不钉定，交回网关按权重自动分发。
+        # An explicitly empty string = no pinning, handing distribution back to the gateway by weight.
         for blank in ("", "   "):
             with self.subTest(blank=blank):
                 config.app["ofox_provider"] = blank
@@ -201,8 +201,8 @@ class TestOFoxService(unittest.TestCase):
                     ofox.generate_videos("sunrise", 5)
                 self.assertNotIn("provider", post.call_args.kwargs["json"])
 
-        # 配置其它厂商名则钉定那一家；非法厂商名由服务端以 400
-        # invalid_provider_type 拒绝（不创建付费任务），走常规 4xx 路径。
+        # Configuring another vendor name pins that one; invalid vendor names are rejected by the server with a 400
+        # invalid_provider_type (without creating a paid task), going through the regular 4xx path.
         config.app["ofox_provider"] = " volcengine "
         with (
             patch.object(ofox.requests, "post", return_value=submit) as post,
@@ -303,8 +303,8 @@ class TestOFoxService(unittest.TestCase):
                 self.assertEqual(post.call_count, 1)
 
     def test_pending_status_is_active_and_polling_continues(self):
-        # 官方成功路径为 pending → queued → in_progress → completed；首次轮询
-        # 拿到 pending 属于正常在途状态，不能当作未知状态终止任务。
+        # The official success path is pending → queued → in_progress → completed; getting pending on the first poll
+        # is a normal in-flight state and must not be treated as an unknown state that stops the task.
         submit = self._response({"id": "vid-pending", "status": "queued"}, 202)
         polls = [
             self._response({"id": "vid-pending", "status": "pending"}),
@@ -349,8 +349,8 @@ class TestOFoxService(unittest.TestCase):
         )
 
     def test_missing_or_invalid_mirror_urls_fall_back_to_unsigned_urls(self):
-        # mirror_urls 仅在上游开启镜像时返回；缺失、为空或不含合法直链时都
-        # 必须回退到 unsigned_urls，不能让任务失败。
+        # mirror_urls is only returned when the upstream enables mirroring; when missing, empty or without a valid direct link,
+        # it must fall back to unsigned_urls rather than failing the task.
         for mirror in (None, [], ["not-a-url", 123]):
             with self.subTest(mirror=mirror):
                 submit = self._response({"id": "vid-fallback", "status": "queued"}, 202)
@@ -432,8 +432,8 @@ class TestOFoxService(unittest.TestCase):
         self.assertEqual(raised.exception.task_id, "vid-running")
 
     def test_network_retry_stops_when_total_run_deadline_is_reached(self):
-        # 第一次请求前仍有 59 秒；请求异常返回时总截止时间已经过去，不能继续
-        # 执行其余五次网络重试，也不能再进入退避 sleep。
+        # There are still 59 seconds before the first request; when the request raises, the overall deadline has already passed, so the remaining
+        # five network retries must not run, nor may it enter the backoff sleep.
         config.app["ofox_run_timeout"] = 60
         clock = iter([0.0, 1.0, 61.0])
         with (
@@ -484,8 +484,8 @@ class TestOFoxService(unittest.TestCase):
             }
         )
         running = self._response({"id": "vid-running", "status": "in_progress"})
-        # 第一次响应完成时只剩 0.25 秒，应只休眠剩余时间；下一轮在发起
-        # 网络请求前发现截止时间已过，避免额外一次远端请求。
+        # Only 0.25 seconds remain when the first response completes, so it should only sleep for the remaining time; the next round
+        # finds the deadline has passed before making the network request, avoiding one extra remote request.
         clock = iter([0.0, 59.0, 59.75, 60.1])
         with (
             patch.object(ofox.requests, "get", return_value=running) as get,
@@ -566,8 +566,8 @@ class TestOFoxService(unittest.TestCase):
                 self.assertEqual(raised.exception.task_id, "vid-malformed")
 
     def test_all_terminal_failure_statuses_end_the_task_without_billing_doubt(self):
-        # 远端明确失败（如触发内容审核）意味着任务已结束、无计费悬念。返回
-        # None 让上层跳过该关键词继续生成，而不是中止整条视频。
+        # An explicit remote failure (e.g. content moderation triggered) means the task has ended with no billing uncertainty. Returning
+        # None lets the upper layer skip the keyword and keep generating, rather than aborting the whole video.
         for status in ofox.TERMINAL_FAILURE_STATUSES:
             with self.subTest(status=status):
                 terminal = self._response(
@@ -712,8 +712,8 @@ class TestOFoxMaterialIntegration(unittest.TestCase):
         self.assertEqual(len(persist.call_args.args[1]), 2)
 
     def test_failed_keyword_is_skipped_and_generation_continues(self):
-        # 单个关键词被远端明确判失败（generate_videos 返回空列表）时应跳过该
-        # 片段继续下一个关键词，而不是中止整条视频。
+        # When a single keyword is clearly failed by the remote (generate_videos returns an empty list), that clip should be skipped
+        # and the next keyword continued, rather than aborting the whole video.
         with (
             patch.object(
                 ofox,

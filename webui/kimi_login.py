@@ -1,4 +1,4 @@
-"""Kimi 登录界面：直接打开授权链接，并局部轮询授权状态。"""
+"""Kimi login UI: open the authorization link directly and poll the authorization status locally."""
 
 import time
 
@@ -19,8 +19,8 @@ def _prepare_link(region, tr):
         if prepared.get("error") or time.time() < prepared["refresh_at"]:
             return prepared
 
-    # 链接在展示按钮前准备好，点击时由浏览器原生打开新标签页。
-    # 不用服务器的 webbrowser.open，也不依赖容易被拦截的异步弹窗。
+    # The link is prepared before the button is shown, and clicking opens a new tab natively in the browser.
+    # The server's webbrowser.open isn't used, nor async popups that are easily blocked.
     try:
         payload = kimi_code_oauth.request_device_code(region)
     except requests.RequestException:
@@ -108,7 +108,7 @@ def _poll_login(tr):
                 else:
                     _finish_login("success", tr("kimi_code.oauth.success"))
                 return
-        # 以响应结束时间计算下一次请求，避免慢请求之后立即再轮询。
+        # The next request is timed from when the response finished, so a slow request isn't immediately followed by another poll.
         flow["next_poll_at"] = time.time() + flow["interval"]
         st.session_state[FLOW_KEY] = flow
 
@@ -127,10 +127,10 @@ def _disconnect():
 
 @st.fragment(run_every="1s")
 def render_kimi_login(region, tr):
-    """在设置弹窗中渲染登录；未点击登录前不请求 token。"""
+    """Render login in the settings dialog; no token is requested before login is clicked."""
     flow = st.session_state.get(FLOW_KEY)
     if flow and flow["region"] != region:
-        # 用户切换站点后停止旧站点的待授权流程，旧凭据仍按原区域使用。
+        # After the user switches sites, the old site's pending authorization flow stops; old credentials keep being used for their original region.
         st.session_state.pop(FLOW_KEY, None)
         flow = None
 
@@ -165,7 +165,7 @@ def render_kimi_login(region, tr):
         if flow.get("network_errors"):
             st.warning(tr("kimi_code.oauth.poll_retry"))
         st.info(tr("kimi_code.oauth.pending"))
-        # 保留重新打开入口，与取消操作放在同一行。
+        # Keep the reopen entry, on the same row as the cancel action.
         with st.container(horizontal=True, gap="small"):
             st.link_button(
                 tr("kimi_code.oauth.open_page"), flow["verification_uri_complete"]

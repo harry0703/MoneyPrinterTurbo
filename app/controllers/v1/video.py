@@ -38,8 +38,8 @@ from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
 
-# 统一在 V1 视频路由入口执行鉴权。verify_token 会在 api_key 为空时
-# 保留现有免认证行为，只有管理员显式配置后才会影响客户端。
+# Authentication is enforced uniformly at the V1 video route entry. verify_token keeps the existing no-auth behavior
+# when api_key is empty, and only affects clients once an administrator configures it explicitly.
 router = new_router(dependencies=[Depends(base.verify_token)])
 
 _enable_redis = config.app.get("enable_redis", False)
@@ -63,7 +63,7 @@ def _build_redis_url(host: str, port: int, db: int, password: str | None) -> str
 
 
 redis_url = _build_redis_url(_redis_host, _redis_port, _redis_db, _redis_password)
-# 根据配置选择合适的任务管理器
+# Choose the appropriate task manager based on config
 if _enable_redis:
     task_manager = RedisTaskManager(
         max_concurrent_tasks=_max_concurrent_tasks,
@@ -78,8 +78,8 @@ else:
 
 
 def _sanitize_upload_filename(filename: str, request_id: str) -> str:
-    # 浏览器或客户端有时会附带目录信息，甚至可能夹带 ../ 这类穿越片段。
-    # 这里只保留纯文件名，避免上传接口把文件写到目标目录之外。
+    # Browsers or clients sometimes include directory info, possibly even traversal fragments like ../.
+    # Only the bare filename is kept here, so the upload endpoint can't write files outside the target directory.
     normalized_name = (filename or "").replace("\\", "/").split("/")[-1].strip()
     if not normalized_name or normalized_name in {".", ".."}:
         raise HttpException(
@@ -106,7 +106,7 @@ def _resolve_path_within_directory(base_dir: str, unsafe_path: str, request_id: 
 
 
 def _public_task_data(task: dict) -> dict:
-    """复制任务状态并移除仅用于服务端进程协调的内部字段。"""
+    """Copy the task state and remove internal fields used only for server-side process coordination."""
     public_task = dict(task)
     public_task.pop("cross_post_owner", None)
     return public_task
@@ -122,8 +122,8 @@ def _task_file_to_uri(file: str, endpoint: str, task_dir: str, request_id: str) 
     try:
         resolved_path = file_security.resolve_path_within_directory(task_dir, file)
     except ValueError as exc:
-        # 任务状态理论上只应保存任务目录内的产物路径。这里不再继续拼接 URL，
-        # 避免把异常路径包装成可访问链接；同时保留原值，便于排查历史脏数据。
+        # Task state should in theory only store output paths inside the task directory. URLs are no longer joined here,
+        # so abnormal paths aren't wrapped into accessible links; the original value is kept to help diagnose historical dirty data.
         logger.warning(
             f"skip unsafe task output path, request_id: {request_id}, path: {file}, "
             f"error: {str(exc)}"
@@ -158,9 +158,9 @@ def _task_response_data(task: dict, endpoint: str, task_dir: str, request_id: st
 def _parse_byte_range(
     range_header: str | None, file_size: int, request_id: str
 ) -> tuple[int, int]:
-    """解析单段 HTTP Range，并把无效或越界请求稳定转换成 416。"""
-    # 416 只用于回应 Range 请求。没有 Range 时空文件也是完整表示，
-    # 返回 0 字节的 200，与 /download 的行为一致。
+    """Parse a single-range HTTP Range header, consistently turning invalid or out-of-bounds requests into 416."""
+    # 416 is only used to answer Range requests. Without Range, an empty file is still a complete representation,
+    # so a 0-byte 200 is returned, consistent with /download.
     if not range_header:
         return 0, file_size - 1
 
@@ -172,8 +172,8 @@ def _parse_byte_range(
         )
 
     try:
-        # 视频播放器这里只需要单段 bytes range。拒绝多段请求可以避免返回体
-        # 与 Content-Range 不一致，也避免异常字符串落入 int() 产生 500。
+        # The video player only needs single-range bytes here. Rejecting multi-range requests avoids a response body
+        # inconsistent with Content-Range, and keeps malformed strings from reaching int() and causing a 500.
         unit, separator, positions = range_header.strip(" \t").partition("=")
         if unit.lower() != "bytes" or not separator or "," in positions:
             raise ValueError("unsupported range format")
@@ -246,8 +246,8 @@ def create_task(
             and body.subtitle_enabled
         ):
             tm.video.validate_subtitle_colors(body)
-            # 字体名可由 API 客户端直接提交，不能等到后台渲染时才发现路径越界。
-            # 这里与渲染层共用目录边界校验，让非法请求在创建付费任务前返回 403/404。
+            # The font name can be submitted directly by API clients, so path escapes can't wait to be discovered at background render time.
+            # The directory boundary check is shared with the render layer, so invalid requests return 403/404 before a paid task is created.
             # Route the font pre-check through the file-serving
             # wrapper so the 403/404 error codes match the other
             # task-output paths in this file instead of 400. The
@@ -269,9 +269,9 @@ def create_task(
                 tm.start, task_id=task_id, params=body, stop_at=stop_at
             )
         except Exception:
-            # 状态记录在调度前创建，默认标记为 processing。如果调度器没能
-            # 接管任务（例如线程启动失败或 Redis 队列不可用），必须回滚该
-            # 记录，否则 API 和 WebUI 会永久展示一个实际从未运行的任务。
+            # The state record is created before scheduling and defaults to processing. If the scheduler failed to
+            # take over the task (e.g. thread start failure or Redis queue unavailable), the record must be rolled back,
+            # otherwise the API and WebUI would forever show a task that never actually ran.
             sm.state.delete_task(task_id)
             raise
         logger.success(f"Task created: {utils.to_json(task)}")
@@ -390,8 +390,8 @@ def get_bgm_list(request: Request):
             {
                 "name": filename,
                 "size": size,
-                # 只返回文件名，避免把服务器绝对路径暴露给调用方。服务端会
-                # 在 storage/bgm 和 resource/songs 两个白名单目录中重新解析。
+                # Only return the filename, so absolute server paths aren't exposed to callers. The server re-resolves
+                # it within the two allowlisted directories storage/bgm and resource/songs.
                 "file": filename,
             }
         )
@@ -417,8 +417,8 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
     try:
         safe_filename = bgm_service.save_bgm_upload(file.filename, file.file)
     except bgm_service.BgmUploadError as exc:
-        # 上传失败通常可以由用户更换文件后恢复，因此记录 request_id 和明确原因，
-        # 但不输出文件内容或绝对路径，避免日志泄露用户数据。
+        # Upload failures can usually be fixed by the user choosing another file, so the request_id and a clear reason are logged,
+        # but not the file content or absolute path, so logs don't leak user data.
         logger.warning(
             f"background music upload rejected: request_id={request_id}, error={str(exc)}"
         )
@@ -428,8 +428,8 @@ def upload_bgm_file(request: Request, file: UploadFile = File(...)):
             message=f"{request_id}: {str(exc)}",
         )
     except bgm_service.BgmServiceError as exc:
-        # 工具链或存储故障属于服务端问题，不能伪装成用户文件错误。日志保留
-        # request_id 和内部原因，HTTP 响应只返回稳定文案，避免暴露服务器路径。
+        # Toolchain or storage failures are server-side problems and must not be disguised as user file errors. The log keeps
+        # the request_id and internal reason, while the HTTP response only returns stable text, so server paths aren't exposed.
         logger.error(
             f"background music upload failed: request_id={request_id}, error={str(exc)}"
         )

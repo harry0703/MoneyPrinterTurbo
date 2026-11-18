@@ -11,22 +11,22 @@ class TaskQueueFullError(ValueError):
 
 def _coerce_task_limit(value: Any, name: str) -> int:
     """
-    把配置里的并发 / 排队上限解析成整数。
+    Parse the concurrency / queue limits in config into integers.
 
-    TOML 的数值既可能写成 `max_concurrent_tasks = 5`，也可能被写成 `"5"`。字符串
-    会一路传到 `add_task` 的比较运算里，变成不指出配置键名的 TypeError，而且
-    `max_queued_tasks` 写错时只在并发名额用尽后才触发。`app/services/webui_task.py`
-    对同一个 `max_queued_tasks` 键已经做了同样的收敛，这里把它提到唯一的构造入口。
+    TOML numbers may be written as `max_concurrent_tasks = 5` or as `"5"`. A string
+    would travel all the way into the comparisons in `add_task`, becoming a TypeError that doesn't name the config key, and
+    a typo in `max_queued_tasks` would only trigger once the concurrency slots are used up. `app/services/webui_task.py`
+    already converges the same `max_queued_tasks` key the same way; here it's lifted into the single construction entry point.
 
-    解析不出整数的写法一律报出配置键名：`0.5` 会被 `int()` 静默截断成 0（任务只入队、
-    没有 worker 执行），TOML 允许的 `inf` / `-inf` / `nan` 也不是有效上限。
-    0 与负数保持原样：前者表示暂时不执行任务，后者让请求直接进入排队分支。
+    Any value that can't be parsed into an integer reports the config key name: `0.5` would be silently truncated to 0 by `int()` (tasks only enqueued,
+    no worker runs them), and TOML's `inf` / `-inf` / `nan` aren't valid limits either.
+    0 and negatives are kept as-is: the former means don't run tasks for now, the latter sends requests straight into the queue branch.
     """
     if isinstance(value, bool):
-        # bool 是 int 的子类，但 `true` 显然不是用户想要的上限。
+        # bool is a subclass of int, but `true` is clearly not the limit the user wants.
         raise ValueError(f"{name} must be an integer, got {value!r}")
     if isinstance(value, float):
-        # 非有限值不是上限，小数则会在截断后退化成「0：只排队不执行」的语义。
+        # Non-finite values aren't limits, and fractions would degrade after truncation into the "0: queue only, never run" semantics.
         if not math.isfinite(value):
             raise ValueError(f"{name} must be a finite integer, got {value!r}")
         if not value.is_integer():
@@ -57,9 +57,9 @@ class TaskManager:
                 logger.info(
                     f"add task: {func.__name__}, current_tasks: {self.current_tasks}"
                 )
-                # 在线程启动前先预占并发名额。原实现在线程内部递增，连续请求
-                # 可能都在子线程获得锁之前看到 current_tasks=0，从而突破并发
-                # 上限。启动失败时回滚名额，让后续请求仍可正常调度。
+                # Reserve a concurrency slot before starting the thread. The original implementation incremented inside the thread, so consecutive requests
+                # could all see current_tasks=0 before the child thread got the lock, breaking the concurrency
+                # limit. On start failure the slot is rolled back, so later requests can still be scheduled normally.
                 self.current_tasks += 1
                 try:
                     self.execute_task(func, *args, **kwargs)
@@ -68,8 +68,8 @@ class TaskManager:
                     raise
             else:
                 queue_size = self.queue_size()
-                # 并发数已满时才进入排队。队列必须有上限，否则匿名接口可以持续
-                # 堆积任务对象和请求参数，最终造成内存耗尽或第三方 API 成本失控。
+                # Only enter the queue when concurrency is full. The queue must be bounded, otherwise anonymous endpoints could keep
+                # piling up task objects and request parameters, eventually exhausting memory or running up third-party API costs.
                 if queue_size >= self.max_queued_tasks:
                     logger.warning(
                         f"reject task: {func.__name__}, queue_size: {queue_size}, "

@@ -1,4 +1,4 @@
-"""把不同供应商的长任务状态传给共享任务存储，不改变计费请求及重试策略。"""
+"""Pass long-running task states from different providers to the shared task store, without changing billed requests or retry policies."""
 
 import re
 import threading
@@ -27,8 +27,8 @@ class _Reporter:
         self.last_log_at = 0
 
     def publish(self, phase, *, reset=False, **fields):
-        # 状态展示属于辅助能力。Redis 短暂不可用不能中断已付费任务，也不能
-        # 因异常重试而触发新的生成。这里只写白名单字段，不接收响应或下载 URL。
+        # Status display is an auxiliary feature. A brief Redis outage must not interrupt an already paid task, nor
+        # trigger a new generation through exception retries. Only allowlisted fields are written here; responses or download URLs aren't accepted.
         try:
             with self.lock:
                 now = time.time()
@@ -77,7 +77,7 @@ def remote(provider, task_id, status="", *, retrying=False):
     reporter = _current.get()
     if not reporter:
         return
-    # 任务 ID 只用于排障。拒绝异常网关把完整 URL/凭据放进此字段。
+    # The task ID is only for troubleshooting. Reject abnormal gateways that put a full URL/credentials into this field.
     task_id = str(task_id or "")
     task_id = task_id if _IDENTIFIER.fullmatch(task_id) else ""
     status = str(status or "").strip().lower()
@@ -91,7 +91,7 @@ def remote(provider, task_id, status="", *, retrying=False):
               "remote_id": task_id, "retrying": retrying}
     if not retrying and status:
         fields["confirmed_at"] = time.time()
-        # 只保留固定状态类别，不把网关的任意文本落到界面和日志。
+        # Only fixed state categories are kept, so arbitrary gateway text doesn't land in the UI and logs.
         fields["remote_status"] = (
             "succeeded" if status in _SUCCESS else
             "queued" if status in _QUEUED else

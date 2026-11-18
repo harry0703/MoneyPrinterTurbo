@@ -153,7 +153,7 @@
     "Please Upload Voiceover File First": "Əvvəlcə səsləndirmə faylı yüklənməlidir",
     "Background Music Source": "Fon musiqisinin mənbəyi",
     "Speech Synthesis": "Səs (ssenarinin dilinə uyğun)",
-    "Speech Region": "Region(:red[Məcburidir，[Regionu al](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
+    "Speech Region": "Region(:red[Məcburidir, [Regionu al](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices)])",
     "Speech Key": "Azure Speech API açarı ([API açarını al](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/SpeechServices))",
     "Speech Volume": "Səs səviyyəsi",
     "Speech Rate": "Səsin sürəti",

@@ -73,15 +73,15 @@ _CLIP_SPEED_MAX = 2.0
 
 
 def normalize_clip_speed(value, default: float = 1.0) -> float:
-    """将片段播放速度归一化到 WebUI 支持的安全范围。"""
+    """Normalize clip playback speed to the safe range supported by the WebUI."""
     try:
         speed = float(value)
     except (TypeError, ValueError):
         return default
 
-    # NaN 会绕过普通的大小比较，并在 MoviePy 计算 duration 时传播；无穷值也不
-    # 是合法用户输入。两者统一回退默认值，保证 API 和内部直接调用都不会生成
-    # 无效时间线。零值和负值同样无法表示正常播放速度。
+    # NaN bypasses ordinary comparisons and propagates when MoviePy computes duration; infinity isn't
+    # valid user input either. Both fall back to the default, so neither the API nor internal direct calls produce
+    # an invalid timeline. Zero and negative values can't represent a normal playback speed either.
     if not math.isfinite(speed) or speed <= 0:
         return default
 
@@ -140,19 +140,19 @@ def public_dir(sub_dir: str = ""):
 
 def get_ffmpeg_binary() -> str:
     """
-    解析当前进程应该使用的 FFmpeg 可执行文件。
+    Resolve the FFmpeg executable the current process should use.
 
-    增加原因：
-    1. 视频编码、静音音频生成、pydub 音频转码都依赖 FFmpeg；
-    2. Windows 便携包、Docker 和用户自定义安装目录经常出现 PATH 不一致；
-    3. 集中解析可以让所有调用方使用同一套优先级，减少某条链路能跑、
-       另一条链路找不到 FFmpeg 的现场问题。
+    Why this exists:
+    1. Video encoding, silent audio generation and pydub audio transcoding all depend on FFmpeg;
+    2. Windows portable packages, Docker and user-defined install directories often have inconsistent PATHs;
+    3. Centralized resolution lets all callers use the same priority, reducing field issues where one pipeline works
+       and another can't find FFmpeg.
 
-    优先级：
-    1. IMAGEIO_FFMPEG_EXE：MoviePy/imageio 约定的显式配置；
-    2. 系统 PATH 中的 ffmpeg；
-    3. imageio-ffmpeg 依赖提供的内置二进制；
-    4. 字符串 "ffmpeg" 兜底，交给 subprocess 在运行时暴露更具体错误。
+    Priority:
+    1. IMAGEIO_FFMPEG_EXE: the explicit config convention of MoviePy/imageio;
+    2. ffmpeg on the system PATH;
+    3. The bundled binary provided by the imageio-ffmpeg dependency;
+    4. The string "ffmpeg" as a fallback, letting subprocess surface a more specific error at runtime.
     """
     configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
     if configured_ffmpeg:
@@ -197,21 +197,21 @@ _FFMPEG_INSTALL_HINT = (
 
 def check_ffmpeg_ready(timeout: int = 10) -> bool:
     """
-    在真正开始生成视频之前提前探测 FFmpeg 是否可用。
+    Probe whether FFmpeg is usable before actually starting video generation.
 
-    增加原因：
-    此前 FFmpeg 缺失/不可用只会在视频合成、静音音轨生成等环节里，以
-    ``RuntimeError: No ffmpeg exe could be found`` 或 subprocess 报错的形式
-    出现，用户往往要等到任务跑了大半才第一次看到这个报错，且报错本身
-    不会指向任何解决办法。这里在共享任务流水线（app/services/task.py 的
-    ``_run_pipeline``）里提前做一次探测，尽早给出可操作的英文提示（与项目
-    里其他 logger.warning 的用语习惯保持一致），API、CLI、WebUI 都会经过
-    这条流水线，因此三条路径能统一生效。
+    Why this exists:
+    Previously a missing/unusable FFmpeg only surfaced during video composition, silent track generation and similar steps, as
+    ``RuntimeError: No ffmpeg exe could be found`` or a subprocess error,
+    so users often only saw the error for the first time after the task had run more than halfway, and the error itself
+    didn't point to any solution. Here a probe runs early in the shared task pipeline (``_run_pipeline`` in
+    app/services/task.py), giving an actionable English hint as early as possible (consistent with the wording of other
+    logger.warning calls in the project); the API, CLI and WebUI all go through
+    this pipeline, so it takes effect uniformly across all three paths.
 
-    仅做一次轻量的 ``-version`` 调用，不会触发下载或改变主流程；
-    调用方需要把返回值当作硬性前置条件——项目锁定的 imageio-ffmpeg==0.6.0
-    并不会在真正使用时自动补下载一个可用的二进制，因此检测失败必须让
-    需要 FFmpeg 的阶段直接终止，而不是继续跑到视频合成才失败。
+    Only a lightweight ``-version`` call is made, which doesn't trigger downloads or change the main flow;
+    callers must treat the return value as a hard precondition — the imageio-ffmpeg==0.6.0 pinned by the project
+    doesn't automatically download a usable binary when actually used, so a failed check must make
+    stages that need FFmpeg stop immediately, rather than running until video composition to fail.
     """
     ffmpeg_bin = get_ffmpeg_binary()
     try:
@@ -367,10 +367,10 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
             continue
 
         if char in (",", "，", "、") and previous_char.isdigit() and next_char.isdigit():
-            # 数字中间的逗号和顿号不是断句符，例如 "1,000 years"、"1，299元"、"第1、2名"。
-            # Edge TTS 的 word boundary 通常会把这种数字整体作为连续内容返回；
-            # 如果这里拆成 "1" 和 "000 years"，后续字幕聚合会无法匹配脚本原文，
-            # 整段字幕都不会生成。
+            # Commas and enumeration commas between digits aren't sentence breaks, e.g. "1,000 years", "1，299元", "第1、2名".
+            # Edge TTS word boundaries usually return such numbers as one continuous piece of content;
+            # if it were split here into "1" and "000 years", later subtitle aggregation couldn't match the original script,
+            # and no subtitles would be generated for the whole section.
             txt += char
             continue
 
@@ -389,28 +389,28 @@ PAUSE_TAG_KEYWORDS = (
     r"pause|pausa|silence|silencio|silêncio|silenzio|stille|"
     r"пауза|тишина|停顿|暂停|静音|ポーズ|一時停止|無音|일시중지|정지"
 )
-# 匹配所有包含停顿关键词的标签（方括号或圆括号），无论其参数合法与否均匹配，
-# 以确保非法标签（如 [pause: -2s]、[pause: nope]、[pause: 0s]）在合成前被彻底清除而不会泄漏给 TTS。
-# 中文输入法会把括号打成全角（）、［］或【】；只认半角时，`（停顿：2秒）` 会被原样朗读。
-# 关键词后不能用 `\b`：中日韩文字和数字都属于 `\w`，`[停顿3秒]` 这种不写冒号的
-# 常见写法会因为没有词边界而漏匹配，标签原文被直接朗读。这里只禁止关键词后
-# 紧跟字母（允许数字），`[paused]`、`[暂停一下]` 这类普通文字仍不会被误判。
+# Match every tag (in square or round brackets) containing a pause keyword, whether or not its argument is valid,
+# so invalid tags (e.g. [pause: -2s], [pause: nope], [pause: 0s]) are fully removed before synthesis and never leak to TTS.
+# Chinese input methods type brackets as full-width （）, ［］ or 【】; if only half-width ones were recognized, `（停顿：2秒）` would be read aloud verbatim.
+# `\b` can't be used after the keyword: CJK characters and digits are both `\w`, so the common form without a colon,
+# `[停顿3秒]`, would fail to match for lack of a word boundary and the tag text would be read aloud. Here only a letter immediately
+# after the keyword is forbidden (digits are allowed), so ordinary text like `[paused]` or `[暂停一下]` still isn't misdetected.
 PAUSE_TAG_PATTERN = re.compile(
     rf"[\[\(（［【]\s*(?:{PAUSE_TAG_KEYWORDS})(?![^\W\d])"
     rf"(?:\s*[:：]?\s*([^\]\)）］】]*?))?\s*[\]\)）］】]",
     re.IGNORECASE,
 )
 
-# 停顿时长安全阈值（单位：秒）：
-# 最小有效停顿为 0.1 秒（100ms），小于此值的请求会被校验并修正为 0.1s；
-# 小于等于 0 秒或非法非数字的停顿标签会被判定为无效标签并直接移除，不朗读也不生成静音；
-# 最大停顿上限为 10.0 秒，超过部分会被安全截断。
+# Pause duration safety thresholds (unit: seconds):
+# the minimum effective pause is 0.1 seconds (100ms), and smaller requests are validated and corrected to 0.1s;
+# pause tags of 0 seconds or less, or non-numeric ones, are treated as invalid and removed directly, neither read aloud nor producing silence;
+# the maximum pause is 10.0 seconds, and anything longer is safely truncated.
 MIN_PAUSE_DURATION_SECONDS = 0.1
 MAX_PAUSE_DURATION_SECONDS = 10.0
 
 
 def has_pause_tags(text: str) -> bool:
-    """检查文本中是否包含停顿/暂停标签。"""
+    """Check whether the text contains pause tags."""
     if not text:
         return False
     return bool(PAUSE_TAG_PATTERN.search(text))
@@ -418,30 +418,30 @@ def has_pause_tags(text: str) -> bool:
 
 def remove_pause_tags(text: str) -> str:
     """
-    移除脚本文本中的所有停顿/暂停标签（包括有效与无效标签）。
+    Remove all pause tags (both valid and invalid) from script text.
 
-    在字幕分句、LLM关键词提取或作为发音文本传递给 TTS 时，必须将此类非发音标记清除，
-    避免非法或未处理的标签被朗读或作为视觉搜索词。
+    For subtitle sentence splitting, LLM keyword extraction, or when passing the text to TTS for pronunciation, such non-spoken markers must be removed,
+    so invalid or unhandled tags aren't read aloud or used as visual search terms.
     """
     if not text:
         return ""
     cleaned = PAUSE_TAG_PATTERN.sub(" ", text)
-    # 合并连续水平空格，保留换行
+    # Collapse consecutive horizontal spaces, keeping newlines
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
     return cleaned.strip()
 
 
 def parse_script_with_pauses(text: str) -> list[tuple[str, Any]]:
     """
-    解析脚本中的文本与停顿标签。
+    Parse text and pause tags in a script.
 
-    连续停顿标签会自动合并为一个停顿段；
-    非法标签（如非数字参数、小于等于 0 的时长）会被直接移除并忽略，绝不会作为台词传给 TTS；
-    小于 MIN_PAUSE_DURATION_SECONDS (0.1s/100ms) 的过小停顿会被校验并提升至 0.1s；
-    超过 MAX_PAUSE_DURATION_SECONDS (10.0s) 的过长停顿会被限制在安全上限内。
+    Consecutive pause tags are automatically merged into one pause segment;
+    invalid tags (e.g. non-numeric arguments, durations of 0 or less) are removed and ignored, never passed to TTS as speech;
+    pauses shorter than MIN_PAUSE_DURATION_SECONDS (0.1s/100ms) are validated and raised to 0.1s;
+    pauses longer than MAX_PAUSE_DURATION_SECONDS (10.0s) are capped at the safe limit.
 
     Returns:
-        有序元组列表，形式为 [("speech", "文案"), ("pause", 2.0), ...]
+        Ordered list of tuples, in the form [("speech", "text"), ("pause", 2.0), ...]
     """
     if not text:
         return []
@@ -458,7 +458,7 @@ def parse_script_with_pauses(text: str) -> list[tuple[str, Any]]:
 
         raw_arg = match.group(1)
         if raw_arg is None or not raw_arg.strip():
-            # 未指定参数时，默认停顿 1.0 秒
+            # When no argument is given, the default pause is 1.0 seconds
             duration = 1.0
         else:
             raw_arg_str = raw_arg.strip()
@@ -499,7 +499,7 @@ def parse_script_with_pauses(text: str) -> list[tuple[str, Any]]:
             )
             duration = MAX_PAUSE_DURATION_SECONDS
 
-        # 连续出现的停顿标签合并为一个停顿段，避免生成碎片化静音文件
+        # Consecutive pause tags are merged into one pause segment, avoiding fragmented silent files
         if segments and segments[-1][0] == "pause":
             merged_duration = min(
                 segments[-1][1] + duration, MAX_PAUSE_DURATION_SECONDS
@@ -643,12 +643,12 @@ def remove_emoji(text: str) -> str:
 
 def normalize_script_for_subtitle_matching(video_script: str) -> str:
     """
-    清理字幕匹配前的脚本文本。
+    Clean script text before subtitle matching.
 
-    用户可能手动输入 Markdown 分隔符、标题强调或 `_` 这类格式符号。
-    这些字符通常不会出现在 TTS/Whisper 的识别结果里；如果继续参与
-    字幕逐行匹配，脚本行数量会大于真实字幕行数量，最终可能补出
-    `00:00:00,000 --> 00:00:00,000`，导致剪辑软件无法导入 SRT。
+    Users may manually enter Markdown separators, heading emphasis or formatting symbols like `_`.
+    These characters usually don't appear in TTS/Whisper recognition results; if they kept taking part in
+    line-by-line subtitle matching, the number of script lines would exceed the real number of subtitle lines, which could eventually produce
+    `00:00:00,000 --> 00:00:00,000`, making the SRT impossible to import into editing software.
     Emoji are left out as well: tts() does not speak them.
     """
     video_script = remove_emoji(remove_pause_tags(video_script or ""))
@@ -658,8 +658,8 @@ def normalize_script_for_subtitle_matching(video_script: str) -> str:
     removed_separator_lines = 0
     for line in video_script.splitlines():
         line = line.strip()
-        # Markdown 分隔符或强调符号单独成行时不会被 TTS 朗读，必须从
-        # 脚本行里移除，避免字幕聚合卡在这类“不可发声”的目标行上。
+        # Markdown separators or emphasis symbols on their own line aren't read aloud by TTS and must be removed from
+        # the script lines, so subtitle aggregation doesn't get stuck on such "unspeakable" target lines.
         # Neither is a line without a letter or digit: "* * *", "———", "• • •".
         if line and not re.sub(r"[_\W]+", "", line):
             removed_separator_lines += 1
@@ -689,11 +689,11 @@ def resolve_ui_language(
     default_language: str = "en",
 ) -> str:
     """
-    按“已保存设置、浏览器语言、默认语言”的优先级选择界面语言。
+    Choose the UI language by priority: "saved setting, browser language, default language".
 
-    浏览器通常返回带地区的 locale，例如 ``zh-CN``、``pt-BR``。语言文件使用
-    ``zh``、``pt`` 这类基础代码，因此先尝试完整匹配，再回退到连字符前的语言
-    代码。函数保持纯逻辑，避免把浏览器上下文和配置写入耦合到工具层，便于测试。
+    Browsers usually return a locale with a region, e.g. ``zh-CN`` or ``pt-BR``. Language files use
+    base codes like ``zh`` and ``pt``, so a full match is tried first, then the language code before the hyphen.
+    The function stays pure logic, so browser context and config writes aren't coupled into the utility layer, making it easy to test.
     """
     supported = [str(language).strip() for language in supported_languages]
     supported_by_lower = {
@@ -721,15 +721,15 @@ def resolve_ui_language(
     if default_match:
         return default_match
 
-    # 正常项目始终包含英文；保留空语言集合兜底，避免损坏的语言目录让页面
-    # 初始化直接抛异常，后续翻译函数会继续显示原始 key 以便诊断。
+    # A normal project always includes English; an empty language set is kept as a fallback, so a corrupted language directory doesn't make page
+    # initialization raise outright, and later translation functions keep showing the raw key for diagnosis.
     return supported[0] if supported else default_language
 
 
 @lru_cache(maxsize=8)
 def load_locales(i18n_dir):
-    # WebUI 每次交互都会触发 Streamlit 重新执行脚本，语言文件运行期不会变化，
-    # 因此缓存解析结果，避免反复读取和解析所有 i18n JSON 文件。
+    # The WebUI makes Streamlit re-run the script on every interaction, and language files don't change at runtime,
+    # so the parsed result is cached, avoiding repeatedly reading and parsing all i18n JSON files.
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:

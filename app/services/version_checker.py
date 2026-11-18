@@ -1,4 +1,4 @@
-"""检查 MoneyPrinterTurbo 是否存在可用的新正式版本。"""
+"""Check whether a new stable release of MoneyPrinterTurbo is available."""
 
 import threading
 import time
@@ -19,8 +19,8 @@ LATEST_RELEASE_API_URL: Final = (
 LATEST_RELEASE_PAGE_URL: Final = (
     "https://github.com/harry0703/MoneyPrinterTurbo/releases/latest"
 )
-# 更新检查只是辅助功能，网络异常不能明显拖慢本地 WebUI。连接与读取分别限制
-# 超时时间，既允许 GitHub 在普通网络下完成响应，也避免离线环境长时间等待。
+# The update check is only an auxiliary feature, and network errors must not noticeably slow down the local WebUI. Connect and read
+# timeouts are limited separately, allowing GitHub to respond on normal networks while avoiding long waits offline.
 RELEASE_CHECK_TIMEOUT: Final = (1.0, 2.0)
 RELEASE_CHECK_HEADERS: Final = {
     "Accept": "application/vnd.github+json",
@@ -31,7 +31,7 @@ UPDATE_CHECK_CACHE_TTL_SECONDS: Final = 12 * 60 * 60
 
 
 def _parse_version(value: str) -> Version:
-    """兼容 GitHub 常用的 ``v1.2.3`` 标签并转换为可比较版本。"""
+    """Accept GitHub's common ``v1.2.3`` tags and convert them into comparable versions."""
     normalized = str(value or "").strip()
     if normalized.lower().startswith("v"):
         normalized = normalized[1:]
@@ -40,12 +40,12 @@ def _parse_version(value: str) -> Version:
 
 def get_available_update(current_version: str) -> str | None:
     """
-    返回高于当前版本的最新正式版本；没有更新或检查失败时返回 ``None``。
+    Return the latest stable version newer than the current one; return ``None`` when there's no update or the check fails.
 
-    GitHub 的 ``releases/latest`` 接口会自动排除草稿和预发布版本，因此这里不再
-    重复实现发布状态筛选。WebUI 通过 ``AsyncUpdateChecker`` 在后台调用本函数；
-    网络、响应格式或版本标签异常时只记录日志并降级为“不显示通知”，不影响
-    视频生成等核心功能。
+    GitHub's ``releases/latest`` API already excludes drafts and pre-releases, so release status filtering isn't
+    reimplemented here. The WebUI calls this function in the background via ``AsyncUpdateChecker``;
+    on network, response format or version tag errors it only logs and degrades to "no notification", without affecting
+    core features such as video generation.
     """
     try:
         installed_version = _parse_version(current_version)
@@ -65,8 +65,8 @@ def get_available_update(current_version: str) -> str | None:
         response.raise_for_status()
         payload = response.json()
     except (requests.RequestException, ValueError) as exc:
-        # 更新检查失败属于可恢复的非核心异常。保留异常类型和信息便于定位代理、
-        # DNS、GitHub 限流或响应损坏问题，同时避免在 WebUI 中打扰普通用户。
+        # An update check failure is a recoverable non-core error. The exception type and message are kept to help locate proxy,
+        # DNS, GitHub rate limiting or corrupted response problems, without bothering ordinary users in the WebUI.
         logger.debug(
             "GitHub release check failed: "
             f"error_type={type(exc).__name__}, error={exc}"
@@ -102,7 +102,7 @@ def get_available_update(current_version: str) -> str | None:
 
 @dataclass(frozen=True)
 class UpdateCheckSnapshot:
-    """后台版本检查的即时状态，供 WebUI 无阻塞地读取。"""
+    """The instant state of the background version check, for the WebUI to read without blocking."""
 
     complete: bool
     available_version: str | None = None
@@ -110,15 +110,15 @@ class UpdateCheckSnapshot:
 
 class AsyncUpdateChecker:
     """
-    在后台线程中执行版本检查，并缓存最近一次结果。
+    Run the version check in a background thread and cache the most recent result.
 
-    Streamlit 会在任意控件交互后从头执行页面脚本。如果直接在标题区域访问
-    GitHub，首次打开或缓存失效时会阻塞整个页面。这里将网络请求放入守护线程，
-    页面只读取当前快照；检查完成后由 WebUI 的短期 fragment 刷新一次结果。
+    Streamlit re-runs the page script from the top after any widget interaction. Accessing GitHub directly in the title area
+    would block the whole page on first open or when the cache expires. The network request runs in a daemon thread here,
+    and the page only reads the current snapshot; once the check completes, a short-lived WebUI fragment refreshes the result once.
 
-    结果无论是“发现更新”还是“没有更新/网络失败”都会缓存，避免 GitHub
-    不可访问时每次 rerun 都重新请求。锁只保护内存状态，不包裹网络请求，因而
-    不会阻塞其它会话读取检查状态。
+    The result is cached whether it's "update found" or "no update/network failure", so when GitHub
+    is unreachable it isn't requested again on every rerun. The lock only protects in-memory state and doesn't wrap the network request, so
+    it doesn't block other sessions reading the check state.
     """
 
     def __init__(
@@ -138,7 +138,7 @@ class AsyncUpdateChecker:
         self._request_id = 0
 
     def poll(self, current_version: str) -> UpdateCheckSnapshot:
-        """立即返回检查快照；缓存过期时在后台启动一次新检查。"""
+        """Return the check snapshot immediately; start a new background check once the cache has expired."""
         normalized_current_version = str(current_version or "").strip()
         now = self._clock()
 
@@ -160,8 +160,8 @@ class AsyncUpdateChecker:
             ):
                 return UpdateCheckSnapshot(complete=False)
 
-            # 版本发生变化或缓存过期时，旧结果不应继续展示。先清空状态再启动
-            # 新线程，使调用方在检查期间得到明确的 pending 快照。
+            # When the version changes or the cache expires, the old result shouldn't keep being shown. Clear the state before starting
+            # a new thread, so callers get a clear pending snapshot during the check.
             self._current_version = normalized_current_version
             self._available_version = None
             self._completed_at = None
@@ -189,8 +189,8 @@ class AsyncUpdateChecker:
         try:
             available_version = self._check(current_version)
         except Exception:
-            # get_available_update 已处理预期的网络和数据异常。此处是后台线程的
-            # 最后保护边界，必须记录完整堆栈，避免意外异常静默终止后永久 pending。
+            # get_available_update already handles expected network and data errors. This is the background thread's
+            # last protection boundary and must log the full stack, so an unexpected exception can't silently end and leave it pending forever.
             logger.exception(
                 "unexpected error while checking for a MoneyPrinterTurbo update"
             )
@@ -210,5 +210,5 @@ _ASYNC_UPDATE_CHECKER = AsyncUpdateChecker()
 
 
 def poll_available_update(current_version: str) -> UpdateCheckSnapshot:
-    """读取全局后台检查器状态，避免不同 Streamlit 会话重复请求 GitHub。"""
+    """Read the global background checker state, so different Streamlit sessions don't request GitHub repeatedly."""
     return _ASYNC_UPDATE_CHECKER.poll(current_version)

@@ -33,10 +33,10 @@ resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resour
 @contextmanager
 def _capture_task_scoped_logs():
     """
-    按 WebUI 任务日志的同一条规则收集日志：只保留归属当前线程的记录。
+    Collect logs by the same rule as WebUI task logs: keep only records attributed to the current thread.
 
-    直接 patch ``logger.info`` 无法区分日志来自哪个线程，而 WebUI 丢日志的
-    原因正是线程归属，所以这里用真实的 loguru sink 加作用域过滤来验证。
+    Patching ``logger.info`` directly can't tell which thread a log came from, and thread attribution is exactly
+    why the WebUI lost logs, so a real loguru sink with scope filtering is used here to verify it.
     """
     messages = []
     root_thread_id = threading.get_ident()
@@ -54,7 +54,7 @@ def _capture_task_scoped_logs():
 
 
 class _FakeMoviePyClip:
-    """为最终混音单测提供最小 MoviePy 接口，避免 CI 真实编码大型视频。"""
+    """Provide a minimal MoviePy interface for final-mix unit tests, so CI doesn't actually encode large videos."""
 
     def __init__(self, *, duration=5, fps=44100):
         self.duration = duration
@@ -92,7 +92,7 @@ class TestVideoService(unittest.TestCase):
         vd._ffmpeg_encoder_exists.cache_clear()
 
     def test_clip_processing_concurrency_defaults_to_serial(self):
-        """未配置或配置无效时保持串行，显式设置仍可在安全范围内生效。"""
+        """Stay serial when unconfigured or misconfigured; an explicit setting still takes effect within the safe range."""
         with patch.dict(config.app, {}, clear=True):
             self.assertEqual(vd._get_clip_processing_concurrency(), 1)
         for value, expected in (("bad", 1), (0, 1), (4, 4), (99, 8)):
@@ -101,7 +101,7 @@ class TestVideoService(unittest.TestCase):
                     self.assertEqual(vd._get_clip_processing_concurrency(), expected)
 
     def test_generate_video_rejects_font_outside_directory_before_opening_media(self):
-        """WebUI、CLI 或内部调用绕过 API 时，渲染层也必须阻断越界字体。"""
+        """When the WebUI, CLI or internal calls bypass the API, the render layer must still block out-of-bounds fonts."""
         with tempfile.TemporaryDirectory() as temp_dir:
             font_dir = Path(temp_dir, "fonts")
             font_dir.mkdir()
@@ -126,7 +126,7 @@ class TestVideoService(unittest.TestCase):
                     open_video.assert_not_called()
 
     def test_generate_video_accepts_bundled_font_before_opening_media(self):
-        """内置字体必须继续通过校验，不能阻断默认字幕生成链路。"""
+        """Built-in fonts must keep passing validation and must not block the default subtitle generation pipeline."""
         params = vd.VideoParams(video_subject="Coffee", font_name="STHeitiMedium.ttc")
         with patch.object(
             vd, "_open_video_clip_quietly", side_effect=RuntimeError("media reached")
@@ -143,10 +143,10 @@ class TestVideoService(unittest.TestCase):
 
     def test_subtitle_spring_animation_keeps_color_and_mask_aligned(self):
         """
-        弹跳动画必须同步缩放颜色帧和透明蒙版。
+        The bounce animation must scale the color frame and transparency mask together.
 
-        旧实现只缩放颜色帧，首帧仍使用原尺寸蒙版，合成后会短暂出现黑色
-        文字轮廓。使用纯白画面和完整蒙版可以精确比较二者的有效像素区域。
+        The old implementation only scaled the color frame, so the first frame still used the original-size mask and briefly showed a black
+        text outline after compositing. A pure white frame and full mask allow an exact comparison of their effective pixel areas.
         """
         color_frame = vd.np.full((20, 30, 3), 255, dtype=vd.np.uint8)
         mask_frame = vd.np.ones((20, 30), dtype=float)
@@ -163,7 +163,7 @@ class TestVideoService(unittest.TestCase):
             vd.np.testing.assert_array_equal(initial_color, initial_mask)
             self.assertLess(initial_color.sum(), color_frame.shape[0] * color_frame.shape[1])
 
-            # 动画结束后必须精确恢复原始尺寸，避免长字幕持续模糊或缩放。
+            # After the animation ends, the original size must be restored exactly, so long subtitles don't stay blurred or scaled.
             settled_color = animated.get_frame(
                 vd._SUBTITLE_SPRING_DURATION_SECONDS
             )
@@ -177,7 +177,7 @@ class TestVideoService(unittest.TestCase):
             vd.close_clip(clip)
 
     def test_subtitle_spring_scale_handles_time_boundaries(self):
-        """零时长、负时间和动画结束点都不能产生除零或非法缩放比例。"""
+        """Zero duration, negative time and the animation end point must not cause division by zero or invalid scale factors."""
         duration = vd._SUBTITLE_SPRING_DURATION_SECONDS
 
         self.assertEqual(vd._get_subtitle_spring_scale(0, duration), 0.05)
@@ -186,7 +186,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(vd._get_subtitle_spring_scale(1, 0), 1.0)
 
     def test_scale_subtitle_frame_rejects_unsupported_shapes(self):
-        """异常通道或维度应明确失败，避免把损坏帧继续交给视频编码器。"""
+        """Abnormal channels or dimensions should fail clearly, so corrupted frames aren't passed on to the video encoder."""
         with self.assertRaisesRegex(ValueError, "2D mask or 3D color"):
             vd._scale_subtitle_frame_on_canvas(vd.np.zeros((8,)), 0.5)
         with self.assertRaisesRegex(ValueError, "RGB or RGBA"):
@@ -242,9 +242,9 @@ class TestVideoService(unittest.TestCase):
 
     def test_delete_files_deduplicates_paths_and_ignores_missing_files(self):
         """
-        循环片段会让同一路径在拼接列表中重复出现，清理时每个路径只能删除一次。
+        Looping clips makes the same path appear multiple times in the concat list, and each path may only be deleted once during cleanup.
 
-        已不存在的文件属于幂等清理的正常状态，不应再产生误导用户的失败日志。
+        Files that no longer exist are a normal state for idempotent cleanup and shouldn't produce misleading failure logs.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             existing_file = os.path.join(temp_dir, "temp-clip-1.mp4")
@@ -272,7 +272,7 @@ class TestVideoService(unittest.TestCase):
         warning.assert_not_called()
 
     def test_delete_files_logs_actionable_os_errors(self):
-        """权限等真实清理失败必须保留路径和系统错误，方便定位残留文件。"""
+        """Real cleanup failures such as permission errors must keep the path and system error, to help locate leftover files."""
         with (
             patch.object(
                 vd.os,
@@ -371,7 +371,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(rendered["captioned"][0, 0].tolist(), source_color)
 
     def test_generate_video_reports_successful_bgm_mix_and_closes_sources(self):
-        """BGM 混合成功后应返回 True，并释放所有原始文件 reader。"""
+        """After a successful BGM mix it should return True and release all original file readers."""
         params = vd.VideoParams(
             video_subject="test",
             subtitle_enabled=False,
@@ -414,7 +414,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(final_video.close_calls, 1)
 
     def test_generate_video_keeps_output_and_reports_failed_bgm_mix(self):
-        """BGM 打开失败时仍应只写一次无 BGM 视频，并返回 False。"""
+        """When opening BGM fails, the video without BGM should still be written only once, returning False."""
         params = vd.VideoParams(
             video_subject="test",
             subtitle_enabled=False,
@@ -457,7 +457,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(final_video.close_calls, 1)
 
     def test_generate_video_skips_every_bgm_source_when_volume_is_zero(self):
-        """0 音量必须在解析文件前统一短路当前来源和未来提供商。"""
+        """0 volume must short-circuit the current source and future providers uniformly before resolving files."""
         test_cases = [
             ("random", None),
             ("custom", None),
@@ -515,7 +515,7 @@ class TestVideoService(unittest.TestCase):
                 self.assertEqual(final_video.close_calls, 1)
 
     def test_generate_video_chooses_looping_by_bgm_file_source(self):
-        """默认曲库需要循环，任务层提供的时长适配文件不应依赖提供商名称。"""
+        """The default library needs looping, and duration-fitted files provided by the task layer shouldn't depend on provider names."""
         test_cases = [
             ("random", None, True),
             ("custom", None, True),
@@ -702,8 +702,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_preprocess_video_rejects_material_outside_local_videos(self):
         """
-        local 素材路径来自 API 参数，不能允许任意绝对路径进入 MoviePy。
-        这里验证非 local_videos 白名单目录内的路径会被跳过，避免任意文件读取。
+        Local material paths come from API parameters, so arbitrary absolute paths must not reach MoviePy.
+        This verifies paths outside the local_videos allowlisted directory are skipped, avoiding arbitrary file reads.
         """
         m = MaterialInfo(provider="local", url=self.test_img_path)
 
@@ -713,8 +713,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_bgm_file_accepts_song_directory_filename(self):
         """
-        BGM 列表接口现在只暴露文件名；生成视频时应能把文件名安全解析回
-        resource/songs 白名单目录，保持正常使用路径可用。
+        The BGM list endpoint now only exposes filenames; when generating the video, filenames should be safely resolved back into
+        the resource/songs allowlisted directory, keeping the normal usage path working.
         """
         song_dir = utils.song_dir()
         bgm_path = os.path.join(song_dir, "test-safe-bgm.mp3")
@@ -728,9 +728,9 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_bgm_file_accepts_project_relative_song_path(self):
         """
-        用户在 WebUI 中可能直接填写 ./resource/songs/xxx.mp3。该路径虽然是
-        项目根目录相对路径，但实际文件仍在 resource/songs 白名单目录内，
-        应该被接受，避免自定义背景音乐被误判为不存在。
+        Users may type ./resource/songs/xxx.mp3 directly in the WebUI. Although that path is
+        relative to the project root, the actual file is still inside the resource/songs allowlisted directory,
+        so it should be accepted, so custom background music isn't wrongly considered missing.
         """
         song_dir = utils.song_dir()
         bgm_path = os.path.join(song_dir, "test-relative-bgm.mp3")
@@ -747,21 +747,21 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_bgm_file_rejects_path_outside_song_directory(self):
         """
-        用户传入的 bgm_file 不能直接作为本地路径打开，否则可能读取系统文件。
-        即使外部文件存在，也必须因为不在 songs 目录内被拒绝。
+        A user-supplied bgm_file can't be opened directly as a local path, or system files could be read.
+        Even if the external file exists, it must be rejected because it isn't inside the songs directory.
         """
         with tempfile.NamedTemporaryFile(suffix=".mp3") as temp_bgm:
             self.assertEqual(vd.get_bgm_file(bgm_file=temp_bgm.name), "")
 
     def test_get_ffmpeg_binary_uses_configured_env_path(self):
-        """配置中显式指定 ffmpeg 时，应优先使用该路径。"""
+        """When ffmpeg is explicitly specified in config, that path should take priority."""
         with patch.dict(os.environ, {"IMAGEIO_FFMPEG_EXE": "/tmp/custom-ffmpeg"}, clear=True):
             self.assertEqual(utils.get_ffmpeg_binary(), "/tmp/custom-ffmpeg")
 
     def test_get_ffmpeg_binary_falls_back_to_imageio_ffmpeg(self):
         """
-        Windows 便携包里系统 PATH 可能没有 ffmpeg，但 moviepy 依赖的
-        imageio-ffmpeg 通常会提供可执行文件。这里验证该兜底路径可用。
+        In the Windows portable package the system PATH may lack ffmpeg, but the imageio-ffmpeg that moviepy
+        depends on usually provides an executable. This verifies that fallback path works.
         """
         fake_imageio_ffmpeg = types.SimpleNamespace(
             get_ffmpeg_exe=lambda: "/tmp/bundled-ffmpeg"
@@ -774,8 +774,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_effective_video_codec_falls_back_when_encoder_missing(self):
         """
-        用户选择的硬件编码器必须先经过 FFmpeg encoder 列表检测。检测不到
-        时直接回退 libx264，避免生成任务在写文件阶段才失败。
+        A hardware encoder chosen by the user must first pass the FFmpeg encoder list check. When it isn't found,
+        fall back to libx264 directly, so the generation task doesn't fail only at the file write stage.
         """
         config.app["video_codec"] = "h264_nvenc"
 
@@ -784,8 +784,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_configured_video_codec_uses_stable_default_when_unset(self):
         """
-        WebUI 的“默认”模式不会持久化 video_codec。后端必须在配置缺失时继续
-        明确返回 libx264，不能把空值直接交给 MoviePy 或 FFmpeg 自行决定。
+        The WebUI's "Default" mode doesn't persist video_codec. When the config is missing, the backend must keep
+        explicitly returning libx264, rather than handing an empty value to MoviePy or FFmpeg to decide.
         """
         config.app.pop("video_codec", None)
 
@@ -793,8 +793,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_get_configured_video_codec_preserves_explicit_libx264(self):
         """
-        用户明确选择 libx264 时需要保持固定选择。它与“跟随项目默认策略”当前
-        结果相同，但配置语义不同，未来调整默认值时不能影响显式选择。
+        When the user explicitly chooses libx264, that fixed choice must be kept. It currently gives the same result as "follow the project default policy",
+        but the config semantics differ, and future default changes must not affect the explicit choice.
         """
         config.app["video_codec"] = "libx264"
 
@@ -802,8 +802,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_ffmpeg_encoder_exists_falls_back_when_probe_fails(self):
         """
-        Windows 上用户配置的 ffmpeg 可能因为路径损坏、权限或杀软拦截而无法
-        正常执行。encoder 探测失败时必须返回 False，让上层稳定回退 libx264。
+        On Windows a user-configured ffmpeg may fail to run because of a corrupted path, permissions or antivirus interception.
+        When encoder probing fails it must return False, so the upper layer reliably falls back to libx264.
         """
         with patch.object(
             vd.subprocess,
@@ -814,8 +814,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_write_videofile_falls_back_after_runtime_encoder_failure(self):
         """
-        FFmpeg 声明支持某个硬件编码器，不代表当前显卡或驱动一定可用。
-        首次实际编码失败后，应立即用 libx264 重试，并在本进程禁用该编码器。
+        FFmpeg declaring support for a hardware encoder doesn't mean the current GPU or driver can actually use it.
+        After the first real encoding failure, it should immediately retry with libx264 and disable that encoder for this process.
         """
 
         class _FakeClip:
@@ -844,8 +844,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_write_videofile_does_not_disable_codec_when_fallback_also_fails(self):
         """
-        如果 libx264 兜底也失败，失败原因更可能是输出路径、权限、文件占用等
-        通用问题，不能误判为硬件编码器不可用。
+        If the libx264 fallback also fails, the cause is more likely a general problem such as the output path, permissions or a locked file,
+        and must not be misjudged as the hardware encoder being unavailable.
         """
 
         class _FakeClip:
@@ -912,8 +912,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_format_ffmpeg_concat_path_normalizes_windows_path(self):
         """
-        concat demuxer 的文件列表对 Windows 反斜杠较敏感，写入 list 前统一
-        转成正斜杠，并继续保留单引号转义。
+        The concat demuxer's file list is sensitive to Windows backslashes, so paths are converted to forward slashes
+        before writing the list, still keeping single-quote escaping.
         """
         with patch.object(
             vd.os.path,
@@ -929,8 +929,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_concat_video_clips_falls_back_after_runtime_encoder_failure(self):
         """
-        最终 ffmpeg concat 阶段也要具备同样的回退能力。这里用 mock 模拟
-        h264_nvenc 编码失败，确认会自动再用 libx264 执行一次。
+        The final ffmpeg concat stage must have the same fallback ability. A mock simulates
+        an h264_nvenc encoding failure here, confirming it automatically runs once more with libx264.
         """
         config.app["video_codec"] = "h264_nvenc"
 
@@ -969,8 +969,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_concat_video_clips_does_not_disable_codec_when_fallback_also_fails(self):
         """
-        concat 阶段如果 libx264 也失败，说明可能是输入 list、路径或输出权限
-        问题，不能把硬件编码器加入运行时禁用列表。
+        If libx264 also fails in the concat stage, the problem is probably the input list, a path or output permissions,
+        so the hardware encoder must not be added to the runtime disabled list.
         """
         config.app["video_codec"] = "h264_nvenc"
 
@@ -1002,13 +1002,13 @@ class TestVideoService(unittest.TestCase):
 
     def test_open_video_clip_quietly_suppresses_moviepy_stdout(self):
         """
-        MoviePy 2.1.x 的 FFMPEG_VideoReader 会直接向 stdout 打印 metadata
-        和 ffmpeg 命令。项目服务层应屏蔽这类依赖库噪声，避免用户把
-        `audio_found: False` 误判为最终视频没有音频。
+        MoviePy 2.1.x's FFMPEG_VideoReader prints metadata and the ffmpeg command
+        directly to stdout. The project's service layer should suppress this dependency noise, so users don't
+        misread `audio_found: False` as the final video having no audio.
         """
-        # 测试只关心服务层是否屏蔽 MoviePy 的读取噪声，不应长期保存一份由 PNG
-        # 编码而来的二进制 MP4 fixture。运行时生成短视频既能保持测试独立，也能
-        # 避免 fixture 因不同编码参数产生帧间闪烁后被误用于视觉效果验证。
+        # The test only cares whether the service layer suppresses MoviePy's read noise and shouldn't keep a binary MP4 fixture
+        # encoded from a PNG long-term. Generating a short video at runtime keeps the test independent and also
+        # prevents the fixture from being misused for visual effect validation after different encoding parameters cause inter-frame flicker.
         image_path = os.path.join(resources_dir, "1.png")
         with tempfile.TemporaryDirectory() as temp_dir:
             video_path = os.path.join(temp_dir, "image-fixture.mp4")
@@ -1037,8 +1037,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_combine_videos_closes_audio_clip_when_duration_read_fails(self):
         """
-        `combine_videos()` 只需要读取旁白音频时长。即使读取 duration
-        时发生异常，也必须关闭 AudioFileClip，避免文件句柄泄漏。
+        `combine_videos()` only needs to read the narration audio duration. Even if reading duration
+        raises, the AudioFileClip must be closed, avoiding a file handle leak.
         """
 
         class _FakeAudioReader:
@@ -1104,7 +1104,7 @@ class TestVideoService(unittest.TestCase):
         clip_speed,
         max_clip_duration=3,
     ):
-        """使用轻量假视频记录 combine_videos 实际读取的源时间范围。"""
+        """Use lightweight fake videos to record the source time ranges combine_videos actually reads."""
 
         source_ranges = []
         written_durations = []
@@ -1124,8 +1124,8 @@ class TestVideoService(unittest.TestCase):
                 self.records_source_range = records_source_range
 
             def subclipped(self, start_time, end_time):
-                # 只记录直接从源文件读取的范围。变速后的安全裁剪也会调用
-                # subclipped，但它不代表新的源时间段，不能混入断层判断。
+                # Only record ranges read directly from the source file. The safety trim after speed changes also calls
+                # subclipped, but it doesn't represent a new source time range and must not be mixed into the gap check.
                 if self.records_source_range:
                     source_ranges.append((start_time, end_time))
                 return _FakeVideoClip(end_time - start_time)
@@ -1156,8 +1156,8 @@ class TestVideoService(unittest.TestCase):
                     "_write_videofile_with_codec_fallback",
                     side_effect=_capture_written_clip,
                 ),
-                # random 模式默认会打乱同一源视频的切片。这里保持生成顺序，
-                # 才能精确验证相邻源时间段是否连续。
+                # random mode shuffles slices of the same source video by default. The generation order is kept here
+                # so we can verify exactly whether adjacent source time ranges are continuous.
                 patch.object(
                     vd,
                     "_prioritize_unique_source_clips",
@@ -1178,7 +1178,7 @@ class TestVideoService(unittest.TestCase):
         return source_ranges, written_durations
 
     def test_combine_videos_slow_speed_keeps_source_timeline_continuous(self):
-        """0.5 倍慢放应连续读取 1.5 秒源片段，不能跳过中间画面。"""
+        """0.5x slow motion should read 1.5-second source clips continuously without skipping frames in between."""
 
         source_ranges, written_durations = self._capture_source_ranges_for_clip_speed(
             source_duration=4.0,
@@ -1190,7 +1190,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(written_durations, [3.0, 3.0])
 
     def test_combine_videos_fast_speed_reads_enough_source_content(self):
-        """2 倍快放应读取 6 秒源画面，使最终片段仍保持 3 秒。"""
+        """2x fast motion should read 6 seconds of source so the final clip still lasts 3 seconds."""
 
         source_ranges, written_durations = self._capture_source_ranges_for_clip_speed(
             source_duration=8.0,
@@ -1203,11 +1203,11 @@ class TestVideoService(unittest.TestCase):
 
     def test_combine_videos_keeps_small_duration_safety_margin(self):
         """
-        音频和素材累计时长刚好相等时，仍应继续追加一个短片段作为安全余量。
+        When the audio and accumulated material durations are exactly equal, a short clip should still be appended as a safety margin.
 
-        FFmpeg 按帧率拼接后可能让最终视频比理论时长短几十毫秒。如果这里
-        在 10.0s == 10.0s 时立即停止，成片末尾就可能出现音频还在播放但
-        视频素材已经结束的边界问题。
+        After FFmpeg concatenates by frame rate, the final video may be tens of milliseconds shorter than the theoretical duration. If it
+        stopped immediately at 10.0s == 10.0s, the end of the video could have the edge case where audio is still playing but
+        the video material has already ended.
         """
 
         class _FakeAudioClip:
@@ -1426,7 +1426,7 @@ class TestVideoService(unittest.TestCase):
         concat.assert_not_called()
 
     def test_concat_video_clips_limits_output_to_audio_duration(self):
-        """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
+        """The final concatenation should be trimmed to the audio duration, avoiding a noticeable silent tail from the safety margin."""
 
         def fake_run(command, capture_output, text, check, **kwargs):
             Path(command[-1]).write_bytes(b"encoded-video")
@@ -1480,12 +1480,12 @@ class TestVideoService(unittest.TestCase):
 
     def test_concat_video_clips_logs_heartbeat_while_ffmpeg_runs(self):
         """
-        拼接时 subprocess.run 会阻塞到 ffmpeg 退出，期间项目不再产生任何日志，用户
-        无法区分仍在编码与已经卡死（issue #1342）。等待期间必须记录存活信息。
+        During concatenation subprocess.run blocks until ffmpeg exits, and the project produces no logs meanwhile, so users
+        can't tell ongoing encoding from a hang (issue #1342). A heartbeat must be logged while waiting.
         """
 
         def slow_run(command, capture_output, text, check, **kwargs):
-            # 模拟一次耗时拼接：这段窗口内心跳线程应至少记录一次存活日志。
+            # Simulate a slow concatenation: the heartbeat thread should log at least once within this window.
             time.sleep(0.2)
             Path(command[-1]).write_bytes(b"encoded-video")
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
@@ -1511,13 +1511,13 @@ class TestVideoService(unittest.TestCase):
             for call in info_mock.call_args_list
             if "still running" in str(call.args[0])
         ]
-        self.assertTrue(heartbeats, "耗时拼接期间必须记录存活日志")
+        self.assertTrue(heartbeats, "a heartbeat must be logged during a slow concatenation")
         self.assertRegex(heartbeats[0], r"elapsed=\d+s, output size: 0\.00 MB")
 
     def test_concat_heartbeat_belongs_to_the_task_log_scope(self):
         """
-        心跳由独立线程写出。WebUI 只收集任务线程作用域内的日志，心跳线程不
-        绑定作用域时，终端能看到存活信息，WebUI 面板却依旧一片空白。
+        The heartbeat is written by a separate thread. The WebUI only collects logs within the task thread's scope, so if the heartbeat thread
+        isn't bound to the scope, the terminal shows the heartbeat while the WebUI panel stays blank.
         """
 
         def slow_run(command, capture_output, text, check, **kwargs):
@@ -1544,13 +1544,13 @@ class TestVideoService(unittest.TestCase):
 
         self.assertTrue(
             [message for message in messages if "still running" in message],
-            "心跳日志必须归属发起拼接的任务线程",
+            "heartbeat logs must be attributed to the task thread that started the concatenation",
         )
 
     def test_clip_processing_logs_belong_to_the_task_log_scope(self):
         """
-        片段始终在 clip-process 线程池里处理，即使并发数为 1。逐片段日志是这一
-        阶段唯一的进度信息，必须归属任务线程，WebUI 才能显示“正在处理第几段”。
+        Clips are always processed in the clip-process thread pool, even with concurrency 1. Per-clip logs are the only
+        progress info for this stage and must be attributed to the task thread, so the WebUI can show "processing clip N".
         """
 
         class _FakeAudioClip:
@@ -1595,14 +1595,14 @@ class TestVideoService(unittest.TestCase):
 
         self.assertTrue(
             [message for message in messages if message.startswith("processing clip")],
-            "逐片段处理日志必须归属发起合成的任务线程",
+            "per-clip processing logs must be attributed to the task thread that started composition",
         )
 
     def test_combine_videos_reports_covered_duration_as_progress(self):
         """
-        片段处理是合成阶段最耗时的部分（4K 素材每段约 20 秒），此前整个阶段
-        进度固定在 50%。每处理完一段都要报告已覆盖的成片时长比例，并写一条
-        带覆盖时长的日志；全部覆盖后比例封顶为 1.0。
+        Clip processing is the slowest part of composition (about 20 seconds per 4K clip), and previously the whole stage's
+        progress was fixed at 50%. Each processed clip must report the ratio of final-video duration covered and write a log
+        with the covered duration; once fully covered, the ratio is capped at 1.0.
         """
 
         class _FakeAudioClip:
@@ -1640,7 +1640,7 @@ class TestVideoService(unittest.TestCase):
             ):
                 vd.combine_videos(
                     combined_video_path=os.path.join(temp_dir, "combined.mp4"),
-                    # 顺序模式下每个源文件只取一段，三个源文件对应三段。
+                    # In sequential mode each source file contributes only one clip, so three source files give three clips.
                     video_paths=["a.mp4", "b.mp4", "c.mp4"],
                     audio_file="audio.mp3",
                     video_concat_mode=vd.VideoConcatMode.sequential,
@@ -1648,7 +1648,7 @@ class TestVideoService(unittest.TestCase):
                     progress_callback=fractions.append,
                 )
 
-        # 配音 4.0 秒加 0.1 秒安全余量，每段 2 秒：需要 3 段才覆盖 4.1 秒。
+        # 4.0 seconds of voice-over plus a 0.1-second safety margin, 2 seconds per clip: 3 clips are needed to cover 4.1 seconds.
         self.assertEqual(len(fractions), 3)
         self.assertEqual(fractions, sorted(fractions))
         self.assertAlmostEqual(fractions[0], 2.0 / 4.1, places=3)
@@ -1668,7 +1668,7 @@ class TestVideoService(unittest.TestCase):
         )
 
     def test_failing_clip_progress_callback_does_not_break_combine(self):
-        """进度只是展示信息，回调出错不能让已经处理好的片段作废。"""
+        """Progress is only display info; a callback error must not invalidate clips that were already processed."""
 
         class _FakeAudioClip:
             duration = 1.0
@@ -1727,8 +1727,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_stage_heartbeat_logs_while_running_and_stops_afterwards(self):
         """
-        最终成片编码期间 MoviePy 不输出任何日志。心跳要在阶段运行时按间隔
-        写出、归属任务线程，并在阶段结束后停止，不能留下继续刷日志的线程。
+        MoviePy outputs no logs while encoding the final video. The heartbeat must be written at intervals while the stage runs,
+        be attributed to the task thread, and stop after the stage ends, without leaving a thread that keeps logging.
         """
         with (
             patch.object(vd, "_STAGE_HEARTBEAT_SECONDS", 0.02),
@@ -1750,7 +1750,7 @@ class TestVideoService(unittest.TestCase):
         )
 
     def test_stage_heartbeat_stops_when_the_stage_fails(self):
-        """阶段抛出异常时心跳线程同样要停止，异常原样向外传播。"""
+        """When the stage raises, the heartbeat thread must also stop, and the exception propagates unchanged."""
         with patch.object(vd, "_STAGE_HEARTBEAT_SECONDS", 0.02):
             with _capture_task_scoped_logs() as messages:
                 with self.assertRaisesRegex(RuntimeError, "encode failed"):
@@ -1761,7 +1761,7 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual([m for m in messages if "still running" in m], [])
 
     def test_generate_video_reports_heartbeat_during_final_render(self):
-        """最终编码耗时数分钟，期间必须有存活日志。"""
+        """Final encoding takes minutes, so there must be heartbeat logs meanwhile."""
         params = vd.VideoParams(
             video_subject="test", subtitle_enabled=False, bgm_type=""
         )
@@ -1824,8 +1824,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_concat_video_clips_heartbeat_tolerates_missing_output_file(self):
         """
-        拼接刚开始时输出文件尚未创建，心跳描述必须安全降级；若探测文件大小的异常
-        穿透到拼接调用，本可正常完成的任务会变成失败。
+        When concatenation has just started the output file doesn't exist yet, so the heartbeat description must degrade safely; if an exception from probing the file size
+        propagated into the concatenation call, a task that would have completed normally would fail.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             self.assertIn(
@@ -1842,8 +1842,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_prioritize_unique_source_clips_uses_each_source_before_reuse(self):
         """
-        随机模式下，一个长素材会被拆成多个片段。调度层应先让每个源素材
-        至少出现一次，再使用同一源素材的其他切片，降低用户感知到的重复。
+        In random mode one long material is split into several clips. The scheduler should first let each source material
+        appear at least once before using other slices of the same source, reducing repetition users perceive.
         """
         clips = [
             vd.SubClippedVideoClip("a.mp4", 0, 4, source_file_path="a.mp4"),
@@ -1864,7 +1864,7 @@ class TestVideoService(unittest.TestCase):
 
     def test_prioritize_unique_source_clips_keeps_sequential_order(self):
         """
-        顺序模式本身只取每个素材的首段，不应被随机调度逻辑改变顺序。
+        Sequential mode itself only takes the first clip of each material and shouldn't have its order changed by the random scheduling logic.
         """
         clips = [
             vd.SubClippedVideoClip("a.mp4", 0, 4, source_file_path="a.mp4"),
@@ -1881,8 +1881,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_prioritize_unique_source_clips_prefers_long_primary_clip(self):
         """
-        同一个源素材的最后一个切片可能短于目标片段时长。首轮去重时应优先
-        选择较长片段，否则会因为累计时长不足而提前复用素材。
+        The last slice of a source material may be shorter than the target clip duration. The first deduplicated round should prefer
+        longer clips, otherwise materials would be reused early because the accumulated duration falls short.
         """
         short_tail = vd.SubClippedVideoClip(
             "a.mp4", 6, 6.5, source_file_path="a.mp4"
@@ -1938,12 +1938,12 @@ class TestVideoService(unittest.TestCase):
 
     def test_wrap_text_uses_stable_line_metrics_for_all_bundled_fonts(self):
         """
-        字幕高度必须来自字体自身的 ascent/descent，而不能取决于当前文字。
+        Subtitle height must come from the font's own ascent/descent, not depend on the current text.
 
-        不含 g/j/p/q/y 的拉丁文本只有大写字母和 x-height，Pillow 的字形
-        bbox 会比字体真实行高短很多；多行时误差累积，最终会裁掉最后一行。
-        这里遍历全部内置字体，并同时覆盖含下伸部与不含下伸部的英文文本，
-        防止以后重新引入“按当前字形墨迹计算行高”的实现。
+        Latin text without g/j/p/q/y only has capitals and x-height, so Pillow's glyph
+        bbox is much shorter than the font's real line height; with multiple lines the error accumulates and eventually clips the last line.
+        This iterates over all built-in fonts and covers English text both with and without descenders,
+        preventing a future reintroduction of an implementation that "computes line height from the current glyph ink".
         """
         font_size = 60
         max_width = 360
@@ -1979,8 +1979,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_wrap_text_counts_existing_subtitle_line_breaks(self):
         """
-        SRT 文本可能已经包含人工换行；即使每行都不需要再次折行，高度也必须
-        按最终两行计算。否则宽画面上的短句会绕过自动换行分支并再次裁掉末行。
+        SRT text may already contain manual line breaks; even if no line needs further wrapping, the height must
+        be computed from the final two lines. Otherwise short sentences on wide frames would bypass the auto-wrap branch and clip the last line again.
         """
         font_size = 60
         font_path = os.path.join(utils.font_dir(), "MicrosoftYaHeiBold.ttc")
@@ -1999,8 +1999,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_small_subtitle_with_thick_stroke_keeps_a_bottom_margin(self):
         """
-        小字号配粗描边是最容易重新触底的比例边界。遍历全部内置字体并读取
-        MoviePy 的真实 mask，确保额外高度至少容纳向上下扩张的完整描边。
+        Small font sizes with thick strokes are the ratio boundary most likely to hit the bottom again. Iterate over all built-in fonts and read
+        MoviePy's real mask, making sure the extra height at least fits the full stroke expanding up and down.
         """
         font_size = 24
         stroke_width = 6
@@ -2052,12 +2052,12 @@ class TestVideoService(unittest.TestCase):
 
     def test_multilingual_textclip_last_line_keeps_a_visible_bottom_margin(self):
         """
-        使用 MoviePy 真实绘制多语种字幕，确保最后一行没有贴到画布底边。
+        Draw multilingual subtitles with real MoviePy, making sure the last line doesn't touch the bottom of the canvas.
 
-        仅检查 wrap_text() 返回值会漏掉 Pillow/MoviePy 在 baseline、描边和
-        行间距上的组合差异，因此这里直接读取 TextClip 的透明 mask。覆盖文本
-        均由对应内置字体完整支持，包括英文、越南语、泰语、简繁中文、俄语
-        和希腊语；只要可见像素触及最后一行，就说明仍存在静默裁切风险。
+        Only checking the return value of wrap_text() would miss combined differences in baseline, stroke and
+        line spacing between Pillow/MoviePy, so the TextClip's transparency mask is read directly here. The covered text
+        is fully supported by the corresponding built-in fonts, including English, Vietnamese, Thai, Simplified and Traditional Chinese, Russian
+        and Greek; any visible pixel touching the last line means a silent clipping risk still exists.
         """
         font_size = 60
         max_width = 360
@@ -2143,8 +2143,8 @@ class TestVideoService(unittest.TestCase):
 
     def test_rounded_subtitle_background_clip_has_transparent_corners(self):
         """
-        圆角字幕背景只在用户显式开启时使用。这里直接验证生成的 RGBA
-        背景具备透明圆角和半透明中心，避免后续改动把圆角效果退化成实心矩形。
+        The rounded subtitle background is only used when the user explicitly enables it. This directly verifies the generated RGBA
+        background has transparent rounded corners and a semi-transparent center, so later changes can't degrade the rounded effect into a solid rectangle.
         """
         clip = vd._rounded_subtitle_background_clip(
             width=120,

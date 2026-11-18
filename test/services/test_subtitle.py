@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-# 测试文件直接运行时，也能从仓库根目录导入 app 包。
+# Allow importing the app package from the repository root when this test file is run directly.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.services import subtitle
@@ -57,7 +57,7 @@ class TestSubtitleService(unittest.TestCase):
         self.assertEqual(len(constructor_calls), 1)
 
     def test_file_to_subtitles_returns_empty_for_missing_input(self):
-        """空路径和不存在的文件都应安全返回空列表。"""
+        """Empty paths and nonexistent files should both safely return an empty list."""
         self.assertEqual(subtitle.file_to_subtitles(""), [])
         with tempfile.TemporaryDirectory() as tmp_dir:
             missing_file = Path(tmp_dir) / "missing.srt"
@@ -119,8 +119,8 @@ class TestSubtitleService(unittest.TestCase):
 
     def test_levenshtein_distance_and_similarity_cover_common_boundaries(self):
         """
-        字幕校正依赖编辑距离选择是否继续合并相邻字幕，因此覆盖空字符串、
-        参数交换、大小写忽略和明显不相似四种边界，防止算法调整后误合并。
+        Subtitle correction relies on edit distance to decide whether to keep merging adjacent subtitles, so four boundaries are covered:
+        empty strings, swapped arguments, case insensitivity and clearly dissimilar text, preventing wrong merges after algorithm changes.
         """
         self.assertEqual(subtitle.levenshtein_distance("kitten", "sitting"), 3)
         self.assertEqual(subtitle.levenshtein_distance("a", "longer"), 6)
@@ -129,12 +129,12 @@ class TestSubtitleService(unittest.TestCase):
         self.assertLess(subtitle.similarity("hello", "world"), 0.5)
 
     def test_create_returns_empty_when_whisper_is_unavailable(self):
-        """可选 Whisper 依赖未安装时应跳过，而不是在任务线程中抛异常。"""
+        """When the optional Whisper dependency isn't installed it should skip, not raise in the task thread."""
         with patch.object(subtitle, "WhisperModel", None):
             self.assertEqual(subtitle.create("audio.mp3"), "")
 
     def test_create_returns_none_when_whisper_model_cannot_load(self):
-        """模型下载或初始化失败时必须返回失败结果，并允许任务层更新状态。"""
+        """When model download or initialization fails, a failure result must be returned so the task layer can update its state."""
         with patch.object(subtitle, "model", None), patch.object(
             subtitle,
             "WhisperModel",
@@ -144,8 +144,8 @@ class TestSubtitleService(unittest.TestCase):
 
     def test_create_writes_punctuated_and_trailing_segments(self):
         """
-        使用假的 Whisper 模型覆盖逐词时间戳处理，不访问网络也不加载真实模型。
-        一个 segment 同时包含标点断句和末尾无标点文本，可验证两条关键写入路径。
+        A fake Whisper model covers per-word timestamp handling without network access or loading a real model.
+        One segment contains both punctuation-delimited sentences and trailing unpunctuated text, verifying both key write paths.
         """
 
         class _FakeWhisperModel:
@@ -230,7 +230,7 @@ class TestSubtitleService(unittest.TestCase):
         self.assertEqual([item[2] for item in items], ["3.14", "1,000"])
 
     def test_create_word_level_writes_each_whisper_word_with_its_timing(self):
-        """逐词模式应保留 Whisper 的每个词及其独立起止时间。"""
+        """Word-level mode should keep each Whisper word with its own start and end times."""
         transcribe_kwargs = {}
 
         class _FakeWhisperModel:
@@ -301,11 +301,11 @@ class TestSubtitleService(unittest.TestCase):
 
     def test_correct_ignores_markdown_separator_lines(self):
         """
-        Whisper fallback 校正阶段也必须忽略 `---` 这类不可发声脚本行。
+        The Whisper fallback correction stage must also ignore unspeakable script lines like `---`.
 
-        如果这里继续保留 Markdown 分隔符，`correct()` 会认为脚本行数多于
-        字幕行数，并补出 `00:00:00,000 --> 00:00:00,000`，剪辑软件会把
-        生成的 SRT 判定为不可导入。
+        If the Markdown separator were kept here, `correct()` would think there are more script lines than
+        subtitle lines and fill in `00:00:00,000 --> 00:00:00,000`, making editing software reject
+        the generated SRT as not importable.
         """
         original_srt = (
             "1\n"
@@ -371,8 +371,8 @@ class TestSubtitleService(unittest.TestCase):
 
     def test_correct_merges_adjacent_subtitles_for_one_script_sentence(self):
         """
-        Whisper 可能把一句文案拆成多个时间块。校正逻辑应合并时间范围并恢复
-        原始脚本文本，避免最终字幕出现不必要的碎片。
+        Whisper may split one script sentence into several time blocks. The correction logic should merge the time ranges and restore
+        the original script text, avoiding unnecessary fragments in the final subtitles.
         """
         original_srt = (
             "1\n00:00:00,100 --> 00:00:01,000\nHello\n\n"

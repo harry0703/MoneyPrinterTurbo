@@ -23,9 +23,9 @@ from app.utils.logging_utils import (
 )
 
 
-# WebUI 的配置保存在进程级全局字典中。原来的同步实现会在完整生成期间持有
-# runtime_config_lock，因此不同浏览器会话实际上也是串行执行。这里把并发数固定
-# 为 1，既延续原有配置一致性，也避免多个线程只是在配置锁外无意义地等待。
+# The WebUI's config is kept in a process-level global dict. The old synchronous implementation held
+# runtime_config_lock for the whole generation, so different browser sessions actually ran serially. Concurrency is fixed
+# at 1 here, keeping the original config consistency and avoiding multiple threads pointlessly waiting outside the config lock.
 _task_manager = InMemoryTaskManager(
     max_concurrent_tasks=1,
     max_queued_tasks=max(1, int(config.app.get("max_queued_tasks", 100))),
@@ -36,13 +36,13 @@ _MAX_LOG_TASKS = 20
 _MAX_LOG_RECORDS_PER_TASK = 1000
 _submission_lock = threading.RLock()
 _active_submissions: dict[str, str] = {}
-# Streamlit 无法由后台线程直接推送组件更新，只能通过 Fragment 轮询。0.5 秒
-# 足以让 WebUI 日志接近终端实时输出，又不会像高频刷新那样持续占用浏览器资源。
+# Streamlit can't push component updates directly from a background thread, only via Fragment polling. 0.5 seconds
+# is enough to keep WebUI logs close to real-time terminal output without constantly using browser resources like high-frequency refreshes would.
 TASK_LOG_REFRESH_INTERVAL_SECONDS = 0.5
 
 
 def is_generation_active(task_id: str) -> bool:
-    """以后台预占名额为准，覆盖入队及状态发布之间的窗口。"""
+    """Use the background reserved slots as the source of truth, covering the window between enqueue and state publication."""
     with _submission_lock:
         return task_id in _active_submissions.values()
 
@@ -50,12 +50,12 @@ def is_generation_active(task_id: str) -> bool:
 def _submission_signature(
     params, references, request, endpoint, preview, codex_image_context=None
 ):
-    # 仅保留摘要，不保存凭据或上传内容。不同 Key/模型/输入是不同请求，
-    # 相同内容在完成后允许再次生成；只合并仍在排队或执行的重复提交。
+    # Only a digest is kept, no credentials or uploaded content. Different Keys/models/inputs are different requests,
+    # and identical content may be generated again after completion; only duplicate submissions still queued or running are merged.
     request_inputs = asdict(request) if request is not None else None
     if request_inputs is not None:
-        # 两个标签页会为相同报价输入各自生成一个幂等 ID；它不是内容差异。
-        # 保留账号、模型、输入行和报价版本，以首个已确认请求继续执行。
+        # Two tabs generate their own idempotency ID for the same quote input; that isn't a content difference.
+        # Keep the account, model, input rows and quote version, and continue with the first confirmed request.
         request_inputs.pop("client_request_id", None)
     payload = {
         "params": params.model_dump(mode="json", warnings=False),
@@ -66,7 +66,7 @@ def _submission_signature(
         "references": [hashlib.sha256(value or b"").hexdigest() for value in references],
         "request": request_inputs,
         "endpoint": asdict(endpoint) if endpoint is not None else None,
-        # 配音来源会改变实际输出；暂存路径随本地任务 ID 变化，不属于输入差异。
+        # The voice-over source changes the actual output; the staging path changes with the local task ID and isn't an input difference.
         "voice_preview": {
             key: preview[key]
             for key in ("script", "voice_name", "voice_rate", "voice_volume", "duration", "params", "audio_digest")
@@ -76,8 +76,8 @@ def _submission_signature(
     if codex_image_context is not None:
         payload["codex_image"] = asdict(codex_image_context)
     if preview and not preview.get("audio_digest"):
-        # 旧调用方没有内容摘要时，不能仅凭同一时长推断两个文件相同。
-        # 不在校验前读取任意路径；宁可保留不同文件的独立请求。
+        # When an old caller has no content digest, two files can't be inferred to be identical from the same duration alone.
+        # Arbitrary paths aren't read before validation; better to keep separate requests for different files.
         payload["voice_preview"]["audio_file"] = preview.get("audio_file")
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, default=str).encode()
@@ -85,12 +85,12 @@ def _submission_signature(
 
 
 def _append_task_log(task_id: str, message: str) -> None:
-    """按任务保存有限数量的日志，供 Streamlit Fragment 安全轮询。"""
+    """Keep a limited number of logs per task for Streamlit Fragments to poll safely."""
     with _task_logs_lock:
         records = _task_logs.get(task_id)
         if records is None:
-            # 只保留最近任务的日志，避免 WebUI 服务长时间运行后持续占用内存。
-            # dict 保持插入顺序；任务日志仅用于界面诊断，淘汰最早记录不影响任务。
+            # Only keep logs for recent tasks, so the WebUI service doesn't keep using memory after running for a long time.
+            # dict keeps insertion order; task logs are only for UI diagnosis, so evicting the oldest records doesn't affect tasks.
             if len(_task_logs) >= _MAX_LOG_TASKS:
                 oldest_task_id = next(iter(_task_logs))
                 _task_logs.pop(oldest_task_id, None)
@@ -100,7 +100,7 @@ def _append_task_log(task_id: str, message: str) -> None:
 
 
 def get_task_logs(task_id: str) -> list[str]:
-    """返回日志快照，避免页面渲染期间持有后台线程使用的锁。"""
+    """Return a log snapshot, so page rendering doesn't hold the lock used by the background thread."""
     with _task_logs_lock:
         return list(_task_logs.get(task_id, ()))
 
@@ -118,13 +118,13 @@ def _run_generation(
     codex_image_context: codex_image.CodexImageContext | None = None,
 ) -> dict:
     """
-    在后台线程中执行现有视频流水线。
+    Run the existing video pipeline in a background thread.
 
-    Loguru 的 sink 是进程级资源，因此必须按当前工作线程过滤。否则同时运行的
-    API 任务或其它页面日志会混入当前任务。任务为下载、片段编码和心跳启动的
-    辅助线程通过 bind_log_scope 归属到工作线程，它们的日志同样要收集，否则
-    这些耗时阶段在 WebUI 里没有任何输出。页面只读取普通列表快照，不会从后台
-    线程访问 Streamlit session_state，从根源上避免刷新时的 delta 路径错乱。
+    Loguru sinks are process-level resources, so they must be filtered by the current worker thread. Otherwise concurrently running
+    API tasks or other pages' logs would mix into the current task. Helper threads the task starts for downloads, clip encoding and heartbeats
+    are attributed to the worker thread via bind_log_scope, and their logs must be collected too, otherwise
+    these slow stages produce no output in the WebUI. The page only reads a plain list snapshot and never accesses Streamlit session_state
+    from the background thread, eliminating mixed-up delta paths on refresh at the root.
     """
     log_handler_id = None
     worker_thread_id = threading.get_ident()
@@ -141,8 +141,8 @@ def _run_generation(
                 ),
             )
 
-        # 完整任务仍使用原来的配置锁，防止另一个 WebUI 会话在生成中途修改
-        # Provider、密钥等进程级配置，造成同一条视频前后使用不同设置。
+        # The full task still uses the original config lock, preventing another WebUI session from changing process-level config
+        # such as Provider and keys midway, which would make the same video use different settings at different points.
         with config.runtime_config_lock():
             return tm.start(
                 task_id=task_id,
@@ -158,9 +158,9 @@ def _run_generation(
                    if jalapeno_video_endpoint is not None else {}),
             )
     except Exception as exc:
-        # tm.start 已负责把流水线异常转换成失败状态；这里额外保护日志 sink、
-        # 配置锁等 WebUI 包装层。任何后台线程异常都必须留下终态，不能让任务
-        # 管理器在工作线程退出后仍永久显示“生成中”。
+        # tm.start already converts pipeline exceptions into a failure state; this additionally protects the WebUI wrapper layer, such as the log sink
+        # and config lock. Any background thread exception must leave a final state, so the task
+        # manager never shows "generating" forever after the worker thread exits.
         error = f"{type(exc).__name__}: {exc}"
         failure = {
             "task_id": task_id,
@@ -207,10 +207,10 @@ def submit_generation(
     jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
 ) -> str:
     """
-    登记并提交 WebUI 视频生成任务，调用后立即返回。
+    Register and submit a WebUI video generation task, returning immediately after the call.
 
-    任务状态必须在线程启动前写入。这样页面本次脚本执行结束时即可查询到任务，
-    浏览器刷新或 WebSocket 重连也不依赖旧页面内存中的占位符。
+    The task state must be written before the thread starts. That way the task can be queried as soon as this page script run ends,
+    and browser refreshes or WebSocket reconnects don't depend on a placeholder in the old page's memory.
     """
     task_params = params.model_copy(deep=True)
     # The subtitle timeline and nested preview parameters remain mutable in
@@ -228,11 +228,11 @@ def submit_generation(
         bytes(voxcpm_prompt_audio) if voxcpm_prompt_audio else None
     )
     voxcpm_prompt_text_snapshot = str(voxcpm_prompt_text or "")
-    # 已确认请求是冻结的数据对象，只在当前进程内传递。API Key 不会进入
-    # VideoParams、任务状态、日志或落盘历史，也不会受后续页面 rerun 影响。
+    # A confirmed request is a frozen data object passed only within the current process. The API Key never enters
+    # VideoParams, task state, logs or saved history, and isn't affected by later page reruns.
     loomloom_request_snapshot = loomloom_video_request
-    # 排队期间允许准备下一条内容，但已确认的付费配置不能随全局表单变化。
-    # 快照的密钥不参与 repr，仅随进程内任务参数传递，不写入 VideoParams。
+    # Preparing the next item is allowed while queued, but confirmed paid config must not change with the global form.
+    # The snapshot's key doesn't take part in repr; it's only passed with in-process task parameters and never written into VideoParams.
     if task_params.video_source == "jalapeno" and jalapeno_video_endpoint is None:
         jalapeno_video_endpoint = jalapeno_video.endpoint(
             config.snapshot_config_with_pending(config.app)
@@ -254,7 +254,7 @@ def submit_generation(
         voice_preview_snapshot,
         codex_image_context,
     )
-    # 同一锁内查重并预占，两个标签页同时点击也只会真正入队一次。
+    # Deduplicate and reserve within the same lock, so even simultaneous clicks in two tabs only enqueue once.
     with _submission_lock:
         existing = _active_submissions.get(signature)
         if existing:
@@ -322,8 +322,8 @@ def _enqueue_generation(
                if jalapeno_video_endpoint is not None else {}),
         )
     except Exception as exc:
-        # 调度失败与流水线失败一样必须成为可查询状态，避免任务管理器永久显示
-        # “生成中”。保留异常类型便于从 Docker 或本机日志快速定位队列问题。
+        # A scheduling failure, like a pipeline failure, must become a queryable state, so the task manager doesn't show
+        # "generating" forever. The exception type is kept to quickly locate queue problems from Docker or local logs.
         error = f"{type(exc).__name__}: {exc}"
         sm.state.update_task(
             task_id,

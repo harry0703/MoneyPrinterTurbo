@@ -164,9 +164,9 @@ class UploadPostService:
 
     @property
     def youtube_made_for_kids(self) -> bool:
-        # 未配置时，后续 YouTube 上传显式声明为非面向儿童；儿童内容需设置为 true。
-        # 这与旧版省略声明字段不同，但不会修改已上传的视频。
-        # 上传前严格校验类型，避免将 TOML 字符串 "false" 当作真值而误报受众。
+        # When not configured, later YouTube uploads explicitly declare not made for kids; kids' content must set this to true.
+        # This differs from older versions that omitted the declaration field, but doesn't modify already uploaded videos.
+        # The type is strictly validated before upload, so the TOML string "false" isn't treated as truthy and the audience misreported.
         return config.app.get("upload_post_youtube_made_for_kids", False)
 
     def is_configured(self) -> bool:
@@ -194,7 +194,7 @@ class UploadPostService:
 
         has_youtube = any(p.startswith("youtube") for p in platforms)
         if has_youtube:
-            # 后台任务传入排队时的声明快照；直接调用服务时才读取当前配置。
+            # Background tasks pass the declaration snapshot taken at queue time; current config is only read when the service is called directly.
             made_for_kids = (youtube_extra or {}).get(
                 "selfDeclaredMadeForKids", self.youtube_made_for_kids
             )
@@ -233,8 +233,8 @@ class UploadPostService:
                     data.append(('platform[]', platform))
 
                 if has_youtube:
-                    # multipart 表单使用小写布尔字符串，且不能依赖 LLM 元数据
-                    # 是否存在；只要发布到 YouTube，就显式传递用户的受众声明。
+                    # The multipart form uses lowercase boolean strings and can't depend on whether LLM metadata
+                    # exists; whenever publishing to YouTube, the user's audience declaration is passed explicitly.
                     data.append(('selfDeclaredMadeForKids', str(made_for_kids).lower()))
                     # Privacy is an account/user setting, independent of optional
                     # generated titles and descriptions. Preserve queued overrides.

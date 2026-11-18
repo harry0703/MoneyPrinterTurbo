@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import config
 
-# 忽略 Pydantic 的特定警告
+# Ignore specific Pydantic warnings
 warnings.filterwarnings(
     "ignore",
     category=UserWarning,
@@ -66,11 +66,11 @@ _SUBTITLE_ANIMATIONS = ("none", "pop_spring")
 
 def _get_valid_ui_choice(key: str, allowed_values: tuple[str, ...], default: str) -> str:
     """
-    读取经过校验的 WebUI 枚举配置，兼容旧用户可能残留的无效值。
+    Read a validated WebUI enum config, tolerating invalid values that may linger for old users.
 
-    请求体由 Pydantic 的 Literal 严格校验，拼写错误会返回明确的字段校验错误；
-    配置文件则需要宽容处理，避免用户升级后因为历史手工配置错误导致整个服务
-    无法启动。HTTP 状态码由应用统一的校验异常处理器决定，这里不绑定具体数值。
+    Request bodies are strictly validated by Pydantic's Literal, so typos return a clear field validation error;
+    config files need lenient handling, so a historical hand-written config error doesn't stop the whole service
+    from starting after an upgrade. The HTTP status code is decided by the app's unified validation exception handler, so no specific value is bound here.
     """
     configured_value = config.ui.get(key, default)
     return configured_value if configured_value in allowed_values else default
@@ -87,9 +87,9 @@ class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
-    # 在线素材搜索会附带经过筛选的公开来源信息，供搜索缓存和任务记录复用。
-    # 本地上传素材不需要填写；写入任务文件前仍会按字段白名单重新构造，
-    # 避免外部请求传入的签名 URL、凭据或无关字段进入持久化数据。
+    # Online material search attaches filtered public source info, reused by the search cache and task records.
+    # Locally uploaded materials don't need it; it's still rebuilt from a field allowlist before being written to task files,
+    # so signed URLs, credentials or irrelevant fields passed in by external requests don't enter persisted data.
     source_info: Optional[dict[str, Any]] = None
 
 
@@ -97,10 +97,10 @@ class VideoParams(BaseModel):
     """
     {
       "video_subject": "",
-      "video_aspect": "横屏 16:9（西瓜视频）",
-      "voice_name": "女生-晓晓",
+      "video_aspect": "Landscape 16:9",
+      "voice_name": "Female-Xiaoxiao",
       "bgm_name": "random",
-      "font_name": "STHeitiMedium 黑体-中",
+      "font_name": "STHeitiMedium",
       "text_color": "#FFFFFF",
       "font_size": 60,
       "stroke_color": "#000000",
@@ -137,8 +137,8 @@ class VideoParams(BaseModel):
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = Field(default=0.2, allow_inf_nan=False)
-    # 视频配乐供应商共用提示词，WebUI 新任务统一写入该字段。保留下面的
-    # Sonilo 专用字段以兼容旧任务记录和现有 CLI 参数。
+    # A prompt shared by video music providers; new WebUI tasks always write this field. The Sonilo-specific field below
+    # is kept for compatibility with old task records and existing CLI arguments.
     video_music_prompt: str = Field(default="", max_length=2000)
     sonilo_bgm_prompt: str = Field(default="", max_length=2000)
 
@@ -211,7 +211,7 @@ class AudioRequest(BaseModel):
 class VideoScriptParams:
     """
     {
-      "video_subject": "春天的花海",
+      "video_subject": "A sea of spring flowers",
       "video_language": "",
       "paragraph_number": 1,
       "video_script_prompt": "",
@@ -219,7 +219,7 @@ class VideoScriptParams:
     }
     """
 
-    video_subject: Optional[str] = "春天的花海"
+    video_subject: Optional[str] = "A sea of spring flowers"
     video_language: Optional[str] = ""
     paragraph_number: int = Field(default=1, ge=1, le=10)
     video_script_prompt: str = Field(default="", max_length=2000)
@@ -236,9 +236,9 @@ class VideoTermsParams:
     }
     """
 
-    video_subject: Optional[str] = "春天的花海"
+    video_subject: Optional[str] = "A sea of spring flowers"
     video_script: Optional[str] = (
-        "春天的花海，如诗如画般展现在眼前。万物复苏的季节里，大地披上了一袭绚丽多彩的盛装。金黄的迎春、粉嫩的樱花、洁白的梨花、艳丽的郁金香……"
+        "A sea of spring flowers unfolds before your eyes like a poem or a painting. In the season when everything comes back to life, the earth puts on a dazzling, colorful robe: golden winter jasmine, soft pink cherry blossoms, pure white pear blossoms, bright tulips..."
     )
     amount: Optional[int] = 5
     match_materials_to_script: bool = False
@@ -306,7 +306,7 @@ class TaskResponseData(BaseModel):
 
 
 class TaskStatusData(BaseModel):
-    """任务查询对外保证的稳定字段；历史和扩展字段继续原样透传。"""
+    """Stable fields guaranteed by the task query; historical and extension fields are passed through as-is."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -325,7 +325,7 @@ class TaskStatusData(BaseModel):
 
 
 class TaskListData(BaseModel):
-    """分页任务列表结构。"""
+    """Paginated task list structure."""
 
     tasks: List[TaskStatusData]
     total: int
@@ -388,10 +388,10 @@ class TaskResponse(BaseResponse):
 
 class TaskQueryResponse(BaseResponse):
     """
-    任务查询会返回生成状态和可选的跨平台发布状态。
+    The task query returns the generation state and an optional cross-platform publishing state.
 
-    生成失败时包含 `failed_stage` 和 `error`；生成完成后如果启用了自动发布，
-    `cross_post_state` 会依次进入 pending、processing、complete 或 failed。
+    On generation failure it includes `failed_stage` and `error`; after generation completes, if auto-publishing is enabled,
+    `cross_post_state` moves through pending, processing, complete or failed.
     """
 
     data: TaskStatusData
@@ -428,7 +428,7 @@ class TaskQueryResponse(BaseResponse):
 
 
 class TaskListResponse(BaseResponse):
-    """任务列表使用独立响应模型，避免与单任务查询混用文档结构。"""
+    """The task list uses its own response model, so it isn't mixed with the single-task query's documented structure."""
 
     data: TaskListData
 
@@ -477,7 +477,7 @@ class VideoScriptResponse(BaseResponse):
                 "status": 200,
                 "message": "success",
                 "data": {
-                    "video_script": "春天的花海，是大自然的一幅美丽画卷。在这个季节里，大地复苏，万物生长，花朵争相绽放，形成了一片五彩斑斓的花海..."
+                    "video_script": "A sea of spring flowers is a beautiful painting by nature. In this season the earth revives, everything grows, and flowers compete to bloom, forming a colorful sea of flowers..."
                 },
             },
         }

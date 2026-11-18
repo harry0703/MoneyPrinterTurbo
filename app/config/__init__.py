@@ -21,7 +21,7 @@ def __init_logger():
         _lvl = str(config.log_level).strip().upper()
         if _lvl not in LOG_LEVELS:
             _lvl = "DEBUG"
-    # 分别校验两个选项：非法追踪值不能降低用户已有的日志等级。
+    # Validate the two options separately: an invalid tracing value must not lower the user's existing log level.
     _trace = config.diagnostics.get("log_requests", False)
     set_logging_options(_lvl, _trace if isinstance(_trace, bool) else False)
 
