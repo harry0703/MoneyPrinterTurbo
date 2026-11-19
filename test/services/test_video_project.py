@@ -420,6 +420,16 @@ def test_cli_native_render(native):
     report = json.loads(completed.stdout)
     assert report["state"] == "succeeded"
     assert Path(report["export"]["path"]).is_file()
+    assert [clip["scene_id"] for clip in report["scene_clips"]] == [
+        "opening",
+        "closing",
+    ]
+    for clip in report["scene_clips"]:
+        scene_id = clip["scene_id"]
+        assert Path(clip["path"]).is_file()
+        assert clip["sha256"] == report["stages"][f"{scene_id}:scene"]["sha256"]
+    assert _pixel(report["scene_clips"][0]["path"], 0.2)[0] > 200
+    assert _pixel(report["scene_clips"][1]["path"], 0.2)[2] > 200
 
 
 def test_order_and_render_settings_invalidation(native):
