@@ -1965,6 +1965,19 @@ def azure_tts_v2(
     return None
 
 
+def _decode_gemini_tts_audio(audio_bytes: bytes):
+    from pydub import AudioSegment
+
+    audio_buffer = io.BytesIO(audio_bytes)
+    # Gemini 3.8 returns a WAV container for unary requests. Older responses
+    # may still arrive as headerless 24 kHz PCM.
+    if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+        return AudioSegment.from_file(audio_buffer, format="wav")
+    return AudioSegment.from_file(
+        audio_buffer, format="raw", frame_rate=24000, channels=1, sample_width=2
+    )
+
+
 def gemini_tts(
     text: str,
     voice_name: str,
@@ -1986,7 +1999,6 @@ def gemini_tts(
         SubMaker对象或None
     """
     import base64
-    import io
     from pydub import AudioSegment
     from google import genai
     from google.genai import types
@@ -2012,11 +2024,12 @@ def gemini_tts(
             ),
         )
 
-        # google-genai 使用统一 Client 调用文本和 TTS 模型。上下文管理器确保
-        # 请求结束后释放 HTTP 连接，同时保留原有 PCM 转码和字幕时间轴逻辑。
-        with genai.Client(api_key=api_key) as client:
+        # Gemini 3.8 TTS requires v1beta. Close the SDK client after the request.
+        with genai.Client(
+            api_key=api_key, http_options=types.HttpOptions(api_version="v1beta")
+        ) as client:
             response = client.models.generate_content(
-                model="gemini-2.5-flash-preview-tts",
+                model="gemini-3.8-flash-lite-tts",
                 contents=text,
                 config=generation_config,
             )
@@ -2050,20 +2063,10 @@ def gemini_tts(
             # 如果已经是字节，直接使用
             audio_bytes = audio_data
         
-        # 尝试不同的音频格式 - Gemini可能返回不同的格式
-        audio_segment = None
-        
-        # Gemini返回Linear PCM格式，按照文档参数解析
         try:
-            audio_segment = AudioSegment.from_file(
-                io.BytesIO(audio_bytes), 
-                format="raw",
-                frame_rate=24000,  # Gemini TTS默认采样率
-                channels=1,        # 单声道
-                sample_width=2     # 16-bit
-            )
+            audio_segment = _decode_gemini_tts_audio(audio_bytes)
         except Exception as e:
-            logger.error(f"Failed to load PCM audio: {e}")
+            logger.error(f"Failed to decode Gemini TTS audio: {e}")
             return None
         
         # API、CLI 或测试可以直接把尚不存在的嵌套目录作为输出位置。这里在
@@ -2074,7 +2077,7 @@ def gemini_tts(
         # pydub 会返回打开的输出文件对象。批量生成时若不主动关闭，文件描述符
         # 会持续累积，并在 Windows 上增加后续覆盖或删除音频文件失败的概率。
         if len(audio_segment) <= 0:
-            raise ValueError("Gemini returned empty PCM audio")
+            raise ValueError("Gemini returned empty audio")
         temp_fd, temporary_audio = tempfile.mkstemp(
             prefix=".gemini-tts-", suffix=".mp3",
             dir=os.path.dirname(os.path.abspath(voice_file)),

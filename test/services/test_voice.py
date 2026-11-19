@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import io
 import os
 import shutil
 import subprocess
@@ -7,6 +8,7 @@ import unittest
 import sys
 import tempfile
 import time
+import wave
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -499,6 +501,28 @@ class TestVoiceService(unittest.TestCase):
             1.0,
         )
 
+    def test_decode_gemini_tts_audio_accepts_wav_and_headerless_pcm(self):
+        # Use synthetic silence; this doesn't call a provider or export media.
+        wav_pcm = bytes(3200)
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(16000)
+            wav.writeframes(wav_pcm)
+
+        for data, sample_rate, expected in (
+            (wav_buffer.getvalue(), 16000, wav_pcm),
+            (bytes(4800), 24000, bytes(4800)),
+        ):
+            with self.subTest(sample_rate=sample_rate):
+                segment = vs._decode_gemini_tts_audio(data)
+                self.assertEqual(segment.frame_rate, sample_rate)
+                self.assertEqual(segment.channels, 1)
+                self.assertEqual(segment.sample_width, 2)
+                self.assertEqual(segment.raw_data, expected)
+                self.assertEqual(len(segment), 100)
+
     def test_gemini_tts_uses_google_genai_and_compatible_submaker_fields(self):
         """
         验证 Gemini TTS 在 edge_tts 7.x 环境下仍会返回项目兼容的字幕结构，
@@ -581,8 +605,9 @@ class TestVoiceService(unittest.TestCase):
         self.assertEqual(len(getattr(sub_maker, "offset", [])), 2)
         self.assertEqual(sub_maker.offset[0][0], 0)
         self.assertLess(sub_maker.offset[0][1], sub_maker.offset[1][1])
-        self.assertEqual(captured["client_kwargs"], {"api_key": "test-key"})
-        self.assertEqual(captured["model"], "gemini-2.5-flash-preview-tts")
+        self.assertEqual(captured["client_kwargs"]["api_key"], "test-key")
+        self.assertEqual(captured["client_kwargs"]["http_options"].api_version, "v1beta")
+        self.assertEqual(captured["model"], "gemini-3.8-flash-lite-tts")
         self.assertEqual(captured["contents"], text)
         self.assertEqual(captured["config"].response_modalities, ["AUDIO"])
         voice_config = captured["config"].speech_config.voice_config
