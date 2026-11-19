@@ -70,6 +70,12 @@ snapshot. `status` reports completed stages, reused artifacts, failures and the
 export path. `project.json` points to the current revision and the last successful
 export, which is preserved until a newer current revision succeeds.
 
+On success, `render` and the corresponding `status` include `scene_clips` in
+timeline order. Each entry contains `scene_id`, `path`, and `sha256` for
+the rendered MP4. Use these paths to import individual clips into an editor
+without splitting the final export. The clips have the normalized narration
+or silence. The background-music mix is applied to the assembled export.
+
 Audio determines the duration of narrated scenes. Silent scenes use `duration`
 (default five seconds). Short footage loops; long footage is trimmed. Source
 video audio is intentionally replaced with the prepared narration or silence.

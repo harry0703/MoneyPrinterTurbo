@@ -611,8 +611,22 @@ class VideoProject:
                             **results["export"],
                         }
                         _atomic_json(self.directory / "project.json", metadata)
+                    scene_clips = []
+                    for scene in spec["scenes"]:
+                        scene_id = scene["id"]
+                        clip = results[f"{scene_id}:scene"]
+                        scene_clips.append(
+                            {
+                                "scene_id": scene_id,
+                                "path": clip["path"],
+                                "sha256": clip["sha256"],
+                            }
+                        )
                     status.update(
-                        state="succeeded", promoted=promoted, export=results["export"]
+                        state="succeeded",
+                        promoted=promoted,
+                        export=results["export"],
+                        scene_clips=scene_clips,
                     )
                     _atomic_json(folder / "status.json", status)
                 return status
