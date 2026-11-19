@@ -48,6 +48,7 @@ from app.models.schema import (
 from app.services import bgm as bgm_service
 from app.services import material_upload as material_upload_service
 from app.services import (
+    aigei,
     cache_manager,
     llm,
     loomloom,
@@ -130,12 +131,13 @@ VOICE_MODE_TTS = "tts"
 VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
 LOOMLOOM_MAX_POLL_FAILURES = 5
+AIGEI_WEBUI_UTM = "utm_source=webui&utm_medium=sponsorship&utm_campaign=moneyprinterturbo"
 # WebUI 按素材能力分组展示视频来源，但底层仍保存原有 video_source 值。
 # AI 视频组与设置页共用同一业务顺序：合作服务商优先，并按秘塔、OFox、胜算云、
 # 火山引擎、无限星河排列；其余服务随后展示。这样两个入口的顺序一致，同时
 # 不改变 config.toml、历史任务和 API 请求中的字段语义，旧用户无需迁移配置。
 VIDEO_SOURCE_GROUPS = {
-    "stock_video": ("pexels", "pixabay", "coverr"),
+    "stock_video": ("pexels", "pixabay", "coverr", "aigei"),
     "ai_video": (
         "metaso_minimax",
         "ofox",
@@ -1743,6 +1745,7 @@ def _dismiss_settings_dialog():
 def _open_settings_dialog(target_tab=None):
     """打开设置弹窗，并可直接定位到指定业务标签页。"""
     st.session_state["settings_dialog_open"] = True
+    st.session_state.pop("settings_material_focus", None)
     if not target_tab:
         target_tab = "general"
     if target_tab:
@@ -1754,6 +1757,11 @@ def _open_settings_dialog(target_tab=None):
 def _open_material_settings_dialog():
     """供视频来源组件回调使用：直接打开素材服务设置。"""
     _open_settings_dialog("material")
+    source = config.snapshot_config_with_pending(config.app).get("video_source")
+    st.session_state["settings_material_focus"] = next(
+        (group for group, sources in VIDEO_SOURCE_GROUPS.items() if source in sources),
+        None,
+    )
 
 
 def _render_brand(available_update: str | None = None):
@@ -2139,6 +2147,14 @@ def _render_generation_task_snapshot(task_id, task):
             and isinstance(error_params, Mapping)
         ):
             error = tr(error_key).format(**error_params)
+        elif (
+            isinstance(error_key, str)
+            and error_key.startswith("aigei.")
+            and isinstance(error_params, Mapping)
+        ):
+            error = tr(error_key)
+            if request_id := error_params.get("request_id"):
+                error += f" ({tr('Aigei Request ID')} {request_id})"
         message = tr("Video Generation Failed")
         st.error(f"{message}: {error}" if error else message)
         activity = task.get("generation_activity") or {}
@@ -3412,6 +3428,7 @@ def _material_provider_labels():
         "pexels": tr("Pexels"),
         "pixabay": tr("Pixabay"),
         "coverr": tr("Coverr"),
+        "aigei": tr("Aigei"),
         "metaso_minimax": tr("Metaso MiniMax H3"),
         "ofox": tr("OFox AI Video"),
         "loomloom": tr("Shengsuan Cloud AI Video"),
@@ -3611,7 +3628,27 @@ def _save_settings_api_keys(config_key, widget_key):
 
 def _render_material_provider_settings(provider):
     app_settings = config.snapshot_config_with_pending(config.app)
-    if provider in VIDEO_SOURCE_GROUPS["stock_video"]:
+    if provider == "aigei":
+        label = tr("Aigei API Key")
+        api_key_link = tr("Aigei API Key Link").format(
+            url=f"https://www.aigei.com/open/console/apikey?{AIGEI_WEBUI_UTM}&utm_content=api_key",
+        )
+        asset_library_link = tr("Aigei Asset Library Link").format(
+            url=f"https://www.aigei.com/?{AIGEI_WEBUI_UTM}&utm_content=asset_library",
+        )
+        with st.container(gap=None):
+            st.markdown(f"{label} · {api_key_link} · {asset_library_link}")
+            key = st.text_input(
+                label,
+                label_visibility="collapsed",
+                value=aigei.api_key(app_settings),
+                type="password",
+                key="aigei_api_key_input",
+                on_change=_save_settings_change,
+                args=("app", "aigei_api_key", "aigei_api_key_input", str.strip),
+            )
+        _set_runtime_config("app", "aigei_api_key", key.strip())
+    elif provider in VIDEO_SOURCE_GROUPS["stock_video"]:
         labels = {
             "pexels": "Pexels API Key",
             "pixabay": "Pixabay API Key",
@@ -4955,6 +4992,8 @@ def _render_settings_dialog():
                 remembered = dict(
                     st.session_state.get("settings_material_providers", {})
                 )
+                focus = st.session_state.get("settings_material_focus")
+                sections = sorted(sections, key=lambda section: section[0] != focus)
                 for group, title_key, help_key in sections:
                     providers = VIDEO_SOURCE_GROUPS[group]
                     default_provider = remembered.get(group, providers[0])
@@ -6040,17 +6079,28 @@ def _render_script_settings(panel, params):
                 height=180,
                 key="video_script",
             )
+            video_source = st.session_state.get(
+                localized_widget_key("video_source_select"),
+                config.snapshot_config_with_pending(config.app).get("video_source"),
+            )
+            is_aigei = video_source == "aigei"
+            regenerate_chinese = (
+                st.session_state.pop("aigei_keywords_pending", False) and is_aigei
+            )
+            generate_keywords = False
             if _effective_script_generation_backend() == "loomloom":
                 st.caption(tr("LoomLoom Video Terms Reuse Help"))
-            elif st.button(
-                tr("Generate Video Keywords"),
-                key="auto_generate_terms",
-                use_container_width=True,
-                type="secondary",
-                icon=":material/auto_awesome:",
-            ):
-                if not params.video_script:
-                    # 视频关键词需要基于文案提取，文案为空时提前提示并跳过模型调用。
+            else:
+                generate_keywords = st.button(
+                    tr("Generate Video Keywords"),
+                    key="auto_generate_terms",
+                    use_container_width=True,
+                    type="secondary",
+                    icon=":material/auto_awesome:",
+                )
+            if generate_keywords or regenerate_chinese:
+                if not utils.remove_pause_tags(params.video_script):
+                    # 仅有停顿标签时也没有可供提取关键词的文案。
                     st.toast(tr("Please Enter the Video Subject"))
                     st.warning(tr("Please Enter the Video Subject"))
                 else:
@@ -6063,6 +6113,7 @@ def _render_script_settings(panel, params):
                                 amount=8 if params.match_materials_to_script else 5,
                                 match_script_order=params.match_materials_to_script,
                                 app_config=app_config_snapshot,
+                                keyword_language="zh" if regenerate_chinese else "en",
                             ),
                         )
                         if not terms:
@@ -6071,8 +6122,8 @@ def _render_script_settings(panel, params):
                             st.session_state["video_terms"] = ", ".join(terms)
 
             params.video_terms = st.text_area(
-                tr("Video Keywords"),
-                help=tr("Video Keywords Help"),
+                tr("Aigei Video Keywords" if is_aigei else "Video Keywords"),
+                help=tr("Aigei Video Keywords Help" if is_aigei else "Video Keywords Help"),
                 key="video_terms",
             )
 
@@ -6087,24 +6138,6 @@ def _render_video_settings(panel, params):
                 (tr("Sequential"), "sequential"),
                 (tr("Random"), "random"),
             ]
-            video_source_labels = {
-                "pexels": tr("Pexels"),
-                "pixabay": tr("Pixabay"),
-                "coverr": tr("Coverr"),
-                "wavespeed": tr("WaveSpeed AI Video"),
-                "volcengine_seedance": tr("Volcano Engine Seedance"),
-                "infistar": tr("Infistar AI Video"),
-                "jalapeno": tr("Jalapeno Cloud AI Video"),
-                "ofox": tr("OFox AI Video"),
-                "metaso_minimax": tr("Metaso MiniMax H3"),
-                "muapi": tr("MuAPI AI Video"),
-                "useapi": tr("useapi.net AI Video"),
-                "loomloom": tr("Shengsuan Cloud AI Video"),
-                "openai_image": tr("OpenAI Compatible Text-to-Image"),
-                "codex_image": tr("codex.image.label"),
-                "useapi_image": tr("useapi.net Nano Banana Images"),
-                "local": tr("Local file"),
-            }
             saved_video_source_name = str(
                 config.snapshot_config_with_pending(config.app).get("video_source", "pexels")
                 or "pexels"
@@ -6119,11 +6152,41 @@ def _render_video_settings(panel, params):
                 ),
                 default_value=saved_video_source_name,
                 key="video_source_select",
-                format_func=video_source_labels.get,
+                format_func=_material_provider_labels().get,
                 settings_label=tr("Configure Material Sources"),
                 on_settings=_open_material_settings_dialog,
             )
             _set_runtime_config("app", "video_source", params.video_source)
+
+            if params.video_source == "aigei":
+                if utils.has_only_latin_letters(params.video_terms):
+                    has_narration = bool(utils.remove_pause_tags(params.video_script))
+                    with st.container(
+                        horizontal=True, vertical_alignment="center", gap="small"
+                    ):
+                        st.caption(
+                            tr("Aigei Current Keywords Are English"), width="content"
+                        )
+                        # 下一轮在文案区渲染输入框前更新关键词，避免修改已创建的控件。
+                        st.button(
+                            tr("Aigei Regenerate Chinese Keywords"),
+                            key="aigei_regenerate_chinese_keywords",
+                            type="secondary",
+                            disabled=not has_narration,
+                            help=None if has_narration else tr("Please Enter the Video Subject"),
+                            on_click=st.session_state.update,
+                            kwargs={"aigei_keywords_pending": True},
+                        )
+                key = aigei.api_key(config.snapshot_config_with_pending(config.app))
+                signature = aigei.key_fingerprint(key)
+                if st.session_state.get("aigei_charge_signature") != signature:
+                    st.session_state["aigei_confirm_charge"] = False
+                    st.session_state["aigei_charge_signature"] = signature
+                if key:
+                    st.caption(tr("Aigei Billing Notice"))
+                    st.checkbox(tr("Confirm Aigei Charge"), key="aigei_confirm_charge")
+                else:
+                    st.caption(tr("aigei.key_required"))
 
             loomloom_video_capability = None
             if params.video_source == "loomloom":
@@ -6432,7 +6495,12 @@ def _render_video_settings(panel, params):
                 _set_runtime_config("app", "video_codec", selected_video_codec)
 
             concurrency_options = [1, 2, 4, 6, 8]
-            if params.video_source in {"pexels", "pixabay", "coverr"}:
+            if params.video_source in VIDEO_SOURCE_GROUPS["stock_video"]:
+                help_key = (
+                    "Aigei Material Concurrency Help"
+                    if params.video_source == "aigei"
+                    else "Material Concurrency Help"
+                )
                 selected_material_concurrency = stable_selectbox(
                     tr("Material Concurrency"),
                     options=concurrency_options,
@@ -6440,7 +6508,7 @@ def _render_video_settings(panel, params):
                         "material_concurrency", concurrency_options, 1, config.app
                     ),
                     key="material_concurrency_select",
-                    help=tr("Material Concurrency Help"),
+                    help=tr(help_key),
                 )
                 _set_runtime_config(
                     "app", "material_concurrency", selected_material_concurrency
@@ -9249,24 +9317,7 @@ def _render_generation_controls(
             voxcpm_prompt_audio = _get_voxcpm_effective_prompt_audio()
             voxcpm_prompt_text = _get_voxcpm_prompt_text()
 
-        if params.video_source not in [
-            "infistar",
-            "jalapeno",
-            "pexels",
-            "pixabay",
-            "coverr",
-            "wavespeed",
-            "volcengine_seedance",
-            "ofox",
-            "metaso_minimax",
-            "muapi",
-            "useapi",
-            "loomloom",
-            "openai_image",
-            "codex_image",
-            "useapi_image",
-            "local",
-        ]:
+        if not any(params.video_source in sources for sources in VIDEO_SOURCE_GROUPS.values()):
             _remove_active_generation_task(task_id)
             st.error(tr("Please Select a Valid Video Source"))
             st.stop()
@@ -9291,6 +9342,22 @@ def _render_generation_controls(
             _remove_active_generation_task(task_id)
             st.error(tr("Please Enter the Coverr API Key"))
             st.stop()
+
+        aigei_charge_signature = None
+        if params.video_source == "aigei":
+            key = aigei.api_key(config.snapshot_config_with_pending(config.app))
+            if not key:
+                _remove_active_generation_task(task_id)
+                st.error(tr("aigei.key_required"))
+                st.stop()
+            aigei_charge_signature = aigei.key_fingerprint(key)
+            if (
+                not st.session_state.get("aigei_confirm_charge", False)
+                or st.session_state.get("aigei_charge_signature") != aigei_charge_signature
+            ):
+                _remove_active_generation_task(task_id)
+                st.error(tr("Confirm Aigei Charge Required"))
+                st.stop()
 
         if params.video_source == "wavespeed" and not config.app.get(
             "wavespeed_api_keys", ""
@@ -9642,6 +9709,8 @@ def _render_generation_controls(
                 voxcpm_prompt_text=voxcpm_prompt_text,
                 **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
                    if params.video_source == "jalapeno" else {}),
+                **({"aigei_charge_signature": aigei_charge_signature}
+                   if aigei_charge_signature is not None else {}),
             )
             if loomloom_video_request is not None:
                 # 一个报价只允许提交一次。后台请求自带稳定幂等 ID；提交成功后

@@ -41,6 +41,7 @@ _CLI_VIDEO_SOURCES = (
     "pexels",
     "pixabay",
     "coverr",
+    "aigei",
     "wavespeed",
     "volcengine_seedance",
     "ofox",
@@ -382,6 +383,11 @@ Batch manifests:
         default="video",
         choices=_PIPELINE_STAGES,
         help="stop after this pipeline stage; see the stage order below",
+    )
+    material_group.add_argument(
+        "--confirm-aigei-charge",
+        action="store_true",
+        help="allow Aigei to charge copper coins for stock video downloads",
     )
     material_group.add_argument(
         "--confirm-wavespeed-charge",
@@ -773,6 +779,11 @@ Batch manifests:
         )
     if not args.batch_file and args.video_source != "local" and has_video_materials:
         parser.error("--video-materials can only be used with --video-source local")
+    if (
+        not args.batch_file and args.video_source == "aigei"
+        and stage_requires_materials and not args.confirm_aigei_charge
+    ):
+        parser.error("--confirm-aigei-charge is required with --video-source aigei")
     if (
         not args.batch_file
         and args.video_source == "wavespeed"
@@ -1255,6 +1266,7 @@ def _validate_batch_task_params(
     infistar_charge_confirmed: bool = False,
     jalapeno_charge_confirmed: bool = False,
     useapi_charge_confirmed: bool = False,
+    aigei_charge_confirmed: bool = False,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
@@ -1287,6 +1299,11 @@ def _validate_batch_task_params(
         )
     if params.video_source != "local" and params.video_materials:
         raise ValueError("video_materials can only be used with video_source=local")
+    if (
+        params.video_source == "aigei" and stop_at in {"materials", "video"}
+        and not aigei_charge_confirmed
+    ):
+        raise ValueError("--confirm-aigei-charge is required with video_source=aigei")
     if (
         params.video_source == "wavespeed"
         and stop_at in {"materials", "video"}
@@ -1464,6 +1481,7 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                 infistar_charge_confirmed=args.confirm_infistar_charge,
                 jalapeno_charge_confirmed=args.confirm_jalapeno_charge,
                 useapi_charge_confirmed=args.confirm_useapi_charge,
+                aigei_charge_confirmed=args.confirm_aigei_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc

@@ -61,3 +61,25 @@ def test_default_video_voice_is_an_edge_voice():
         TaskVideoRequest(video_subject="Coffee").voice_name
     )
     assert voice.create_edge_tts_communicate("Coffee", voice_name, "+0%")
+
+
+def test_aigei_api_requires_confirmation_before_queuing(client):
+    body = {"video_subject": "Coffee", "video_source": "aigei", "subtitle_enabled": False}
+    with (
+        patch.object(video_controller.sm.state, "update_task") as update_task,
+        patch.object(video_controller.task_manager, "add_task") as add_task,
+    ):
+        response = client.post("/api/v1/videos", json=body)
+        assert response.status_code == 400
+        for confirmation in (False, "true"):
+            response = client.post("/api/v1/videos", json={**body, "confirm_aigei_charge": confirmation})
+            assert response.status_code in {400, 422}
+        update_task.assert_not_called()
+        add_task.assert_not_called()
+
+        response = client.post("/api/v1/videos", json={**body, "confirm_aigei_charge": True})
+        assert response.status_code == 200
+        add_task.assert_called_once()
+        queued = add_task.call_args.kwargs["params"]
+        assert queued.confirm_aigei_charge is True
+        assert "confirm_aigei_charge" not in queued.model_dump()

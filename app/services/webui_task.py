@@ -14,7 +14,7 @@ from app.models import const
 from app.models.schema import VideoParams
 from app.services import state as sm
 from app.services import task as tm
-from app.services import codex_image, jalapeno_video, volcengine_seedance
+from app.services import aigei, codex_image, jalapeno_video, volcengine_seedance
 from app.services.loomloom import LoomLoomConfirmedVideoRequest
 from app.utils.logging_utils import (
     format_log_record,
@@ -48,7 +48,8 @@ def is_generation_active(task_id: str) -> bool:
 
 
 def _submission_signature(
-    params, references, request, endpoint, preview, codex_image_context=None
+    params, references, request, endpoint, preview, codex_image_context=None,
+    aigei_charge_signature=None,
 ):
     # 仅保留摘要，不保存凭据或上传内容。不同 Key/模型/输入是不同请求，
     # 相同内容在完成后允许再次生成；只合并仍在排队或执行的重复提交。
@@ -75,6 +76,8 @@ def _submission_signature(
     }
     if codex_image_context is not None:
         payload["codex_image"] = asdict(codex_image_context)
+    if aigei_charge_signature is not None:
+        payload["aigei_charge_signature"] = aigei_charge_signature
     if preview and not preview.get("audio_digest"):
         # 旧调用方没有内容摘要时，不能仅凭同一时长推断两个文件相同。
         # 不在校验前读取任意路径；宁可保留不同文件的独立请求。
@@ -116,6 +119,7 @@ def _run_generation(
     voxcpm_prompt_text: str = "",
     jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
     codex_image_context: codex_image.CodexImageContext | None = None,
+    aigei_charge_signature: str | None = None,
 ) -> dict:
     """
     在后台线程中执行现有视频流水线。
@@ -144,6 +148,14 @@ def _run_generation(
         # 完整任务仍使用原来的配置锁，防止另一个 WebUI 会话在生成中途修改
         # Provider、密钥等进程级配置，造成同一条视频前后使用不同设置。
         with config.runtime_config_lock():
+            if (
+                aigei_charge_signature is not None
+                and aigei_charge_signature != aigei.key_fingerprint(aigei.api_key())
+            ):
+                error = aigei.AigeiError("charge_changed")
+                return tm._mark_task_failed(
+                    task_id, "preflight", str(error), details={"error_key": error.key}
+                )
             return tm.start(
                 task_id=task_id,
                 params=params,
@@ -205,6 +217,7 @@ def submit_generation(
     voxcpm_prompt_audio: bytes | None = None,
     voxcpm_prompt_text: str = "",
     jalapeno_video_endpoint: volcengine_seedance.SeedanceEndpoint | None = None,
+    aigei_charge_signature: str | None = None,
 ) -> str:
     """
     登记并提交 WebUI 视频生成任务，调用后立即返回。
@@ -242,6 +255,9 @@ def submit_generation(
         if task_params.video_source == "codex_image"
         else None
     )
+    if task_params.video_source == "aigei" and aigei_charge_signature is None:
+        settings = config.snapshot_config_with_pending(config.app)
+        aigei_charge_signature = aigei.key_fingerprint(aigei.api_key(settings))
     signature = _submission_signature(
         task_params,
         (
@@ -253,6 +269,7 @@ def submit_generation(
         jalapeno_video_endpoint,
         voice_preview_snapshot,
         codex_image_context,
+        aigei_charge_signature,
     )
     # 同一锁内查重并预占，两个标签页同时点击也只会真正入队一次。
     with _submission_lock:
@@ -274,6 +291,7 @@ def submit_generation(
             voxcpm_prompt_text_snapshot,
             jalapeno_video_endpoint,
             codex_image_context,
+            aigei_charge_signature=aigei_charge_signature,
         )
     except Exception:
         with _submission_lock:
@@ -294,6 +312,8 @@ def _enqueue_generation(
     voxcpm_prompt_text_snapshot,
     jalapeno_video_endpoint,
     codex_image_context=None,
+    *,
+    aigei_charge_signature=None,
 ):
     submitted_at = time.time()
     sm.state.update_task(
@@ -320,6 +340,8 @@ def _enqueue_generation(
                if codex_image_context is not None else {}),
             **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
                if jalapeno_video_endpoint is not None else {}),
+            **({"aigei_charge_signature": aigei_charge_signature}
+               if aigei_charge_signature is not None else {}),
         )
     except Exception as exc:
         # 调度失败与流水线失败一样必须成为可查询状态，避免任务管理器永久显示

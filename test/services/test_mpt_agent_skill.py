@@ -1205,7 +1205,8 @@ class TestMptAgentSkill(unittest.TestCase):
             (root / "config.example.toml").write_text('[app]\nllm_provider = "ollama"\n', encoding="utf-8")
             with patch.dict(os.environ, {"MPT_HOME": "relative-runtime"}):
                 config_path = mpt_agent.ensure_config(root)
-                self.assertEqual(config_path, root / "relative-runtime" / "config.toml")
+                # macOS 的临时目录可能经 /var 指向 /private/var，比较规范路径。
+                self.assertEqual(config_path, (root / "relative-runtime" / "config.toml").resolve())
                 config_path.write_text('[app]\nllm_provider = "existing"\n', encoding="utf-8")
                 self.assertEqual(mpt_agent.ensure_config(root).read_text(encoding="utf-8"), '[app]\nllm_provider = "existing"\n')
             self.assertFalse((root / "config.toml").exists())
@@ -1243,6 +1244,8 @@ class TestMptAgentSkill(unittest.TestCase):
                 return SimpleNamespace(returncode=0)
 
             with (
+                # 本用例验证默认输出目录，不能继承开发机的运行目录覆盖。
+                patch.dict(os.environ, {"MPT_HOME": ""}),
                 patch.object(mpt_agent.shutil, "which", return_value="uv"),
                 patch.object(mpt_agent, "run_checked"),
                 patch.object(mpt_agent.uuid, "uuid4", return_value=task_id),

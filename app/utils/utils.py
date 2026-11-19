@@ -385,6 +385,29 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
     return result
 
 
+def split_comma_separated_terms(text: str) -> list[str]:
+    terms = [term.strip() for term in re.split(r"[,，]", text)]
+    return [term for term in terms if term]
+
+
+def contains_han(text: str) -> bool:
+    return bool(
+        re.search(
+            r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
+            r"\U00020000-\U0002fa1f\U00030000-\U000323af]",
+            text,
+        )
+    )
+
+
+def has_only_latin_letters(text: str) -> bool:
+    """至少含一个拉丁字母，且没有其他文字的字母。"""
+    letters = [char for char in unicodedata.normalize("NFKC", text) if char.isalpha()]
+    return bool(letters) and all(
+        unicodedata.name(char, "").startswith("LATIN ") for char in letters
+    )
+
+
 PAUSE_TAG_KEYWORDS = (
     r"pause|pausa|silence|silencio|silêncio|silenzio|stille|"
     r"пауза|тишина|停顿|暂停|静音|ポーズ|一時停止|無音|일시중지|정지"

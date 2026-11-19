@@ -1,8 +1,10 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
+from functools import partial
 import io
 import math
+import operator
 import os
 import random
 import tempfile
@@ -15,6 +17,7 @@ from typing import Any, Callable, List
 from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
 
 import requests
+from filelock import FileLock
 from loguru import logger
 
 from app.utils.request_logging import trace_http_call
@@ -24,6 +27,7 @@ from PIL import Image, UnidentifiedImageError
 from app.config import config
 from app.models.schema import ImageMotion, MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
+    aigei,
     codex_image,
     generation_progress,
     infistar_video,
@@ -36,6 +40,7 @@ from app.services import (
     task_artifacts,
     useapi,
     video,
+    video_orientation,
     volcengine_seedance,
 )
 from app.utils import logging_utils, utils
@@ -50,6 +55,7 @@ MAX_VIDEO_DOWNLOAD_BYTES = 512 * 1024 * 1024
 
 # 默认保持串行，与旧版行为一致；有需要时可在配置中提高库存素材并发数。
 _DEFAULT_MATERIAL_CONCURRENCY = 1
+_AIGEI_DOWNLOAD_LOCK_COUNT = 32
 
 
 def _get_material_concurrency() -> int:
@@ -1294,6 +1300,8 @@ def save_video(
     video_url: str,
     save_dir: str = "",
     request_headers: dict[str, str] | None = None,
+    *,
+    resolve_url: Callable[[], str] | None = None,
 ) -> str:
     generation_progress.downloading()
     if not save_dir:
@@ -1356,6 +1364,14 @@ def save_video(
         except FileNotFoundError:
             pass
 
+    # 付费素材使用稳定标识查本地缓存，只有缓存缺失才调用会扣费的取链接口。
+    download = requests.get
+    if resolve_url is not None:
+        video_url = resolve_url()
+    else:
+        # 爱给网的临时地址完整保留用于下载，跳过诊断日志里的 URL 字段。
+        download = partial(trace_http_call, "GET", download)
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     }
@@ -1375,8 +1391,7 @@ def save_video(
             delete=False,
         ) as temp_file:
             temp_path = temp_file.name
-            with trace_http_call(
-                "GET", requests.get,
+            with download(
                 video_url,
                 headers=headers,
                 proxies=config.proxy,
@@ -2243,6 +2258,8 @@ def _search_terms_in_parallel(
                     minimum_duration=minimum_duration,
                     video_aspect=video_aspect,
                 )
+            except aigei.AigeiError:
+                raise
             except Exception as exc:
                 logger.error(
                     "failed to search material videos: "
@@ -2273,6 +2290,8 @@ def _search_terms_in_parallel(
             search_term = futures[future]
             try:
                 items = future.result()
+            except aigei.AigeiError:
+                raise
             except Exception as exc:
                 logger.error(
                     "failed to search material videos: "
@@ -2364,6 +2383,8 @@ def _download_materials_in_parallel(
     materials: List[tuple[str, MaterialInfo]],
     material_directory: str,
     on_downloaded: Callable[[MaterialInfo], None] | None = None,
+    save_paid_material: Callable[[MaterialInfo, str], str] | None = None,
+    on_paid_failure: Callable[[list[tuple[str, MaterialInfo, str]]], None] | None = None,
 ) -> list[tuple[str, MaterialInfo, str]]:
     """
     并行下载一轮素材，保留调用方传入的候选顺序。
@@ -2375,6 +2396,21 @@ def _download_materials_in_parallel(
         return []
 
     total = len(materials)
+    if save_paid_material is not None:
+        # 正式取链可能已扣费；一旦状态不明或文件保存失败，立即结束本轮。
+        downloaded = []
+        try:
+            for position, (search_term, item) in enumerate(materials, start=1):
+                saved_path = save_paid_material(item, material_directory)
+                if saved_path:
+                    downloaded.append((search_term, item, saved_path))
+                    _report_material_downloaded(position, total, item, saved_path, on_downloaded)
+        except aigei.AigeiError:
+            if on_paid_failure is not None:
+                on_paid_failure(downloaded)
+            raise
+        return downloaded
+
     workers = min(_get_material_concurrency(), total)
     if workers == 1:
         downloaded = []
@@ -2439,6 +2475,7 @@ def _select_materials_until_duration(
     audio_duration: float,
     current_duration: float = 0.0,
     clip_speed: float = 1.0,
+    duration_reached: Callable[[float, float], bool] = operator.gt,
 ) -> List[tuple[str, MaterialInfo]]:
     """
     按候选顺序选取一轮素材，避免并发时下载已经超过配音时长的候选。
@@ -2454,9 +2491,89 @@ def _select_materials_until_duration(
         total_duration += _first_clip_duration(
             material[1], max_clip_duration, clip_speed
         )
-        if total_duration > audio_duration:
+        if duration_reached(total_duration, audio_duration):
             break
     return selected
+
+
+def _aigei_duration_reached(duration: float, required: float) -> bool:
+    # 未提供目标时长时仍下载一条，用于单独获取素材。
+    return duration > 0 and duration >= required
+
+
+def _persist_interrupted_material_batch(task_id, previous_sources, downloaded):
+    # 感知扣费结果不确定时仍要结束任务，但已发布的文件需要保留可追溯的来源。
+    sources = list(previous_sources)
+    for _, item, path in downloaded:
+        try:
+            sources.append(_material_source_record(item, path))
+        except Exception as exc:
+            logger.warning(f"failed to record downloaded Aigei material: {type(exc).__name__}")
+    if sources:
+        _persist_material_sources(task_id, sources)
+
+
+class _SidewaysAigeiPreview(Exception):
+    """选中的免费预览确认横倒，应跳过正式取链。"""
+
+
+def _save_aigei_material(
+    item: MaterialInfo, directory: str, key: str, video_aspect: VideoAspect | None = None,
+    orientation: video_orientation.SidewaysDetector | None = None,
+) -> str:
+    cache_identity = "aigei:" + utils.md5(key) + ":" + item.url
+    directory = directory or utils.storage_dir("cache_videos")
+    cache_hash = utils.md5(cache_identity.split("#", 1)[0])
+    lock_index = int(cache_hash[:2], 16) % _AIGEI_DOWNLOAD_LOCK_COUNT
+    lock_path = Path(directory) / f".aigei-{lock_index}.lock"
+    request_id = ""
+    requested_download = False
+
+    def resolve_url():
+        nonlocal request_id, requested_download
+        if orientation is not None and orientation.is_sideways(aigei.preview_frames(item)):
+            raise _SidewaysAigeiPreview
+        url, request_id = aigei.download_url(item.url, key)
+        requested_download = True
+        return url
+
+    try:
+        # CLI、API 工作进程和 WebUI 共享目录。锁覆盖查缓存、付费取链和文件发布。
+        with FileLock(lock_path, timeout=300):
+            path = save_video(cache_identity, directory, resolve_url=resolve_url)
+    except _SidewaysAigeiPreview:
+        logger.info(f"skipping sideways Aigei preview: asset_id={(item.source_info or {}).get('asset_id')}")
+        return ""
+    except (OSError, ValueError, requests.RequestException, material_upload.MaterialServiceError):
+        raise aigei.AigeiError("file_failed", request_id) from None
+    if not path:
+        raise aigei.AigeiError("file_failed", request_id)
+    if video_aspect is not None:
+        clip = None
+        try:
+            # 与合成使用同一个解码器，按应用旋转标记后的显示尺寸验证，旧缓存也要检查。
+            clip = video._open_video_clip_quietly(path)
+            width, height = clip.size
+            aspect_matches = _matches_video_aspect(width, height, video_aspect)
+            sideways = aspect_matches and orientation is not None and orientation.is_sideways_video(clip)
+        except Exception:
+            raise aigei.AigeiError("file_failed", request_id) from None
+        finally:
+            video.close_clip(clip)
+        if not aspect_matches:
+            logger.warning(
+                f"skipping Aigei video with mismatched display aspect: "
+                f"file={os.path.basename(path)}, size={width}x{height}, target={video_aspect}"
+            )
+            if requested_download:
+                raise aigei.AigeiError("aspect_mismatch", request_id)
+            return ""
+        if sideways:
+            logger.warning(f"skipping Aigei video with sideways content: file={os.path.basename(path)}")
+            if requested_download:
+                raise aigei.AigeiError("sideways_content", request_id)
+            return ""
+    return path
 
 
 def download_videos(
@@ -2477,7 +2594,7 @@ def download_videos(
     """
     搜索并下载覆盖配音时长所需的素材，返回本地文件路径。
 
-    ``progress_callback`` 可选：库存素材（Pexels、Pixabay、Coverr）每下完一个
+    ``progress_callback`` 可选：库存素材每下完一个
     文件就以 0~1 的完成比例调用一次，供任务层推进进度条。按需生成的付费
     素材源不报告下载进度。
 
@@ -2487,18 +2604,33 @@ def download_videos(
     """
     provider = "pexels"
     remote_search_videos = search_videos_pexels
+    save_paid_material = None
+    duration_reached = operator.gt
     if source == "pixabay":
         provider = "pixabay"
         remote_search_videos = search_videos_pixabay
     elif source == "coverr":
         provider = "coverr"
         remote_search_videos = search_videos_coverr
+    elif source == "aigei":
+        key = aigei.api_key()
+        if not key:
+            raise aigei.AigeiError("key_required")
+        remote_search_videos = partial(aigei.search_videos, key=key)
+        orientation = video_orientation.load_detector() if video_aspect == VideoAspect.portrait else None
+        save_paid_material = partial(
+            _save_aigei_material, key=key, video_aspect=video_aspect, orientation=orientation,
+        )
+        duration_reached = _aigei_duration_reached
 
     def search_videos(
         search_term: str,
         minimum_duration: int,
         video_aspect: VideoAspect,
     ) -> List[MaterialInfo]:
+        if source == "aigei":
+            # 文件 ID 和报价依赖当前账号，跳过以公开直链为键的库存搜索缓存。
+            return remote_search_videos(search_term, minimum_duration, video_aspect)
         return _search_videos_with_cache(
             provider=provider,
             search_videos=remote_search_videos,
@@ -2630,6 +2762,7 @@ def download_videos(
             clip_speed=clip_speed,
             material_directory=material_directory,
             progress_callback=progress_callback,
+            save_paid_material=save_paid_material,
         )
 
     valid_video_items = []
@@ -2652,6 +2785,7 @@ def download_videos(
     )
     video_paths = []
     material_sources: list[dict[str, Any]] = []
+    on_paid_failure = partial(_persist_interrupted_material_batch, task_id, material_sources)
 
     concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
     if concat_mode_value == VideoConcatMode.random.value:
@@ -2665,7 +2799,7 @@ def download_videos(
     # 默认/随机路径同样受素材并发配置控制：按串行逻辑的停止条件预选每轮
     # 候选（顺序累加、首次超过配音时长即停）。全部下载成功时，每轮下载集合
     # 与串行逻辑完全一致；下载失败的候选在下一轮用后续候选补足。
-    while pending_items and total_duration <= audio_duration:
+    while pending_items and not duration_reached(total_duration, audio_duration):
         batch = []
         projected_duration = total_duration
         for item in pending_items:
@@ -2673,7 +2807,7 @@ def download_videos(
             projected_duration += _first_clip_duration(
                 item, max_clip_duration, clip_speed
             )
-            if projected_duration > audio_duration:
+            if duration_reached(projected_duration, audio_duration):
                 break
         for item in batch:
             source_info = item.source_info if isinstance(item.source_info, dict) else {}
@@ -2685,6 +2819,8 @@ def download_videos(
             materials=[("", item) for item in batch],
             material_directory=material_directory,
             on_downloaded=on_downloaded,
+            save_paid_material=save_paid_material,
+            on_paid_failure=on_paid_failure,
         )
         pending_items = pending_items[len(batch):]
         for _, item, saved_video_path in downloaded_materials:
@@ -2706,7 +2842,7 @@ def download_videos(
                         )
                     seconds = _first_clip_duration(item, max_clip_duration, clip_speed)
                     total_duration += seconds
-                    if total_duration > audio_duration:
+                    if duration_reached(total_duration, audio_duration):
                         logger.info(
                             f"total duration of downloaded videos: {round(total_duration, 2)} seconds, skip downloading more"
                         )
@@ -2719,6 +2855,8 @@ def download_videos(
                 )
     logger.success(f"downloaded {len(video_paths)} videos")
     _persist_material_sources(task_id, material_sources)
+    if save_paid_material is not None and not video_paths:
+        raise aigei.AigeiError("no_matches")
     return video_paths
 
 
@@ -3441,6 +3579,7 @@ def _download_videos_by_script_order(
     material_directory: str,
     progress_callback: Callable[[float], None] | None = None,
     clip_speed: float = 1.0,
+    save_paid_material: Callable[[MaterialInfo, str], str] | None = None,
 ) -> List[str]:
     """
     按脚本文案顺序下载素材。
@@ -3486,6 +3625,7 @@ def _download_videos_by_script_order(
 
     video_paths = []
     material_sources: list[dict[str, Any]] = []
+    on_paid_failure = partial(_persist_interrupted_material_batch, task_id, material_sources)
     total_duration = 0.0
     on_downloaded = _covered_duration_reporter(
         progress_callback, audio_duration, max_clip_duration, clip_speed
@@ -3494,7 +3634,8 @@ def _download_videos_by_script_order(
     # 未被选中的候选保留到下一轮，避免被整轮统一的下标跳过。
     next_candidate_indices = [0] * len(candidate_groups)
     picked_urls = set()
-    while candidate_groups and total_duration <= audio_duration:
+    duration_reached = _aigei_duration_reached if save_paid_material else operator.gt
+    while candidate_groups and not duration_reached(total_duration, audio_duration):
         round_materials = []
         round_urls = set()
         for group_position, (search_term, term_items) in enumerate(candidate_groups):
@@ -3520,6 +3661,7 @@ def _download_videos_by_script_order(
             audio_duration=audio_duration,
             current_duration=total_duration,
             clip_speed=clip_speed,
+            duration_reached=duration_reached,
         )
         # _select_materials_until_duration 返回候选列表的前缀子集，
         # 因此前 len(selected_materials) 个即本轮实际尝试下载的候选，
@@ -3532,6 +3674,8 @@ def _download_videos_by_script_order(
             materials=selected_materials,
             material_directory=material_directory,
             on_downloaded=on_downloaded,
+            save_paid_material=save_paid_material,
+            on_paid_failure=on_paid_failure,
         )
         for search_term, item, saved_video_path in downloaded_materials:
             try:
@@ -3559,7 +3703,7 @@ def _download_videos_by_script_order(
                     total_duration += _first_clip_duration(
                         item, max_clip_duration, clip_speed
                     )
-                    if total_duration > audio_duration:
+                    if duration_reached(total_duration, audio_duration):
                         logger.info(
                             f"total duration of downloaded videos: {round(total_duration, 2)} seconds, skip downloading more"
                         )
@@ -3573,6 +3717,8 @@ def _download_videos_by_script_order(
 
     logger.success(f"downloaded {len(video_paths)} ordered videos")
     _persist_material_sources(task_id, material_sources)
+    if save_paid_material is not None and not video_paths:
+        raise aigei.AigeiError("no_matches")
     return video_paths
 
 

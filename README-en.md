@@ -178,6 +178,18 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_logo"><img src="docs/sponsors/aigei-logo.png" alt="Aigei" width="112"></a><br>
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_brand"><strong>Aigei</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_thanks">Aigei</a> for supporting and sponsoring this project! Aigei brings together <strong>sound effects, music, video footage, images, 3D models, and game assets</strong> for short-form video, post-production, game development, and design. Find everything from footage and background music to sound effects for a scene.<br>
+      The Aigei Open Platform supports <strong>REST API and MCP integrations</strong>. Search for, filter, and retrieve audio, music, video, and image assets in automated video production, programmatic editing, and AI workflows, with less manual searching and sorting.<br>
+      🎁 <strong>Search and asset details are free to access.</strong> Guests and signed-in users can download assets, with a <strong>free download allowance</strong> available. See the platform for current allowances, fees, and licensing terms.<br>
+      👉 <a href="https://www.aigei.com/open?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_open_platform">Try the Aigei Open Platform</a> · <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_asset_library">Browse the Aigei asset library</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>

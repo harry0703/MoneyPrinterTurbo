@@ -296,6 +296,25 @@ class TestScriptPromptOptions(unittest.TestCase):
         self.assertEqual(result, [])
         self.assertIsInstance(result, list)
 
+    def test_chinese_terms_validate_the_individual_queries_and_limit_their_count(self):
+        with patch.object(
+            llm,
+            "_generate_response",
+            side_effect=[
+                '["车载导航, city driving", "医生查看X光片"]',
+                '["手机导航，电子地图", "医生查看X光片"]',
+            ],
+        ) as generate_response:
+            result = llm.generate_terms(
+                video_subject="日常科技",
+                video_script="手机可以查路线，医生也可以看 X 光片。",
+                amount=2,
+                keyword_language="zh",
+            )
+
+        self.assertEqual(result, ["手机导航", "电子地图"])
+        self.assertEqual(generate_response.call_count, 2)
+
     def test_generate_terms_retries_non_string_items_in_recovered_json(self):
         """The prose-wrapped JSON recovery path must enforce List[str] too."""
         with patch.object(

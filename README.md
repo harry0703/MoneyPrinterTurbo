@@ -178,6 +178,18 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_logo"><img src="docs/sponsors/aigei-logo.png" alt="爱给网" width="112"></a><br>
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_brand"><strong>爱给网</strong></a>
+    </td>
+    <td align="left">
+      感谢<a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_thanks">爱给网</a>对本项目的支持与赞助！爱给网是<strong>一站式数字创意素材平台</strong>，汇集音效、配乐、视频、图片、3D 模型及游戏素材，覆盖短视频制作、影视后期、游戏开发和设计创作。从视频画面、背景配乐到场景音效，为创作提供丰富选择。<br>
+      爱给开放平台支持 <strong>REST API 与 MCP 接入</strong>，提供音效、配乐、视频和图片的搜索、筛选及文件获取能力，方便接入自动化视频制作、程序化剪辑和 AI 创作工作流，减少手动查找与整理素材的步骤。<br>
+      🎁 <strong>搜索与详情查询免费</strong>，支持游客及登录用户下载，并提供<strong>免费下载额度</strong>。具体额度、费用及素材授权范围以平台说明为准。<br>
+      👉 <a href="https://www.aigei.com/open?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_open_platform">立即体验爱给开放平台</a> · <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_asset_library">浏览爱给素材库</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn">录咖 AI</a>
     </td>

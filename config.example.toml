@@ -88,7 +88,7 @@ tls_verify = true
 # Video Materials / 视频素材
 # -----------------------------------------------------------------------------
 
-# Available values: "pexels", "pixabay", "coverr", "wavespeed",
+# Available values: "pexels", "pixabay", "coverr", "aigei", "wavespeed",
 # "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "useapi",
 # "loomloom", "openai_image", "useapi_image", "infistar", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
@@ -115,6 +115,12 @@ pixabay_api_keys = []
 
 # Register at https://coverr.co/developers?ctx=header_navigation
 coverr_api_keys = []
+
+# https://www.aigei.com/open/console/apikey
+# 获取爱给网视频下载链接时，按实际费用结算铜币。
+# 竖屏选材首次使用时缓存约 24 MB 的方向检测模型，画面在本机分析。
+# WebUI 需确认扣费，CLI 使用 --confirm-aigei-charge，HTTP API 传入 confirm_aigei_charge = true。
+aigei_api_key = ""
 
 # WaveSpeed AI generates clips from your script keywords with text-to-video
 # models. Create an API key at https://wavespeed.ai
@@ -683,10 +689,8 @@ subtitle_provider = "edge"
 # very long narration chunks.
 # ffmpeg_tts_timeout_seconds = 600
 
-# Concurrent keyword searches and downloads for stock footage (Pexels, Pixabay
-# and Coverr only). Default: 1 (serial). Higher values may be faster but can
-# trigger provider rate limits. Use 1, 2, 4, 6 or 8: the code caps values at 8,
-# and the WebUI resets anything else to 1 when it shows this setting.
+# 库存素材的搜索并发，默认 1。Pexels、Pixabay 和 Coverr 的下载也使用此设置，
+# 爱给网逐个下载。WebUI 支持 1、2、4、6、8，提高并发可能触发平台限流。
 # material_concurrency = 1
 
 # How many clips are cropped, speed-adjusted and encoded at once. Default: 1

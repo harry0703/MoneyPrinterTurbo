@@ -10,6 +10,7 @@ import shutil
 from app.config import config
 from app.models.llm_provider import LLM_PROVIDER_REGISTRY
 from app.services import (
+    aigei,
     infistar_video,
     jalapeno_video,
     loomloom,
@@ -96,6 +97,7 @@ def configured_material_providers(settings, groups, codex_connected=False):
     }
     enabled.update(
         {
+            "aigei": bool(aigei.api_key(settings)),
             "metaso_minimax": metaso_minimax.is_enabled(settings),
             "ofox": ofox.is_enabled(settings),
             "volcengine_seedance": volcengine_seedance.is_enabled(settings),

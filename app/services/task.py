@@ -1,7 +1,6 @@
 import json
 import math
 import os
-import re
 import socket
 import tempfile
 import threading
@@ -18,6 +17,7 @@ from app.models import const
 from app.models.schema import VideoConcatMode, VideoParams
 from app.services import bgm as bgm_service
 from app.services import (
+    aigei,
     codex_image,
     codex_oauth,
     elevenlabs_music,
@@ -101,7 +101,7 @@ _VIDEO_MUSIC_PROVIDERS = {
 
 
 _SUPPORTED_VIDEO_SOURCES = frozenset({
-    "pexels", "pixabay", "coverr", "local", "wavespeed",
+    "pexels", "pixabay", "coverr", "aigei", "local", "wavespeed",
     "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "useapi",
     "loomloom", "openai_image", "codex_image", "useapi_image", "infistar",
     "jalapeno",
@@ -398,15 +398,14 @@ def generate_terms(task_id, params, video_script):
             match_script_order=params.match_materials_to_script,
         )
     else:
+        # Delimiter-only input must not reach paid reranking or material search.
         if isinstance(video_terms, str):
-            video_terms = [term.strip() for term in re.split(r"[,，]", video_terms)]
+            video_terms = utils.split_comma_separated_terms(video_terms)
         elif isinstance(video_terms, list):
             video_terms = [term.strip() for term in video_terms]
+            video_terms = [term for term in video_terms if term]
         else:
             raise ValueError("video_terms must be a string or a list of strings.")
-
-        # Delimiter-only input must not reach paid reranking or material search.
-        video_terms = [term for term in video_terms if term]
 
         logger.debug(f"video terms: {utils.to_json(video_terms)}")
 
@@ -846,6 +845,12 @@ def get_video_materials(
                 progress_callback=_stage_progress_reporter(task_id, 40, 50),
                 **generation_options,
             )
+        except aigei.AigeiError as exc:
+            _mark_task_failed(
+                task_id, "materials", str(exc),
+                details={"error_key": exc.key, "error_params": {"request_id": exc.request_id}},
+            )
+            return None
         except volcengine_seedance.VolcEngineSeedanceError as exc:
             # 未确认状态和已生成但下载失败都对应一个可在方舟控制台恢复的远端
             # 任务。统一从异常携带的 task_id 写入失败状态，避免不同异常分支
@@ -1039,7 +1044,7 @@ def generate_final_videos(
             warnings=warnings,
         )
     allocate_batch_materials = params.video_count > 1 and params.video_source in {
-        "pexels", "pixabay", "coverr", "local"
+        "pexels", "pixabay", "coverr", "aigei", "local"
     }
     source_usage = {}
     material_selections = []
@@ -1594,6 +1599,12 @@ def _run_pipeline(
     if stop_at in {"materials", "video"} and params.video_source not in _SUPPORTED_VIDEO_SOURCES:
         return _mark_task_failed(
             task_id, "preflight", f"unsupported video source: {params.video_source!r}"
+        )
+
+    if stop_at in {"materials", "video"} and params.video_source == "aigei" and not aigei.api_key():
+        error = aigei.AigeiError("key_required")
+        return _mark_task_failed(
+            task_id, "preflight", str(error), details={"error_key": error.key}
         )
 
     if (

@@ -7,7 +7,7 @@ import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 from app.config import config
-from app.services import voice
+from app.services import llm, voice
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -41,7 +41,9 @@ class _GroupedSelectHarness:
 @contextmanager
 def _running_app(harness, *, saved_video_source="pexels"):
     """在整个用例期间保持组件、配置和外部音色查询隔离。"""
-    test_app_config = dict(config.app, video_source=saved_video_source)
+    test_app_config = dict(
+        config.app, video_source=saved_video_source, script_generation_backend="local"
+    )
     test_ui_config = dict(config.ui, language="en")
     with (
         patch(
@@ -100,6 +102,77 @@ def test_grouped_video_source_ignores_unknown_event_and_repairs_saved_value():
         assert harness.calls[-1]["data"]["value"] == "pexels"
 
 
+def test_aigei_regenerates_existing_english_keywords_only_on_request():
+    harness = _GroupedSelectHarness()
+    original_script = "通勤使用车载导航，医生查看 X 光片。"
+    original_terms = "car navigation, medical imaging"
+    regenerate_key = "aigei_regenerate_chinese_keywords"
+    responses = [
+        '["car navigation", "medical imaging"]',
+        "Error: unavailable",
+        '["car navigation", "医生查看X光片"]',
+        '["车载导航", "医生查看X光片"]',
+    ]
+    with (
+        _running_app(harness) as app,
+        patch.object(llm, "generate_script", return_value=original_script),
+        patch.object(llm, "_generate_response", side_effect=responses) as model,
+    ):
+        app.text_area(key="video_subject").set_value("生活中的人工智能").run()
+        app.button(key="auto_generate_script").click().run()
+        assert app.text_area(key="video_terms").value == original_terms
+        assert all(button.key != regenerate_key for button in app.button)
+
+        harness.selected = "aigei"
+        app.run()
+        assert app.text_area(key="video_terms").value == original_terms
+        assert any(
+            item.value.startswith("Current keywords are in English.")
+            and "more relevant footage" in item.value
+            for item in app.caption
+        )
+        assert model.call_count == 1
+
+        app.button(key=regenerate_key).click().run()
+        assert app.text_area(key="video_terms").value == original_terms
+        assert any("generate" in item.value for item in app.error)
+
+        app.button(key=regenerate_key).click().run()
+        assert app.text_area(key="video_terms").value == "车载导航, 医生查看X光片"
+        assert app.text_area(key="video_script").value == original_script
+        assert all(button.key != regenerate_key for button in app.button)
+        assert model.call_count == 4
+        assert "reply with english search terms only" in model.call_args_list[0].args[0]
+        assert "简体中文" in model.call_args.args[0]
+
+        for terms in ("", "4K 以外", "AI ナビ", "123", "AI 医疗, car navigation"):
+            app.text_area(key="video_terms").set_value(terms).run()
+            assert all(button.key != regenerate_key for button in app.button)
+        harness.selected = "pexels"
+        app.run()
+        assert app.text_area(key="video_terms").value == "AI 医疗, car navigation"
+        assert model.call_count == 4
+        assert not app.exception
+
+
+def test_aigei_requires_narration_before_regenerating_keywords():
+    harness = _GroupedSelectHarness()
+    with (
+        _running_app(harness, saved_video_source="aigei") as app,
+        patch.object(llm, "_generate_response", return_value='["城市街景"]') as model,
+    ):
+        app.text_area(key="video_terms").set_value("city streets").run()
+        app.text_area(key="video_script").set_value("[停顿: 2秒] (pause: 1s)").run()
+
+        button = app.button(key="aigei_regenerate_chinese_keywords")
+        if not button.disabled:
+            button.click().run()
+
+        assert app.text_area(key="video_terms").value == "city streets"
+        assert not model.called
+        assert button.disabled
+
+
 def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
     """组件数据应保持分组顺序，并为可见标签提供稳定控件 ID。"""
     harness = _GroupedSelectHarness()
@@ -118,6 +191,7 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
             "pexels",
             "pixabay",
             "coverr",
+            "aigei",
             "metaso_minimax",
             "ofox",
             "loomloom",
@@ -141,7 +215,7 @@ def test_grouped_video_source_keeps_groups_and_accessible_label_binding():
 
 
 def test_stock_concurrency_only_appears_for_stock_sources():
-    """库存并发仅对三家库存素材显示，切换来源时保留显式设置。"""
+    """库存并发仅对库存素材显示，切换来源时保留显式设置。"""
     harness = _GroupedSelectHarness()
     with _running_app(harness) as app:
         stock = next(
@@ -167,6 +241,7 @@ def test_stock_concurrency_only_appears_for_stock_sources():
         for source, show_stock in (
             ("pixabay", True),
             ("coverr", True),
+            ("aigei", True),
             ("wavespeed", False),
             ("local", False),
             ("pexels", True),

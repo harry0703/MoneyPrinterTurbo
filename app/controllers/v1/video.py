@@ -243,6 +243,13 @@ def create_task(
         if (
             stop_at == "video"
             and isinstance(body, TaskVideoRequest)
+            and body.video_source == "aigei"
+            and not body.confirm_aigei_charge
+        ):
+            raise ValueError("confirm_aigei_charge must be true with video_source=aigei")
+        if (
+            stop_at == "video"
+            and isinstance(body, TaskVideoRequest)
             and body.subtitle_enabled
         ):
             tm.video.validate_subtitle_colors(body)

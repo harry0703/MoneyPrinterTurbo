@@ -3,9 +3,11 @@
 from contextlib import contextmanager
 import json
 from pathlib import Path
+import re
 import threading
 import time
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -19,6 +21,7 @@ FIELDS = {
     "pexels": ("stock_video", "pexels_api_keys_input"),
     "pixabay": ("stock_video", "pixabay_api_keys_input"),
     "coverr": ("stock_video", "coverr_api_keys_input"),
+    "aigei": ("stock_video", "aigei_api_key_input"),
     "metaso_minimax": ("ai_video", "metaso_minimax_api_key_input"),
     "ofox": ("ai_video", "ofox_api_key_input"),
     "loomloom": ("ai_video", "loomloom_api_token_input"),
@@ -136,6 +139,7 @@ PROVIDER_LABELS = {
     "pexels": "Pexels",
     "pixabay": "Pixabay",
     "coverr": "Coverr",
+    "aigei": "Aigei",
     "metaso_minimax": "Metaso MiniMax H3",
     "ofox": "OFox AI Video",
     "loomloom": "Shengsuan Cloud AI Video",
@@ -240,6 +244,56 @@ def test_general_opens_selected_section_without_activating_a_material_provider(
         assert_material_sections(app, "en")
         assert settings["video_source"] == "pexels"
         assert settings["llm_provider"] == "openai_codex"
+
+
+@pytest.mark.parametrize(
+    ("locale", "key_label", "library_label"),
+    (
+        ("zh", "获取 API 密钥", "查看素材库"),
+        ("en", "Get API key", "Browse asset library"),
+    ),
+)
+def test_aigei_settings_displays_two_tracked_links_on_the_key_label_line(
+    locale, key_label, library_label
+):
+    with settings_app("material", video_source="aigei", locale=locale) as (app, _, _, _):
+        run(app)
+        (row,) = [
+            item.value for item in app.markdown
+            if f"[{key_label}]" in item.value and f"[{library_label}]" in item.value
+        ]
+        assert "\n" not in row
+        links = {
+            label: urlsplit(url)
+            for label, url in re.findall(r"\[([^\]]+)\]\(([^)]+)\)", row)
+        }
+        for label, path, content in (
+            (key_label, "/open/console/apikey", "api_key"),
+            (library_label, "/", "asset_library"),
+        ):
+            url = links[label]
+            assert (url.scheme, url.netloc, url.path) == ("https", "www.aigei.com", path)
+            assert parse_qs(url.query) == {
+                "utm_source": ["webui"],
+                "utm_medium": ["sponsorship"],
+                "utm_campaign": ["moneyprinterturbo"],
+                "utm_content": [content],
+            }
+
+
+def test_changing_aigei_key_resets_charge_confirmation():
+    with settings_app("material", video_source="aigei", aigei_api_key="first-key") as (
+        app, settings, _, _,
+    ):
+        run(app)
+        app.checkbox(key="aigei_confirm_charge").check()
+        run(app)
+        assert app.checkbox(key="aigei_confirm_charge").value
+
+        app.text_input(key="aigei_api_key_input").set_value("second-key")
+        run(app)
+        assert settings["aigei_api_key"] == "second-key"
+        assert not app.checkbox(key="aigei_confirm_charge").value
 
 
 def test_final_password_edit_is_saved_before_same_event_hides_provider():

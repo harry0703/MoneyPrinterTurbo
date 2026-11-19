@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, List, Literal, Optional, Union
 
 import pydantic
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from app.config import config
 
@@ -266,6 +266,11 @@ class TaskVideoRequest(VideoParams, BaseModel):
     video_count: int = Field(default=1, ge=1, le=5)
     video_clip_duration: int = Field(default=5, ge=1, le=15)
     n_threads: Optional[int] = Field(default=2, ge=1, le=16)
+    confirm_aigei_charge: StrictBool = Field(
+        default=False,
+        exclude=True,
+        description="Allow Aigei to charge copper coins for this task's video downloads.",
+    )
 
     # A request without voice_name uses the same Edge voice as /audio and
     # /subtitle. Edge TTS accepts no empty voice, so with the empty default

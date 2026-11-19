@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unicodedata
 from time import perf_counter
-from typing import List
+from typing import List, Literal
 
 from loguru import logger
 from openai import AzureOpenAI, OpenAI
@@ -1059,6 +1059,8 @@ def generate_terms(
     amount: int = 5,
     match_script_order: bool = False,
     app_config=None,
+    *,
+    keyword_language: Literal["en", "zh"] = "en",
 ) -> List[str]:
     video_script = utils.remove_pause_tags(video_script or "").strip()
     if match_script_order:
@@ -1089,6 +1091,37 @@ def generate_terms(
             '"search term 4", "search term 5"]'
         )
 
+    term_rule = (
+        "each search term should consist of 1-3 words, "
+        "always add the main subject of the video."
+    )
+    language_rule = "reply with english search terms only."
+    language_reminder = (
+        "Please note that you must use English for generating video search terms; "
+        "Chinese is not accepted."
+    )
+    if keyword_language == "zh":
+        term_rule = (
+            "每个关键词用简短的中文短语描述一个素材库里可检索的画面，"
+            "提取人物、物体、动作或场景。避开抽象概念和重复画面，"
+            "在数量限制内覆盖文案开头、中段和结尾的代表场景。"
+        )
+        language_rule = "每个关键词都必须包含简体中文，可保留 AI 等常用缩写。"
+        language_reminder = ""
+        output_example = json.dumps(
+            [
+                "海边日出",
+                "渔船出港",
+                "渔船撒网",
+                "渔网收鱼",
+                "海鲜市场",
+                "厨师切鱼",
+                "烤鱼特写",
+                "港口夜景",
+            ][:amount],
+            ensure_ascii=False,
+        )
+
     prompt = f"""
 # Role: Video Search Terms Generator
 
@@ -1097,10 +1130,10 @@ def generate_terms(
 
 ## Constrains:
 1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
+2. {term_rule}
 3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
 4. the search terms must be related to the subject of the video.
-5. reply with english search terms only.
+5. {language_rule}
 {ordering_rule}
 
 ## Output Example:
@@ -1113,7 +1146,7 @@ def generate_terms(
 ### Video Script
 {video_script}
 
-Please note that you must use English for generating video search terms; Chinese is not accepted.
+{language_reminder}
 """.strip()
 
     logger.info(f"subject: {video_subject}, match_script_order: {match_script_order}")
@@ -1154,7 +1187,16 @@ Please note that you must use English for generating video search terms; Chinese
         # The model may ignore the requested count or return blank strings.
         # Enforce the prompt contract before material providers are contacted;
         # repeated topics remain meaningful in chronological mode.
-        search_terms = [term.strip() for term in search_terms if term.strip()][:amount]
+        if keyword_language == "zh":
+            # 和任务实际发送的搜索词使用相同分隔规则，再限制条数并校验语言。
+            search_terms = utils.split_comma_separated_terms(
+                ", ".join(search_terms)
+            )[:amount]
+            if not all(map(utils.contains_han, search_terms)):
+                logger.warning("some video search terms did not contain Chinese characters")
+                search_terms = []
+        else:
+            search_terms = [term.strip() for term in search_terms if term.strip()][:amount]
         if search_terms:
             break
         if i < _max_retries - 1:

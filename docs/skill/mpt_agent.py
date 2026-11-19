@@ -31,6 +31,7 @@ SUPPORTED_SOURCES = {
     "pexels",
     "pixabay",
     "coverr",
+    "aigei",
     "wavespeed",
     "volcengine_seedance",
     "ofox",
@@ -474,6 +475,11 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("volcengine_seedance_api_key")
         if not has_cli_option(cli_args, "--confirm-seedance-charge"):
             missing.append("confirm_seedance_charge")
+    elif source == "aigei":
+        if not _has_configured_value(_plain_config_value(text, "aigei_api_key")):
+            missing.append("aigei_api_key")
+        if not has_cli_option(cli_args, "--confirm-aigei-charge"):
+            missing.append("confirm_aigei_charge")
     elif source == "wavespeed":
         # WaveSpeed 的运行时凭据只来自 wavespeed_api_keys，没有环境变量回退，
         # 这里保持同一口径。按次计费的生成源还必须显式确认收费。
@@ -584,6 +590,7 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
     if any(
         field.endswith("_api_key")
         and field not in {
+            "aigei_api_key",
             "volcengine_seedance_api_key",
             "ofox_api_key",
             "metaso_minimax_api_key",
@@ -629,6 +636,10 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print("SEEDANCE_CHARGE_CONFIRMATION_REQUIRED=--confirm-seedance-charge")
     if "confirm_wavespeed_charge" in missing:
         print("WAVESPEED_CHARGE_CONFIRMATION_REQUIRED=--confirm-wavespeed-charge")
+    if "aigei_api_key" in missing:
+        print("AIGEI_API_KEY_URL=https://www.aigei.com/open/console/apikey")
+    if "confirm_aigei_charge" in missing:
+        print("AIGEI_CHARGE_CONFIRMATION_REQUIRED=--confirm-aigei-charge")
     if "ofox_api_key" in missing:
         print(f"OFOX_API_KEY_URL={OFOX_API_KEY_URL}")
         print("OFOX_API_KEY_ENV=MPT_OFOX_API_KEY")

@@ -107,6 +107,18 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_logo"><img src="docs/sponsors/aigei-logo.png" alt="Aigei（爱给网）" width="112"></a><br>
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_brand"><strong>Aigei（爱给网）</strong></a>
+    </td>
+    <td align="left">
+      本プロジェクトを支援・スポンサードしてくださっている <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_thanks">Aigei（爱给网）</a> に感謝します！ Aigei は、<strong>効果音、BGM、動画、画像、3D モデル、ゲーム素材</strong>をまとめて探せるデジタル素材プラットフォームです。ショート動画の制作、映像のポストプロダクション、ゲーム開発、デザインに使える素材が揃っています。<br>
+      Aigei オープンプラットフォームは <strong>REST API と MCP</strong> に対応しています。効果音、BGM、動画、画像の検索、絞り込み、ファイル取得を動画制作の自動化、プログラムによる編集、AI を使った制作フローに組み込めるため、手作業で素材を探して整理する手間を減らせます。<br>
+      🎁 <strong>素材の検索と詳細情報の閲覧は無料</strong>です。ゲストとログインユーザーのどちらもダウンロードでき、<strong>無料ダウンロード枠</strong>も用意されています。利用枠、料金、素材のライセンス条件はプラットフォーム上の案内をご確認ください。<br>
+      👉 <a href="https://www.aigei.com/open?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_open_platform">Aigei オープンプラットフォームを試す</a> · <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_asset_library">Aigei の素材ライブラリを見る</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>
