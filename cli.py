@@ -1278,9 +1278,10 @@ def _validate_batch_task_params(
     for field_name, value in (
         ("video_aspect", params.video_aspect),
         ("video_concat_mode", params.video_concat_mode),
+        ("voice_name", params.voice_name),
     ):
         # These schema fields remain Optional for compatibility with historical
-        # API payloads, but the video pipeline always dereferences their enum
+        # API payloads, but the video pipeline always dereferences their
         # values. A manifest's explicit null must fail before any batch task starts.
         if value is None:
             raise ValueError(f"{field_name} cannot be null")

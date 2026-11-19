@@ -1653,7 +1653,7 @@ class TestCli(unittest.TestCase):
             self.assertIn("video-clip-speed", error_output.getvalue())
 
     def test_later_null_runtime_field_prevents_every_batch_task_from_starting(self):
-        for field_name in ("video_aspect", "video_concat_mode"):
+        for field_name in ("video_aspect", "video_concat_mode", "voice_name"):
             with self.subTest(field_name=field_name), tempfile.TemporaryDirectory() as temp_dir:
                 manifest = Path(temp_dir) / "tasks.json"
                 manifest.write_text(
