@@ -265,7 +265,9 @@ class TestBackgroundMusicService(unittest.TestCase):
             )
 
     def test_audio_validation_uses_only_configured_ffmpeg(self):
-        completed = SimpleNamespace(returncode=0, stdout=b"out_time_us=100000\nprogress=end\n")
+        completed = SimpleNamespace(
+            returncode=0, stdout=b"0, 0, 0, 1600, 3200, 0x00000000\n", stderr=b""
+        )
         with (
             patch.object(
                 bgm.utils,

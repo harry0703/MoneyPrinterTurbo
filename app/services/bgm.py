@@ -169,15 +169,11 @@ def _validate_audio(file_path: str, timeout_seconds: int = 30) -> None:
                 file_path,
                 "-map",
                 "0:a:0",
-                # Normalize timestamps from decoded samples. A header-only
-                # WAV can exit successfully without producing any audio.
-                "-af",
-                "asetpts=N/SR/TB",
-                "-progress",
-                "pipe:1",
-                "-nostats",
+                # framecrc writes one stdout line per decoded packet, so a
+                # header-only WAV produces none. -progress out_time_us is not
+                # usable here: FFmpeg 6.1 reports 0 for clips under ~0.13 s.
                 "-f",
-                "null",
+                "framecrc",
                 "-",
             ],
             capture_output=True,
@@ -188,17 +184,14 @@ def _validate_audio(file_path: str, timeout_seconds: int = 30) -> None:
         raise BgmServiceError("FFmpeg background music validation timed out") from exc
     except OSError as exc:
         raise BgmServiceError("failed to run FFmpeg for background music validation") from exc
-    if decoded.returncode != 0:
+    # FFmpeg 6.1 prints "Header missing" for a damaged MP3 yet exits 0 under
+    # -xerror, and -v error leaves only decode errors on stderr, so any
+    # stderr output fails validation as well.
+    if decoded.returncode != 0 or decoded.stderr.strip():
         raise BgmUploadError("uploaded file must contain a decodable audio stream")
-    decoded_audio = False
-    for line in decoded.stdout.splitlines():
-        key, separator, value = line.partition(b"=")
-        if separator and key == b"out_time_us":
-            try:
-                decoded_audio = decoded_audio or int(value) > 0
-            except ValueError:
-                continue
-    if not decoded_audio:
+    if not any(
+        line and not line.startswith(b"#") for line in decoded.stdout.splitlines()
+    ):
         raise BgmUploadError("uploaded file must contain nonempty decodable audio")
 
 
