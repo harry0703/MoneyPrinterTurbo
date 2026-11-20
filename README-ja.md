@@ -107,6 +107,16 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://link.bach.art/4iW1qZL"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/video-rebirth-logo-dark.svg"><img src="docs/sponsors/video-rebirth-logo-light.svg" alt="Video Rebirth" height="56"></picture></a><br>
+      <a href="https://link.bach.art/4iW1qZL"><strong>Video Rebirth</strong></a>
+    </td>
+    <td align="left">
+      本プロジェクトをスポンサードしてくださっている <a href="https://link.bach.art/4iW1qZL">Video Rebirth</a> に感謝します！Video Rebirth は、本番制作向けの産業グレードの動画モデル <strong>BACH</strong> を開発しています。<strong>BACH1.0 Pro は 2026 年 10 月に Artificial Analysis の画像から動画生成ランキングで第 2 位を獲得しました</strong>。<br>
+      HyperFlow シリーズもオープンソースで公開しており、<strong>HyperFlow H3 Flash はリリースから 6 日間で 50 万ダウンロードを突破</strong>。動画生成は <strong>1 秒あたり 0.03 米ドルから</strong>利用できます。
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_logo"><img src="docs/sponsors/aigei-logo.png" alt="Aigei（爱给网）" width="112"></a><br>
       <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_brand"><strong>Aigei（爱给网）</strong></a>
     </td>

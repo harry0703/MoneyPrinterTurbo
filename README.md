@@ -178,6 +178,16 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://link.bach.art/4iW1qZL"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/video-rebirth-logo-dark.svg"><img src="docs/sponsors/video-rebirth-logo-light.svg" alt="Video Rebirth" height="56"></picture></a><br>
+      <a href="https://link.bach.art/4iW1qZL"><strong>Video Rebirth</strong></a>
+    </td>
+    <td align="left">
+      感谢 <a href="https://link.bach.art/4iW1qZL">Video Rebirth</a> 赞助本项目！Video Rebirth 打造面向生产的工业级视频模型 <strong>BACH</strong>。<strong>BACH1.0 Pro 于 2026 年 10 月位列 Artificial Analysis 图生视频排行榜第 2 名</strong>。<br>
+      同时开源 HyperFlow 系列，<strong>HyperFlow H3 Flash 发布六天内下载量突破 50 万次</strong>。视频生成价格低至 <strong>&#36;0.03/秒起</strong>。
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_logo"><img src="docs/sponsors/aigei-logo.png" alt="爱给网" width="112"></a><br>
       <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_brand"><strong>爱给网</strong></a>
     </td>
