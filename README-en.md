@@ -18,6 +18,17 @@ English | [简体中文](README.md) | [日本語](README-ja.md) | [Releases](htt
 
 </div>
 
+## How video generation works 🎞️
+
+MoneyPrinterTurbo is an automated video creation and editing pipeline, rather than a single text-to-video foundation model. The source selected under **Video Settings → Video Source** determines where the visual material comes from:
+
+- **Pexels (default), Pixabay, or Coverr:** an LLM writes the script and search terms, then MoneyPrinterTurbo retrieves matching stock footage. These clips already exist on the selected provider; they are not synthesized from the prompt. Review and follow the provider's license for your use case.
+- **Local file:** MoneyPrinterTurbo edits the video files you upload. Only use material you own or are authorized to use; the project does not automatically import arbitrary creator or channel URLs.
+- **WaveSpeed AI Video:** paid text-to-video models (Seedance by default) generate new clips from script keywords; you must acknowledge the per-clip charges before generation.
+- **Shengsuan Cloud AI Video / LoomLoom:** the optional paid integration generates new AI video clips after you obtain a quote and confirm the charge.
+
+Whichever source you choose, MoneyPrinterTurbo then uses the same production pipeline to arrange the clips and add voice-over, subtitles, background music, and transitions before rendering the final video. The relevance of stock-footage results depends on the generated or custom search terms, while AI-generated clips depend on the selected remote service.
+
 ## Screenshots 🖥️
 
 <h4 align="center">WebUI</h4>
