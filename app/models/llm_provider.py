@@ -612,6 +612,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.uberllm.dev/v1",
         model_docs_url="https://uberllm.dev/models",
     ),
+    LLMProviderSpec(
+        "atmorouter",
+        "AtmoRouter",
+        api_key_url="https://atmorouter.dev/dashboard/keys",
+        default_model="zai/glm-5.3",
+        default_base_url="https://atmorouter.dev/v1",
+        model_docs_url="https://atmorouter.dev/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
