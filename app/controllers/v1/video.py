@@ -360,6 +360,20 @@ def delete_video(request: Request, task_id: str = Path(..., description="Task ID
                 message=f"{request_id}: task is still running",
             )
 
+        # A task can be failed because its worker stopped renewing its queue
+        # slot. A worker that was paused rather than killed still writes the
+        # task directory when it resumes, so wait until no process holds it.
+        if tm.is_task_directory_held(task_id):
+            logger.warning(
+                f"refuse to delete task held by a worker process, "
+                f"request_id: {request_id}, task_id: {task_id}"
+            )
+            raise HttpException(
+                task_id=task_id,
+                status_code=409,
+                message=f"{request_id}: task is still running",
+            )
+
         tasks_dir = utils.task_dir()
         current_task_dir = os.path.join(tasks_dir, task_id)
         if os.path.exists(current_task_dir):

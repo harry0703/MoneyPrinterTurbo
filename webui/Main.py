@@ -1231,6 +1231,12 @@ def _delete_task(task_id, task_path, task_state=None):
         logger.warning(f"refused to delete running task: {task_id}")
         return False
 
+    # A queue worker that was declared gone may only be paused; it still holds
+    # the task directory and writes it again when it resumes.
+    if tm.is_task_directory_held(task_id):
+        logger.warning(f"refused to delete task held by a worker process: {task_id}")
+        return False
+
     tasks_root = os.path.abspath(utils.task_dir())
     normalized_path = os.path.abspath(task_path)
 

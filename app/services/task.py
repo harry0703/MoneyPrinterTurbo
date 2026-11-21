@@ -1,3 +1,4 @@
+import hashlib
 import json
 import math
 import os
@@ -6,10 +7,12 @@ import tempfile
 import threading
 import time
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from functools import partial
 from os import path
 from uuid import uuid4
 
+from filelock import FileLock, Timeout as FileLockTimeout
 from loguru import logger
 
 from app.config import config
@@ -68,6 +71,7 @@ _CROSS_POST_STATE_WRITE_ATTEMPTS = 3
 _CROSS_POST_STATE_RETRY_DELAY_SECONDS = 0.1
 _TASK_FAILURE_STATE_WRITE_ATTEMPTS = 3
 _TASK_FAILURE_STATE_RETRY_DELAY_SECONDS = 0.1
+_TASK_DIRECTORY_PROBE_SECONDS = 0.5
 _LOOMLOOM_STATE_WRITE_ATTEMPTS = 3
 _LOOMLOOM_STATE_RETRY_DELAY_SECONDS = 0.1
 _INTERRUPTED_CROSS_POST_ERROR = (
@@ -119,6 +123,49 @@ def _get_video_music_prompt(params: VideoParams) -> str:
     if params.bgm_type == "sonilo" and not prompt:
         prompt = str(params.sonilo_bgm_prompt or "").strip()
     return prompt
+
+
+@contextmanager
+def task_directory_lock(task_id: str, timeout: float = 0):
+    """Hold a task's directory against other processes; yield whether we got it.
+
+    A queue worker holds it while it runs the task. The lock belongs to the
+    operating system: it is gone as soon as the holding process is killed, and
+    still held while that process is only paused.
+    """
+    # Task IDs reach the delete endpoint as request input; never let one
+    # choose the file name.
+    name = hashlib.sha256(task_id.encode("utf-8")).hexdigest()
+    lock_file = path.join(utils.storage_dir("task_locks", create=True), f"{name}.lock")
+    lock = FileLock(lock_file)
+    try:
+        lock.acquire(timeout=timeout)
+    except (FileLockTimeout, OSError):
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        lock.release()
+        try:
+            os.remove(lock_file)
+        except OSError:
+            pass
+
+
+def is_task_directory_held(task_id: str) -> bool:
+    """Whether a worker process can still write the task's directory.
+
+    Every deletion entry point asks this before removing files. A task can be
+    failed because its worker stopped renewing its queue slot; a worker that
+    was paused rather than killed still holds the directory and writes it
+    again when it resumes. Once the directory is free it stays free: a task in
+    a final state is never handed to a worker again.
+    """
+    # A concurrent deletion of the same task asks the same question and holds
+    # the lock only for that instant, so wait that out instead of refusing.
+    with task_directory_lock(task_id, timeout=_TASK_DIRECTORY_PROBE_SECONDS) as free:
+        return not free
 
 
 def is_task_busy(task: dict | None) -> bool:
