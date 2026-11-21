@@ -486,6 +486,14 @@ uberllm_api_key = ""
 uberllm_base_url = ""
 uberllm_model_name = ""
 
+# AtmoRouter, a prepaid OpenAI-compatible API gateway.
+# API key: https://atmorouter.dev/dashboard/keys
+# Model list: https://atmorouter.dev/models
+# Docs: https://atmorouter.dev/docs
+atmorouter_api_key = ""
+atmorouter_base_url = ""
+atmorouter_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
