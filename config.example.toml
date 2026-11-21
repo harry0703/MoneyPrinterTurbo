@@ -76,8 +76,10 @@ loomloom_poll_interval_seconds = 2
 loomloom_run_timeout_seconds = 600
 loomloom_video_run_timeout_seconds = 1800
 
-# Timeout in seconds for a single Edge TTS streaming request.
-# 单次 Edge TTS 流式请求超时时间。慢网络可适当调大，设置为 0 表示禁用超时。
+# Abort an Edge TTS stream only when no audio or boundary event arrives for
+# this many seconds. A long script may take longer in total and still finish.
+# 单次 Edge TTS 流式请求的“无数据”超时：连续这么久没有收到任何事件才中止，
+# 长文本整体耗时超过该值不受影响。高延迟代理可适当调大，0 表示禁用超时。
 edge_tts_timeout = 30
 
 # Verify TLS certificates for external APIs and material downloads.

@@ -1371,16 +1371,21 @@ def create_edge_tts_communicate(
 
 def get_edge_tts_timeout_seconds() -> Union[float, None]:
     """
-    获取 Azure TTS V1 单次流式请求的超时时间。
+    获取 Azure TTS V1 流式请求的“无数据”超时时间。
 
     背景：
     Edge consumer TTS 在网络不通、服务端限流、voice 与文本语言不匹配等场景下，
     可能长时间卡在 `stream_sync()` 内部，日志只停留在 `start`。这里提供一个
     默认超时，避免 WebUI 任务长期无反馈。
 
+    超时按“连续多久没有收到任何事件”计算，而不是整条音频的绝对截止时间。
+    `video_script` 最长 8000 字符，慢网络下合法音频本身就可能需要一分钟以上
+    才能传完；只要数据仍在到达就必须让它完成。真正卡死的连接在超时时间内
+    没有任何事件，仍会被中止。
+
     使用方式：
-    - 默认 30 秒，覆盖常见短视频脚本的首包等待时间；
-    - 如用户处于慢网络或代理环境，可在 `config.toml` 里设置
+    - 默认 30 秒无数据即中止，远大于常见短视频脚本的首包等待时间；
+    - 如用户处于高延迟代理环境，可在 `config.toml` 里设置
       `edge_tts_timeout = 60`；
     - 设置为 0 或负数表示显式禁用超时，保留完全向后兼容。
     """
@@ -1406,12 +1411,14 @@ def _stream_edge_tts_sync_with_timeout(
     communicate, on_chunk, timeout_seconds: float
 ) -> None:
     """
-    带总超时地消费 edge_tts 7.x 的同步流。
+    带无数据超时地消费 edge_tts 7.x 的同步流。
 
     实现原因：
     `stream_sync()` 本身是阻塞迭代器，网络层卡住时主线程无法及时恢复。
     这里把阻塞迭代放到 daemon 线程中，主线程通过 Queue 获取 chunk，
-    到达超时时间后直接抛出 TimeoutError，让外层重试和错误日志继续工作。
+    连续 `timeout_seconds` 没有收到任何事件时抛出 TimeoutError，让外层重试
+    和错误日志继续工作。每收到一个事件都会重新计时，否则长脚本在慢网络上
+    会在音频仍在正常传输时被绝对截止时间误杀。
 
     注意：
     直接消费 SDK 的异步流，绕过 stream_sync 内部的无界队列。队列只保留
@@ -1516,7 +1523,8 @@ def _stream_edge_tts_sync_with_timeout(
             remaining_seconds = deadline - time.monotonic()
             if remaining_seconds <= 0:
                 raise TimeoutError(
-                    f"edge_tts stream timed out after {timeout_seconds:g}s"
+                    f"edge_tts stream timed out after {timeout_seconds:g}s "
+                    "without data"
                 )
             try:
                 item_type, payload = stream_queue.get(
@@ -1524,6 +1532,8 @@ def _stream_edge_tts_sync_with_timeout(
                 )
             except queue.Empty:
                 continue
+            # 收到任意事件（音频或字幕边界）都说明连接仍在工作，重新计时。
+            deadline = time.monotonic() + timeout_seconds
             _wake_producer()
             if item_type == "chunk":
                 on_chunk(payload)
@@ -1553,7 +1563,8 @@ def stream_edge_tts_chunks(
     Args:
         communicate: edge_tts.Communicate 实例
         on_chunk: 每拿到一个事件块时执行的回调
-        timeout_seconds: 单次流式请求总超时；为 None 时不启用超时。
+        timeout_seconds: 连续多久没有收到事件即中止；为 None 时不启用超时。
+            长音频整体耗时可以超过该值，只要期间仍有数据到达。
     """
     if hasattr(communicate, "stream_sync"):
         if timeout_seconds:
@@ -1569,20 +1580,31 @@ def stream_edge_tts_chunks(
     if not hasattr(communicate, "stream"):
         raise AttributeError("edge_tts communicate object has no stream method")
 
-    async def _consume_async_stream():
-        async for chunk in communicate.stream():
-            on_chunk(chunk)
+    async def _consume_async_stream(idle_timeout):
+        stream = communicate.stream()
+        iterator = stream.__aiter__()
+        try:
+            while True:
+                try:
+                    if idle_timeout:
+                        chunk = await asyncio.wait_for(
+                            iterator.__anext__(), timeout=idle_timeout
+                        )
+                    else:
+                        chunk = await iterator.__anext__()
+                except StopAsyncIteration:
+                    return
+                on_chunk(chunk)
+        finally:
+            close_stream = getattr(stream, "aclose", None)
+            if callable(close_stream):
+                await close_stream()
 
     # 这里显式创建独立事件循环，而不是复用外部上下文，目的是避免
     # 在同步调用栈里遇到“当前线程没有事件循环”或跨线程复用循环的问题。
     loop = asyncio.new_event_loop()
     try:
-        if timeout_seconds:
-            loop.run_until_complete(
-                asyncio.wait_for(_consume_async_stream(), timeout=timeout_seconds)
-            )
-        else:
-            loop.run_until_complete(_consume_async_stream())
+        loop.run_until_complete(_consume_async_stream(timeout_seconds))
     finally:
         loop.close()
 
