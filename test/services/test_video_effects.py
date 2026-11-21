@@ -150,16 +150,20 @@ class TestOpaqueCompositeVideoClip(unittest.TestCase):
             random_layer(26, 10, 0, 3, (10, 2), alpha=False).with_mask(oversized_mask),
             random_layer(14, 9, 0, 3, (30, 12), alpha=False).with_mask(undersized_mask),
         ]
-        expected = CompositeVideoClip(layers, bg_color=(0, 0, 0))
-        actual = video_effects.OpaqueCompositeVideoClip(layers)
+        # The base clip ends at 2.5 s, so the background shows at 2.75 s.
+        for bg_color in ((0, 0, 0), (12, 34, 56)):
+            expected = CompositeVideoClip(layers, bg_color=bg_color)
+            actual = video_effects.OpaqueCompositeVideoClip(layers, bg_color=bg_color)
 
-        self.assertIsNone(actual.mask)
-        self.assertEqual(actual.size, expected.size)
-        self.assertEqual(actual.duration, expected.duration)
-        for t in (0, 0.75, 1.25, 2, 2.75):
-            frame = actual.get_frame(t)
-            self.assertEqual(frame.dtype, np.uint8)
-            np.testing.assert_array_equal(frame, expected.get_frame(t), err_msg=f"t={t}")
+            self.assertIsNone(actual.mask)
+            self.assertEqual(actual.size, expected.size)
+            self.assertEqual(actual.duration, expected.duration)
+            for t in (0, 0.75, 1.25, 2, 2.75):
+                frame = actual.get_frame(t)
+                self.assertEqual(frame.dtype, np.uint8)
+                np.testing.assert_array_equal(
+                    frame, expected.get_frame(t), err_msg=f"bg_color={bg_color}, t={t}"
+                )
 
 
 class TestZoomTransitions(unittest.TestCase):
