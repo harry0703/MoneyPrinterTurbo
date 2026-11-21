@@ -22,7 +22,10 @@ def test_local_backend_forwards_every_combine_argument(monkeypatch):
         return "combined.mp4"
 
     monkeypatch.setattr(video, "combine_videos", fake_combine)
-    progress = lambda value: None
+
+    def progress(value):
+        return None
+
     source_usage = {"a.mp4": 1}
     source_groups = {"a.mp4": "pexels"}
     used_video_paths = ["a.mp4"]
