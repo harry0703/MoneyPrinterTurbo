@@ -304,6 +304,8 @@
     "llm_provider_tips.uberllm": "##### MartLLM Configuration\n- **API Key**: Sign up and create an API key at [MartLLM]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs in `provider/model` form\n\nMartLLM is a pay-as-you-go, OpenAI-compatible API: one API key serves models from many labs (GPT, Claude, Gemini, DeepSeek, Qwen, Kimi and more). It is prepaid; there is no free tier.",
     "llm_provider_label.atmorouter": "AtmoRouter",
     "llm_provider_tips.atmorouter": "##### AtmoRouter Configuration\n- **API Key**: Sign in and create an API key on the [AtmoRouter API keys page]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; see the [model list]({model_docs_url}) for other model IDs in `family/model` form\n\nAtmoRouter is a prepaid, OpenAI-compatible API gateway. Deposit USDC on Solana or pay with QRIS; usage is billed per token. API documentation: [AtmoRouter docs](https://atmorouter.dev/docs).",
+    "llm_provider_label.aigrow": "AIGROW",
+    "llm_provider_tips.aigrow": "##### AIGROW Configuration\n- **API Key**: Create an API key at [AIGROW]({api_key_url})\n- **Base Url**: Defaults to `{default_base_url}`\n- **Model Name**: Defaults to `{default_model}`; the [model list]({model_docs_url}) shows every model ID and its per-token price (no key needed)\n\nAIGROW is a prepaid, OpenAI-compatible API: one API key serves Claude, GPT, Gemini, Grok, Qwen and Kimi models, with plain IDs such as `claude-haiku-5.5` or `gpt-6.2-sol`. There is no free tier.",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
