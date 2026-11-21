@@ -425,7 +425,16 @@ def _generate_response(
             from google import genai
             from google.genai import types
 
-            http_options = types.HttpOptions(base_url=base_url) if base_url else None
+            http_option_values = {}
+            if base_url:
+                http_option_values["base_url"] = base_url
+            if request_timeout is not None:
+                # google-genai 的 HttpOptions.timeout 以毫秒为单位；不设置时
+                # 连接测试会无限等待不可达的端点。
+                http_option_values["timeout"] = int(request_timeout * 1000)
+            http_options = (
+                types.HttpOptions(**http_option_values) if http_option_values else None
+            )
             generation_config = types.GenerateContentConfig(
                 temperature=0.5,
                 top_p=1,
@@ -500,11 +509,17 @@ def _generate_response(
                     f"{llm_provider}: model_name is not set, please set it in the config.toml file."
                 )
 
+            transport_options = {}
+            if request_timeout is not None:
+                transport_options["timeout"] = request_timeout
+            if max_retries is not None:
+                transport_options["num_retries"] = max_retries
             response = trace_sdk_call(
                 llm_provider, base_url, litellm.completion,
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 drop_params=True,
+                **transport_options,
             )
 
             if not response:
