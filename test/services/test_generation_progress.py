@@ -427,3 +427,70 @@ def test_persisted_processing_job_can_be_untracked_after_service_restart(isolate
         assert "generation_task" not in app.query_params
     assert isolated_jobs.get_task(job)["state"] == const.TASK_STATE_PROCESSING
     assert isolated_jobs.get_task(job)["generation_activity"]["remote_id"] == "existing-paid-task"
+
+
+def test_shared_state_heartbeat_blocks_duplicate_from_another_process(
+    isolated_jobs, tmp_path, monkeypatch,
+):
+    """两个 WebUI 进程共享 Redis 时，另一个进程只能靠心跳判断任务仍在跑。"""
+    from pathlib import Path
+
+    monkeypatch.setattr(utils, "task_dir", lambda *_a, **_k: str(tmp_path))
+    job = str(uuid4())
+    now = time.time()
+    isolated_jobs.update_task(job, generation_submitted_at=now,
+        generation_heartbeat_at=now,
+        generation_activity={"phase":"rendering", "started_at":now, "updated_at":now})
+    # 当前进程没有预占这个任务，模拟另一台 WebUI 进程正在执行它。
+    assert not webui_task.is_generation_active(job)
+    entry = Path(__file__).resolve().parents[2]/"webui"/"Main.py"
+    with patch.object(config, "try_save_config", return_value=True):
+        app = AppTest.from_file(str(entry), default_timeout=60)
+        app.query_params["generation_task"] = job
+        app.run()
+        assert not app.exception
+        assert app.button(key="generate_video_button").disabled
+        assert not any("no active execution record" in w.value for w in app.warning)
+
+        # worker 崩溃后心跳过期，页面不用等进程重启就能恢复重试。
+        isolated_jobs.patch_task(
+            job,
+            generation_heartbeat_at=now - webui_task.GENERATION_HEARTBEAT_TIMEOUT_SECONDS - 5,
+        )
+        app.run()
+        assert not app.button(key="generate_video_button").disabled
+        assert any("no active execution record" in w.value for w in app.warning)
+
+
+def test_heartbeat_thread_refreshes_until_the_worker_finishes(isolated_jobs, monkeypatch):
+    monkeypatch.setattr(webui_task, "GENERATION_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+    job = "heartbeat-job"
+    isolated_jobs.update_task(job)
+    webui_task._start_generation_heartbeat(job)
+    try:
+        deadline = time.time() + 2
+        while time.time() < deadline and not webui_task.is_generation_heartbeat_fresh(
+            isolated_jobs.get_task(job)
+        ):
+            time.sleep(0.02)
+        assert webui_task.is_generation_heartbeat_fresh(isolated_jobs.get_task(job))
+    finally:
+        webui_task._stop_generation_heartbeat(job)
+    # 停掉之后的一次心跳可能还在写入，先让它落盘再确认不再推进。
+    time.sleep(0.15)
+    frozen = isolated_jobs.get_task(job)["generation_heartbeat_at"]
+    time.sleep(0.2)
+    assert isolated_jobs.get_task(job)["generation_heartbeat_at"] == frozen
+
+
+def test_queued_submission_is_marked_alive_before_the_worker_starts(isolated_jobs):
+    job = "queued-job"
+    with patch.object(webui_task._task_manager, "add_task"):
+        try:
+            assert webui_task.submit_generation(
+                job, VideoParams(video_subject="queued")
+            ) == job
+            # 排队中的任务也算一次占用，其它进程不能当成孤儿重复提交。
+            assert webui_task.is_generation_heartbeat_fresh(isolated_jobs.get_task(job))
+        finally:
+            webui_task._stop_generation_heartbeat(job)

@@ -2066,15 +2066,25 @@ def _current_generation_task_id():
 
 
 def _generation_is_busy(task_id):
-    """只有本进程仍在执行任务时才视为忙碌。
+    """任务仍在执行时禁用生成按钮。
 
-    持久状态里的 PROCESSING 可能属于重启前或已崩溃的 worker。若以它禁用生成
-    按钮，这张任务记录会让用户永远无法再次生成。真正防重复提交由
-    webui_task 的进程内预占负责，因此这里只认预占。
+    本进程的预占最可靠；别的 WebUI 进程可能在共享状态里运行同一个任务，
+    所以再看一次心跳：仍在排队或执行的 worker 每 10 秒刷新一次，超过 60 秒
+    没有心跳才视为重启或崩溃留下的孤儿记录，允许用户重新生成。没有心跳字段
+    的旧记录同样按孤儿处理，避免历史任务永久锁住按钮。
     """
     if not task_id:
         return False
-    return webui_task.is_generation_active(task_id)
+    if webui_task.is_generation_active(task_id):
+        return True
+    try:
+        task = sm.state.get_task(task_id)
+    except Exception:
+        # 查询异常时不能把“状态未知”当作已完成而放开重复提交。
+        return True
+    if _normalize_task_state((task or {}).get("state")) != const.TASK_STATE_PROCESSING:
+        return False
+    return webui_task.is_generation_heartbeat_fresh(task)
 
 
 def _render_generation_activity(task):
@@ -2276,7 +2286,10 @@ def _render_running_generation_task(task_id):
         st.rerun(scope="app")
 
     _render_generation_task_snapshot(task_id, task)
-    if not webui_task.is_generation_active(task_id):
+    if not (
+        webui_task.is_generation_active(task_id)
+        or webui_task.is_generation_heartbeat_fresh(task)
+    ):
         # 持久状态可能属于重启前或另一服务进程，不能断言远端任务已停止。
         # 只允许解除当前页面的跟踪，不取消任务、不改写其真实状态。
         st.warning(tr("Generation Untracked Worker Hint"))
