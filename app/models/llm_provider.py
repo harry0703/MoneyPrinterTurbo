@@ -612,6 +612,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.uberllm.dev/v1",
         model_docs_url="https://uberllm.dev/models",
     ),
+    LLMProviderSpec(
+        "aigrow",
+        "AIGROW",
+        api_key_url="https://aigrow.gg/dashboard/api",
+        default_model="claude-haiku-5.5",
+        default_base_url="https://aigrow.gg/v1",
+        model_docs_url="https://aigrow.gg/v1/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
