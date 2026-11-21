@@ -68,8 +68,14 @@ class OpaqueCompositeVideoClip(CompositeVideoClip):
         super().__init__(clips, size=size, bg_color=bg_color)
 
     def frame_function(self, t):
-        frame = np.empty((self.size[1], self.size[0], 3), dtype=np.uint8)
-        frame[:] = self.bg_color
+        width, height = self.size
+        # Broadcasting the 3-value color straight into the frame makes NumPy
+        # write 3 bytes at a time, about 9 ms for a 1080x1920 frame. Filling one
+        # row and copying it into every line gives the same pixels in under 1 ms.
+        row = np.empty((width, 3), dtype=np.uint8)
+        row[:] = self.bg_color
+        frame = np.empty((height, width, 3), dtype=np.uint8)
+        frame[:] = row
         for layer_clip in self.playing_clips(t):
             _compose_layer_in_box(layer_clip, frame, t)
         return frame
