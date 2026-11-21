@@ -413,6 +413,21 @@ class TestVideoService(unittest.TestCase):
         self.assertEqual(bgm_source.close_calls, 1)
         self.assertEqual(final_video.close_calls, 1)
 
+    def test_generate_video_reports_missing_local_bgm(self):
+        params = vd.VideoParams(video_subject="test", subtitle_enabled=False, bgm_type="random")
+        source_video = _FakeMoviePyClip()
+        source_video.with_audio_result = _FakeMoviePyClip()
+        with (
+            patch.object(vd, "_open_video_clip_quietly", return_value=source_video),
+            patch.object(vd, "AudioFileClip", return_value=_FakeMoviePyClip()),
+            patch.object(vd, "get_bgm_file", return_value=""),
+            patch.object(vd, "_write_videofile_with_codec_fallback") as writer,
+            patch.object(vd, "_get_configured_video_codec", return_value="libx264"),
+        ):
+            result = vd.generate_video("combined.mp4", "voice.mp3", "", "final.mp4", params)
+        self.assertFalse(result)
+        writer.assert_called_once()
+
     def test_generate_video_keeps_output_and_reports_failed_bgm_mix(self):
         """BGM 打开失败时仍应只写一次无 BGM 视频，并返回 False。"""
         params = vd.VideoParams(
