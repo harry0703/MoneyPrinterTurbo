@@ -1278,10 +1278,9 @@ def _validate_batch_task_params(
     for field_name, value in (
         ("video_aspect", params.video_aspect),
         ("video_concat_mode", params.video_concat_mode),
-        ("voice_name", params.voice_name),
     ):
         # These schema fields remain Optional for compatibility with historical
-        # API payloads, but the video pipeline always dereferences their
+        # API payloads, but the video pipeline always dereferences their enum
         # values. A manifest's explicit null must fail before any batch task starts.
         if value is None:
             raise ValueError(f"{field_name} cannot be null")
@@ -1455,11 +1454,18 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
             index=index,
             allowed_fields=allowed_fields,
         )
+        # A null voice_name is an omitted override: the task keeps the voice
+        # that the CLI resolved for the batch (--voice-name, the voice or
+        # no-voice mode saved by the WebUI, or the built-in default). TTS failed
+        # on the null with "'NoneType' object has no attribute 'strip'".
+        overrides = dict(entry)
+        if "voice_name" in overrides and overrides["voice_name"] is None:
+            del overrides["voice_name"]
         try:
             params = VideoParams.model_validate(
-                {**copy.deepcopy(base_values), **entry}
+                {**copy.deepcopy(base_values), **overrides}
             )
-            override_fields = set(entry)
+            override_fields = set(overrides)
             _resolve_batch_entry_paths(
                 params,
                 override_fields=override_fields,
