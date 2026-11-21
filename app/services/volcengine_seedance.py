@@ -29,7 +29,10 @@ RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 TERMINAL_FAILURE_STATUSES = frozenset(
     {"failed", "cancelled", "canceled", "expired"}
 )
-ACTIVE_STATUSES = frozenset({"queued", "running"})
+# Ark itself reports "queued" before "running". Ark-compatible gateways reached
+# through volcengine_seedance_base_url may report the same waiting state as
+# "pending", so it is polled like "queued" instead of failing as unknown.
+ACTIVE_STATUSES = frozenset({"queued", "pending", "running"})
 SUPPORTED_RESOLUTIONS = frozenset({"480p", "720p", "1080p"})
 
 
