@@ -2,6 +2,7 @@ import math
 import os
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
@@ -142,6 +143,64 @@ def sanitize_upload_filename(filename: str) -> str:
     return safe_name
 
 
+# Decode errors are a few short lines, so the head of stderr is enough to tell
+# that FFmpeg complained; the rest is read and dropped to keep the pipe moving.
+_FFMPEG_STDERR_KEEP_BYTES = 4096
+_FFMPEG_PIPE_CHUNK_BYTES = 4096
+
+
+def _drain_stderr_head(stream: BinaryIO, head: bytearray) -> None:
+    for chunk in iter(lambda: stream.read(_FFMPEG_PIPE_CHUNK_BYTES), b""):
+        room = _FFMPEG_STDERR_KEEP_BYTES - len(head)
+        if room > 0:
+            head.extend(chunk[:room])
+
+
+def _decode_first_audio_stream(
+    command: list[str], timeout_seconds: int
+) -> tuple[int, bool, bytes]:
+    """
+    运行解码命令，返回退出码、是否解出至少一个数据包以及 stderr 开头部分。
+
+    framecrc 每个数据包输出一行，长音频的输出会很长，因此逐行读取并只记住
+    是否见过数据包，同时让 FFmpeg 继续跑完，以便发现文件后段的解码错误。
+    """
+    timed_out = threading.Event()
+    stderr_head = bytearray()
+    saw_packet = False
+    with subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ) as process:
+
+        def expire() -> None:
+            # A timer that fires just after FFmpeg exits must not turn a
+            # finished validation into a timeout.
+            if process.poll() is None:
+                timed_out.set()
+                process.kill()
+
+        drain = threading.Thread(
+            target=_drain_stderr_head, args=(process.stderr, stderr_head), daemon=True
+        )
+        drain.start()
+        timer = threading.Timer(timeout_seconds, expire)
+        timer.start()
+        try:
+            for line in process.stdout:
+                if not saw_packet and line.strip() and not line.startswith(b"#"):
+                    saw_packet = True
+            returncode = process.wait()
+        except BaseException:
+            process.kill()
+            raise
+        finally:
+            timer.cancel()
+            drain.join()
+    if timed_out.is_set():
+        raise subprocess.TimeoutExpired(command, timeout_seconds)
+    return returncode, saw_packet, bytes(stderr_head)
+
+
 def _validate_audio(file_path: str, timeout_seconds: int = 30) -> None:
     """
     仅使用项目当前配置的 FFmpeg 验证文件包含可完整解码的音频流。
@@ -152,7 +211,7 @@ def _validate_audio(file_path: str, timeout_seconds: int = 30) -> None:
     命中音频帧头的误判。文件可以包含专辑封面等附加流，但只校验第一条音频流。
     """
     try:
-        decoded = subprocess.run(
+        returncode, saw_packet, stderr_head = _decode_first_audio_stream(
             [
                 utils.get_ffmpeg_binary(),
                 "-nostdin",
@@ -176,9 +235,7 @@ def _validate_audio(file_path: str, timeout_seconds: int = 30) -> None:
                 "framecrc",
                 "-",
             ],
-            capture_output=True,
-            timeout=timeout_seconds,
-            check=False,
+            timeout_seconds,
         )
     except subprocess.TimeoutExpired as exc:
         raise BgmServiceError("FFmpeg background music validation timed out") from exc
@@ -187,11 +244,9 @@ def _validate_audio(file_path: str, timeout_seconds: int = 30) -> None:
     # FFmpeg 6.1 prints "Header missing" for a damaged MP3 yet exits 0 under
     # -xerror, and -v error leaves only decode errors on stderr, so any
     # stderr output fails validation as well.
-    if decoded.returncode != 0 or decoded.stderr.strip():
+    if returncode != 0 or stderr_head.strip():
         raise BgmUploadError("uploaded file must contain a decodable audio stream")
-    if not any(
-        line and not line.startswith(b"#") for line in decoded.stdout.splitlines()
-    ):
+    if not saw_packet:
         raise BgmUploadError("uploaded file must contain nonempty decodable audio")
 
 
