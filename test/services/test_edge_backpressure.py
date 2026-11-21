@@ -2,6 +2,7 @@ import asyncio
 import edge_tts
 from unittest.mock import patch
 import threading
+import time
 import unittest
 from app.services import voice
 
@@ -119,3 +120,47 @@ class TestEdgeProducerShutdown(unittest.TestCase):
         with patch.object(communicate, "stream", new=network_stream):
             voice._stream_edge_tts_sync_with_timeout(communicate, chunks.append, 2)
         self.assertEqual([chunk["data"] for chunk in chunks], expected)
+
+    def test_stream_longer_than_timeout_finishes_while_chunks_keep_arriving(self):
+        # An 8000-character script legitimately needs more than the idle
+        # timeout in total; only a gap without data should abort it.
+        class Stream:
+            def stream_sync(self):
+                for index in range(5):
+                    time.sleep(0.15)
+                    yield {"type": "audio", "data": str(index).encode()}
+
+        chunks = []
+        voice._stream_edge_tts_sync_with_timeout(Stream(), chunks.append, 0.5)
+        self.assertEqual([chunk["data"] for chunk in chunks], [b"0", b"1", b"2", b"3", b"4"])
+
+    def test_stream_that_stalls_after_progress_still_times_out(self):
+        resume = threading.Event()
+
+        class Stream:
+            def stream_sync(self):
+                yield {"type": "audio", "data": b"first"}
+                resume.wait(2)
+                yield {"type": "audio", "data": b"late"}
+
+        chunks = []
+        try:
+            with self.assertRaises(TimeoutError):
+                voice._stream_edge_tts_sync_with_timeout(Stream(), chunks.append, 0.1)
+        finally:
+            resume.set()
+        self.assertEqual(chunks, [{"type": "audio", "data": b"first"}])
+
+    def test_async_adapter_restarts_idle_timeout_after_each_chunk(self):
+        class Communicate:
+            def stream(self):
+                async def events():
+                    for index in range(12):
+                        await asyncio.sleep(0.05)
+                        yield {"type": "audio", "data": bytes([index])}
+
+                return events()
+
+        chunks = []
+        voice.stream_edge_tts_chunks(Communicate(), chunks.append, 0.3)
+        self.assertEqual([chunk["data"] for chunk in chunks], [bytes([i]) for i in range(12)])
