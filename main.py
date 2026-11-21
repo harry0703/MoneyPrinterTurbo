@@ -15,4 +15,5 @@ if __name__ == "__main__":
         port=config.listen_port,
         reload=config.reload_debug,
         log_level="warning",
+        **config.uvicorn_proxy_options(config.guard),
     )
