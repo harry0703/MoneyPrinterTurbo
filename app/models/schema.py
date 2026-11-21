@@ -1,9 +1,9 @@
 import warnings
 from enum import Enum
-from typing import Any, List, Literal, Optional, Union
+from typing import Annotated, Any, List, Literal, Optional, Union
 
 import pydantic
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool
 
 from app.config import config
 
@@ -169,10 +169,26 @@ class VideoParams(BaseModel):
     custom_system_prompt: str = Field(default="", max_length=8000)
 
 
+# The voice of /videos, /audio and /subtitle requests that leave voice_name out
+# or send it as null. Optional[str] accepts null, and a null voice_name failed
+# the task with "'NoneType' object has no attribute 'strip'" when it reached
+# TTS, for /videos after the script and terms LLM calls.
+DEFAULT_REQUEST_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
+
+
+def _default_null_request_voice(value: Any) -> Any:
+    return DEFAULT_REQUEST_VOICE_NAME if value is None else value
+
+
+RequestVoiceName = Annotated[
+    Optional[str], BeforeValidator(_default_null_request_voice)
+]
+
+
 class SubtitleRequest(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
-    voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
+    voice_name: RequestVoiceName = DEFAULT_REQUEST_VOICE_NAME
     voice_volume: Optional[float] = Field(default=1.0, allow_inf_nan=False)
     voice_rate: Optional[float] = Field(default=1.2, allow_inf_nan=False)
     bgm_type: Optional[str] = "random"
@@ -199,7 +215,7 @@ class SubtitleRequest(BaseModel):
 class AudioRequest(BaseModel):
     video_script: str
     video_language: Optional[str] = ""
-    voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
+    voice_name: RequestVoiceName = DEFAULT_REQUEST_VOICE_NAME
     voice_volume: Optional[float] = Field(default=1.0, allow_inf_nan=False)
     voice_rate: Optional[float] = Field(default=1.2, allow_inf_nan=False)
     bgm_type: Optional[str] = "random"
@@ -275,7 +291,7 @@ class TaskVideoRequest(VideoParams, BaseModel):
     # A request without voice_name uses the same Edge voice as /audio and
     # /subtitle. Edge TTS accepts no empty voice, so with the empty default
     # of VideoParams the task failed at the audio stage, after the LLM calls.
-    voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
+    voice_name: RequestVoiceName = DEFAULT_REQUEST_VOICE_NAME
 
 
 class TaskQueryRequest(BaseModel):
