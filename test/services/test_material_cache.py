@@ -144,6 +144,81 @@ class TestMaterialSearchCache(unittest.TestCase):
         self.assertIsNone(loaded)
         self.assertFalse(cache_path.exists())
 
+    def test_just_written_cache_within_clock_granularity_is_a_hit(self):
+        """
+        Windows 上 time.time() 精度约 15ms，刚写入文件的 mtime 可能比当前时间
+        略晚几毫秒。这不是系统时间回拨，缓存必须照常命中而不是被删除。
+        """
+        material_cache.save_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+            items=[self._item()],
+        )
+        cache_path = self._cache_path()
+        now = 2_000_000_000.0
+        os.utime(cache_path, (now + 0.015, now + 0.015))
+
+        loaded = material_cache.load_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+            now=now,
+        )
+
+        self.assertEqual([item.url for item in loaded], ["https://example.com/video.mp4"])
+        self.assertTrue(cache_path.exists())
+
+    def test_cleanup_preserves_cache_within_clock_granularity(self):
+        material_cache.save_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+            items=[self._item()],
+        )
+        cache_path = self._cache_path()
+        now = 2_000_000_000.0
+
+        os.utime(cache_path, (now + 0.015, now + 0.015))
+        loaded = material_cache.load_material_search_cache(
+            provider="pixabay",
+            search_term="nature",
+            minimum_duration=5,
+            video_aspect=VideoAspect.portrait,
+            now=now,
+        )
+        self.assertEqual([item.url for item in loaded], ["https://example.com/video.mp4"])
+
+        deleted = material_cache.cleanup_expired_material_search_cache(
+            now=now, force=True
+        )
+
+        self.assertEqual(deleted, 0)
+        self.assertTrue(cache_path.exists())
+
+    def test_corrupted_cache_reports_parse_failure_with_skewed_clock(self):
+        """损坏缓存在相同的毫秒级时钟偏差下也必须走解析失败分支并记录警告。"""
+        cache_path = self._cache_path()
+        cache_path.write_text("{invalid-json", encoding="utf-8")
+        now = 2_000_000_000.0
+        os.utime(cache_path, (now + 0.015, now + 0.015))
+
+        with patch("app.services.material_cache.logger.warning") as warning:
+            loaded = material_cache.load_material_search_cache(
+                provider="pixabay",
+                search_term="nature",
+                minimum_duration=5,
+                video_aspect=VideoAspect.portrait,
+                now=now,
+            )
+
+        self.assertIsNone(loaded)
+        self.assertFalse(cache_path.exists())
+        self.assertTrue(warning.called)
+
     def test_corrupted_cache_is_removed_without_breaking_search(self):
         """
         进程异常退出、磁盘故障或用户手动修改都可能留下损坏文件。读取失败应回退
