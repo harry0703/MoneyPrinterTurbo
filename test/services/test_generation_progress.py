@@ -377,6 +377,8 @@ def test_browser_refresh_recovers_busy_job_and_displays_current_phase(isolated_j
     isolated_jobs.update_task(job, generation_submitted_at=now-360, progress=40,
         generation_activity={"phase":"generating", "started_at":now-350,
             "confirmed_at":now, "remote_id":"paid-123", "provider":"muapi"})
+    # 刷新后的新会话仍需看到同一进程内的后台预占，按钮才会保持禁用。
+    webui_task._active_submissions["refresh-session"] = job
     entry = Path(__file__).resolve().parents[2]/"webui"/"Main.py"
     # 两个独立 AppTest 实例模拟刷新后新建的 Streamlit 会话，共用后台任务。
     with patch.object(config, "try_save_config", return_value=True):
@@ -392,6 +394,7 @@ def test_browser_refresh_recovers_busy_job_and_displays_current_phase(isolated_j
         isolated_jobs.patch_task(job, generation_activity={"phase":"downloading", "downloaded_bytes":1048576})
         app.run()
         assert any("1.0 MB" in c.value for c in app.caption)
+        webui_task._active_submissions.pop("refresh-session", None)
         isolated_jobs.update_task(job, state=const.TASK_STATE_FAILED, error="download failed",
             generation_activity={"phase":"downloading", "remote_id":"paid-123"})
         app.run()
@@ -414,7 +417,9 @@ def test_persisted_processing_job_can_be_untracked_after_service_restart(isolate
         app.query_params["generation_task"] = job
         app.run()
         assert not app.exception
-        assert app.button(key="generate_video_button").disabled
+        # 没有任何 worker 在执行它，用户必须能立刻重新生成。
+        assert not app.button(key="generate_video_button").disabled
+        assert any("no active execution record" in w.value for w in app.warning)
         app.button(key=f"stop_tracking_generation_{job}").click().run()
         assert not app.exception
         assert not app.button(key="generate_video_button").disabled

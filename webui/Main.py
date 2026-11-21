@@ -2066,16 +2066,15 @@ def _current_generation_task_id():
 
 
 def _generation_is_busy(task_id):
+    """只有本进程仍在执行任务时才视为忙碌。
+
+    持久状态里的 PROCESSING 可能属于重启前或已崩溃的 worker。若以它禁用生成
+    按钮，这张任务记录会让用户永远无法再次生成。真正防重复提交由
+    webui_task 的进程内预占负责，因此这里只认预占。
+    """
     if not task_id:
         return False
-    if webui_task.is_generation_active(task_id):
-        return True
-    try:
-        task = sm.state.get_task(task_id)
-    except Exception:
-        # 查询异常时不能把“状态未知”当作已完成而放开重复提交。
-        return True
-    return _normalize_task_state((task or {}).get("state")) == const.TASK_STATE_PROCESSING
+    return webui_task.is_generation_active(task_id)
 
 
 def _render_generation_activity(task):
