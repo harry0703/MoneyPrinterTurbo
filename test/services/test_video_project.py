@@ -117,8 +117,8 @@ def _duration(path):
     )
 
 
-def _pixel(path, second):
-    raw = subprocess.check_output(
+def _frame(path, second):
+    return subprocess.check_output(
         [
             "ffmpeg",
             "-v",
@@ -136,7 +136,10 @@ def _pixel(path, second):
             "-",
         ]
     )
-    return tuple(raw[:3])
+
+
+def _pixel(path, second):
+    return tuple(_frame(path, second)[:3])
 
 
 def _audio(path):
@@ -436,6 +439,31 @@ def test_cli_native_render(native):
         assert clip["sha256"] == report["stages"][f"{scene_id}:scene"]["sha256"]
     assert _pixel(report["scene_clips"][0]["path"], 0.2)[0] > 200
     assert _pixel(report["scene_clips"][1]["path"], 0.2)[2] > 200
+
+
+@pytest.mark.parametrize(
+    "sar,box",
+    [("2/1", "x=24:y=16:w=16:h=32"), ("1/2", "x=16:y=24:w=32:h=16")],
+)
+def test_scene_cover_preserves_display_aspect_ratio(native, sar, box):
+    project, request, _, root = native
+    source = root / "anamorphic.mp4"
+    _media(
+        [
+            "-f", "lavfi",
+            "-i", f"color=black:s=64x64:r=10:d=0.6,drawbox={box}:color=red:t=fill,setsar={sar}",
+            "-c:v", "libx264", str(source),
+        ]
+    )
+    request["scenes"][0]["footage"] = source.name
+    project.create_revision(request, relative_to=root)
+
+    scene = project.render()["scene_clips"][0]["path"]
+    frame = _frame(scene, 0.2)
+    assert len(frame) == 64 * 64 * 3
+    red_pixels = [(i % 64, i // 64) for i, red in enumerate(frame[::3]) if red > 180]
+    xs, ys = zip(*red_pixels)
+    assert (min(xs), min(ys), max(xs), max(ys)) == (16, 16, 47, 47)
 
 
 def test_order_and_render_settings_invalidation(native):

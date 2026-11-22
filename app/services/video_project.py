@@ -24,7 +24,7 @@ from uuid import uuid4
 
 PREPARED_FORMATS = "mov,matroska,avi,mpegts,mpegvideo,ogg,flv,wav,mp3,flac,aac"
 SCHEMA_VERSION = 1
-RENDERER_VERSION = "local-ffmpeg-v1"
+RENDERER_VERSION = "local-ffmpeg-v2"
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
@@ -740,7 +740,14 @@ class VideoProject:
                 duration = self._read(Path(results[f"{scene['id']}:timing"]["path"]))[
                     "duration"
                 ]
-                vf = f"scale={settings.width}:{settings.height}:force_original_aspect_ratio=increase,crop={settings.width}:{settings.height},setsar=1,fps={settings.fps}"
+                # Cover the target in display coordinates before setting square pixels.
+                width, height = settings.width, settings.height
+                display_aspect = "if(gt(sar,0),dar,a)"
+                vf = (
+                    f"scale=w='max({width},2*ceil({height}*{display_aspect}/2))':"
+                    f"h='max({height},2*ceil({width}/{display_aspect}/2))',"
+                    f"crop={width}:{height},setsar=1,fps={settings.fps}"
+                )
                 self._run(
                     base
                     + [
