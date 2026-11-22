@@ -437,14 +437,17 @@ class VideoProject:
             pass
         return None
 
-    def plan(self, revision: str | None = None) -> list[dict]:
-        spec = self.revision(revision)
+    def _verify_source_snapshots(self, spec: dict) -> None:
         for scene in spec["scenes"]:
             self._asset_path(scene["footage"])
             if scene["audio"]:
                 self._asset_path(scene["audio"])
         if spec["bgm"]:
             self._asset_path(spec["bgm"])
+
+    def plan(self, revision: str | None = None) -> list[dict]:
+        spec = self.revision(revision)
+        self._verify_source_snapshots(spec)
         parent = (
             {
                 stage.key: stage.fingerprint
@@ -578,7 +581,7 @@ class VideoProject:
                     raise ProjectError(
                         "FFmpeg toolchain changed; create a revision to rebuild with its new fingerprint"
                     )
-                self.plan(revision)  # Verify source snapshots before starting.
+                self._verify_source_snapshots(spec)
                 for stage in stage_graph(spec):
                     current_stage = stage.key
                     if cancel.exists():

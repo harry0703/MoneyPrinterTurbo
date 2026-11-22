@@ -1,6 +1,7 @@
 """Native FFmpeg scenarios plus deterministic storage/lifecycle checks."""
 
 import copy
+from collections import Counter
 import json
 from pathlib import Path
 import shutil
@@ -11,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from app.services import video_project
 from app.services.video_project import (
     ProjectError,
     RenderCancelled,
@@ -216,6 +218,26 @@ def test_three_native_revision_scenarios(native):
     assert original["project_id"] == mixed["project_id"]
 
 
+def test_cached_render_verifies_each_artifact_once(native, monkeypatch):
+    project, _, _, _ = native
+    original = project.render()
+    verified = Counter()
+    digest = video_project._digest
+
+    def count_artifact_digest(path):
+        if path.is_relative_to(project.directory / "artifacts"):
+            verified[path] += 1
+        return digest(path)
+
+    monkeypatch.setattr(video_project, "_digest", count_artifact_digest)
+    reused = project.render()
+
+    assert reused["export"] == original["export"]
+    assert all(stage["reused"] for stage in reused["stages"].values())
+    assert len(verified) == len(reused["stages"])
+    assert set(verified.values()) == {1}
+
+
 def test_integrity_and_source_snapshot(native):
     project, request, revision, root = native
     project.render()
@@ -233,6 +255,8 @@ def test_integrity_and_source_snapshot(native):
     asset.write_bytes(b"source damage")
     with pytest.raises(ProjectError, match="source snapshot"):
         project.plan()
+    with pytest.raises(ProjectError, match="source snapshot"):
+        project.render()
 
 
 def test_failed_retry_and_last_success(native):
