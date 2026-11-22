@@ -260,12 +260,18 @@ def test_cancel_then_explicit_retry(native):
 
     with pytest.raises(RenderCancelled):
         project.render(on_stage=cancel_scene)
-    assert project.status()["state"] == "cancelled"
+    cancelled = project.status()
+    assert cancelled["state"] == "cancelled"
+    assert cancelled["failed_stage"] == "opening:scene"
     assert project.metadata()["last_successful_export"] is None
     with pytest.raises(ProjectError, match="explicit --retry"):
         project.render()
-    assert project.render(retry=True)["state"] == "succeeded"
-    assert project.status()["stages"]["opening:audio"]["reused"]
+    retried = project.render(retry=True)
+    assert retried["state"] == "succeeded"
+    assert "failed_stage" not in retried
+    status = project.status()
+    assert "failed_stage" not in status
+    assert status["stages"]["opening:audio"]["reused"]
 
 
 def test_stale_revision_cannot_promote(native):
