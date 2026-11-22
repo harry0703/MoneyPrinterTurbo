@@ -164,3 +164,56 @@ class TestEdgeProducerShutdown(unittest.TestCase):
         chunks = []
         voice.stream_edge_tts_chunks(Communicate(), chunks.append, 0.3)
         self.assertEqual([chunk["data"] for chunk in chunks], [bytes([i]) for i in range(12)])
+
+    def test_timing_events_without_audio_still_hit_the_overall_limit(self):
+        # Boundary events reset the idle timer. They must not postpone the
+        # separate overall limit, or a stream with no audio holds a worker.
+        class Stream:
+            def stream_sync(self):
+                while True:
+                    time.sleep(0.02)
+                    yield {"type": "WordBoundary", "offset": 0, "duration": 100000}
+
+        chunks = []
+        started = time.monotonic()
+        with self.assertRaises(TimeoutError) as caught:
+            voice._stream_edge_tts_sync_with_timeout(
+                Stream(), chunks.append, 5, total_timeout_seconds=0.25
+            )
+        self.assertLess(time.monotonic() - started, 1.5)
+        self.assertIn("overall", str(caught.exception))
+        self.assertTrue(chunks)
+        self.assertTrue(all(chunk["type"] == "WordBoundary" for chunk in chunks))
+
+    def test_audio_longer_than_idle_timeout_finishes_inside_the_overall_limit(self):
+        class Stream:
+            def stream_sync(self):
+                for index in range(6):
+                    time.sleep(0.08)
+                    yield {"type": "audio", "data": bytes([index])}
+
+        chunks = []
+        voice._stream_edge_tts_sync_with_timeout(
+            Stream(), chunks.append, 0.2, total_timeout_seconds=1
+        )
+        self.assertEqual([chunk["data"] for chunk in chunks], [bytes([i]) for i in range(6)])
+
+    def test_async_timing_events_without_audio_hit_the_overall_limit(self):
+        class Communicate:
+            def stream(self):
+                async def events():
+                    while True:
+                        await asyncio.sleep(0.02)
+                        yield {"type": "WordBoundary", "offset": 0, "duration": 100000}
+
+                return events()
+
+        chunks = []
+        started = time.monotonic()
+        with self.assertRaises(TimeoutError) as caught:
+            voice.stream_edge_tts_chunks(
+                Communicate(), chunks.append, 5, total_timeout_seconds=0.25
+            )
+        self.assertLess(time.monotonic() - started, 1.5)
+        self.assertIn("overall", str(caught.exception))
+        self.assertTrue(chunks)

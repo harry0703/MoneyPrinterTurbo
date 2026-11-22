@@ -76,10 +76,12 @@ loomloom_poll_interval_seconds = 2
 loomloom_run_timeout_seconds = 600
 loomloom_video_run_timeout_seconds = 1800
 
-# Abort an Edge TTS stream only when no audio or boundary event arrives for
-# this many seconds. A long script may take longer in total and still finish.
-# 单次 Edge TTS 流式请求的“无数据”超时：连续这么久没有收到任何事件才中止，
-# 长文本整体耗时超过该值不受影响。高延迟代理可适当调大，0 表示禁用超时。
+# Abort an Edge TTS stream when no audio or boundary event arrives for this
+# many seconds. Events reset this idle timer, but the stream also stops after
+# 10 minutes so timing events alone cannot hold a worker. A long script may
+# exceed the idle timeout and still finish.
+# 无数据超时：连续这么久没有事件才中止，事件会重置它。另有 10 分钟总时限，
+# 不因字幕边界重置。长文本可以超过无数据超时并正常结束。0 表示禁用超时。
 edge_tts_timeout = 30
 
 # Verify TLS certificates for external APIs and material downloads.
