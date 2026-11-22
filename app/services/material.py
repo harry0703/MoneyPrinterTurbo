@@ -790,14 +790,14 @@ def search_videos_coverr(
 # WaveSpeed AI (https://wavespeed.ai) 通过文生视频模型按脚本关键词直接生成素材，
 # 与三个库存素材源共用 MaterialInfo 结果结构和后续下载、剪辑流程。
 WAVESPEED_API_BASE_URL = "https://api.wavespeed.ai/api/v3"
-WAVESPEED_DEFAULT_T2V_MODEL = "bytedance/seedance-2.0-fast/text-to-video"
+WAVESPEED_DEFAULT_T2V_MODEL = "alibaba/wan-3.0/text-to-video"
 WAVESPEED_POLL_INTERVAL_SECONDS = 2.0
 WAVESPEED_RUN_TIMEOUT_SECONDS = 600.0
-# 默认模型 bytedance/seedance-2.0-fast/text-to-video 只接受 4-15 秒；超出
-# 范围的请求会被 API 直接拒绝。WebUI 默认片段时长是 3 秒，因此必须在提交
-# 前收敛到模型支持区间，多出的时长由现有剪辑流程按片段时长裁掉。
-WAVESPEED_MIN_DURATION_SECONDS = 4
-WAVESPEED_MAX_DURATION_SECONDS = 15
+# 默认模型 alibaba/wan-3.0/text-to-video 只接受 2-30 秒；超出范围的请求会
+# 被 API 直接拒绝，因此必须在提交前收敛到模型支持区间，多出的时长由现有
+# 剪辑流程按片段时长裁掉。
+WAVESPEED_MIN_DURATION_SECONDS = 2
+WAVESPEED_MAX_DURATION_SECONDS = 30
 # 三个失败态语义不同（模型报错 / 用户取消 / 平台超时），但对素材流程都意味着
 # 本关键词没有产物，统一按空结果处理，交给上层跳过该片段继续生成。
 WAVESPEED_FAILURE_STATUSES = frozenset({"failed", "cancelled", "timeout"})
@@ -869,7 +869,7 @@ def _wavespeed_duration_bounds() -> tuple[int, int]:
     """
     返回当前模型支持的生成时长区间（秒）。
 
-    默认区间对应默认 Seedance 模型；用户切换到其它文生视频模型时，可以在
+    默认区间对应默认 Wan 模型；用户切换到其它文生视频模型时，可以在
     配置中同步调整区间。任何异常配置都退回默认值，并保证 min <= max，
     避免把用户输入变成必然失败的远端请求。
     """
