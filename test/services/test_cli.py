@@ -1814,6 +1814,21 @@ class TestCli(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "the limit is"):
                 cli._load_batch_manifest(str(too_many))
 
+    def test_batch_jsonl_preserves_unicode_line_separators_in_scripts(self):
+        entries = [
+            {"video_script": "First\u0085second\u2028third\u2029fourth"},
+            {"video_script": "Next task"},
+        ]
+        records = [json.dumps(entry, ensure_ascii=False) for entry in entries]
+        for newline in ("\n", "\r\n", "\r"):
+            with self.subTest(newline=newline), tempfile.TemporaryDirectory() as temp_dir:
+                manifest = Path(temp_dir) / "tasks.jsonl"
+                manifest.write_bytes(newline.join(records).encode("utf-8"))
+
+                _, parsed = cli._load_batch_manifest(str(manifest))
+
+                self.assertEqual(parsed, entries)
+
     def test_batch_jsonl_error_reports_source_line(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             manifest = Path(temp_dir) / "invalid.jsonl"
