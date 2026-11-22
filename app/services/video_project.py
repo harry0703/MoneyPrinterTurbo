@@ -566,6 +566,7 @@ class VideoProject:
                 cancel.unlink(missing_ok=True)
             status["state"] = "running"
             status.pop("error", None)
+            status.pop("failed_stage", None)
             _atomic_json(folder / "status.json", status)
             results = {}
             current_stage = None
