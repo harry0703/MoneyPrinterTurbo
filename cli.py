@@ -1170,7 +1170,8 @@ def _load_batch_manifest(raw_path: str) -> tuple[str, list[dict[str, Any]]]:
         entries = parsed
     else:
         entries = []
-        for line_number, line in enumerate(text.splitlines(), start=1):
+        # Unicode separators inside JSON strings are data, not record boundaries.
+        for line_number, line in enumerate(re.split(r"\r\n|\r|\n", text), start=1):
             if not line.strip():
                 continue
             try:
