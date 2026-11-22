@@ -606,11 +606,11 @@ LLM_PROVIDER_REGISTRY = (
     ),
     LLMProviderSpec(
         "uberllm",
-        "UberLLM",
-        api_key_url="https://uberllm.dev/signup",
+        "MartLLM",
+        api_key_url="https://martllm.com/signup",
         default_model="deepseek/deepseek-v4-flash",
-        default_base_url="https://api.uberllm.dev/v1",
-        model_docs_url="https://uberllm.dev/models",
+        default_base_url="https://api.martllm.com/v1",
+        model_docs_url="https://martllm.com/models",
     ),
     LLMProviderSpec(
         "atmorouter",

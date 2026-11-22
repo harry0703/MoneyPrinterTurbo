@@ -479,9 +479,9 @@ cheapaimodel_api_key = ""
 cheapaimodel_base_url = ""
 cheapaimodel_model_name = ""
 
-# UberLLM, a pay-as-you-go OpenAI-compatible API for models from many labs.
-# API key: https://uberllm.dev/signup
-# Model list: https://uberllm.dev/models
+# MartLLM, a pay-as-you-go OpenAI-compatible API for models from many labs.
+# API key: https://martllm.com/signup
+# Model list: https://martllm.com/models
 uberllm_api_key = ""
 uberllm_base_url = ""
 uberllm_model_name = ""
