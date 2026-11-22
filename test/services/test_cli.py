@@ -17,6 +17,7 @@ import cli
 from app.config import config as app_config
 from app.models import schema as app_schema
 from app.models.schema import VideoTransitionMode
+from app.services.state import MemoryState
 from app.utils.logging_utils import force_utf8_console
 
 
@@ -1681,6 +1682,117 @@ class TestCli(unittest.TestCase):
 
                 self.assertEqual(code, 2)
                 start.assert_not_called()
+
+    def test_null_voice_name_does_not_stop_a_batch_that_never_narrates(self):
+        # A null voice_name in a manifest entry leaves the batch voice in place,
+        # so a task that stops before TTS runs as an entry without it does.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {"video_subject": "first subject"},
+                        {"video_subject": "second subject", "voice_name": None},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "script": "ok"},
+                ) as start,
+                redirect_stdout(io.StringIO()),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "script"]
+                )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(start.call_count, 2)
+
+    def test_null_voice_name_narrates_with_the_batch_voice(self):
+        # The task gets the voice that the CLI resolved for the batch, here
+        # --voice-name, as the entry without voice_name does. With the null it
+        # failed at the audio stage with "'NoneType' object has no attribute
+        # 'strip'", after the tasks before it in the batch had run.
+        tts_voices = []
+
+        def record_tts(**kwargs):
+            tts_voices.append(kwargs["voice_name"])
+            return object()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {"video_script": "City night."},
+                        {"video_script": "City night.", "voice_name": None},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch("app.utils.utils.storage_dir", return_value=temp_dir),
+                patch("app.services.state.state", MemoryState()),
+                patch("app.utils.utils.check_ffmpeg_ready", return_value=True),
+                patch("app.services.voice.tts", side_effect=record_tts),
+                patch("app.services.voice.get_audio_duration", return_value=2.0),
+                redirect_stdout(io.StringIO()),
+            ):
+                code = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "audio",
+                        "--voice-name",
+                        "en-US-JennyNeural-Female",
+                    ]
+                )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(tts_voices, ["en-US-JennyNeural", "en-US-JennyNeural"])
+
+    def test_null_voice_name_keeps_the_task_narration_audio(self):
+        # A task that brings its own narration never calls TTS, with or
+        # without a voice.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            narration = Path(temp_dir) / "narration.mp3"
+            narration.write_bytes(b"audio")
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_script": "City night.",
+                            "voice_name": None,
+                            "custom_audio_file": "narration.mp3",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with (
+                patch("app.utils.utils.storage_dir", return_value=temp_dir),
+                patch("app.services.state.state", MemoryState()),
+                patch("app.utils.utils.check_ffmpeg_ready", return_value=True),
+                patch("app.services.voice.tts") as tts,
+                patch("app.services.voice.get_audio_duration", return_value=2.0),
+                redirect_stdout(output),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "audio"]
+                )
+
+        self.assertEqual(code, 0)
+        tts.assert_not_called()
+        self.assertEqual(
+            json.loads(output.getvalue())["tasks"][0]["result"]["audio_file"],
+            str(narration.resolve()),
+        )
 
     def test_batch_manifest_limits_size_and_task_count(self):
         with tempfile.TemporaryDirectory() as temp_dir:

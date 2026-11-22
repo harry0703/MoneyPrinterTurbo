@@ -1,4 +1,7 @@
-"""A /videos request without voice_name narrates with the voice that /audio and /subtitle use."""
+"""A /videos request without voice_name narrates with the voice that /audio and /subtitle use.
+
+A request to any of the three that sends "voice_name": null gets that voice too.
+"""
 
 from unittest.mock import patch
 
@@ -42,6 +45,24 @@ def test_video_request_without_voice_uses_the_audio_and_subtitle_voice(client):
     )
     assert (
         queued_voice(client, "/api/v1/videos", {"video_subject": "Coffee"})
+        == DEFAULT_VOICE_NAME
+    )
+
+
+@pytest.mark.parametrize(
+    "endpoint, body",
+    [
+        ("/api/v1/videos", {"video_subject": "Coffee"}),
+        ("/api/v1/audio", {"video_script": "Coffee"}),
+        ("/api/v1/subtitle", {"video_script": "Coffee"}),
+    ],
+    ids=["videos", "audio", "subtitle"],
+)
+def test_null_voice_name_uses_the_default_voice(client, endpoint, body):
+    # Optional[str] accepts null, and the task failed when it reached TTS with
+    # "'NoneType' object has no attribute 'strip'", for /videos after the LLM calls.
+    assert (
+        queued_voice(client, endpoint, {**body, "voice_name": None})
         == DEFAULT_VOICE_NAME
     )
 
