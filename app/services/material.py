@@ -793,11 +793,16 @@ WAVESPEED_API_BASE_URL = "https://api.wavespeed.ai/api/v3"
 WAVESPEED_DEFAULT_T2V_MODEL = "alibaba/wan-3.0/text-to-video"
 WAVESPEED_POLL_INTERVAL_SECONDS = 2.0
 WAVESPEED_RUN_TIMEOUT_SECONDS = 600.0
-# 默认模型 alibaba/wan-3.0/text-to-video 只接受 2-30 秒；超出范围的请求会
-# 被 API 直接拒绝，因此必须在提交前收敛到模型支持区间，多出的时长由现有
-# 剪辑流程按片段时长裁掉。
-WAVESPEED_MIN_DURATION_SECONDS = 2
-WAVESPEED_MAX_DURATION_SECONDS = 30
+# 文生视频模型只接受各自的时长区间，超出范围的请求会被 API 直接拒绝，因此
+# 必须在提交前收敛到模型支持区间，多出的时长由现有剪辑流程按片段时长裁掉。
+# 未配置 wavespeed_min_duration / wavespeed_max_duration 时按所选模型取默认
+# 区间（取自各模型的请求 schema）：默认 Wan 3.0 接受 2-30 秒，此前的默认
+# Seedance 2.0 Fast 接受 4-15 秒。其它模型沿用此前的 4-15 秒，保持升级前行为。
+WAVESPEED_MODEL_DURATION_BOUNDS = {
+    "alibaba/wan-3.0/text-to-video": (2, 30),
+    "bytedance/seedance-2.0-fast/text-to-video": (4, 15),
+}
+WAVESPEED_FALLBACK_DURATION_BOUNDS = (4, 15)
 # 三个失败态语义不同（模型报错 / 用户取消 / 平台超时），但对素材流程都意味着
 # 本关键词没有产物，统一按空结果处理，交给上层跳过该片段继续生成。
 WAVESPEED_FAILURE_STATUSES = frozenset({"failed", "cancelled", "timeout"})
@@ -865,14 +870,17 @@ def _is_wavespeed_retryable_error(error: Exception) -> bool:
     return False
 
 
-def _wavespeed_duration_bounds() -> tuple[int, int]:
+def _wavespeed_duration_bounds(model_id: str) -> tuple[int, int]:
     """
     返回当前模型支持的生成时长区间（秒）。
 
-    默认区间对应默认 Wan 模型；用户切换到其它文生视频模型时，可以在
-    配置中同步调整区间。任何异常配置都退回默认值，并保证 min <= max，
-    避免把用户输入变成必然失败的远端请求。
+    默认区间按所选模型确定；用户切换到其它文生视频模型时，可以在配置中
+    同步调整区间。任何异常配置都退回默认值，并保证 min <= max，避免把
+    用户输入变成必然失败的远端请求。
     """
+    default_min, default_max = WAVESPEED_MODEL_DURATION_BOUNDS.get(
+        model_id, WAVESPEED_FALLBACK_DURATION_BOUNDS
+    )
 
     def read_bound(key: str, fallback: int) -> int:
         try:
@@ -881,8 +889,8 @@ def _wavespeed_duration_bounds() -> tuple[int, int]:
             return fallback
         return value if value >= 1 else fallback
 
-    min_duration = read_bound("wavespeed_min_duration", WAVESPEED_MIN_DURATION_SECONDS)
-    max_duration = read_bound("wavespeed_max_duration", WAVESPEED_MAX_DURATION_SECONDS)
+    min_duration = read_bound("wavespeed_min_duration", default_min)
+    max_duration = read_bound("wavespeed_max_duration", default_max)
     return min_duration, max(max_duration, min_duration)
 
 
@@ -911,7 +919,7 @@ def generate_videos_wavespeed(
     )
     headers = {"Authorization": f"Bearer {api_key}"}
     requested_duration = max(int(minimum_duration), 1)
-    min_duration, max_duration = _wavespeed_duration_bounds()
+    min_duration, max_duration = _wavespeed_duration_bounds(model_id)
     duration = min(max(requested_duration, min_duration), max_duration)
     if duration != requested_duration:
         # 生成比请求更长不会影响成片：剪辑流程仍按片段时长裁剪；生成比请求
