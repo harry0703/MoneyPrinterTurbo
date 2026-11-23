@@ -1601,6 +1601,13 @@ def _run_pipeline(
         except ValueError as exc:
             return _mark_task_failed(task_id, "preflight", str(exc))
 
+    if stop_at == "video" and params.video_aspect is None:
+        # The API and the CLI reject a null aspect ratio. A /videos task that
+        # was queued in Redis before the API did restores as VideoParams and
+        # still holds it; the render would fail on it after the script,
+        # narration and material steps.
+        return _mark_task_failed(task_id, "preflight", "video_aspect cannot be null")
+
     if stop_at in {"materials", "video"} and params.video_source not in _SUPPORTED_VIDEO_SOURCES:
         return _mark_task_failed(
             task_id, "preflight", f"unsupported video source: {params.video_source!r}"
