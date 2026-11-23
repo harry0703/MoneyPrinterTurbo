@@ -125,26 +125,49 @@ def _get_video_music_prompt(params: VideoParams) -> str:
     return prompt
 
 
+class TaskDirectoryLockError(RuntimeError):
+    """A task's directory lock was not taken.
+
+    ``held`` is True when another process holds it, and False when the lock
+    could not be created or opened at all.
+    """
+
+    def __init__(self, lock_file: str, cause: Exception):
+        self.lock_file = lock_file
+        self.held = isinstance(cause, FileLockTimeout)
+        reason = (
+            "another process holds it"
+            if self.held
+            else f"{type(cause).__name__}: {cause}"
+        )
+        super().__init__(f"cannot lock the task directory with {lock_file}: {reason}")
+
+
 @contextmanager
 def task_directory_lock(task_id: str, timeout: float = 0):
-    """Hold a task's directory against other processes; yield whether we got it.
+    """Hold a task's directory against other processes inside the ``with`` block.
 
     A queue worker holds it while it runs the task. The lock belongs to the
     operating system: it is gone as soon as the holding process is killed, and
     still held while that process is only paused.
+
+    Raises TaskDirectoryLockError, and does not run the block, when the lock
+    is not taken.
     """
     # Task IDs reach the delete endpoint as request input; never let one
     # choose the file name.
     name = hashlib.sha256(task_id.encode("utf-8")).hexdigest()
-    lock_file = path.join(utils.storage_dir("task_locks", create=True), f"{name}.lock")
-    lock = FileLock(lock_file)
+    lock_file = path.join(utils.storage_dir("task_locks"), f"{name}.lock")
     try:
+        # Creating the directory is part of taking the lock. It fails when the
+        # storage root is not writable, and has to end like any other failure.
+        os.makedirs(path.dirname(lock_file), exist_ok=True)
+        lock = FileLock(lock_file)
         lock.acquire(timeout=timeout)
-    except (FileLockTimeout, OSError):
-        yield False
-        return
+    except (FileLockTimeout, OSError) as exc:
+        raise TaskDirectoryLockError(lock_file, exc) from exc
     try:
-        yield True
+        yield
     finally:
         lock.release()
         try:
@@ -162,10 +185,30 @@ def is_task_directory_held(task_id: str) -> bool:
     again when it resumes. Once the directory is free it stays free: a task in
     a final state is never handed to a worker again.
     """
-    # A concurrent deletion of the same task asks the same question and holds
-    # the lock only for that instant, so wait that out instead of refusing.
-    with task_directory_lock(task_id, timeout=_TASK_DIRECTORY_PROBE_SECONDS) as free:
-        return not free
+    try:
+        # A concurrent deletion of the same task asks the same question and
+        # holds the lock only for that instant, so wait that out instead of
+        # refusing.
+        with task_directory_lock(task_id, timeout=_TASK_DIRECTORY_PROBE_SECONDS):
+            return False
+    except TaskDirectoryLockError as exc:
+        if exc.held:
+            return True
+        # This process cannot create or open the lock. A worker runs a task
+        # only while it holds that lock, and its lock file stays in place for
+        # as long as it does. So with no lock file there is no worker to wait
+        # for, and a storage root that is not writable must not make every
+        # task undeletable. A lock file that exists but cannot be opened may
+        # belong to a live worker.
+        try:
+            os.lstat(exc.lock_file)
+        except (FileNotFoundError, NotADirectoryError):
+            logger.warning(f"deleting without the directory lock: {exc}")
+            return False
+        except OSError:
+            pass
+        logger.error(f"cannot tell whether a worker holds the task: {exc}")
+        return True
 
 
 def is_task_busy(task: dict | None) -> bool:

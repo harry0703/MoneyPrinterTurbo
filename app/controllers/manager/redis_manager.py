@@ -2,7 +2,7 @@ import inspect
 import json
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack
 from typing import Dict
 from uuid import uuid4
 
@@ -363,8 +363,7 @@ class RedisTaskManager(TaskManager):
             if task_id is None:
                 func(*args, **kwargs)
             else:
-                with self._owned_task(task_id, token):
-                    func(*args, **kwargs)
+                self._run_owned_task(task_id, token, func, *args, **kwargs)
         finally:
             stop_heartbeat.set()
             self.task_done()
@@ -375,22 +374,34 @@ class RedisTaskManager(TaskManager):
         task_id = kwargs.get("task_id") if isinstance(kwargs, dict) else None
         return task_id if isinstance(task_id, str) and task_id else None
 
-    @contextmanager
-    def _owned_task(self, task_id: str, token: str):
+    def _run_owned_task(self, task_id: str, token: str, func, /, *args, **kwargs):
         """Run a task as the worker that holds ``token``.
 
         State writes go through the token for as long as the task runs, and
         this process holds the task directory, so a deletion waits for it.
         """
-        with tm.task_directory_lock(task_id) as held:
-            if not held:
-                # Running without the lock only loses the deletion guard.
-                logger.error(f"failed to lock the directory of task {task_id}")
-            sm.state.bind_task_owner(task_id, self.running_tasks_key, token)
-            try:
-                yield
-            finally:
-                sm.state.unbind_task_owner(task_id)
+        sm.state.bind_task_owner(task_id, self.running_tasks_key, token)
+        try:
+            with ExitStack() as held:
+                try:
+                    held.enter_context(tm.task_directory_lock(task_id))
+                except tm.TaskDirectoryLockError as exc:
+                    # Without the lock a deletion cannot see that this process
+                    # writes the directory, so the task is not run. It is
+                    # failed here, while the token still owns it: the caller
+                    # releases the slot only after this returns, and nothing
+                    # looks at a task whose slot is already gone.
+                    logger.error(f"task {task_id} was not started: {exc}")
+                    sm.state.patch_task(
+                        task_id,
+                        state=const.TASK_STATE_FAILED,
+                        failed_stage="worker",
+                        error=str(exc),
+                    )
+                    return
+                func(*args, **kwargs)
+        finally:
+            sm.state.unbind_task_owner(task_id)
 
     def _renew_slot_until_done(self, token: str, stop: threading.Event):
         while not stop.wait(_RUNNING_SLOT_HEARTBEAT_SECONDS):

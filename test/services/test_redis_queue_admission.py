@@ -1,15 +1,17 @@
 """Queue capacity is shared by every manager using the Redis list."""
 
+import errno
 import os
 import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import redis
 
+from app.controllers.manager import redis_manager
 from app.controllers.manager.base_manager import TaskQueueFullError
 from app.controllers.manager.redis_manager import RedisTaskManager
 from app.models import const
@@ -422,6 +424,132 @@ class TestRedisQueueAdmission(unittest.TestCase):
         resumed.set()
         self._wait_until_idle(manager)
         self.assertFalse(tm.is_task_directory_held(task_id))
+
+    def _wait_until_final(self, task_id):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            task = self.state.get_task(task_id) or {}
+            if task.get("state") != const.TASK_STATE_PROCESSING:
+                return
+            time.sleep(0.01)
+        self.fail(f"task {task_id} is still processing")
+
+    def _fail_task_that_cannot_lock_its_directory(self, refused):
+        """Run a task whose lock cannot be taken, with a second one queued behind.
+
+        ``refused`` is "directory" when storage/task_locks cannot be created,
+        as under a read-only storage root, and "file" when the lock file
+        cannot be opened. Root ignores chmod, so a stand-in raises the
+        PermissionError. Only the first worker is refused, and it waits at
+        that step until the second task is in the queue. Returns the error the
+        first task was failed with.
+        """
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        first, second = self._id("unlockable"), self._id("queued")
+        self.state.update_task(first, progress=30)
+        self.state.update_task(second)
+        ran = []
+        reached, queued = threading.Event(), threading.Event()
+        self.addCleanup(queued.set)
+
+        def start(task_id, params):
+            ran.append(task_id)
+            self.state.update_task(
+                task_id, state=const.TASK_STATE_COMPLETE, progress=100
+            )
+
+        def refuse(target):
+            reached.set()
+            queued.wait(timeout=5)
+            raise PermissionError(
+                errno.EACCES, "Permission denied", os.fspath(target)
+            )
+
+        lock_directory = tm.utils.storage_dir("task_locks")
+        makedirs, file_lock = os.makedirs, tm.FileLock
+
+        def refusing_makedirs(name, *args, **kwargs):
+            if os.fspath(name) == lock_directory and not reached.is_set():
+                refuse(name)
+            return makedirs(name, *args, **kwargs)
+
+        def refusing_file_lock(lock_file, *args, **kwargs):
+            if reached.is_set():
+                return file_lock(lock_file, *args, **kwargs)
+            lock = MagicMock()
+            lock.acquire.side_effect = lambda *_, **__: refuse(lock_file)
+            return lock
+
+        refusal = (
+            patch.object(tm.os, "makedirs", refusing_makedirs)
+            if refused == "directory"
+            else patch.object(tm, "FileLock", refusing_file_lock)
+        )
+        with patch.dict(redis_manager.FUNC_MAP, {"start": start}), refusal:
+            manager.add_task(
+                start, task_id=first, params=VideoParams(video_subject="Coffee")
+            )
+            self.assertTrue(reached.wait(timeout=5))
+            # The only slot is taken, so the next request waits in the queue.
+            manager.add_task(
+                start, task_id=second, params=VideoParams(video_subject="Tea")
+            )
+            self.assertEqual(manager.queue_size(), 1)
+            queued.set()
+            self._wait_until_final(second)
+            self._wait_until_idle(manager)
+
+        task = self.state.get_task(first)
+        self.assertEqual(task["state"], const.TASK_STATE_FAILED)
+        self.assertEqual(task["failed_stage"], "worker")
+        self.assertEqual(task["progress"], 30)
+        self.assertFalse(tm.is_task_busy(task))
+        # The pipeline did not run without the lock, and the slot went on to
+        # the task that was waiting for it.
+        self.assertEqual(ran, [second])
+        self.assertEqual(
+            self.state.get_task(second)["state"], const.TASK_STATE_COMPLETE
+        )
+        self.assertEqual(manager.queue_size(), 0)
+        self.assertEqual(manager.redis_client.zcard(manager.running_slots_key), 0)
+        self.assertEqual(manager.redis_client.hlen(manager.running_tasks_key), 0)
+        self.assertEqual(manager.fail_tasks_of_expired_slots(), 0)
+        return task["error"]
+
+    def test_task_fails_when_its_lock_directory_cannot_be_created(self):
+        error = self._fail_task_that_cannot_lock_its_directory("directory")
+        lock_directory = tm.utils.storage_dir("task_locks")
+        self.assertIn(f"Permission denied: '{lock_directory}'", error)
+
+    def test_task_fails_when_its_lock_file_cannot_be_opened(self):
+        error = self._fail_task_that_cannot_lock_its_directory("file")
+        lock_directory = tm.utils.storage_dir("task_locks")
+        self.assertIn(f"Permission denied: '{lock_directory}{os.sep}", error)
+        self.assertIn(".lock'", error)
+
+    def test_task_fails_when_another_process_holds_its_lock(self):
+        manager = self.managers[0]
+        manager.max_concurrent_tasks = 1
+        task_id = self._id("held")
+        self.state.update_task(task_id, progress=30)
+        ran = []
+
+        def pipeline(task_id):
+            ran.append(task_id)
+
+        with tm.task_directory_lock(task_id):
+            manager.add_task(pipeline, task_id=task_id)
+            self._wait_until_idle(manager)
+
+        task = self.state.get_task(task_id)
+        self.assertEqual(task["state"], const.TASK_STATE_FAILED)
+        self.assertEqual(task["failed_stage"], "worker")
+        self.assertIn("another process holds it", task["error"])
+        self.assertEqual(task["progress"], 30)
+        self.assertEqual(ran, [])
+        self.assertEqual(manager.redis_client.zcard(manager.running_slots_key), 0)
+        self.assertEqual(manager.redis_client.hlen(manager.running_tasks_key), 0)
 
     def test_running_limit_is_shared_across_manager_instances(self):
         for manager in self.managers:
