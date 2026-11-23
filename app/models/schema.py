@@ -313,6 +313,13 @@ class TaskVideoRequest(VideoParams, BaseModel):
     # of VideoParams the task failed at the audio stage, after the LLM calls.
     voice_name: RequestVoiceName = DEFAULT_REQUEST_VOICE_NAME
 
+    # Every /videos task renders, and the render reads the frame size from the
+    # aspect ratio. A null one was accepted here and failed the task with
+    # "None is not a valid VideoAspect" after the script and narration steps.
+    # VideoParams keeps the field optional for the CLI, which rejects a null
+    # in its own preflight, and for stored tasks.
+    video_aspect: VideoAspect = VideoAspect.portrait
+
 
 class TaskQueryRequest(BaseModel):
     pass
