@@ -620,6 +620,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://atmorouter.dev/v1",
         model_docs_url="https://atmorouter.dev/models",
     ),
+    LLMProviderSpec(
+        "teamorouter",
+        "TeamoRouter",
+        api_key_url="https://teamorouter.com/dashboard",
+        default_model="deepseek-v4-flash",
+        default_base_url="https://api.teamorouter.com/v1",
+        model_docs_url="https://teamorouter.com/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

@@ -694,6 +694,15 @@ class TestLiteLLMProvider(unittest.TestCase):
             atmorouter.api_key_url, "https://atmorouter.dev/dashboard/keys"
         )
         self.assertEqual(atmorouter.model_docs_url, "https://atmorouter.dev/models")
+        teamorouter = get_llm_provider("teamorouter")
+        self.assertEqual(teamorouter.default_model, "deepseek-v4-flash")
+        self.assertEqual(
+            teamorouter.default_base_url, "https://api.teamorouter.com/v1"
+        )
+        self.assertEqual(teamorouter.adapter, "openai_compatible")
+        self.assertTrue(teamorouter.requires_api_key)
+        self.assertEqual(teamorouter.api_key_url, "https://teamorouter.com/dashboard")
+        self.assertEqual(teamorouter.model_docs_url, "https://teamorouter.com/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -783,6 +792,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "cheapaimodel",
                 "uberllm",
                 "atmorouter",
+                "teamorouter",
                 "ollama",
                 "claude_code",
                 "oneapi",

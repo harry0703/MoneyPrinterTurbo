@@ -304,6 +304,8 @@
     "llm_provider_tips.uberllm": "##### MartLLM 配置说明\n- **API Key**: 在 [MartLLM]({api_key_url}) 注册并创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它 `provider/model` 格式的模型 ID\n\nMartLLM 是按量付费、兼容 OpenAI 接口的模型 API，一个 API Key 可调用 GPT、Claude、Gemini、DeepSeek、Qwen、Kimi 等多家厂商的模型。需预充值，无免费额度。",
     "llm_provider_label.atmorouter": "AtmoRouter",
     "llm_provider_tips.atmorouter": "##### AtmoRouter 配置说明\n- **API Key**: 登录后在 [AtmoRouter API Keys 页面]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它 `family/model` 格式的模型 ID\n\nAtmoRouter 是预付费、兼容 OpenAI 接口的模型网关。可通过 Solana 上的 USDC 或 QRIS 充值，按 token 计费。接口说明见 [AtmoRouter 文档](https://atmorouter.dev/docs)。",
+    "llm_provider_label.teamorouter": "TeamoRouter",
+    "llm_provider_tips.teamorouter": "##### TeamoRouter 配置说明\n- **API Key**: 登录后在 [TeamoRouter 控制台]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nTeamoRouter 是预付费、兼容 OpenAI 接口的模型网关，一个 API Key 可调用 Claude、GPT、Gemini、DeepSeek、GLM、Kimi、Qwen 等模型，按 token 计费，无订阅。接口说明见 [TeamoRouter 文档](https://teamorouter.com/docs)。",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
