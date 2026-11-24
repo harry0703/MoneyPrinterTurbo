@@ -500,6 +500,14 @@ atmorouter_api_key = ""
 atmorouter_base_url = ""
 atmorouter_model_name = ""
 
+# TeamoRouter, a prepaid OpenAI-compatible API gateway (one key for Claude, GPT, Gemini, DeepSeek, GLM, Kimi, Qwen and more).
+# API key: https://teamorouter.com/dashboard
+# Model list: https://teamorouter.com/models
+# Docs: https://teamorouter.com/docs
+teamorouter_api_key = ""
+teamorouter_base_url = ""
+teamorouter_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
