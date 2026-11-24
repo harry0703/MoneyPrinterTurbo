@@ -2247,7 +2247,7 @@ class TestWaveSpeedProvider(unittest.TestCase):
         self.assertNotIn("source_page", item.source_info)
 
         self.assertIn(
-            "/api/v3/bytedance/seedance-2.0-fast/text-to-video",
+            "/api/v3/alibaba/wan-3.0/text-to-video",
             post.call_args.args[0],
         )
         self.assertEqual(
@@ -2615,8 +2615,8 @@ class TestWaveSpeedProvider(unittest.TestCase):
 
     def test_generate_wavespeed_clamps_duration_to_model_minimum(self):
         """
-        WebUI 默认片段时长 3 秒,而默认模型只接受 4-15 秒;直接透传会被 API
-        拒绝。请求必须收敛到模型下限,多出的时长由现有剪辑流程按片段时长裁掉。
+        默认模型只接受 2-30 秒;低于下限的请求直接透传会被 API 拒绝。
+        请求必须收敛到模型下限,多出的时长由现有剪辑流程按片段时长裁掉。
         """
         submit_response = self._json_response({"code": 200, "data": {"id": "pred-c1"}})
         poll_response = self._json_response(
@@ -2636,11 +2636,11 @@ class TestWaveSpeedProvider(unittest.TestCase):
             ) as post,
             patch("app.services.material.requests.get", return_value=poll_response),
         ):
-            results = material.generate_videos_wavespeed("sunrise", minimum_duration=3)
+            results = material.generate_videos_wavespeed("sunrise", minimum_duration=1)
 
-        self.assertEqual(post.call_args.kwargs["json"]["duration"], 4)
+        self.assertEqual(post.call_args.kwargs["json"]["duration"], 2)
         # MaterialInfo 记录实际生成时长,时长核算和剪辑按真实素材长度进行
-        self.assertEqual(results[0].duration, 4)
+        self.assertEqual(results[0].duration, 2)
 
     def test_generate_wavespeed_clamps_duration_to_model_maximum(self):
         """超过模型上限的请求收敛到上限,不能提交必然失败的远端请求。"""
@@ -2662,10 +2662,65 @@ class TestWaveSpeedProvider(unittest.TestCase):
             ) as post,
             patch("app.services.material.requests.get", return_value=poll_response),
         ):
-            results = material.generate_videos_wavespeed("sunrise", minimum_duration=20)
+            results = material.generate_videos_wavespeed("sunrise", minimum_duration=40)
 
-        self.assertEqual(post.call_args.kwargs["json"]["duration"], 15)
-        self.assertEqual(results[0].duration, 15)
+        self.assertEqual(post.call_args.kwargs["json"]["duration"], 30)
+        self.assertEqual(results[0].duration, 30)
+
+    def test_generate_wavespeed_default_bounds_follow_selected_model(self):
+        """
+        未配置时长区间时,默认区间按所选模型确定:默认 Wan 3.0 原样提交 3 秒;
+        显式固定 Seedance 2.0 Fast 的旧配置仍按 4-15 秒收敛;其它模型保持
+        升级前的 4-15 秒。
+        """
+        cases = [
+            (None, 3, "/api/v3/alibaba/wan-3.0/text-to-video", 3),
+            ("bytedance/seedance-2.0-fast/text-to-video", 3,
+             "/api/v3/bytedance/seedance-2.0-fast/text-to-video", 4),
+            ("bytedance/seedance-2.0-fast/text-to-video", 20,
+             "/api/v3/bytedance/seedance-2.0-fast/text-to-video", 15),
+            ("wavespeed-ai/custom-t2v", 3, "/api/v3/wavespeed-ai/custom-t2v", 4),
+        ]
+        for model, requested, expected_path, expected_duration in cases:
+            with self.subTest(model=model, requested=requested):
+                config.app.pop("wavespeed_min_duration", None)
+                config.app.pop("wavespeed_max_duration", None)
+                if model is None:
+                    config.app.pop("wavespeed_text_to_video_model", None)
+                else:
+                    config.app["wavespeed_text_to_video_model"] = model
+                submit_response = self._json_response(
+                    {"code": 200, "data": {"id": "pred-m1"}}
+                )
+                poll_response = self._json_response(
+                    {
+                        "code": 200,
+                        "data": {
+                            "id": "pred-m1",
+                            "status": "completed",
+                            "outputs": ["https://cdn.example.com/m1.mp4"],
+                        },
+                    }
+                )
+
+                with (
+                    patch(
+                        "app.services.material.requests.post",
+                        return_value=submit_response,
+                    ) as post,
+                    patch(
+                        "app.services.material.requests.get",
+                        return_value=poll_response,
+                    ),
+                ):
+                    material.generate_videos_wavespeed(
+                        "sunrise", minimum_duration=requested
+                    )
+
+                self.assertIn(expected_path, post.call_args.args[0])
+                self.assertEqual(
+                    post.call_args.kwargs["json"]["duration"], expected_duration
+                )
 
     def test_generate_wavespeed_duration_bounds_are_configurable(self):
         """切换到其它模型时,用户可以在配置中同步调整支持的时长区间。"""
@@ -2689,9 +2744,9 @@ class TestWaveSpeedProvider(unittest.TestCase):
             ) as post,
             patch("app.services.material.requests.get", return_value=poll_response),
         ):
-            material.generate_videos_wavespeed("sunrise", minimum_duration=3)
+            material.generate_videos_wavespeed("sunrise", minimum_duration=10)
 
-        self.assertEqual(post.call_args.kwargs["json"]["duration"], 3)
+        self.assertEqual(post.call_args.kwargs["json"]["duration"], 8)
 
     @staticmethod
     def _generated_item(term, url, duration=5):
