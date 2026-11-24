@@ -6,6 +6,10 @@ MAX_TOKENS for Gemini. That text was returned as the finished answer, so
 /scripts answered 200 with a script that ends mid-sentence and a /videos task
 narrated it. The Responses adapter already refuses an incomplete response.
 
+Search terms and social metadata are JSON, and their parsers refuse a value that
+is not complete, so those two read a cut-off answer themselves: a whole array
+or object in it is used, and anything less is asked for again as before.
+
 The OpenAI and Gemini cases go through the real SDKs; only the HTTP transport
 is replaced.
 """
@@ -30,6 +34,14 @@ from app.services import llm
 
 CUT = "Coffee keeps the night shift awake. In the roastery the first batch goes in at"
 WHOLE = "Coffee keeps the night shift awake."
+TERMS = ["coffee beans", "espresso machine", "night cafe"]
+TERMS_JSON = json.dumps(TERMS)
+CUT_TERMS_JSON = '["coffee beans", "espresso mach'
+SOCIAL = {
+    "title": "Coffee at night",
+    "caption": "Why the night shift runs on coffee.",
+    "hashtags": ["#coffee", "#nightshift"],
+}
 
 OPENAI = {
     "llm_provider": "openai",
@@ -254,4 +266,106 @@ def test_scripts_endpoint_does_not_return_a_cut_off_script():
     assert response.status_code == 503
     assert response.json()["message"] == "script generation is unavailable"
     assert CUT not in response.text
+    assert len(requests) == llm._max_retries
+
+
+@pytest.mark.parametrize("sdk, settings, cut_off, finished", SHAPES)
+def test_terms_use_a_whole_array_from_an_answer_marked_cut_off(
+    sdk, settings, cut_off, finished
+):
+    # A provider can report the limit on an answer whose array is all there.
+    with sdk(cut_off, TERMS_JSON):
+        terms = llm.generate_terms("Coffee at night", "", app_config=settings)
+
+    assert terms == TERMS
+
+
+def test_terms_use_a_whole_array_followed_by_cut_off_prose():
+    with _chat("length", f"{TERMS_JSON} These terms cover the"):
+        terms = llm.generate_terms("Coffee at night", "", app_config=OPENAI)
+
+    assert terms == TERMS
+
+
+def test_terms_are_asked_for_again_after_a_cut_off_array():
+    answers = iter(
+        [
+            _chat_completion("length", CUT_TERMS_JSON),
+            _chat_completion("stop", TERMS_JSON),
+        ]
+    )
+    sdk = _openai_sdk(lambda request: httpx.Response(200, json=next(answers)))
+
+    with sdk:
+        assert llm.generate_terms("Coffee at night", "", app_config=OPENAI) == TERMS
+    assert next(answers, None) is None
+
+
+def test_terms_are_empty_when_every_array_is_cut_off():
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(200, json=_chat_completion("length", CUT_TERMS_JSON))
+
+    with _openai_sdk(respond):
+        assert llm.generate_terms("Coffee at night", "", app_config=OPENAI) == []
+    assert len(requests) == llm._max_retries
+
+
+def test_terms_endpoint_returns_a_whole_array_marked_cut_off():
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(200, json=_chat_completion("length", TERMS_JSON))
+
+    with (
+        patch.dict(config.app, {"api_key": "", **OPENAI}),
+        _openai_sdk(respond),
+        TestClient(asgi.app) as client,
+    ):
+        response = client.post(
+            "/api/v1/terms",
+            json={"video_subject": "Coffee at night", "video_script": WHOLE},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["video_terms"] == TERMS
+    assert len(requests) == 1
+
+
+def test_script_is_still_refused_after_terms_read_a_cut_off_answer():
+    with _chat("length", TERMS_JSON):
+        assert llm.generate_terms("Coffee at night", "", app_config=OPENAI) == TERMS
+        result = llm._generate_response("write the script", app_config=OPENAI)
+        script = llm.generate_script("Coffee at night", app_config=OPENAI)
+
+    assert "cut off at the output token limit" in result
+    assert script == ""
+
+
+def test_social_metadata_uses_a_whole_object_marked_cut_off():
+    with (
+        patch.dict(config.app, OPENAI),
+        _chat("length", json.dumps(SOCIAL)),
+    ):
+        metadata = llm.generate_social_metadata("Coffee at night", WHOLE)
+
+    assert metadata == SOCIAL
+
+
+def test_social_metadata_falls_back_when_every_object_is_cut_off():
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        cut = json.dumps(SOCIAL)[:-20]
+        return httpx.Response(200, json=_chat_completion("length", cut))
+
+    with patch.dict(config.app, OPENAI), _openai_sdk(respond):
+        metadata = llm.generate_social_metadata("Coffee at night", WHOLE)
+
+    assert metadata["title"] == "Coffee at night"
+    assert metadata["caption"] == WHOLE
     assert len(requests) == llm._max_retries

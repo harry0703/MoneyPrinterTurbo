@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import tempfile
 import unicodedata
+from contextlib import contextmanager
+from contextvars import ContextVar
 from time import perf_counter
 from typing import List, Literal
 
@@ -47,6 +49,8 @@ _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.D
 _UNOPENED_THINK_BLOCK_RE = re.compile(r"^.*</think\s*>", re.IGNORECASE | re.DOTALL)
 # Chat Completions and DashScope report "length", Gemini reports MAX_TOKENS.
 _TRUNCATED_FINISH_REASONS = frozenset({"length", "max_tokens"})
+# Set while a caller reads its answer as JSON; see _json_answer().
+_cut_off_answer_is_parsed = ContextVar("llm_cut_off_answer_is_parsed", default=False)
 _URL_USERINFO_RE = re.compile(
     r"((?:https?|wss?)://)([^/\s?#@]+@)", re.IGNORECASE
 )
@@ -233,12 +237,30 @@ def _reject_truncated_response(finish_reason, llm_provider: str) -> None:
     already refuses an incomplete response; without the same check here the
     cut-off script is narrated, subtitled and rendered as if it were whole.
     """
+    if _cut_off_answer_is_parsed.get():
+        return
     reason = getattr(finish_reason, "value", finish_reason)
     if isinstance(reason, str) and reason.lower() in _TRUNCATED_FINISH_REASONS:
         raise ValueError(
             f"[{llm_provider}] response was cut off at the output token limit "
             f"(finish_reason={reason})"
         )
+
+
+@contextmanager
+def _json_answer():
+    """Hand a cut-off answer to a caller that parses it as JSON.
+
+    A script is prose, so a cut-off one cannot be told from a whole one and is
+    refused. Search terms and social metadata are JSON: their parsers already
+    refuse a value that is not complete, and a provider can report the limit on
+    an answer whose array or object is all there.
+    """
+    token = _cut_off_answer_is_parsed.set(True)
+    try:
+        yield
+    finally:
+        _cut_off_answer_is_parsed.reset(token)
 
 
 def _extract_chat_completion_text(response, llm_provider: str) -> str:
@@ -1190,10 +1212,11 @@ def generate_terms(
     for i in range(_max_retries):
         search_terms = []
         try:
-            if app_config is None:
-                response = _generate_response(prompt)
-            else:
-                response = _generate_response(prompt, app_config=app_config)
+            with _json_answer():
+                if app_config is None:
+                    response = _generate_response(prompt)
+                else:
+                    response = _generate_response(prompt, app_config=app_config)
             if response.startswith("Error: "):
                 # generate_terms 的公开返回类型是 List[str]。如果把 Provider 的
                 # 错误文案原样返回，下游只做空值判断时会把非空字符串误认为成功，
@@ -1534,7 +1557,8 @@ def generate_social_metadata(
     response = ""
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt)
+            with _json_answer():
+                response = _generate_response(prompt)
             if isinstance(response, str) and response.startswith("Error: "):
                 logger.error(f"failed to generate social metadata: {response}")
                 break
