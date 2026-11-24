@@ -36,6 +36,17 @@ _MAX_LOG_TASKS = 20
 _MAX_LOG_RECORDS_PER_TASK = 1000
 _submission_lock = threading.RLock()
 _active_submissions: dict[str, str] = {}
+# 多个 WebUI 进程可以共享同一个状态后端。进程内预占只能防住本进程的重复
+# 提交，因此运行中的任务还要写入共享心跳；其它进程据此判断记录是仍在执行
+# 的任务，还是重启/崩溃后留下的孤儿记录。60 秒容忍六次漏写。
+GENERATION_HEARTBEAT_INTERVAL_SECONDS = 10
+GENERATION_HEARTBEAT_TIMEOUT_SECONDS = 60
+# 滚动升级期间，旧进程不会写 generation_heartbeat_at，但排队、阶段切换和
+# 付费供应商轮询仍会刷新下面这些时间戳。5 分钟盖住一次长时间的脚本或配音
+# 空窗；心跳字段一旦存在，就只信心跳，过期后不能被旧的活动时间续上。
+LEGACY_GENERATION_LIVENESS_SECONDS = 300
+_heartbeats: dict[str, threading.Event] = {}
+_heartbeat_lock = threading.RLock()
 # Streamlit 无法由后台线程直接推送组件更新，只能通过 Fragment 轮询。0.5 秒
 # 足以让 WebUI 日志接近终端实时输出，又不会像高频刷新那样持续占用浏览器资源。
 TASK_LOG_REFRESH_INTERVAL_SECONDS = 0.5
@@ -45,6 +56,94 @@ def is_generation_active(task_id: str) -> bool:
     """以后台预占名额为准，覆盖入队及状态发布之间的窗口。"""
     with _submission_lock:
         return task_id in _active_submissions.values()
+
+
+def is_generation_heartbeat_fresh(task: dict | None) -> bool:
+    """心跳字段是否仍在超时时间内。
+
+    没有该字段或值无法解析时返回 False。滚动升级中的旧任务由
+    ``is_shared_generation_running`` 另行根据最近一次流水线写入判断。
+    """
+    if not isinstance(task, dict) or "generation_heartbeat_at" not in task:
+        return False
+    try:
+        heartbeat = float(task.get("generation_heartbeat_at"))
+    except (TypeError, ValueError):
+        return False
+    return time.time() - heartbeat < GENERATION_HEARTBEAT_TIMEOUT_SECONDS
+
+
+def _latest_legacy_generation_timestamp(task: dict) -> float | None:
+    activity = task.get("generation_activity") or {}
+    if not isinstance(activity, dict):
+        activity = {}
+    latest = None
+    for raw in (
+        task.get("generation_submitted_at"),
+        task.get("generation_started_at"),
+        activity.get("updated_at"),
+        activity.get("confirmed_at"),
+        activity.get("started_at"),
+    ):
+        try:
+            timestamp = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if latest is None or timestamp > latest:
+            latest = timestamp
+    return latest
+
+
+def is_shared_generation_running(task: dict | None) -> bool:
+    """其它进程是否仍在执行这条共享任务记录。
+
+    新进程每 10 秒刷新心跳，过期后允许重新生成。没有心跳字段的记录来自
+    尚未升级的进程：最近一次排队、阶段或轮询写入仍算存活，安静超过
+    ``LEGACY_GENERATION_LIVENESS_SECONDS`` 才视为孤儿。
+    """
+    if not isinstance(task, dict):
+        return False
+    if "generation_heartbeat_at" in task:
+        return is_generation_heartbeat_fresh(task)
+    latest = _latest_legacy_generation_timestamp(task)
+    if latest is None:
+        return False
+    return time.time() - latest < LEGACY_GENERATION_LIVENESS_SECONDS
+
+
+def _start_generation_heartbeat(task_id: str) -> None:
+    stop = threading.Event()
+    with _heartbeat_lock:
+        previous = _heartbeats.pop(task_id, None)
+        _heartbeats[task_id] = stop
+    if previous is not None:
+        previous.set()
+    threading.Thread(
+        target=_refresh_generation_heartbeat,
+        args=(task_id, stop),
+        name=f"mpt-generation-heartbeat-{task_id[:8]}",
+        daemon=True,
+    ).start()
+
+
+def _refresh_generation_heartbeat(task_id: str, stop: threading.Event) -> None:
+    while not stop.wait(GENERATION_HEARTBEAT_INTERVAL_SECONDS):
+        try:
+            exists = sm.state.patch_task(task_id, generation_heartbeat_at=time.time())
+        except Exception as exc:
+            # 状态后端短暂不可用时继续重试；下一次心跳仍可能成功。
+            logger.debug(f"could not refresh generation heartbeat: {exc}")
+            continue
+        if exists is False:
+            # 任务已被删除或清理，心跳没有对象可续。
+            return
+
+
+def _stop_generation_heartbeat(task_id: str) -> None:
+    with _heartbeat_lock:
+        stop = _heartbeats.pop(task_id, None)
+    if stop is not None:
+        stop.set()
 
 
 def _submission_signature(
@@ -194,6 +293,7 @@ def _run_generation(
         )
         return failure
     finally:
+        _stop_generation_heartbeat(task_id)
         with _submission_lock:
             for signature, active_id in list(_active_submissions.items()):
                 if active_id == task_id:
@@ -322,9 +422,13 @@ def _enqueue_generation(
         progress=0,
         video_subject=task_params.video_subject or task_params.video_script or task_id,
         generation_submitted_at=submitted_at,
+        generation_heartbeat_at=submitted_at,
         generation_activity={"phase": "queued", "started_at": submitted_at,
                              "updated_at": submitted_at},
     )
+    # 排队中的任务也占用一次提交，其它 WebUI 进程不能把它当作孤儿重新提交。
+    # 心跳先于入队启动，避免任务很快失败时工作线程先清理、后台线程后启动。
+    _start_generation_heartbeat(task_id)
     try:
         _task_manager.add_task(
             _run_generation,
@@ -344,6 +448,7 @@ def _enqueue_generation(
                if aigei_charge_signature is not None else {}),
         )
     except Exception as exc:
+        _stop_generation_heartbeat(task_id)
         # 调度失败与流水线失败一样必须成为可查询状态，避免任务管理器永久显示
         # “生成中”。保留异常类型便于从 Docker 或本机日志快速定位队列问题。
         error = f"{type(exc).__name__}: {exc}"

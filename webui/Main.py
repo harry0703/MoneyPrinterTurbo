@@ -970,6 +970,11 @@ def _prepare_generation_task():
     if current_id and webui_task.is_generation_active(current_id):
         st.session_state["pending_generation_task_id"] = current_id
         return
+    # 按钮的 disabled 来自上一次整页渲染。另一个进程仍占着被跟踪的任务时，
+    # 不能在这次点击里再分配新任务，否则同一输入会打到付费供应商两次。
+    if current_id and _generation_is_busy(current_id):
+        st.session_state.pop("pending_generation_task_id", None)
+        return
     task_id = str(uuid4())
     st.session_state["pending_generation_task_id"] = task_id
     subject = st.session_state.get("video_subject") or st.session_state.get(
@@ -2065,7 +2070,16 @@ def _current_generation_task_id():
     return task_id
 
 
+_GENERATION_BUTTON_LOCKED = "generation_button_locked"
+
+
 def _generation_is_busy(task_id):
+    """任务仍在执行时禁用生成按钮。
+
+    本进程的预占最可靠。别的 WebUI 进程可能在共享状态里运行同一个任务：
+    新进程靠心跳，滚动升级中的旧进程靠最近一次流水线写入。两者都安静之后
+    才把记录当成孤儿，允许重新生成。
+    """
     if not task_id:
         return False
     if webui_task.is_generation_active(task_id):
@@ -2075,7 +2089,9 @@ def _generation_is_busy(task_id):
     except Exception:
         # 查询异常时不能把“状态未知”当作已完成而放开重复提交。
         return True
-    return _normalize_task_state((task or {}).get("state")) == const.TASK_STATE_PROCESSING
+    if _normalize_task_state((task or {}).get("state")) != const.TASK_STATE_PROCESSING:
+        return False
+    return webui_task.is_shared_generation_running(task)
 
 
 def _render_generation_activity(task):
@@ -2277,7 +2293,15 @@ def _render_running_generation_task(task_id):
         st.rerun(scope="app")
 
     _render_generation_task_snapshot(task_id, task)
-    if not webui_task.is_generation_active(task_id):
+    worker_running = webui_task.is_generation_active(task_id) or (
+        webui_task.is_shared_generation_running(task)
+    )
+    if not worker_running:
+        # 生成按钮在整页脚本里，Fragment 轮询不会重建它。心跳或旧进程的
+        # 活动时间过期后必须整页刷新一次，否则警告已经出现，按钮仍保持禁用。
+        if st.session_state.get(_GENERATION_BUTTON_LOCKED):
+            st.session_state[_GENERATION_BUTTON_LOCKED] = False
+            st.rerun(scope="app")
         # 持久状态可能属于重启前或另一服务进程，不能断言远端任务已停止。
         # 只允许解除当前页面的跟踪，不取消任务、不改写其真实状态。
         st.warning(tr("Generation Untracked Worker Hint"))
@@ -9268,6 +9292,8 @@ def _render_generation_controls(
     _render_settings_transfer(params)
 
     generation_busy = _generation_is_busy(_current_generation_task_id())
+    # Fragment 发现 worker 已经不在时，用这个标记触发一次整页刷新来放开按钮。
+    st.session_state[_GENERATION_BUTTON_LOCKED] = generation_busy
     start_button = st.button(
         tr("Generating Video") if generation_busy else tr("Generate Video"),
         use_container_width=True,
@@ -9278,6 +9304,15 @@ def _render_generation_controls(
     )
     render_onboarding_tour()
     if start_button:
+        tracked_id = _current_generation_task_id()
+        if (
+            tracked_id
+            and _generation_is_busy(tracked_id)
+            and not webui_task.is_generation_active(tracked_id)
+        ):
+            # on_click 已经拒绝分配新任务。这里再挡一次，避免过期的按钮点击
+            # 用同一个输入向付费供应商提交第二条任务。
+            return False
         _save_runtime_config()
         task_id = st.session_state.get("pending_generation_task_id") or str(uuid4())
         _add_active_generation_task(
