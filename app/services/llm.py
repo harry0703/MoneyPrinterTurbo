@@ -45,6 +45,8 @@ _CONNECTION_FAILURE_MARKERS = (
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
 _UNOPENED_THINK_BLOCK_RE = re.compile(r"^.*</think\s*>", re.IGNORECASE | re.DOTALL)
+# Chat Completions and DashScope report "length", Gemini reports MAX_TOKENS.
+_TRUNCATED_FINISH_REASONS = frozenset({"length", "max_tokens"})
 _URL_USERINFO_RE = re.compile(
     r"((?:https?|wss?)://)([^/\s?#@]+@)", re.IGNORECASE
 )
@@ -224,6 +226,21 @@ def _sanitize_error_message(error: object) -> str:
     return message
 
 
+def _reject_truncated_response(finish_reason, llm_provider: str) -> None:
+    """Fail an answer that the provider stopped at its output token limit.
+
+    Such an answer still carries the text written so far. The Responses adapter
+    already refuses an incomplete response; without the same check here the
+    cut-off script is narrated, subtitled and rendered as if it were whole.
+    """
+    reason = getattr(finish_reason, "value", finish_reason)
+    if isinstance(reason, str) and reason.lower() in _TRUNCATED_FINISH_REASONS:
+        raise ValueError(
+            f"[{llm_provider}] response was cut off at the output token limit "
+            f"(finish_reason={reason})"
+        )
+
+
 def _extract_chat_completion_text(response, llm_provider: str) -> str:
     # OpenAI 兼容接口在异常场景下，可能返回没有 choices、
     # 或者 choices/message/content 为空的响应对象。
@@ -234,6 +251,9 @@ def _extract_chat_completion_text(response, llm_provider: str) -> str:
         raise ValueError(f"[{llm_provider}] returned empty choices")
 
     first_choice = choices[0]
+    _reject_truncated_response(
+        getattr(first_choice, "finish_reason", None), llm_provider
+    )
     message = getattr(first_choice, "message", None)
     if message is None:
         raise ValueError(f"[{llm_provider}] returned empty message")
@@ -303,11 +323,16 @@ def _extract_qwen_generation_text(response) -> str:
             raise ValueError("[qwen] returned empty choices")
 
         first_choice = choices[0]
+        _reject_truncated_response(
+            _get_response_field(first_choice, "finish_reason"), "qwen"
+        )
         message = _get_response_field(first_choice, "message")
         content = _get_response_field(message, "content") if message else None
         if content is not None:
             return _normalize_text_response(content, "qwen")
 
+    if output:
+        _reject_truncated_response(_get_response_field(output, "finish_reason"), "qwen")
     text = _get_response_field(output, "text") if output else None
     return _normalize_text_response(text, "qwen")
 
@@ -469,6 +494,12 @@ def _generate_response(
                 logger.warning(f"gemini returned invalid response content: {str(e)}")
                 raise ValueError(f"[{llm_provider}] returned invalid response content")
 
+            # response.text is whatever was written before max_output_tokens.
+            candidates = getattr(response, "candidates", None)
+            _reject_truncated_response(
+                getattr(candidates[0], "finish_reason", None) if candidates else None,
+                llm_provider,
+            )
             return _normalize_text_response(generated_text, llm_provider)
 
         if adapter == "cloudflare_ai_gateway":
@@ -757,6 +788,9 @@ def _generate_response(
                 for chunk in response:
                     if not chunk.choices:
                         continue
+                    _reject_truncated_response(
+                        getattr(chunk.choices[0], "finish_reason", None), llm_provider
+                    )
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
                         content += delta.content
