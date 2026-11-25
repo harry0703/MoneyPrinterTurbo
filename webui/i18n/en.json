@@ -822,6 +822,15 @@
     "Configure Providers": "Configure",
     "Active Provider": "In use: {provider}",
     "No Configured Providers": "No providers configured yet.",
-    "Provider Configuration Changed": "Configuration changed. Review this provider in its settings."
+    "Provider Configuration Changed": "Configuration changed. Review this provider in its settings.",
+    "Open Storage Folder": "Open storage folder",
+    "Storage Folder": "Storage folder",
+    "Storage Folder Busy": "Wait for video generation to finish before changing the folder.",
+    "Save Storage Folder": "Save",
+    "Choose Storage Folder": "Browse…",
+    "Open Storage Folder Short": "Open",
+    "Storage Folder Invalid": "Enter an absolute path to a writable folder.",
+    "Storage Folder Open Failed": "Could not open the folder.",
+    "Storage Folder Restart": "Restart the desktop app to use the new folder. Existing files stay in their original folder."
   }
 }

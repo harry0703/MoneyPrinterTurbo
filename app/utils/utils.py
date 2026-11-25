@@ -93,7 +93,7 @@ def root_dir():
 
 
 def storage_dir(sub_dir: str = "", create: bool = False):
-    d = os.path.join(root_dir(), "storage")
+    d = str(paths.storage_root())
     if sub_dir:
         d = os.path.join(d, sub_dir)
     if create:
@@ -756,7 +756,8 @@ def load_locales(i18n_dir):
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:
-            if file.endswith(".json"):
+            # macOS 归档在其他系统解包后可能留下 AppleDouble 元数据。
+            if file.endswith(".json") and not file.startswith("._"):
                 lang = file.split(".")[0]
                 with open(os.path.join(root, file), "r", encoding="utf-8-sig") as f:
                     _locales[lang] = json.loads(f.read())

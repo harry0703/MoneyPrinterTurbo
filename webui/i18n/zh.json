@@ -822,6 +822,15 @@
     "Configure Providers": "配置",
     "Active Provider": "正在使用：{provider}",
     "No Configured Providers": "尚未配置服务商。",
-    "Provider Configuration Changed": "配置已更改，请检查该服务商的设置。"
+    "Provider Configuration Changed": "配置已更改，请检查该服务商的设置。",
+    "Open Storage Folder": "打开存储目录",
+    "Storage Folder": "存储目录",
+    "Storage Folder Busy": "请等视频生成结束后再修改目录。",
+    "Save Storage Folder": "保存",
+    "Choose Storage Folder": "选择…",
+    "Open Storage Folder Short": "打开",
+    "Storage Folder Invalid": "请输入可写目录的绝对路径。",
+    "Storage Folder Open Failed": "无法打开文件夹。",
+    "Storage Folder Restart": "重启后，新任务将使用新目录。已有文件保留在原目录。"
   }
 }

@@ -506,6 +506,15 @@
     "Configure Providers": "Configura",
     "Active Provider": "En ús: {provider}",
     "No Configured Providers": "Encara no hi ha proveïdors configurats.",
-    "Provider Configuration Changed": "La configuració ha canviat. Revisa aquest proveïdor a la seva configuració."
+    "Provider Configuration Changed": "La configuració ha canviat. Revisa aquest proveïdor a la seva configuració.",
+    "Open Storage Folder": "Obre la carpeta d’emmagatzematge",
+    "Storage Folder": "Carpeta d’emmagatzematge",
+    "Storage Folder Busy": "Espereu que acabi la generació del vídeo abans de canviar la carpeta.",
+    "Save Storage Folder": "Desa",
+    "Choose Storage Folder": "Tria…",
+    "Open Storage Folder Short": "Obre",
+    "Storage Folder Invalid": "Introduïu el camí absolut d’una carpeta on es pugui escriure.",
+    "Storage Folder Open Failed": "No s’ha pogut obrir la carpeta.",
+    "Storage Folder Restart": "Reinicieu l’aplicació per utilitzar la carpeta nova. Els fitxers existents es mantenen a la carpeta original."
   }
 }

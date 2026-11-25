@@ -506,6 +506,15 @@
     "Configure Providers": "Configurar",
     "Active Provider": "Em uso: {provider}",
     "No Configured Providers": "Nenhum provedor configurado ainda.",
-    "Provider Configuration Changed": "A configuração mudou. Revise as configurações deste provedor."
+    "Provider Configuration Changed": "A configuração mudou. Revise as configurações deste provedor.",
+    "Open Storage Folder": "Abrir pasta de armazenamento",
+    "Storage Folder": "Pasta de armazenamento",
+    "Storage Folder Busy": "Aguarde a geração do vídeo terminar antes de alterar a pasta.",
+    "Save Storage Folder": "Salvar",
+    "Choose Storage Folder": "Procurar…",
+    "Open Storage Folder Short": "Abrir",
+    "Storage Folder Invalid": "Digite o caminho absoluto de uma pasta com permissão de gravação.",
+    "Storage Folder Open Failed": "Não foi possível abrir a pasta.",
+    "Storage Folder Restart": "Reinicie o aplicativo para usar a nova pasta. Os arquivos existentes permanecem na pasta original."
   }
 }

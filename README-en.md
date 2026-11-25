@@ -346,11 +346,19 @@ All examples below were generated with MoneyPrinterTurbo.
 
 ### Recommended Paths
 
+- To use the desktop app, [download it for your system](#download-the-desktop-app)
 - If you do not want to install or configure the project manually: generate videos with an AI Agent
 - If you already have Python and want a direct installation: [install the official package with pip](#install-the-official-package-with-pip)
-- Windows users: use the one-click package first for the fastest local trial
 - For source deployment or development: use `uv` to manage the environment and dependencies
 - If you want a more isolated runtime: use Docker deployment
+
+### Download the Desktop App
+
+| System | Download | Launch |
+| --- | --- | --- |
+| macOS 14 or later (Apple Silicon) | [ARM64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-macos-arm64.zip) | Extract the ZIP and open `MoneyPrinterTurbo.app` |
+| Windows (x64) | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-windows-x64.zip) | Extract the entire ZIP and double-click `MoneyPrinterTurbo.exe` |
+| Ubuntu 22.04 (x64) | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-ubuntu-x64.zip) | Extract with `unzip` and run `MoneyPrinterTurbo/bin/mpt-desktop` |
 
 ### Generate Videos with an AI Agent
 
@@ -366,25 +374,6 @@ Create a video with the topic "How AI is changing everyday life."
 Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
-### Windows
-
-Download the latest Windows one-click package from GitHub Releases, then extract it directly.
-
-- [Download the latest Windows one-click package](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
-
-> Download the `.7z` archive from the **Assets** section of that page. The
-> auto-generated `Source code (zip)` / `Source code (tar.gz)` archives contain
-> source code only: after extracting them you get `webui.bat` but no `start.bat`
-> or `update.bat`.
-
-After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
-
-After launching, the browser will open automatically (if it opens blank, it is recommended to use **Chrome** or **Edge**)
-
-### macOS / Linux
-
-Use the local setup or Docker instructions below.
 
 ## Installation & Deployment 📥
 
@@ -520,7 +509,7 @@ Note that you need to execute the following commands in the `root directory` of 
 ```
 
 You can also run `webui.bat` in CMD.
-`webui.bat` prefers the project `.venv` or bundled Python from the portable package. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`.
+`webui.bat` uses Python from the project's `.venv` when available. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`.
 To allow other devices on your LAN to access the WebUI, run `set MPT_WEBUI_HOST=0.0.0.0` before running `webui.bat`.
 
 ###### macOS or Linux

@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "active": false,
+    "windows": {
+      "webviewInstallMode": {
+        "type": "skip"
+      }
+    }
+  }
+}

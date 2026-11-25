@@ -72,6 +72,9 @@ dev = [
 # WebUI 需要先把项目根目录加入 sys.path，随后才能导入 app 包。
 "webui/Main.py" = ["E402"]
 
+[tool.pytest.ini_options]
+testpaths = ["test"]
+
 [tool.coverage.run]
 # 统计分支覆盖率可以识别“代码行执行了，但条件的另一条分支从未验证”的情况，
 # 比只统计行覆盖率更适合作为 CI 质量基线。CLI 和 WebUI 都属于生产入口，

@@ -506,6 +506,15 @@
     "Configure Providers": "Tənzimlə",
     "Active Provider": "İstifadədə: {provider}",
     "No Configured Providers": "Hələ tənzimlənmiş provayder yoxdur.",
-    "Provider Configuration Changed": "Parametrlər dəyişib. Bu provayderin parametrlərini yoxlayın."
+    "Provider Configuration Changed": "Parametrlər dəyişib. Bu provayderin parametrlərini yoxlayın.",
+    "Open Storage Folder": "Yaddaş qovluğunu aç",
+    "Storage Folder": "Yaddaş qovluğu",
+    "Storage Folder Busy": "Qovluğu dəyişməzdən əvvəl videonun yaradılmasını gözləyin.",
+    "Save Storage Folder": "Yadda saxla",
+    "Choose Storage Folder": "Seç…",
+    "Open Storage Folder Short": "Aç",
+    "Storage Folder Invalid": "Yazmaq mümkün olan qovluğun mütləq yolunu daxil edin.",
+    "Storage Folder Open Failed": "Qovluğu açmaq mümkün olmadı.",
+    "Storage Folder Restart": "Yeni qovluqdan istifadə etmək üçün proqramı yenidən başladın. Mövcud fayllar əvvəlki qovluqda qalacaq."
   }
 }

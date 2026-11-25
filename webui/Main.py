@@ -28,6 +28,7 @@ if root_dir in sys.path:
     sys.path.remove(root_dir)
 sys.path.insert(0, root_dir)
 
+from app import desktop_storage, paths
 from app.config import config
 from app.models import const
 from app.models.llm_provider import (
@@ -98,8 +99,12 @@ st.set_page_config(
 # 也会让新用户误以为需要安装额外组件。这里统一隐藏 Streamlit 平台工具栏，
 # 并压缩主容器顶部留白，只保留项目自己的标题、语言选择和业务设置区域。
 style_file = Path(__file__).with_name("styles.css")
-streamlit_style = f"<style>{style_file.read_text(encoding='utf-8')}</style>"
-st.markdown(streamlit_style, unsafe_allow_html=True)
+streamlit_style = style_file.read_text(encoding="utf-8")
+is_desktop = os.environ.get("MPT_DESKTOP") == "1"
+if is_desktop:
+    desktop_style = style_file.with_name("desktop.css")
+    streamlit_style += "\n" + desktop_style.read_text(encoding="utf-8")
+st.markdown(f"<style>{streamlit_style}</style>", unsafe_allow_html=True)
 # 定义资源目录
 font_dir = utils.font_dir()
 song_dir = utils.song_dir()
@@ -1064,8 +1069,11 @@ def _scan_history_tasks(limit=30):
     return tasks
 
 
-def _collect_task_summaries(limit=20):
-    history_tasks = {task["task_id"]: task for task in _scan_history_tasks(limit=50)}
+def _collect_task_summaries(limit=20, *, include_history=True):
+    history_tasks = (
+        {task["task_id"]: task for task in _scan_history_tasks(limit=50)}
+        if include_history else {}
+    )
     active_tasks = _active_generation_tasks()
 
     try:
@@ -1094,7 +1102,7 @@ def _collect_task_summaries(limit=20):
         if not task_id:
             continue
 
-        task_path = os.path.join(utils.task_dir(), task_id)
+        task_path = os.path.join(utils.task_dir(), task_id) if include_history else ""
         history_task = history_tasks.get(task_id, {})
         video_files = task.get("videos") or []
         video_file = (
@@ -1109,7 +1117,7 @@ def _collect_task_summaries(limit=20):
         task_mtime = active_tasks.get(task_id, {}).get("mtime") or history_task.get(
             "mtime", 0
         )
-        if os.path.isdir(task_path):
+        if task_path and os.path.isdir(task_path):
             try:
                 task_mtime = os.path.getmtime(task_path)
             except OSError:
@@ -1139,7 +1147,7 @@ def _collect_task_summaries(limit=20):
             # 后台任务结束后必须以真实终态为准，不能把失败任务重新显示为生成中。
             continue
 
-        task_path = os.path.join(utils.task_dir(), task_id)
+        task_path = os.path.join(utils.task_dir(), task_id) if include_history else ""
         history_tasks[task_id] = {
             "task_id": task_id,
             "subject": active_task.get("subject")
@@ -1174,6 +1182,9 @@ def _open_task_path(task_path):
         logger.warning(f"invalid task folder path: {normalized_path}")
         return
     if not os.path.isdir(normalized_path):
+        return
+    if is_desktop:
+        _open_desktop_storage_folder(Path(normalized_path))
         return
     if _is_headless_server():
         # storage 目录通常以卷挂载映射回宿主机，提示相对路径即可定位文件。
@@ -1392,6 +1403,8 @@ def _render_task_table(filtered_tasks, key_prefix):
 
 
 def _render_task_manager_panel(tasks=None):
+    if is_desktop and st.button(tr("Open Storage Folder"), key="open_desktop_storage"):
+        _open_desktop_storage_folder(paths.storage_root())
     tasks = tasks if tasks is not None else _collect_task_summaries()
     if not tasks:
         st.info(tr("No Tasks Yet"))
@@ -1457,18 +1470,26 @@ def _render_task_video_preview():
 def _render_task_manager_entry():
     # 任务可能由当前页面或其它页面触发生成。入口单独用 fragment 定时刷新，
     # 只更新任务数量和 popover 内容，不打断主页面表单输入。
-    task_summaries = _collect_task_summaries()
+    key = f"task_manager_popover_{st.session_state.get('task_manager_popover_nonce', 0)}"
+    # macOS 首次读取文稿目录可能等待系统授权，用户打开任务列表时再读取历史。
+    defer_history = is_desktop and sys.platform == "darwin"
+    panel_open = defer_history and st.session_state.get(key, False)
+    task_summaries = _collect_task_summaries(include_history=not defer_history or panel_open)
     processing_task_count = _count_processing_tasks(task_summaries)
+    label = _task_manager_label(processing_task_count)
+    if defer_history:
+        # 有状态 popover 的标识包含标题，展开期间保持标题稳定。
+        if panel_open:
+            label = st.session_state.get("task_manager_open_label", label)
+        st.session_state["task_manager_open_label"] = label
     with st.container(key="task_manager_entry", width="content"):
-        with st.popover(
-            _task_manager_label(processing_task_count),
-            width="content",
-            key=(
-                "task_manager_popover_"
-                f"{st.session_state.get('task_manager_popover_nonce', 0)}"
-            ),
-        ):
-            _render_task_manager_panel(task_summaries)
+        panel = st.popover(
+            label, width="content", key=key,
+            on_change="rerun" if defer_history else "ignore",
+        )
+        if not defer_history or panel.open:
+            with panel:
+                _render_task_manager_panel(task_summaries)
 
 
 def _load_task_restore_payload(task_id):
@@ -4287,6 +4308,58 @@ def _render_material_provider_settings(provider):
             )
 
 
+def _open_desktop_storage_folder(path: Path):
+    try:
+        desktop_storage.open_directory(path)
+    except OSError:
+        st.error(tr("Storage Folder Open Failed"))
+
+
+def _choose_desktop_storage_folder(current: Path):
+    try:
+        selected = desktop_storage.pick_directory(current)
+        if selected:
+            st.session_state["desktop_storage_folder"] = selected
+    except (OSError, UnicodeError):
+        st.session_state["desktop_storage_picker_failed"] = True
+
+
+def _render_desktop_storage_settings():
+    current = paths.storage_root()
+    configured = desktop_storage.configured_directory()
+    saved = str(configured or current)
+    busy = webui_task.has_active_generations()
+    invalid = False
+    with st.container(horizontal=True, vertical_alignment="bottom", gap="small"):
+        path = st.text_input(
+            tr("Storage Folder"), value=saved, key="desktop_storage_folder", disabled=busy,
+        )
+        if desktop_storage.can_pick_directory():
+            st.button(
+                tr("Choose Storage Folder"), key="choose_desktop_storage", disabled=busy,
+                on_click=_choose_desktop_storage_folder, args=(current,),
+            )
+        if st.button(tr("Open Storage Folder Short"), key="open_desktop_storage_settings"):
+            _open_desktop_storage_folder(current)
+        if path.strip() != saved and st.button(
+            tr("Save Storage Folder"), key="save_desktop_storage", disabled=busy
+        ):
+            try:
+                configured = desktop_storage.save_directory(path)
+            except (OSError, ValueError):
+                invalid = True
+            else:
+                st.rerun()
+    if invalid:
+        st.error(tr("Storage Folder Invalid"))
+    if st.session_state.pop("desktop_storage_picker_failed", False):
+        st.error(tr("Storage Folder Open Failed"))
+    if busy:
+        st.caption(tr("Storage Folder Busy"))
+    if configured and configured != current:
+        st.caption(tr("Storage Folder Restart"))
+
+
 @st.dialog(
     tr("Settings"),
     width="medium",
@@ -4342,6 +4415,8 @@ def _render_settings_dialog():
         _remember_settings_tab(settings_tabs_key, settings_tab_targets)
         with general_config_panel:
             if general_config_panel.open:
+                if is_desktop:
+                    _render_desktop_storage_settings()
                 _render_general_settings(app_settings)
 
         with publish_config_panel:
@@ -9791,3 +9866,6 @@ def _render_application():
 
 
 _render_application()
+if is_desktop:
+    # 纯样式通过 Streamlit 的事件容器发送，不额外占用页面空间。
+    st.html('<style id="mpt-desktop-ready"></style>')

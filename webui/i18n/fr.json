@@ -506,6 +506,15 @@
     "Configure Providers": "Configurer",
     "Active Provider": "En cours d’utilisation : {provider}",
     "No Configured Providers": "Aucun fournisseur configuré pour le moment.",
-    "Provider Configuration Changed": "La configuration a changé. Vérifiez les paramètres de ce fournisseur."
+    "Provider Configuration Changed": "La configuration a changé. Vérifiez les paramètres de ce fournisseur.",
+    "Open Storage Folder": "Ouvrir le dossier de stockage",
+    "Storage Folder": "Dossier de stockage",
+    "Storage Folder Busy": "Attendez la fin de la génération de la vidéo avant de changer de dossier.",
+    "Save Storage Folder": "Enregistrer",
+    "Choose Storage Folder": "Parcourir…",
+    "Open Storage Folder Short": "Ouvrir",
+    "Storage Folder Invalid": "Saisissez le chemin absolu d’un dossier accessible en écriture.",
+    "Storage Folder Open Failed": "Impossible d’ouvrir le dossier.",
+    "Storage Folder Restart": "Redémarrez l’application pour utiliser le nouveau dossier. Les fichiers existants restent dans le dossier d’origine."
   }
 }

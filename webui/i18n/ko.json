@@ -506,6 +506,15 @@
     "Configure Providers": "설정",
     "Active Provider": "사용 중: {provider}",
     "No Configured Providers": "아직 설정된 제공업체가 없습니다.",
-    "Provider Configuration Changed": "설정이 변경되었습니다. 이 제공업체의 설정을 확인하세요."
+    "Provider Configuration Changed": "설정이 변경되었습니다. 이 제공업체의 설정을 확인하세요.",
+    "Open Storage Folder": "저장 폴더 열기",
+    "Storage Folder": "저장 폴더",
+    "Storage Folder Busy": "동영상 생성이 끝난 후 폴더를 변경하세요.",
+    "Save Storage Folder": "저장",
+    "Choose Storage Folder": "찾아보기…",
+    "Open Storage Folder Short": "열기",
+    "Storage Folder Invalid": "쓰기 권한이 있는 폴더의 절대 경로를 입력하세요.",
+    "Storage Folder Open Failed": "폴더를 열 수 없습니다.",
+    "Storage Folder Restart": "새 폴더를 사용하려면 앱을 다시 시작하세요. 기존 파일은 원래 폴더에 남습니다."
   }
 }

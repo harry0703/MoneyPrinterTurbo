@@ -273,11 +273,19 @@
 
 ### おすすめの手順
 
+- デスクトップで使いたい場合は、[デスクトップ版をダウンロード](#デスクトップ版のダウンロード)
 - 手動でのインストールや設定をしたくない場合: AI エージェントで動画を生成する
 - Python がインストール済みで、すぐに使いたい場合: [pip で公式パッケージをインストール](#pip-で公式パッケージをインストール)
-- Windows ユーザー: まずはワンクリックパッケージを使うのが最短で試せます
 - ソースコードからのデプロイや開発: `uv` で環境と依存関係を管理します
 - より独立した実行環境が欲しい場合: Docker でデプロイします
+
+### デスクトップ版のダウンロード
+
+| システム | ダウンロード | 起動方法 |
+| --- | --- | --- |
+| macOS 14 以降（Apple Silicon） | [ARM64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-macos-arm64.zip) | ZIP を展開し、`MoneyPrinterTurbo.app` を開く |
+| Windows（x64） | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-windows-x64.zip) | ZIP 全体を展開し、`MoneyPrinterTurbo.exe` をダブルクリック |
+| Ubuntu 22.04（x64） | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-ubuntu-x64.zip) | `unzip` で展開し、`MoneyPrinterTurbo/bin/mpt-desktop` を実行 |
 
 ### AI エージェントで動画を生成する
 
@@ -293,24 +301,6 @@ Create a video with the topic "How AI is changing everyday life."
 ローカル環境を用意せずに MoneyPrinterTurbo を試したいですか？ Google Colab で直接実行できます！
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
-### Windows
-
-GitHub Releases から最新の Windows 用ワンクリックパッケージをダウンロードし、そのまま展開してください。
-
-- [最新の Windows 用ワンクリックパッケージをダウンロード](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
-
-> 同ページの **Assets** から `.7z` ファイルをダウンロードしてください。GitHub が
-> 自動生成する `Source code (zip)` / `Source code (tar.gz)` はソースコードのみで、
-> 展開しても `webui.bat` だけが現れ、`start.bat` と `update.bat` は含まれません。
-
-ダウンロード後は、まず `update.bat` を**ダブルクリック**して**最新のコード**に更新し、その後 `start.bat` をダブルクリックして起動することを推奨します
-
-起動するとブラウザーが自動的に開きます（真っ白な画面になる場合は **Chrome** または **Edge** の利用を推奨します）
-
-### macOS / Linux
-
-以下のローカルセットアップまたは Docker の手順を参照してください。
 
 ## インストールとデプロイ 📥
 
@@ -447,7 +437,7 @@ pip install -r requirements.txt
 ```
 
 `webui.bat` は CMD から実行することもできます。
-`webui.bat` は、プロジェクトの `.venv` またはポータブルパッケージに同梱された Python を優先して使用します。プロジェクトの Python が見つからず、`uv` がインストールされている場合は、自動的に `uv run streamlit` にフォールバックします。
+`webui.bat` は、プロジェクトの `.venv` にある Python を優先して使用します。プロジェクトの Python が見つからず、`uv` がインストールされている場合は、自動的に `uv run streamlit` にフォールバックします。
 同じ LAN 内の別の端末から WebUI にアクセスできるようにするには、`webui.bat` を実行する前に `set MPT_WEBUI_HOST=0.0.0.0` を実行してください。
 
 ###### macOS または Linux

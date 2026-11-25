@@ -47,6 +47,11 @@ def is_generation_active(task_id: str) -> bool:
         return task_id in _active_submissions.values()
 
 
+def has_active_generations() -> bool:
+    with _submission_lock:
+        return bool(_active_submissions)
+
+
 def _submission_signature(
     params, references, request, endpoint, preview, codex_image_context=None,
     aigei_charge_signature=None,
