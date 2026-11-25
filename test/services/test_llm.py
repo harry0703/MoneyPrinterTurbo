@@ -694,6 +694,13 @@ class TestLiteLLMProvider(unittest.TestCase):
             atmorouter.api_key_url, "https://atmorouter.dev/dashboard/keys"
         )
         self.assertEqual(atmorouter.model_docs_url, "https://atmorouter.dev/models")
+        aigrow = get_llm_provider("aigrow")
+        self.assertEqual(aigrow.default_model, "claude-haiku-5.5")
+        self.assertEqual(aigrow.default_base_url, "https://aigrow.gg/v1")
+        self.assertEqual(aigrow.adapter, "openai_compatible")
+        self.assertTrue(aigrow.requires_api_key)
+        self.assertEqual(aigrow.api_key_url, "https://aigrow.gg/dashboard/api")
+        self.assertEqual(aigrow.model_docs_url, "https://aigrow.gg/v1/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -783,6 +790,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "cheapaimodel",
                 "uberllm",
                 "atmorouter",
+                "aigrow",
                 "ollama",
                 "claude_code",
                 "oneapi",

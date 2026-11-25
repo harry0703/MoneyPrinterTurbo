@@ -500,6 +500,14 @@ atmorouter_api_key = ""
 atmorouter_base_url = ""
 atmorouter_model_name = ""
 
+# AIGROW, a prepaid OpenAI-compatible API for Claude, GPT, Gemini, Grok, Qwen
+# and Kimi models.
+# API key: https://aigrow.gg/dashboard/api
+# Model list: https://aigrow.gg/v1/models
+aigrow_api_key = ""
+aigrow_base_url = ""
+aigrow_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
