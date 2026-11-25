@@ -304,6 +304,27 @@ _THAI_OR_LAO_SENTENCE_SPACE = re.compile(
 # Titles that stand before a name, as in "Mr. Smith", "Dr. Walker" and "Mt. Everest". "St." and
 # "Jr." are left out: they can end a sentence, as in "Our shop is on Main St. We open at 9."
 _TITLE_BEFORE_NAME = re.compile(r"(?<!\w)(?:Mr|Mrs|Ms|Dr|Prof|Mt)$")
+# Marks that close a quotation or a bracket. They always belong to the text before them.
+_CLOSING_BRACKETS = ")]}）］｝」』】》〉»"
+# Quote marks that close a quotation only when no word follows them: in `He said:"Go"` the
+# first one opens the quotation, and in `"Hello." She left` the second one closes it.
+_CLOSING_QUOTES = "\"'”’"
+_SINGLE_CHARACTER_PUNCTUATIONS = frozenset(p for p in const.PUNCTUATIONS if len(p) == 1)
+
+
+def _end_of_closing_marks(s, start):
+    """Return the index after the closing quotes and brackets that start at ``start``."""
+    end = start
+    while end < len(s):
+        if s[end] in _CLOSING_BRACKETS:
+            end += 1
+        elif s[end] in _CLOSING_QUOTES and not (
+            end + 1 < len(s) and s[end + 1].isalnum()
+        ):
+            end += 1
+        else:
+            break
+    return end
 
 
 def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
@@ -315,7 +336,10 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
 
     previous_char = ""
     next_char = ""
+    skip_until = 0
     for i in range(len(s)):
+        if i < skip_until:
+            continue
         char = s[i]
         if char == "\n":
             result.append(txt.strip())
@@ -377,6 +401,16 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
         if char not in const.PUNCTUATIONS:
             txt += char
         else:
+            # A quotation or bracket that closes right after the full stop, as in
+            # `"Hello." She left` and `(He left.) Then`, stays on the line it closes. The
+            # line keeps its stop, so that it stays a part of the script, in order.
+            run_end = i + 1
+            while run_end < len(s) and s[run_end] in _SINGLE_CHARACTER_PUNCTUATIONS:
+                run_end += 1
+            closing_end = _end_of_closing_marks(s, run_end)
+            if closing_end > run_end:
+                txt += s[i:closing_end]
+                skip_until = closing_end
             result.append(txt.strip())
             txt = ""
     result.append(txt.strip())
