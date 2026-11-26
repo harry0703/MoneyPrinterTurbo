@@ -18,12 +18,22 @@ import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from loguru import logger
 
 from app.models.schema import ImageMotion, VideoAspect
 from app.services import material, video, video_project, voice
+from app.services.cartoon_animation import (
+    AnimationError,
+    RenderSettings,
+    build_plan,
+    lip_sync,
+    parse_animation,
+    render_scene_video,
+    render_still,
+)
+from app.services.cartoon_animation import validation as animation_validation
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _MANIFEST_FIELDS = {
@@ -33,8 +43,12 @@ _MANIFEST_FIELDS = {
     "aspect",
     "characters",
     "scenes",
+    "animation",
 }
-_SCENE_FIELDS = {"id", "visual", "narration", "duration", "characters"}
+_SCENE_FIELDS = {"id", "visual", "narration", "duration", "characters", "animation"}
+# Bump when the animation engine changes the pixels it produces so cached
+# clips are invalidated without touching classic image identities.
+ANIMATION_RENDERER_VERSION = "cartoon-animation-v2"
 _MAX_SCENES = 100
 
 # Each preset blends a concrete rendering language with the failure modes that
@@ -89,6 +103,32 @@ class CartoonStudioError(ValueError):
     pass
 
 
+class RenderCancelled(CartoonStudioError):
+    """Raised when a caller-provided cancellation callback asks to stop."""
+
+
+def _check_cancel(cancel: Callable[[], bool] | None) -> None:
+    if cancel is not None and cancel():
+        raise RenderCancelled("render cancelled")
+
+
+def _stage_adapter(on_stage: Callable[[str, bool], None] | None):
+    """Flatten video_project's Stage objects for the panel's job status."""
+    if on_stage is None:
+        return None
+
+    def report(stage, reused: bool) -> None:
+        on_stage(getattr(stage, "key", str(stage)), reused)
+
+    return report
+
+
+def _render_callbacks(on_stage: Callable[[str, bool], None] | None) -> dict:
+    """Only pass ``on_stage`` when used, keeping injected test doubles valid."""
+    adapter = _stage_adapter(on_stage)
+    return {"on_stage": adapter} if adapter is not None else {}
+
+
 @dataclass(frozen=True)
 class Scene:
     id: str
@@ -96,6 +136,7 @@ class Scene:
     narration: str
     duration: float
     characters: tuple[str, ...]
+    animation: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -108,6 +149,7 @@ class Storyboard:
     aspect: VideoAspect
     characters: dict[str, str]
     scenes: tuple[Scene, ...]
+    animation: dict | None = None
 
 
 def _text(value: Any, field: str, limit: int, *, required: bool = False) -> str:
@@ -237,10 +279,17 @@ def parse_storyboard(data: Any) -> Storyboard:
                 narration=narration,
                 duration=float(duration),
                 characters=tuple(cast),
+                animation=raw.get("animation"),
             )
         )
     if len({scene.id for scene in scenes}) != len(scenes):
         raise CartoonStudioError("scene IDs must be unique")
+    manifest_animation = data.get("animation")
+    if manifest_animation is not None:
+        try:
+            parse_animation(manifest_animation, raw_scenes)
+        except AnimationError as exc:
+            raise CartoonStudioError(f"animation: {exc}") from exc
     return Storyboard(
         project_id=project_id,
         title=title,
@@ -250,6 +299,7 @@ def parse_storyboard(data: Any) -> Storyboard:
         aspect=aspect,
         characters=characters,
         scenes=tuple(scenes),
+        animation=manifest_animation,
     )
 
 
@@ -286,7 +336,7 @@ def scene_prompt(storyboard: Storyboard, scene: Scene) -> str:
 
 
 def storyboard_document(storyboard: Storyboard) -> dict:
-    return {
+    document = {
         "project_id": storyboard.project_id,
         "title": storyboard.title,
         "style": storyboard.style_name,
@@ -303,10 +353,18 @@ def storyboard_document(storyboard: Storyboard) -> dict:
                 "duration": scene.duration,
                 "characters": list(scene.characters),
                 "prompt": scene_prompt(storyboard, scene),
+                **(
+                    {"animation": scene.animation}
+                    if scene.animation is not None
+                    else {}
+                ),
             }
             for scene in storyboard.scenes
         ],
     }
+    if storyboard.animation is not None:
+        document["animation"] = storyboard.animation
+    return document
 
 
 def _atomic_json(path: Path, value: object) -> None:
@@ -476,6 +534,136 @@ def episode_request(
     return request
 
 
+def animation_requested(storyboard: Storyboard, mode: str = "auto") -> bool:
+    """Resolve the classic/animation mode for a storyboard."""
+    if mode not in {"auto", "classic", "animation"}:
+        raise CartoonStudioError("mode must be auto, classic or animation")
+    if mode == "classic":
+        return False
+    if mode == "animation":
+        return True
+    return storyboard.animation is not None or any(
+        scene.animation is not None for scene in storyboard.scenes
+    )
+
+
+def animation_render_settings(
+    aspect: VideoAspect,
+    *,
+    fps: int = 24,
+    crf: int = 20,
+    width: int | None = None,
+    height: int | None = None,
+    output_width: int | None = None,
+    output_height: int | None = None,
+) -> RenderSettings:
+    """Internal and delivery sizes that match the project aspect."""
+    defaults = {
+        "9:16": (720, 1280, 1080, 1920),
+        "16:9": (1280, 720, 1920, 1080),
+        "1:1": (960, 960, 1080, 1080),
+    }[aspect.value]
+    return RenderSettings(
+        width=width or defaults[0],
+        height=height or defaults[1],
+        fps=fps,
+        output_width=output_width or defaults[2],
+        output_height=output_height or defaults[3],
+        crf=crf,
+    )
+
+
+def animation_context(storyboard: Storyboard):
+    """Validate and return the animation characters and per-scene specs."""
+    raw_scenes = [
+        {"id": scene.id, "animation": scene.animation}
+        for scene in storyboard.scenes
+    ]
+    try:
+        return parse_animation(storyboard.animation, raw_scenes)
+    except AnimationError as exc:
+        raise CartoonStudioError(f"animation: {exc}") from exc
+
+
+def _animation_clip_identity(
+    scene: Scene,
+    spec,
+    duration: float,
+    settings: RenderSettings,
+    audio: str,
+) -> str:
+    payload = {
+        "version": ANIMATION_RENDERER_VERSION,
+        "scene": scene.id,
+        "animation": animation_validation.document(spec),
+        "duration": round(duration, 6),
+        "settings": {
+            "width": settings.width,
+            "height": settings.height,
+            "fps": settings.fps,
+            "output_width": settings.output_width,
+            "output_height": settings.output_height,
+            "crf": settings.crf,
+            "preset": settings.preset,
+        },
+        "audio": Path(audio).name if audio else "",
+    }
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+
+
+def render_animated_scene(
+    project_dir: str | Path,
+    storyboard: Storyboard,
+    scene: Scene,
+    *,
+    characters: dict,
+    spec,
+    duration: float,
+    settings: RenderSettings,
+    audio: str = "",
+    render=render_scene_video,
+    cancel: Callable[[], bool] | None = None,
+) -> str:
+    """Render one articulated scene and reuse it when nothing changed."""
+    project_dir = Path(project_dir)
+    mouth_track: tuple[float, ...] = ()
+    if audio and spec.lip_sync and spec.character:
+        try:
+            mouth_track = lip_sync.analyze_audio(audio, settings.fps, duration)
+        except AnimationError as exc:
+            logger.warning(f"lip sync skipped for scene {scene.id}: {exc}")
+    try:
+        plan = build_plan(
+            spec,
+            characters,
+            duration,
+            settings,
+            mouth_track=mouth_track,
+        )
+    except AnimationError as exc:
+        raise CartoonStudioError(f"scene {scene.id}: {exc}") from exc
+    digest = _animation_clip_identity(scene, spec, duration, settings, audio)
+    target = project_dir / "clips" / f"{scene.id}-{digest}.mp4"
+    if target.is_file() and target.stat().st_size > 0:
+        return str(target.resolve())
+    target.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(f"cartoon animation: scene={scene.id}, {duration:.2f}s at {settings.fps}fps")
+    try:
+        # Only forward ``cancel`` when requested: injected render callables in
+        # existing callers keep their two-argument contract.
+        if cancel is None:
+            rendered = render(plan, str(target))
+        else:
+            rendered = render(plan, str(target), cancel=cancel)
+    except AnimationError as exc:
+        raise CartoonStudioError(f"scene {scene.id}: {exc}") from exc
+    result = Path(rendered)
+    if not result.is_file() or result.stat().st_size == 0:
+        raise CartoonStudioError(f"failed to render an animated clip for scene {scene.id}")
+    return str(result.resolve())
+
+
 def build(
     project_dir: str | Path,
     storyboard: Storyboard,
@@ -491,8 +679,19 @@ def build(
     stage_timeout: float = 600,
     request_image=_request_image,
     render_clip=video.render_image_zoom_video,
+    mode: str = "auto",
+    animation_settings: RenderSettings | None = None,
+    render_animation_clip=render_scene_video,
+    cancel: Callable[[], bool] | None = None,
+    on_stage: Callable[[str, bool], None] | None = None,
+    on_revision: Callable[[str], None] | None = None,
 ) -> dict:
-    """Turn a storyboard into images, clips and a rendered episode."""
+    """Turn a storyboard into images, clips and a rendered episode.
+
+    ``cancel``, ``on_stage`` and ``on_revision`` let a long-running caller (the
+    web panel's job queue) stop safely and report real progress. They are
+    optional; the CLI keeps using the defaults.
+    """
     # Resolve once so a relative project directory cannot be joined twice by
     # VideoProject._asset, and so music keeps its cwd-relative meaning.
     project_dir = Path(project_dir).resolve()
@@ -503,16 +702,44 @@ def build(
     if not math.isfinite(bgm_volume) or not 0 <= bgm_volume <= 4:
         raise CartoonStudioError("bgm volume must be finite and between 0 and 4")
     storyboard_path = write_storyboard(project_dir, storyboard)
+    if animation_requested(storyboard, mode):
+        return _build_animated(
+            project_dir,
+            storyboard,
+            storyboard_path,
+            voice_name=voice_name,
+            voice_rate=voice_rate,
+            bgm=bgm,
+            bgm_volume=bgm_volume,
+            subtitles=subtitles,
+            subtitle_font_size=subtitle_font_size,
+            retry=retry,
+            stage_timeout=stage_timeout,
+            settings=animation_settings or animation_render_settings(storyboard.aspect),
+            render_animation_clip=render_animation_clip,
+            cancel=cancel,
+            on_stage=on_stage,
+            on_revision=on_revision,
+        )
+    _check_cancel(cancel)
+    if on_stage is not None:
+        on_stage("imagenes", False)
     images = generate_scene_images(project_dir, storyboard, request_image=request_image)
     images_by_id = {
         record["id"]: str(Path(record["path"]).resolve()) for record in images
     }
+    _check_cancel(cancel)
+    if on_stage is not None:
+        on_stage("narracion", False)
     narration = narrate_scenes(
         project_dir, storyboard, voice_name=voice_name, voice_rate=voice_rate
     )
 
     footage: dict[str, str] = {}
     for scene in storyboard.scenes:
+        _check_cancel(cancel)
+        if on_stage is not None:
+            on_stage(f"escena:{scene.id}", False)
         audio = narration.get(scene.id)
         seconds = max(1, math.ceil(audio[1] if audio else scene.duration))
         clip = render_clip(images_by_id[scene.id], seconds, image_motion=image_motion)
@@ -531,13 +758,120 @@ def build(
     )
     project = video_project.VideoProject(str(project_dir))
     spec = project.create_revision(request, relative_to=project_dir)
-    status = project.render(spec["revision_id"], retry=retry, stage_timeout=stage_timeout)
+    if on_revision is not None:
+        on_revision(spec["revision_id"])
+    status = project.render(
+        spec["revision_id"],
+        retry=retry,
+        stage_timeout=stage_timeout,
+        **_render_callbacks(on_stage),
+    )
     return {
         "storyboard": str(storyboard_path),
         "images": images,
         "revision": spec["revision_id"],
         "status": status,
     }
+
+
+def _build_animated(
+    project_dir: Path,
+    storyboard: Storyboard,
+    storyboard_path: Path,
+    *,
+    voice_name: str,
+    voice_rate: float,
+    bgm: str,
+    bgm_volume: float,
+    subtitles: bool,
+    subtitle_font_size: int,
+    retry: bool,
+    stage_timeout: float,
+    settings: RenderSettings,
+    render_animation_clip,
+    cancel: Callable[[], bool] | None = None,
+    on_stage: Callable[[str, bool], None] | None = None,
+    on_revision: Callable[[str], None] | None = None,
+) -> dict:
+    """Narrate, render articulated scenes and assemble the episode."""
+    project_animation, scene_animations = animation_context(storyboard)
+    missing = [
+        scene.id for scene in storyboard.scenes if scene.id not in scene_animations
+    ]
+    if missing:
+        raise CartoonStudioError(
+            "animation mode needs an animation object for every scene; missing: "
+            + ", ".join(missing)
+        )
+    _check_cancel(cancel)
+    if on_stage is not None:
+        on_stage("narracion", False)
+    narration = narrate_scenes(
+        project_dir, storyboard, voice_name=voice_name, voice_rate=voice_rate
+    )
+    footage: dict[str, str] = {}
+    for scene in storyboard.scenes:
+        _check_cancel(cancel)
+        if on_stage is not None:
+            on_stage(f"escena:{scene.id}", False)
+        audio = narration.get(scene.id)
+        seconds = max(1.0, audio[1] if audio else scene.duration)
+        footage[scene.id] = render_animated_scene(
+            project_dir,
+            storyboard,
+            scene,
+            characters=project_animation.characters,
+            spec=scene_animations[scene.id],
+            duration=seconds,
+            settings=settings,
+            audio=audio[0] if audio else "",
+            render=render_animation_clip,
+            cancel=cancel,
+        )
+    request = episode_request(
+        storyboard,
+        footage,
+        narration,
+        bgm=bgm,
+        bgm_volume=bgm_volume,
+        subtitles=subtitles,
+        subtitle_font_size=subtitle_font_size,
+    )
+    project = video_project.VideoProject(str(project_dir))
+    revision = project.create_revision(request, relative_to=project_dir)
+    if on_revision is not None:
+        on_revision(revision["revision_id"])
+    status = project.render(
+        revision["revision_id"],
+        retry=retry,
+        stage_timeout=stage_timeout,
+        **_render_callbacks(on_stage),
+    )
+    return {
+        "storyboard": str(storyboard_path),
+        "mode": "animation",
+        "renderer": ANIMATION_RENDERER_VERSION,
+        "clips": [
+            {"id": scene.id, "path": footage[scene.id]}
+            for scene in storyboard.scenes
+        ],
+        "revision": revision["revision_id"],
+        "status": status,
+    }
+
+
+def _select_animated_scene(storyboard: Storyboard, scene_id: str | None) -> Scene:
+    animated = [scene for scene in storyboard.scenes if scene.animation is not None]
+    if not animated:
+        raise CartoonStudioError(
+            "this project has no animated scenes; add an animation object to the manifest"
+        )
+    if scene_id is None:
+        return animated[0]
+    for scene in animated:
+        if scene.id == scene_id:
+            return scene
+    raise CartoonStudioError(f"scene {scene_id} is not an animated scene")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -567,6 +901,41 @@ def main(argv: list[str] | None = None) -> int:
     build_parser.add_argument("--bgm-volume", type=float, default=0.15)
     build_parser.add_argument("--retry", action="store_true")
     build_parser.add_argument("--stage-timeout", type=float, default=600)
+    build_parser.add_argument(
+        "--mode",
+        choices=("auto", "classic", "animation"),
+        default="auto",
+        help="Classic stills, articulated 2D animation, or auto from the manifest",
+    )
+    build_parser.add_argument(
+        "--fps", type=int, default=24, help="Animated mode internal frame rate"
+    )
+    build_parser.add_argument("--crf", type=int, default=20)
+    build_parser.add_argument("--animation-width", type=int)
+    build_parser.add_argument("--animation-height", type=int)
+    build_parser.add_argument("--output-width", type=int)
+    build_parser.add_argument("--output-height", type=int)
+
+    character_parser = commands.add_parser(
+        "validate-character", help="Validate a built-in articulated character"
+    )
+    character_parser.add_argument("--preset", default="tiko")
+
+    preview_parser = commands.add_parser(
+        "preview", help="Render one animated frame to a PNG"
+    )
+    preview_parser.add_argument("--scene")
+    preview_parser.add_argument("--time", type=float, default=1.0)
+    preview_parser.add_argument("--out")
+
+    scene_parser = commands.add_parser(
+        "scene", help="Render a single animated scene clip"
+    )
+    scene_parser.add_argument("--scene")
+    scene_parser.add_argument("--fps", type=int, default=24)
+    scene_parser.add_argument("--crf", type=int, default=20)
+
+    commands.add_parser("status", help="Show the latest video-project revision status")
     args = parser.parse_args(argv)
 
     project_dir = Path(args.project)
@@ -584,6 +953,61 @@ def main(argv: list[str] | None = None) -> int:
                 "project_id": storyboard.project_id,
                 "images": generate_scene_images(project_dir, storyboard),
             }
+        elif args.command == "validate-character":
+            from app.services.cartoon_animation import animation_names, get_character
+
+            character = get_character(args.preset)
+            result = {
+                "id": character.id,
+                "name": character.name,
+                "canvas": list(character.canvas),
+                "origin": list(character.origin),
+                "parts": [
+                    {"name": part.name, "parent": part.parent, "layer": part.layer}
+                    for part in character.layered()
+                ],
+                "animations": list(animation_names()),
+            }
+        elif args.command == "preview":
+            write_storyboard(project_dir, storyboard)
+            scene = _select_animated_scene(storyboard, args.scene)
+            project_animation, scene_animations = animation_context(storyboard)
+            settings = animation_render_settings(storyboard.aspect)
+            plan = build_plan(
+                scene_animations[scene.id],
+                project_animation.characters,
+                scene.duration,
+                settings,
+            )
+            if not 0 <= args.time <= scene.duration:
+                raise CartoonStudioError(
+                    f"preview time must be between 0 and {scene.duration} seconds"
+                )
+            target = args.out or str(
+                project_dir / "previews" / f"{scene.id}-{args.time:g}s.png"
+            )
+            result = {"scene": scene.id, "preview": render_still(plan, args.time, target)}
+        elif args.command == "scene":
+            write_storyboard(project_dir, storyboard)
+            scene = _select_animated_scene(storyboard, args.scene)
+            project_animation, scene_animations = animation_context(storyboard)
+            settings = animation_render_settings(
+                storyboard.aspect, fps=args.fps, crf=args.crf
+            )
+            result = {
+                "scene": scene.id,
+                "clip": render_animated_scene(
+                    project_dir,
+                    storyboard,
+                    scene,
+                    characters=project_animation.characters,
+                    spec=scene_animations[scene.id],
+                    duration=scene.duration,
+                    settings=settings,
+                ),
+            }
+        elif args.command == "status":
+            result = video_project.VideoProject(str(project_dir)).status()
         else:
             result = build(
                 project_dir,
@@ -596,6 +1020,16 @@ def main(argv: list[str] | None = None) -> int:
                 subtitle_font_size=args.subtitle_size,
                 retry=args.retry,
                 stage_timeout=args.stage_timeout,
+                mode=args.mode,
+                animation_settings=animation_render_settings(
+                    storyboard.aspect,
+                    fps=args.fps,
+                    crf=args.crf,
+                    width=args.animation_width,
+                    height=args.animation_height,
+                    output_width=args.output_width,
+                    output_height=args.output_height,
+                ),
             )
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0

@@ -99,3 +99,19 @@ Frames and narration are content-addressed by prompt/text and voice, so
 rerunning a command reuses unchanged files and only regenerates what changed.
 The export path is reported in the `status.export.path` field of the JSON
 output.
+
+## Articulated 2D animation
+
+Add an `animation` section to `cartoon.json` (a character preset plus a
+per-scene animation object) to render articulated characters instead of
+camera motion over stills. Animation mode is opt-in and offline:
+
+```sh
+python -m app.services.cartoon_studio --project storage/cartoon/primer-episodio \
+  build --mode animation --voice es-CO-SalomeNeural --subtitles
+```
+
+Projects without an `animation` section keep using the classic workflow, and
+`--mode classic` forces it. See
+[cartoon-studio-animation.md](cartoon-studio-animation.md) for the manifest
+schema, built-in animations, lip sync, rendering settings and CLI commands.
