@@ -110,6 +110,7 @@
       感谢 <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">星图 AstraFlow</a> 赞助本项目！<a href="https://f.howxm.com/xs/u/HVFW5X8EIYV1">点击领取 50 元算力金</a><br>
       🎬 <strong>视频模型一站式调用</strong>：聚合 MiniMax-H3，Seedance-2.5 等主流视频生成模型，文案生成 + 视频生成一个平台全搞定，无需多端注册、多处对接<br>
       🚀 <strong>200+ 大模型一键调用，新模型当日上架</strong>：聚合 DeepSeek V4.1、Kimi K3、Qwen 3.8 Max、GLM 5.3 等 200+ 主流大模型，新模型上线当天即可接入<br>
+      ✅  <strong>企业接入</strong>：完成企业认证后，如有前沿模型的需求接入需求，可联系平台咨询具体事项<br>
       💰 <strong>UCloud 上市公司出品，调用计费透明可控</strong>：按 Key 级别计费，调用明细全程可查<br>
       🎁 <strong>MoneyPrinterTurbo 用户专属福利</strong>：通过<a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">专属推广链接</a>注册，即享新用户赠送额度，开箱即用！
     </td>
@@ -121,7 +122,7 @@
     </td>
     <td align="left">
       感谢 <a href="https://www.runninghub.ai/call-api?source=github">RunningHub API</a> 赞助本项目！<br>
-      • Seedance 满血版 API 接入<strong>全网骨折价</strong>，在线工具低至 <strong>0.21元/秒</strong>，节省 <strong>60%-80%成本</strong>！<br>
+      • Seedance 满血版 API 接入<strong>全网骨折价</strong>，在线工具低至 <strong>0.15元/秒</strong>，节省 <strong>60%-80%成本</strong>！<br>
       • 超稳定高并发高<strong>折扣</strong>，随用随充按需弹性付费，不捆绑不排队不抽卡<br>
       • 无限画布、ComfyUI、Agent 等在线工具从剧本到成片全链路制作<br>
       • 一站式接入LLM API、多模态API、工作流API、Al应用<br>
@@ -352,11 +353,11 @@
 
 ### 下载桌面版
 
-| 系统 | 下载 | 启动方式 |
-| --- | --- | --- |
-| macOS 14 或更新版本（Apple Silicon） | [下载 ARM64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-macos-arm64.zip) | 解压后打开 `MoneyPrinterTurbo.app` |
-| Windows（x64） | [下载 x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-windows-x64.zip) | 解压整个包，双击 `MoneyPrinterTurbo.exe` |
-| Ubuntu 22.04（x64） | [下载 x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-ubuntu-x64.zip) | 用 `unzip` 解压，运行 `MoneyPrinterTurbo/bin/mpt-desktop` |
+| 系统                                 | 下载                                                                                                                                | 启动方式                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| macOS 14 或更新版本（Apple Silicon） | [下载 ARM64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-macos-arm64.zip) | 解压后打开 `MoneyPrinterTurbo.app`                        |
+| Windows（x64）                       | [下载 x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-windows-x64.zip)   | 解压整个包，双击 `MoneyPrinterTurbo.exe`                  |
+| Ubuntu 22.04（x64）                  | [下载 x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-ubuntu-x64.zip)    | 用 `unzip` 解压，运行 `MoneyPrinterTurbo/bin/mpt-desktop` |
 
 ### 使用 AI Agent 生成视频
 
