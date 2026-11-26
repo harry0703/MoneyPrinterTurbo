@@ -9669,12 +9669,59 @@ def _render_generation_controls(
     return start_button
 
 
+SECTION_VIDEO = "video"
+SECTION_CARTOON = "cartoon"
+# BYNEX AI Personal Studio: voz clonada y avatares propios sobre el mismo panel.
+SECTION_STUDIO = "studio"
+
+
+def _render_section_navigation():
+    """在现有面板内切换「生成视频」「Cartoon Studio 2D」与「BYNEX Studio」。"""
+    labels = {
+        SECTION_VIDEO: "Generar video",
+        SECTION_CARTOON: "Cartoon Studio 2D",
+        SECTION_STUDIO: "BYNEX Studio",
+    }
+    options = [SECTION_VIDEO, SECTION_CARTOON, SECTION_STUDIO]
+    current = st.session_state.get("app_section", SECTION_VIDEO)
+    if current not in options:
+        current = SECTION_VIDEO
+    with st.container(key="section_navigation"):
+        choice = st.radio(
+            "Sección",
+            options,
+            index=options.index(current),
+            format_func=lambda value: labels[value],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="app_section_nav",
+        )
+    if choice != current:
+        st.session_state["app_section"] = choice
+        st.rerun()
+    return choice
+
+
 def _render_application():
     """按固定顺序渲染顶部栏、弹窗、生成表单和任务结果。"""
     _render_top_bar()
 
     if st.session_state.get("settings_dialog_open", False):
         _render_settings_dialog()
+
+    section = _render_section_navigation()
+    if section == SECTION_CARTOON:
+        # 复用现有 Streamlit 面板与 2D 服务层，不启动第二个应用。
+        from webui.cartoon_studio import render as render_cartoon_studio
+
+        render_cartoon_studio()
+        return
+    if section == SECTION_STUDIO:
+        # BYNEX AI Personal Studio: servicio local de voz y avatares.
+        from webui.personal_studio import render as render_personal_studio
+
+        render_personal_studio()
+        return
 
     if _apply_pending_settings_preset():
         st.success(tr("Settings Preset Imported"))
