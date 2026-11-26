@@ -1425,6 +1425,53 @@ class TestVideoService(unittest.TestCase):
 
         concat.assert_not_called()
 
+    def test_combine_videos_keeps_display_aspect_of_non_square_pixels(self):
+        """A 320x360 source with 2:1 pixels displays as 16:9 and must not be cropped."""
+        class FakeAudioClip:
+            duration = 1.0
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = os.path.join(temp_dir, "anamorphic.mp4")
+            subprocess.run(
+                [
+                    utils.get_ffmpeg_binary(),
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=blue:s=320x360:r=10:d=2,"
+                    "drawbox=x=0:y=0:w=320:h=90:color=lime:t=fill,setsar=2",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    source,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            combined = os.path.join(temp_dir, "combined.mp4")
+            with patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()):
+                vd.combine_videos(
+                    combined_video_path=combined,
+                    video_paths=[source],
+                    audio_file="audio.mp3",
+                    video_aspect=vd.VideoAspect.landscape,
+                    max_clip_duration=1,
+                )
+            with VideoFileClip(combined) as clip:
+                top = clip.get_frame(0.2)[10, clip.w // 2]
+
+        # The lime band covers the top quarter of the display frame. Sizing the
+        # cover from stored pixels crops it away and leaves blue.
+        self.assertGreater(int(top[1]), 200)
+        self.assertLess(int(top[2]), 100)
+
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 
