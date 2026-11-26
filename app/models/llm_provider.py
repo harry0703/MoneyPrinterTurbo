@@ -628,6 +628,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.teamorouter.com/v1",
         model_docs_url="https://teamorouter.com/models",
     ),
+    LLMProviderSpec(
+        "trustedrouter",
+        "TrustedRouter",
+        api_key_url="https://trustedrouter.com/console/api-keys",
+        default_model="deepseek/deepseek-v4-flash",
+        default_base_url="https://api.trustedrouter.com/v1",
+        model_docs_url="https://trustedrouter.com/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

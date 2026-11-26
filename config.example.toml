@@ -508,6 +508,14 @@ teamorouter_api_key = ""
 teamorouter_base_url = ""
 teamorouter_model_name = ""
 
+# TrustedRouter, an OpenAI-compatible API gateway with attested confidential-computing gateways (one key for models from many providers).
+# API key: https://trustedrouter.com/console/api-keys
+# Model list: https://trustedrouter.com/models
+# Docs: https://trustedrouter.com/docs
+trustedrouter_api_key = ""
+trustedrouter_base_url = ""
+trustedrouter_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""

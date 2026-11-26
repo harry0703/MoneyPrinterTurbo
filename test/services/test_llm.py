@@ -703,6 +703,19 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(teamorouter.requires_api_key)
         self.assertEqual(teamorouter.api_key_url, "https://teamorouter.com/dashboard")
         self.assertEqual(teamorouter.model_docs_url, "https://teamorouter.com/models")
+        trustedrouter = get_llm_provider("trustedrouter")
+        self.assertEqual(trustedrouter.default_model, "deepseek/deepseek-v4-flash")
+        self.assertEqual(
+            trustedrouter.default_base_url, "https://api.trustedrouter.com/v1"
+        )
+        self.assertEqual(trustedrouter.adapter, "openai_compatible")
+        self.assertTrue(trustedrouter.requires_api_key)
+        self.assertEqual(
+            trustedrouter.api_key_url, "https://trustedrouter.com/console/api-keys"
+        )
+        self.assertEqual(
+            trustedrouter.model_docs_url, "https://trustedrouter.com/models"
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -793,6 +806,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "uberllm",
                 "atmorouter",
                 "teamorouter",
+                "trustedrouter",
                 "ollama",
                 "claude_code",
                 "oneapi",
