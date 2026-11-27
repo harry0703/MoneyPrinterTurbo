@@ -271,6 +271,18 @@ def test_task_summary_tolerates_directory_removed_during_scan():
     assert tasks[0]["task_id"] == "removed-task"
     assert tasks[0]["mtime"] == 0
     getmtime.assert_called_once_with(os.path.join("/tasks", "removed-task"))
+    getmtime.reset_mock()
+    scan_history = MagicMock(side_effect=AssertionError("history must stay deferred"))
+    task_dir = MagicMock(side_effect=AssertionError("storage must stay untouched"))
+    namespace["_scan_history_tasks"] = scan_history
+    namespace["utils"].task_dir = task_dir
+
+    tasks = namespace["_collect_task_summaries"](include_history=False)
+
+    assert tasks[0]["task_id"] == "removed-task"
+    scan_history.assert_not_called()
+    task_dir.assert_not_called()
+    getmtime.assert_not_called()
 
 
 @pytest.mark.parametrize(

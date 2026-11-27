@@ -1,8 +1,7 @@
 # pip 安装包与 PyPI 发布
 
-发行包名采用 `mpt`，项目名称仍为 MoneyPrinterTurbo，当前待发布版本为 `1.3.9`。
-`1.3.8` 已于 2026-10-16 使用 `harry0703` 发布到
-[PyPI](https://pypi.org/project/mpt/1.3.8/)，同时提供 wheel 和 sdist。
+发行包名采用 `mpt`，项目名称仍为 MoneyPrinterTurbo。当前源码版本为 `1.3.10`，
+已发布到 [PyPI](https://pypi.org/project/mpt/1.3.10/)，同时提供 wheel 和 sdist。
 已发布文件不可覆盖，后续代码变更需要提升版本后重新构建和验证。
 
 ## 构建和安装
@@ -22,7 +21,7 @@ mpt cli --help
 
 ```sh
 uv build --out-dir storage/package/mpt-dist
-python -m pip install ./storage/package/mpt-dist/mpt-1.3.9-py3-none-any.whl
+python -m pip install ./storage/package/mpt-dist/mpt-1.3.10-py3-none-any.whl
 mpt --help
 mpt webui
 mpt cli --help
@@ -35,8 +34,8 @@ mpt cli --help
 
 ```sh
 uvx twine check --strict \
-  storage/package/mpt-dist/mpt-1.3.9-py3-none-any.whl \
-  storage/package/mpt-dist/mpt-1.3.9.tar.gz
+  storage/package/mpt-dist/mpt-1.3.10-py3-none-any.whl \
+  storage/package/mpt-dist/mpt-1.3.10.tar.gz
 ```
 
 检查 PyPI 说明页、发行包元数据和依赖可安装性，并在新虚拟环境中完成视频生成。

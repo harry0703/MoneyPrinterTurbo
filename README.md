@@ -110,6 +110,7 @@
       感谢 <a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">星图 AstraFlow</a> 赞助本项目！<a href="https://f.howxm.com/xs/u/HVFW5X8EIYV1">点击领取 50 元算力金</a><br>
       🎬 <strong>视频模型一站式调用</strong>：聚合 MiniMax-H3，Seedance-2.5 等主流视频生成模型，文案生成 + 视频生成一个平台全搞定，无需多端注册、多处对接<br>
       🚀 <strong>200+ 大模型一键调用，新模型当日上架</strong>：聚合 DeepSeek V4.1、Kimi K3、Qwen 3.8 Max、GLM 5.3 等 200+ 主流大模型，新模型上线当天即可接入<br>
+      ✅  <strong>企业接入</strong>：完成企业认证后，如有前沿模型的需求接入需求，可联系平台咨询具体事项<br>
       💰 <strong>UCloud 上市公司出品，调用计费透明可控</strong>：按 Key 级别计费，调用明细全程可查<br>
       🎁 <strong>MoneyPrinterTurbo 用户专属福利</strong>：通过<a href="https://www.ucloud.cn/site/active/astraflow?ytag=geo_waituo_Money">专属推广链接</a>注册，即享新用户赠送额度，开箱即用！
     </td>
@@ -121,7 +122,7 @@
     </td>
     <td align="left">
       感谢 <a href="https://www.runninghub.ai/call-api?source=github">RunningHub API</a> 赞助本项目！<br>
-      • Seedance 满血版 API 接入<strong>全网骨折价</strong>，在线工具低至 <strong>0.21元/秒</strong>，节省 <strong>60%-80%成本</strong>！<br>
+      • Seedance 满血版 API 接入<strong>全网骨折价</strong>，在线工具低至 <strong>0.15元/秒</strong>，节省 <strong>60%-80%成本</strong>！<br>
       • 超稳定高并发高<strong>折扣</strong>，随用随充按需弹性付费，不捆绑不排队不抽卡<br>
       • 无限画布、ComfyUI、Agent 等在线工具从剧本到成片全链路制作<br>
       • 一站式接入LLM API、多模态API、工作流API、Al应用<br>
@@ -178,6 +179,28 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://link.bach.art/4iW1qZL"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/video-rebirth-logo-dark.svg"><img src="docs/sponsors/video-rebirth-logo-light.svg" alt="Video Rebirth" height="56"></picture></a><br>
+      <a href="https://link.bach.art/4iW1qZL"><strong>Video Rebirth</strong></a>
+    </td>
+    <td align="left">
+      感谢 <a href="https://link.bach.art/4iW1qZL">Video Rebirth</a> 赞助本项目！Video Rebirth 打造面向生产的工业级视频模型 <strong>BACH</strong>。<strong>BACH1.0 Pro 于 2026 年 10 月位列 Artificial Analysis 图生视频排行榜第 2 名</strong>。<br>
+      同时开源 HyperFlow 系列，<strong>HyperFlow H3 Flash 发布六天内下载量突破 50 万次</strong>。视频生成价格低至 <strong>&#36;0.03/秒起</strong>。
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_logo"><img src="docs/sponsors/aigei-logo.png" alt="爱给网" width="112"></a><br>
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_brand"><strong>爱给网</strong></a>
+    </td>
+    <td align="left">
+      感谢<a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_thanks">爱给网</a>对本项目的支持与赞助！爱给网是<strong>一站式数字创意素材平台</strong>，汇集音效、配乐、视频、图片、3D 模型及游戏素材，覆盖短视频制作、影视后期、游戏开发和设计创作。从视频画面、背景配乐到场景音效，为创作提供丰富选择。<br>
+      爱给开放平台支持 <strong>REST API 与 MCP 接入</strong>，提供音效、配乐、视频和图片的搜索、筛选及文件获取能力，方便接入自动化视频制作、程序化剪辑和 AI 创作工作流，减少手动查找与整理素材的步骤。<br>
+      🎁 <strong>搜索与详情查询免费</strong>，支持游客及登录用户下载，并提供<strong>免费下载额度</strong>。具体额度、费用及素材授权范围以平台说明为准。<br>
+      👉 <a href="https://www.aigei.com/open?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_open_platform">立即体验爱给开放平台</a> · <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_zh_asset_library">浏览爱给素材库</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.cn"><img src="docs/sponsors/reccloud-logo.svg" alt="录咖" height="36"></a><br>
       <a href="https://reccloud.cn">录咖 AI</a>
     </td>
@@ -198,23 +221,23 @@
 
 ## 作者的另一个开源项目：MangoDisk ⭐
 
-<p align="center">
-  <a href="https://mangodisk.app/zh">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/zh/dark-01-deep-cleanup.jpg?ver=1.1.0">
-      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/zh/light-01-deep-cleanup.jpg?ver=1.1.0">
-      <img src="https://assets.mangodisk.app/images/screenshots/zh/light-01-deep-cleanup.jpg?ver=1.1.0" width="900" alt="MangoDisk 深度清理界面">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <strong>面向 macOS 和 Windows 的开源磁盘清理、空间分析与系统优化工具</strong><br>
+<p align="left">
+  <strong>面向 macOS、Windows 和 Linux 的开源磁盘清理、空间分析与系统优化工具</strong><br>
   一站式清理缓存、大文件、重复文件和应用残留，并提供磁盘空间分析、应用卸载、启动项管理、系统优化与维护
 </p>
 
-<p align="center">
+<p align="left">
   <a href="https://mangodisk.app/zh">访问 MangoDisk 官网</a> · <a href="https://github.com/harry0703/MangoDisk">查看 GitHub 开源项目</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/zh/dark-01-deep-cleanup.jpg?ver=2.0.0">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/zh/light-01-deep-cleanup.jpg?ver=2.0.0">
+      <img src="https://assets.mangodisk.app/images/screenshots/zh/light-01-deep-cleanup.jpg?ver=2.0.0" width="900" alt="MangoDisk 深度清理界面">
+    </picture>
+  </a>
 </p>
 
 ---
@@ -244,6 +267,7 @@
 - [x] 支持 [WaveSpeed AI](https://wavespeed.ai) 文生视频，可根据脚本关键词快速生成原创素材
 - [x] 支持 [OFox](https://ofox.ai) 多模型文生视频，一个 API Key 即可调用 Seedance、Wan 等模型
 - [x] 通过异步 [MuAPI](https://muapi.ai) 文生视频接口生成 3～12 秒 AI 视频素材，并支持配置 Endpoint、画幅、分辨率和轮询参数
+- [x] 支持 [useapi.net](https://useapi.net/docs/api-google-flow-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) AI 视频和图片：使用你自己的 Google AI 订阅通过 Google Flow 或 [Google Vids](https://useapi.net/docs/api-google-vids-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) 生成 Veo 3.1、Gemini Omni Flash 视频（付费套餐可免费放大到 1080p，限 10 秒以内的片段），并生成 Nano Banana 图片，使用你自己的 [Kling](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) 账号生成 Kling 视频和图片，使用你自己的 [Dreamina](https://useapi.net/docs/api-dreamina-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) 账号生成 Seedance 视频
 - [x] 支持 [OpenAI 兼容文生图](https://platform.openai.com/docs/guides/image-generation)，可连接云端服务、自定义图片网关或项目配套的[本地 SDXL 图片服务](docs/local-image-server/README.md)；本地及生成图片均可选择静止或缓慢缩放效果
 - [x] 支持 [OpenAI - Codex 生图](docs/codex-provider.md)，复用 ChatGPT 登录并独立选择生图模型；需账号及所选模型具备生图权限
 - [x] 支持调整片段时长、播放速度与转场，选择裁剪填满或留边适配，并按随机或顺序模式匹配素材
@@ -321,11 +345,19 @@
 
 ### 推荐使用方式
 
+- 想直接在桌面使用：[下载桌面版](#下载桌面版)
 - 不想手动安装和配置：直接使用 AI Agent 生成视频
 - 已有 Python 环境，想直接安装使用：[通过 pip 安装官方包](#通过-pip-安装官方包)
-- Windows 用户：优先使用一键启动包，适合快速体验
 - 需要源码部署或二次开发：使用 `uv` 管理环境和依赖
 - 想要隔离运行环境：优先使用 Docker 部署
+
+### 下载桌面版
+
+| 系统                                 | 下载                                                                                                                                | 启动方式                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| macOS 14 或更新版本（Apple Silicon） | [下载 ARM64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-macos-arm64.zip) | 解压后打开 `MoneyPrinterTurbo.app`                        |
+| Windows（x64）                       | [下载 x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-windows-x64.zip)   | 解压整个包，双击 `MoneyPrinterTurbo.exe`                  |
+| Ubuntu 22.04（x64）                  | [下载 x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-ubuntu-x64.zip)    | 用 `unzip` 解压，运行 `MoneyPrinterTurbo/bin/mpt-desktop` |
 
 ### 使用 AI Agent 生成视频
 
@@ -341,20 +373,6 @@
 免去本地环境配置，点击直接在 Google Colab 中快速体验 MoneyPrinterTurbo
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
-### Windows 一键启动包
-
-下载一键启动包，解压直接使用（路径不要有 **中文**、**特殊字符**、**空格**）
-
-- [下载最新 Windows 一键启动包](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
-
-> 请在页面下方的 **Assets** 区域下载 `.7z` 压缩包。GitHub 自动生成的
-> `Source code (zip)` / `Source code (tar.gz)` 只是源码，解压后只有 `webui.bat`，
-> 不含 `start.bat` 和 `update.bat`。
-
-下载后，建议先**双击执行** `update.bat` 更新到**最新代码**，然后双击 `start.bat` 启动
-
-启动后，会自动打开浏览器（如果打开是空白，建议换成 **Chrome** 或者 **Edge** 打开）
 
 ## 安装部署 📥
 
@@ -431,6 +449,8 @@ Windows 用户可以参考微软的文档：
 1. [安装 WSL](https://learn.microsoft.com/zh-cn/windows/wsl/install)
 2. [在 WSL 中使用 Docker 容器](https://learn.microsoft.com/zh-cn/windows/wsl/tutorials/wsl-containers)
 
+首次启动前，请先在 `MoneyPrinterTurbo` 目录中将 `config.example.toml` 复制为 `config.toml`，供容器挂载使用；已有配置时请保留原文件。
+
 ```shell
 cd MoneyPrinterTurbo
 docker compose -f docker-compose.release.yml up
@@ -438,7 +458,6 @@ docker compose -f docker-compose.release.yml up
 
 > 默认推荐使用 `docker-compose.release.yml`，它会直接拉取 GitHub Container Registry 上的预构建镜像：`ghcr.io/harry0703/moneyprinterturbo:latest`。
 > 如果你需要本地重新构建镜像，可以继续使用 `docker compose up`。
-> 首次启动前，请将 `config.example.toml` 复制为 `config.toml`，供容器挂载使用。
 
 #### ② 访问 WebUI
 
@@ -493,7 +512,7 @@ pip install -r requirements.txt
 ```
 
 在 CMD 中也可以执行 `webui.bat`。
-`webui.bat` 会优先使用项目 `.venv` 或一键包内置 Python；如果没有找到项目 Python，但已安装 `uv`，会自动切换为 `uv run streamlit`。
+`webui.bat` 会优先使用项目 `.venv` 中的 Python。如果没有找到项目 Python，但已安装 `uv`，会自动切换为 `uv run streamlit`。
 如需允许局域网内其他设备访问 WebUI，可以先执行 `set MPT_WEBUI_HOST=0.0.0.0`，再运行 `webui.bat`。
 
 ###### macOS 或 Linux

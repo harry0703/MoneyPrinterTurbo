@@ -1,0 +1,22 @@
+div[data-testid="stMainBlockContainer"] {
+    padding-inline: 1rem !important;
+}
+
+/* 桌面容器的边距更窄，1360px 时每列已接近网页版四列的可用宽度。 */
+@media (min-width: 1360px) {
+    div.st-key-main_settings_grid
+        > div[data-testid="stLayoutWrapper"]
+        > div[data-testid="stHorizontalBlock"] {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.75rem !important;
+    }
+
+    div.st-key-main_settings_grid
+        > div[data-testid="stLayoutWrapper"]
+        > div[data-testid="stHorizontalBlock"]
+        > div[data-testid="stColumn"] {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+}

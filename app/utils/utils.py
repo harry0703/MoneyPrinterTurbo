@@ -93,7 +93,7 @@ def root_dir():
 
 
 def storage_dir(sub_dir: str = "", create: bool = False):
-    d = os.path.join(root_dir(), "storage")
+    d = str(paths.storage_root())
     if sub_dir:
         d = os.path.join(d, sub_dir)
     if create:
@@ -383,6 +383,29 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
     # filter empty string
     result = list(filter(None, result))
     return result
+
+
+def split_comma_separated_terms(text: str) -> list[str]:
+    terms = [term.strip() for term in re.split(r"[,，]", text)]
+    return [term for term in terms if term]
+
+
+def contains_han(text: str) -> bool:
+    return bool(
+        re.search(
+            r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
+            r"\U00020000-\U0002fa1f\U00030000-\U000323af]",
+            text,
+        )
+    )
+
+
+def has_only_latin_letters(text: str) -> bool:
+    """至少含一个拉丁字母，且没有其他文字的字母。"""
+    letters = [char for char in unicodedata.normalize("NFKC", text) if char.isalpha()]
+    return bool(letters) and all(
+        unicodedata.name(char, "").startswith("LATIN ") for char in letters
+    )
 
 
 PAUSE_TAG_KEYWORDS = (
@@ -733,7 +756,8 @@ def load_locales(i18n_dir):
     _locales = {}
     for root, dirs, files in os.walk(i18n_dir):
         for file in files:
-            if file.endswith(".json"):
+            # macOS 归档在其他系统解包后可能留下 AppleDouble 元数据。
+            if file.endswith(".json") and not file.startswith("._"):
                 lang = file.split(".")[0]
                 with open(os.path.join(root, file), "r", encoding="utf-8-sig") as f:
                     _locales[lang] = json.loads(f.read())

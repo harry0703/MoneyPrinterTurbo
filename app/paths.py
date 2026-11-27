@@ -40,6 +40,14 @@ def config_template() -> Path:
     return base / "config.example.toml"
 
 
+def storage_root() -> Path:
+    if os.environ.get("MPT_DESKTOP") == "1":
+        override = os.environ.get("MPT_DESKTOP_STORAGE_DIR")
+        if override:
+            return Path(override)
+    return runtime_root() / "storage"
+
+
 def _copy_missing_resource(source: Path, target: Path) -> None:
     """原子补齐内置资源；并发启动和升级都不覆盖用户已有的文件。"""
     if target.exists():

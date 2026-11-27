@@ -506,6 +506,15 @@
     "Configure Providers": "Konfigurasi",
     "Active Provider": "Sedang digunakan: {provider}",
     "No Configured Providers": "Belum ada penyedia yang dikonfigurasi.",
-    "Provider Configuration Changed": "Konfigurasi berubah. Periksa pengaturan penyedia ini."
+    "Provider Configuration Changed": "Konfigurasi berubah. Periksa pengaturan penyedia ini.",
+    "Open Storage Folder": "Buka folder penyimpanan",
+    "Storage Folder": "Folder penyimpanan",
+    "Storage Folder Busy": "Tunggu hingga pembuatan video selesai sebelum mengganti folder.",
+    "Save Storage Folder": "Simpan",
+    "Choose Storage Folder": "Pilih…",
+    "Open Storage Folder Short": "Buka",
+    "Storage Folder Invalid": "Masukkan jalur absolut ke folder yang dapat ditulisi.",
+    "Storage Folder Open Failed": "Folder tidak dapat dibuka.",
+    "Storage Folder Restart": "Mulai ulang aplikasi untuk menggunakan folder baru. File yang sudah ada tetap berada di folder asal."
   }
 }

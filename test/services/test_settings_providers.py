@@ -15,8 +15,9 @@ GROUPS = {
         "jalapeno",
         "wavespeed",
         "muapi",
+        "useapi",
     ),
-    "ai_image": ("openai_image", "codex_image"),
+    "ai_image": ("openai_image", "codex_image", "useapi_image"),
     "stock_video": ("pexels", "pixabay", "coverr"),
 }
 OAUTH = {"openai_codex": False, "openai_chatgpt": False, "kimi_code": False}
@@ -37,6 +38,7 @@ def isolated_readiness(monkeypatch):
     monkeypatch.setattr(settings_providers.shutil, "which", lambda _: None)
     monkeypatch.delenv("INFISTAR_VIDEO_API_KEY", raising=False)
     monkeypatch.delenv("JALAPENO_VIDEO_API_KEY", raising=False)
+    monkeypatch.delenv("USEAPI_TOKEN", raising=False)
 
     def unexpected_network(*args, **kwargs):
         pytest.fail("Local configuration checks must not contact remote services")
@@ -139,12 +141,14 @@ MATERIAL_VALUES = {
     "jalapeno": {"jalapeno_video_api_key": "synthetic-key"},
     "wavespeed": {"wavespeed_api_keys": ["synthetic-key"]},
     "muapi": {"muapi_api_key": "synthetic-key"},
+    "useapi": {"useapi_api_token": "synthetic-key"},
     "openai_image": {
         "openai_image_api_keys": ["synthetic-key"],
         "openai_image_base_url": "https://images.example/v1",
         "openai_image_model": "chosen-image-model",
     },
     "codex_image": {"codex_image_model_name": "image-model"},
+    "useapi_image": {"useapi_api_token": "synthetic-key"},
 }
 
 
@@ -163,7 +167,13 @@ def test_every_material_provider_requires_local_configuration(provider_id):
         codex_connected=provider_id == "codex_image",
     )
     assert provider_id in result[group]
-    assert sum(len(providers) for providers in result.values()) == 1
+    # The useapi.net video and image sources share one token by design.
+    assert {
+        provider for providers in result.values() for provider in providers
+    } == {provider_id} | SHARED_CREDENTIALS.get(provider_id, set())
+
+
+SHARED_CREDENTIALS = {"useapi": {"useapi_image"}, "useapi_image": {"useapi"}}
 
 
 @pytest.mark.parametrize("provider_id", ["jalapeno"])

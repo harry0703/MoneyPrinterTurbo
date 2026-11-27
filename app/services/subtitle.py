@@ -4,10 +4,6 @@ import tempfile
 import threading
 from timeit import default_timer as timer
 
-try:
-    from faster_whisper import WhisperModel
-except ImportError:
-    WhisperModel = None
 from loguru import logger
 
 from app.config import config
@@ -20,19 +16,29 @@ model_size = config.whisper.get("model_size", "large-v3")
 device = config.whisper.get("device", "cpu")
 compute_type = config.whisper.get("compute_type", "int8")
 initial_prompt = config.whisper.get("initial_prompt", "") or None
+_WHISPER_NOT_IMPORTED = object()
+WhisperModel = _WHISPER_NOT_IMPORTED
 model = None
 _model_init_lock = threading.Lock()
 
 
 def _ensure_model_loaded() -> bool:
     """Load the large Whisper model once, even when jobs start concurrently."""
-    global model
+    global model, WhisperModel
     if model is not None:
         return True
 
     with _model_init_lock:
         if model is not None:
             return True
+        if WhisperModel is _WHISPER_NOT_IMPORTED:
+            # 首屏不需要转录，首次使用时再加载 Whisper 和 PyAV 等原生依赖。
+            try:
+                from faster_whisper import WhisperModel
+            except ImportError:
+                WhisperModel = None
+        if WhisperModel is None:
+            return False
         model_path = f"{utils.root_dir()}/models/whisper-{model_size}"
         model_bin_file = f"{model_path}/model.bin"
         if not os.path.isdir(model_path) or not os.path.isfile(model_bin_file):
@@ -64,10 +70,10 @@ def create(
     word_level: bool = False,
     log_details: bool = True,
 ):
-    if WhisperModel is None:
-        logger.warning("faster_whisper not available, skipping whisper subtitle generation")
-        return ""
     if not _ensure_model_loaded():
+        if WhisperModel is None:
+            logger.warning("faster_whisper not available, skipping whisper subtitle generation")
+            return ""
         return None
 
     if log_details:

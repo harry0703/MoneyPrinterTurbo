@@ -19,7 +19,6 @@ from loguru import logger
 import numpy as np
 from moviepy import (
     AudioFileClip,
-    ColorClip,
     CompositeAudioClip,
     CompositeVideoClip,
     ImageClip,
@@ -963,18 +962,14 @@ def _fit_clip_to_canvas(
     scale_factor = min(width_scale, height_scale)
     resized_width = max(1, min(target_width, int(source_width * scale_factor)))
     resized_height = max(1, min(target_height, int(source_height * scale_factor)))
-    background = ColorClip(
-        size=(target_width, target_height), color=(0, 0, 0)
-    ).with_duration(clip.duration)
     resized_clip = clip.resized(
         new_size=(resized_width, resized_height)
     ).with_position("center")
-    # bg_color keeps the composite opaque, so MoviePy does not build and encode
-    # a full-frame transparency mask for every frame.
-    return CompositeVideoClip(
-        [background, resized_clip],
-        size=(target_width, target_height),
-        bg_color=(0, 0, 0),
+    # The composite's own black background is the letterbox canvas. It is
+    # opaque, so MoviePy does not build and encode a full-frame transparency
+    # mask for every frame.
+    return video_effects.OpaqueCompositeVideoClip(
+        [resized_clip], size=(target_width, target_height)
     ).with_duration(clip.duration)
 
 
@@ -1930,13 +1925,13 @@ def generate_video(
             for item in sub.subtitles:
                 clip = create_text_clip(subtitle_item=item)
                 text_clips.append(clip)
-            # bg_color makes the composite opaque. Without it MoviePy starts every
-            # frame from a transparent canvas and also builds a full-size mask
+            # An opaque background keeps MoviePy from building a full-size mask
             # composite, which the writer pipes to FFmpeg as an alpha channel
             # that H.264 drops. The video covers the whole canvas, so the
-            # rendered frames are the same.
-            video_clip = CompositeVideoClip(
-                [video_clip, *text_clips], bg_color=(0, 0, 0)
+            # rendered frames are the same. Each subtitle is blended only
+            # inside its own box instead of over the whole frame.
+            video_clip = video_effects.OpaqueCompositeVideoClip(
+                [video_clip, *text_clips]
             )
             clip_stack.callback(video_clip.close)
 

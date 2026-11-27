@@ -76,8 +76,12 @@ loomloom_poll_interval_seconds = 2
 loomloom_run_timeout_seconds = 600
 loomloom_video_run_timeout_seconds = 1800
 
-# Timeout in seconds for a single Edge TTS streaming request.
-# 单次 Edge TTS 流式请求超时时间。慢网络可适当调大，设置为 0 表示禁用超时。
+# Abort an Edge TTS stream when no audio or boundary event arrives for this
+# many seconds. Events reset this idle timer, but the stream also stops after
+# 10 minutes so timing events alone cannot hold a worker. A long script may
+# exceed the idle timeout and still finish.
+# 无数据超时：连续这么久没有事件才中止，事件会重置它。另有 10 分钟总时限，
+# 不因字幕边界重置。长文本可以超过无数据超时并正常结束。0 表示禁用超时。
 edge_tts_timeout = 30
 
 # Verify TLS certificates for external APIs and material downloads.
@@ -88,9 +92,9 @@ tls_verify = true
 # Video Materials / 视频素材
 # -----------------------------------------------------------------------------
 
-# Available values: "pexels", "pixabay", "coverr", "wavespeed",
-# "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "loomloom",
-# "openai_image", "infistar", "local".
+# Available values: "pexels", "pixabay", "coverr", "aigei", "wavespeed",
+# "volcengine_seedance", "ofox", "metaso_minimax", "muapi", "useapi",
+# "loomloom", "openai_image", "useapi_image", "infistar", "local".
 # "wavespeed" generates brand-new clips with WaveSpeed AI text-to-video models
 # instead of searching stock footage; generation is billed per request.
 # "loomloom" is a paid Shengsuan Cloud source and requires explicit
@@ -116,18 +120,26 @@ pixabay_api_keys = []
 # Register at https://coverr.co/developers?ctx=header_navigation
 coverr_api_keys = []
 
+# https://www.aigei.com/open/console/apikey
+# 获取爱给网视频下载链接时，按实际费用结算铜币。
+# 竖屏选材首次使用时缓存约 24 MB 的方向检测模型，画面在本机分析。
+# WebUI 需确认扣费，CLI 使用 --confirm-aigei-charge，HTTP API 传入 confirm_aigei_charge = true。
+aigei_api_key = ""
+
 # WaveSpeed AI generates clips from your script keywords with text-to-video
 # models. Create an API key at https://wavespeed.ai
 wavespeed_api_keys = []
 # Optional. Any WaveSpeed text-to-video model id that accepts
 # prompt / aspect_ratio / duration works here.
-# wavespeed_text_to_video_model = "bytedance/seedance-2.0-fast/text-to-video"
-# The default model only accepts durations of 4-15 seconds. Requested clip
-# durations outside the range are clamped automatically before submission
-# (extra footage is trimmed by the editing pipeline). Override only if your
-# chosen model supports a different range.
-# wavespeed_min_duration = 4
-# wavespeed_max_duration = 15
+# wavespeed_text_to_video_model = "alibaba/wan-3.0/text-to-video"
+# Requested clip durations outside the model's accepted range are clamped
+# automatically before submission (extra footage is trimmed by the editing
+# pipeline). When unset, the range follows the selected model: 2-30 s for
+# alibaba/wan-3.0/text-to-video, 4-15 s for
+# bytedance/seedance-2.0-fast/text-to-video and any other model. Override
+# only if your chosen model supports a different range.
+# wavespeed_min_duration = 2
+# wavespeed_max_duration = 30
 
 # Volcano Engine Ark Seedance uses the official asynchronous video-generation API.
 # Create an Ark API key at:
@@ -197,6 +209,64 @@ muapi_min_duration = 3
 muapi_max_duration = 12
 muapi_poll_interval = 5
 muapi_run_timeout = 1800
+
+# useapi.net (third-party API) generates clips on your own accounts: Veo 3.1
+# and Gemini Omni Flash on your Google AI plan through Google Flow or Google
+# Vids, Kling on your Kling AI account, and Seedance on your Dreamina account.
+# Create an API token and connect the account at
+# https://useapi.net/docs/start-here/setup-useapi
+# When empty, the USEAPI_TOKEN environment variable is used. Each clip spends
+# credits (or, in Google Vids, the monthly video allowance) on your own
+# connected account; the WebUI and CLI require explicit confirmation first.
+useapi_api_token = ""
+# Google Flow: "veo-3.1-lite", "veo-3.1-lite-low-priority" (Google AI Ultra
+# $199 plan only, no credits, lower priority), "veo-3.1-fast",
+# "veo-3.1-quality", "omni-flash" (Omni 1.1 Flash), "omni-flash-1.2".
+# Google Vids: "vids-omni-flash-1.2" (Omni 1.2 Flash; each clip uses its length
+# in seconds of the monthly Google Vids video allowance).
+# Kling: "kling-v4-0", "kling-v4-0-flash", "kling-v3-0", "kling-v3-0-turbo",
+# "kling-v2-6", "kling-v2-5", "kling-v2-1-master", "kling-v1-6", "kling-v1-5".
+# Dreamina: "seedance-2.5", "seedance-2.0", "seedance-2.0-fast",
+# "seedance-2.0-mini", "seedance-1.5-pro", "seedance-1.0-pro" (CA accounts),
+# "seedance-1.0-mini" (US accounts), "seedance-1.0-fast" (CA accounts).
+# Lengths: Veo always 8 seconds (the length every Google AI plan accepts; the
+# editor trims it); Omni 1.1 Flash 4, 6, 8 or 10; Omni 1.2 Flash 3-10 in
+# Google Flow and 3-15 in Google Vids; Kling 4.0 3-30, 4.0 Flash 3-20, 3.0 and
+# 3.0 Turbo 3-15, older Kling 5 or 10; Seedance 2.5 4-30, 2.0 models 4-15,
+# 1.5 Pro 5, 10 or 12, 1.0 models 5 or 10. Clip durations are rounded up to the
+# next allowed length (or down to the longest) before submission.
+# Ratios: every Google Flow model (Veo and Omni) and Google Vids makes 9:16 or
+# 16:9, and a 1:1 task with one of them is refused before anything is sent;
+# Kling and Seedance also make 1:1.
+useapi_video_model = "veo-3.1-lite"
+# Optional resolution; the WebUI lists only what the selected model accepts.
+# Empty, or a value the model does not accept, uses the model's default:
+# Omni in Google Flow "720p" (or "360p"); Google Vids "1080p" (or "720p", same
+# cost); Kling "720p" = std mode, "1080p" = pro mode (Kling 4.0: paid Kling
+# plans only; 2.5 and 2.1 Master: pro only), "4K" (Kling 3.0 only), and higher
+# modes use more Kling credits; Seedance "480p" (2.5 only, its default),
+# "720p", "1080p", "2k"/"4k" on some 2.0 models. Veo has one fixed quality.
+useapi_resolution = ""
+# Optional Google Flow upscale after each clip: "" (none), "720p" (only for a
+# 360p Omni clip), "1080p" or "4K". 1080p is free for clips up to 10 seconds on
+# paid Google AI plans. Upscaling needs a paid Google AI plan; 720p and 1080p
+# are free for clips up to 10 seconds (then 1 credit per extra second); 4K needs
+# Google AI Ultra and costs credits. If the plan does not include the upscale,
+# the original clip is kept. Cheapest HD on a paid plan: generate Omni at 360p
+# and upscale to 1080p (free up to 10 seconds).
+useapi_upscale = ""
+useapi_poll_interval = 10
+useapi_run_timeout = 1800
+# The "useapi_image" source uses the same token to generate one image per
+# script segment, then turns it into a clip like the other image sources.
+# Nano Banana runs through Google Flow on your Google AI plan, and Google Flow
+# currently charges no credits for these images: "nano-banana-2-lite" (Google
+# Flow's default), "nano-banana-2" (Nano Banana 2.1) or "nano-banana-pro".
+# Kling images run on your Kling AI account and spend its credits, so they need
+# the same charge confirmation as videos: "kling-kolors-v3-0",
+# "kling-kolors-v2-1", "kling-omni-image-v3" or "kling-omni-image-o1".
+# Every model makes 9:16, 16:9 and 1:1 images.
+useapi_image_model = "nano-banana-2-lite"
 
 # Metaso proxies the MiniMax H3 V2 asynchronous video API. Register and obtain
 # an independent API key through https://metaso.cn/minimax-h3/?s=MPT. Its mk-*
@@ -415,12 +485,36 @@ cheapaimodel_api_key = ""
 cheapaimodel_base_url = ""
 cheapaimodel_model_name = ""
 
-# UberLLM, a pay-as-you-go OpenAI-compatible API for models from many labs.
-# API key: https://uberllm.dev/signup
-# Model list: https://uberllm.dev/models
+# MartLLM, a pay-as-you-go OpenAI-compatible API for models from many labs.
+# API key: https://martllm.com/signup
+# Model list: https://martllm.com/models
 uberllm_api_key = ""
 uberllm_base_url = ""
 uberllm_model_name = ""
+
+# AtmoRouter, a prepaid OpenAI-compatible API gateway.
+# API key: https://atmorouter.dev/dashboard/keys
+# Model list: https://atmorouter.dev/models
+# Docs: https://atmorouter.dev/docs
+atmorouter_api_key = ""
+atmorouter_base_url = ""
+atmorouter_model_name = ""
+
+# TeamoRouter, a prepaid OpenAI-compatible API gateway (one key for Claude, GPT, Gemini, DeepSeek, GLM, Kimi, Qwen and more).
+# API key: https://teamorouter.com/dashboard
+# Model list: https://teamorouter.com/models
+# Docs: https://teamorouter.com/docs
+teamorouter_api_key = ""
+teamorouter_base_url = ""
+teamorouter_model_name = ""
+
+# TrustedRouter, an OpenAI-compatible API gateway with attested confidential-computing gateways (one key for models from many providers).
+# API key: https://trustedrouter.com/console/api-keys
+# Model list: https://trustedrouter.com/models
+# Docs: https://trustedrouter.com/docs
+trustedrouter_api_key = ""
+trustedrouter_base_url = ""
+trustedrouter_model_name = ""
 
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
@@ -625,10 +719,8 @@ subtitle_provider = "edge"
 # very long narration chunks.
 # ffmpeg_tts_timeout_seconds = 600
 
-# Concurrent keyword searches and downloads for stock footage (Pexels, Pixabay
-# and Coverr only). Default: 1 (serial). Higher values may be faster but can
-# trigger provider rate limits. Use 1, 2, 4, 6 or 8: the code caps values at 8,
-# and the WebUI resets anything else to 1 when it shows this setting.
+# 库存素材的搜索并发，默认 1。Pexels、Pixabay 和 Coverr 的下载也使用此设置，
+# 爱给网逐个下载。WebUI 支持 1、2、4、6、8，提高并发可能触发平台限流。
 # material_concurrency = 1
 
 # How many clips are cropped, speed-adjusted and encoded at once. Default: 1

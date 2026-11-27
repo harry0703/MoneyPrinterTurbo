@@ -28,6 +28,7 @@ if root_dir in sys.path:
     sys.path.remove(root_dir)
 sys.path.insert(0, root_dir)
 
+from app import desktop_storage, paths
 from app.config import config
 from app.models import const
 from app.models.llm_provider import (
@@ -48,6 +49,7 @@ from app.models.schema import (
 from app.services import bgm as bgm_service
 from app.services import material_upload as material_upload_service
 from app.services import (
+    aigei,
     cache_manager,
     llm,
     loomloom,
@@ -58,6 +60,7 @@ from app.services import (
     jalapeno_video,
     ofox,
     subtitle,
+    useapi,
     video,
     volcengine_seedance,
     voice,
@@ -96,8 +99,12 @@ st.set_page_config(
 # 也会让新用户误以为需要安装额外组件。这里统一隐藏 Streamlit 平台工具栏，
 # 并压缩主容器顶部留白，只保留项目自己的标题、语言选择和业务设置区域。
 style_file = Path(__file__).with_name("styles.css")
-streamlit_style = f"<style>{style_file.read_text(encoding='utf-8')}</style>"
-st.markdown(streamlit_style, unsafe_allow_html=True)
+streamlit_style = style_file.read_text(encoding="utf-8")
+is_desktop = os.environ.get("MPT_DESKTOP") == "1"
+if is_desktop:
+    desktop_style = style_file.with_name("desktop.css")
+    streamlit_style += "\n" + desktop_style.read_text(encoding="utf-8")
+st.markdown(f"<style>{streamlit_style}</style>", unsafe_allow_html=True)
 # 定义资源目录
 font_dir = utils.font_dir()
 song_dir = utils.song_dir()
@@ -129,12 +136,13 @@ VOICE_MODE_TTS = "tts"
 VOICE_MODE_UPLOAD = "upload"
 VOICE_MODE_NONE = "none"
 LOOMLOOM_MAX_POLL_FAILURES = 5
+AIGEI_WEBUI_UTM = "utm_source=webui&utm_medium=sponsorship&utm_campaign=moneyprinterturbo"
 # WebUI 按素材能力分组展示视频来源，但底层仍保存原有 video_source 值。
 # AI 视频组与设置页共用同一业务顺序：合作服务商优先，并按秘塔、OFox、胜算云、
 # 火山引擎、无限星河排列；其余服务随后展示。这样两个入口的顺序一致，同时
 # 不改变 config.toml、历史任务和 API 请求中的字段语义，旧用户无需迁移配置。
 VIDEO_SOURCE_GROUPS = {
-    "stock_video": ("pexels", "pixabay", "coverr"),
+    "stock_video": ("pexels", "pixabay", "coverr", "aigei"),
     "ai_video": (
         "metaso_minimax",
         "ofox",
@@ -144,8 +152,9 @@ VIDEO_SOURCE_GROUPS = {
         "jalapeno",
         "wavespeed",
         "muapi",
+        "useapi",
     ),
-    "ai_image": ("openai_image", "codex_image"),
+    "ai_image": ("openai_image", "codex_image", "useapi_image"),
     "local": ("local",),
 }
 # Upload-Post 的 API Key 与发布用户分别在两个页面管理，并且发布用户名称
@@ -779,6 +788,7 @@ def _initialize_session_state():
         "ofox_confirm_charge": False,
         "metaso_minimax_confirm_charge": False,
         "muapi_confirm_charge": False,
+        "useapi_confirm_charge": False,
         # AI 视频按素材段计费，默认只生成一段，用户确认效果后再主动增加数量。
         "loomloom_video_scene_count": _saved_ui_number(
             "loomloom_video_scene_count",
@@ -1059,8 +1069,11 @@ def _scan_history_tasks(limit=30):
     return tasks
 
 
-def _collect_task_summaries(limit=20):
-    history_tasks = {task["task_id"]: task for task in _scan_history_tasks(limit=50)}
+def _collect_task_summaries(limit=20, *, include_history=True):
+    history_tasks = (
+        {task["task_id"]: task for task in _scan_history_tasks(limit=50)}
+        if include_history else {}
+    )
     active_tasks = _active_generation_tasks()
 
     try:
@@ -1089,7 +1102,7 @@ def _collect_task_summaries(limit=20):
         if not task_id:
             continue
 
-        task_path = os.path.join(utils.task_dir(), task_id)
+        task_path = os.path.join(utils.task_dir(), task_id) if include_history else ""
         history_task = history_tasks.get(task_id, {})
         video_files = task.get("videos") or []
         video_file = (
@@ -1104,7 +1117,7 @@ def _collect_task_summaries(limit=20):
         task_mtime = active_tasks.get(task_id, {}).get("mtime") or history_task.get(
             "mtime", 0
         )
-        if os.path.isdir(task_path):
+        if task_path and os.path.isdir(task_path):
             try:
                 task_mtime = os.path.getmtime(task_path)
             except OSError:
@@ -1134,7 +1147,7 @@ def _collect_task_summaries(limit=20):
             # 后台任务结束后必须以真实终态为准，不能把失败任务重新显示为生成中。
             continue
 
-        task_path = os.path.join(utils.task_dir(), task_id)
+        task_path = os.path.join(utils.task_dir(), task_id) if include_history else ""
         history_tasks[task_id] = {
             "task_id": task_id,
             "subject": active_task.get("subject")
@@ -1169,6 +1182,9 @@ def _open_task_path(task_path):
         logger.warning(f"invalid task folder path: {normalized_path}")
         return
     if not os.path.isdir(normalized_path):
+        return
+    if is_desktop:
+        _open_desktop_storage_folder(Path(normalized_path))
         return
     if _is_headless_server():
         # storage 目录通常以卷挂载映射回宿主机，提示相对路径即可定位文件。
@@ -1387,6 +1403,8 @@ def _render_task_table(filtered_tasks, key_prefix):
 
 
 def _render_task_manager_panel(tasks=None):
+    if is_desktop and st.button(tr("Open Storage Folder"), key="open_desktop_storage"):
+        _open_desktop_storage_folder(paths.storage_root())
     tasks = tasks if tasks is not None else _collect_task_summaries()
     if not tasks:
         st.info(tr("No Tasks Yet"))
@@ -1452,18 +1470,26 @@ def _render_task_video_preview():
 def _render_task_manager_entry():
     # 任务可能由当前页面或其它页面触发生成。入口单独用 fragment 定时刷新，
     # 只更新任务数量和 popover 内容，不打断主页面表单输入。
-    task_summaries = _collect_task_summaries()
+    key = f"task_manager_popover_{st.session_state.get('task_manager_popover_nonce', 0)}"
+    # macOS 首次读取文稿目录可能等待系统授权，用户打开任务列表时再读取历史。
+    defer_history = is_desktop and sys.platform == "darwin"
+    panel_open = defer_history and st.session_state.get(key, False)
+    task_summaries = _collect_task_summaries(include_history=not defer_history or panel_open)
     processing_task_count = _count_processing_tasks(task_summaries)
+    label = _task_manager_label(processing_task_count)
+    if defer_history:
+        # 有状态 popover 的标识包含标题，展开期间保持标题稳定。
+        if panel_open:
+            label = st.session_state.get("task_manager_open_label", label)
+        st.session_state["task_manager_open_label"] = label
     with st.container(key="task_manager_entry", width="content"):
-        with st.popover(
-            _task_manager_label(processing_task_count),
-            width="content",
-            key=(
-                "task_manager_popover_"
-                f"{st.session_state.get('task_manager_popover_nonce', 0)}"
-            ),
-        ):
-            _render_task_manager_panel(task_summaries)
+        panel = st.popover(
+            label, width="content", key=key,
+            on_change="rerun" if defer_history else "ignore",
+        )
+        if not defer_history or panel.open:
+            with panel:
+                _render_task_manager_panel(task_summaries)
 
 
 def _load_task_restore_payload(task_id):
@@ -1740,6 +1766,7 @@ def _dismiss_settings_dialog():
 def _open_settings_dialog(target_tab=None):
     """打开设置弹窗，并可直接定位到指定业务标签页。"""
     st.session_state["settings_dialog_open"] = True
+    st.session_state.pop("settings_material_focus", None)
     if not target_tab:
         target_tab = "general"
     if target_tab:
@@ -1751,6 +1778,11 @@ def _open_settings_dialog(target_tab=None):
 def _open_material_settings_dialog():
     """供视频来源组件回调使用：直接打开素材服务设置。"""
     _open_settings_dialog("material")
+    source = config.snapshot_config_with_pending(config.app).get("video_source")
+    st.session_state["settings_material_focus"] = next(
+        (group for group, sources in VIDEO_SOURCE_GROUPS.items() if source in sources),
+        None,
+    )
 
 
 def _render_brand(available_update: str | None = None):
@@ -2136,6 +2168,14 @@ def _render_generation_task_snapshot(task_id, task):
             and isinstance(error_params, Mapping)
         ):
             error = tr(error_key).format(**error_params)
+        elif (
+            isinstance(error_key, str)
+            and error_key.startswith("aigei.")
+            and isinstance(error_params, Mapping)
+        ):
+            error = tr(error_key)
+            if request_id := error_params.get("request_id"):
+                error += f" ({tr('Aigei Request ID')} {request_id})"
         message = tr("Video Generation Failed")
         st.error(f"{message}: {error}" if error else message)
         activity = task.get("generation_activity") or {}
@@ -3413,6 +3453,7 @@ def _material_provider_labels():
         "pexels": tr("Pexels"),
         "pixabay": tr("Pixabay"),
         "coverr": tr("Coverr"),
+        "aigei": tr("Aigei"),
         "metaso_minimax": tr("Metaso MiniMax H3"),
         "ofox": tr("OFox AI Video"),
         "loomloom": tr("Shengsuan Cloud AI Video"),
@@ -3421,8 +3462,10 @@ def _material_provider_labels():
         "jalapeno": tr("Jalapeno Cloud AI Video"),
         "wavespeed": tr("WaveSpeed AI Video"),
         "muapi": tr("MuAPI AI Video"),
+        "useapi": tr("useapi.net AI Video"),
         "openai_image": tr("OpenAI Compatible Text-to-Image"),
         "codex_image": tr("codex.image.label"),
+        "useapi_image": tr("useapi.net Nano Banana Images"),
         "local": tr("Local file"),
     }
 
@@ -3610,7 +3653,27 @@ def _save_settings_api_keys(config_key, widget_key):
 
 def _render_material_provider_settings(provider):
     app_settings = config.snapshot_config_with_pending(config.app)
-    if provider in VIDEO_SOURCE_GROUPS["stock_video"]:
+    if provider == "aigei":
+        label = tr("Aigei API Key")
+        api_key_link = tr("Aigei API Key Link").format(
+            url=f"https://www.aigei.com/open/console/apikey?{AIGEI_WEBUI_UTM}&utm_content=api_key",
+        )
+        asset_library_link = tr("Aigei Asset Library Link").format(
+            url=f"https://www.aigei.com/?{AIGEI_WEBUI_UTM}&utm_content=asset_library",
+        )
+        with st.container(gap=None):
+            st.markdown(f"{label} · {api_key_link} · {asset_library_link}")
+            key = st.text_input(
+                label,
+                label_visibility="collapsed",
+                value=aigei.api_key(app_settings),
+                type="password",
+                key="aigei_api_key_input",
+                on_change=_save_settings_change,
+                args=("app", "aigei_api_key", "aigei_api_key_input", str.strip),
+            )
+        _set_runtime_config("app", "aigei_api_key", key.strip())
+    elif provider in VIDEO_SOURCE_GROUPS["stock_video"]:
         labels = {
             "pexels": "Pexels API Key",
             "pixabay": "Pixabay API Key",
@@ -4083,6 +4146,51 @@ def _render_material_provider_settings(provider):
             "muapi_resolution",
             muapi_resolution.strip() or muapi.DEFAULT_RESOLUTION,
         )
+    elif provider == "useapi":
+        st.markdown(f"**{tr('useapi.net AI Video')}**")
+        st.caption(tr("useapi.net AI Video Help"))
+        _render_useapi_token_input("useapi_api_token_input", app_settings)
+        useapi_model = stable_selectbox(
+            tr("useapi.net Video Model"),
+            options=list(useapi.MODELS),
+            default_value=_useapi_selected_model(),
+            key="useapi_video_model_select",
+            # Resolve labels now: the format function also runs outside the
+            # script run, where translations are not available.
+            format_func={
+                model_id: _useapi_model_label(model_id) for model_id in useapi.MODELS
+            }.get,
+            help=tr("useapi.net Video Model Help"),
+            on_change=_save_settings_change,
+            args=(
+                "app",
+                "useapi_video_model",
+                localized_widget_key("useapi_video_model_select"),
+                lambda value: value,
+            ),
+        )
+        _set_runtime_config("app", "useapi_video_model", useapi_model)
+        _render_useapi_quality_settings(useapi_model)
+    elif provider == "useapi_image":
+        st.markdown(f"**{tr('useapi.net Nano Banana Images')}**")
+        st.caption(tr("useapi.net Nano Banana Images Help"))
+        _render_useapi_token_input("useapi_image_api_token_input", app_settings)
+        useapi_image_model = stable_selectbox(
+            tr("useapi.net Image Model"),
+            options=list(useapi.IMAGE_MODELS),
+            default_value=_useapi_selected_image_model(),
+            key="useapi_image_model_select",
+            format_func=useapi.image_model_label,
+            help=tr("useapi.net Image Model Help"),
+            on_change=_save_settings_change,
+            args=(
+                "app",
+                "useapi_image_model",
+                localized_widget_key("useapi_image_model_select"),
+                lambda value: value,
+            ),
+        )
+        _set_runtime_config("app", "useapi_image_model", useapi_image_model)
     elif provider == "codex_image":
         st.markdown(f"**{tr('codex.image.label')}**")
         st.caption(tr("codex.image.help"))
@@ -4204,6 +4312,58 @@ def _render_material_provider_settings(provider):
             )
 
 
+def _open_desktop_storage_folder(path: Path):
+    try:
+        desktop_storage.open_directory(path)
+    except OSError:
+        st.error(tr("Storage Folder Open Failed"))
+
+
+def _choose_desktop_storage_folder(current: Path):
+    try:
+        selected = desktop_storage.pick_directory(current)
+        if selected:
+            st.session_state["desktop_storage_folder"] = selected
+    except (OSError, UnicodeError):
+        st.session_state["desktop_storage_picker_failed"] = True
+
+
+def _render_desktop_storage_settings():
+    current = paths.storage_root()
+    configured = desktop_storage.configured_directory()
+    saved = str(configured or current)
+    busy = webui_task.has_active_generations()
+    invalid = False
+    with st.container(horizontal=True, vertical_alignment="bottom", gap="small"):
+        path = st.text_input(
+            tr("Storage Folder"), value=saved, key="desktop_storage_folder", disabled=busy,
+        )
+        if desktop_storage.can_pick_directory():
+            st.button(
+                tr("Choose Storage Folder"), key="choose_desktop_storage", disabled=busy,
+                on_click=_choose_desktop_storage_folder, args=(current,),
+            )
+        if st.button(tr("Open Storage Folder Short"), key="open_desktop_storage_settings"):
+            _open_desktop_storage_folder(current)
+        if path.strip() != saved and st.button(
+            tr("Save Storage Folder"), key="save_desktop_storage", disabled=busy
+        ):
+            try:
+                configured = desktop_storage.save_directory(path)
+            except (OSError, ValueError):
+                invalid = True
+            else:
+                st.rerun()
+    if invalid:
+        st.error(tr("Storage Folder Invalid"))
+    if st.session_state.pop("desktop_storage_picker_failed", False):
+        st.error(tr("Storage Folder Open Failed"))
+    if busy:
+        st.caption(tr("Storage Folder Busy"))
+    if configured and configured != current:
+        st.caption(tr("Storage Folder Restart"))
+
+
 @st.dialog(
     tr("Settings"),
     width="medium",
@@ -4259,6 +4419,8 @@ def _render_settings_dialog():
         _remember_settings_tab(settings_tabs_key, settings_tab_targets)
         with general_config_panel:
             if general_config_panel.open:
+                if is_desktop:
+                    _render_desktop_storage_settings()
                 _render_general_settings(app_settings)
 
         with publish_config_panel:
@@ -4909,6 +5071,8 @@ def _render_settings_dialog():
                 remembered = dict(
                     st.session_state.get("settings_material_providers", {})
                 )
+                focus = st.session_state.get("settings_material_focus")
+                sections = sorted(sections, key=lambda section: section[0] != focus)
                 for group, title_key, help_key in sections:
                     providers = VIDEO_SOURCE_GROUPS[group]
                     default_provider = remembered.get(group, providers[0])
@@ -5994,17 +6158,28 @@ def _render_script_settings(panel, params):
                 height=180,
                 key="video_script",
             )
+            video_source = st.session_state.get(
+                localized_widget_key("video_source_select"),
+                config.snapshot_config_with_pending(config.app).get("video_source"),
+            )
+            is_aigei = video_source == "aigei"
+            regenerate_chinese = (
+                st.session_state.pop("aigei_keywords_pending", False) and is_aigei
+            )
+            generate_keywords = False
             if _effective_script_generation_backend() == "loomloom":
                 st.caption(tr("LoomLoom Video Terms Reuse Help"))
-            elif st.button(
-                tr("Generate Video Keywords"),
-                key="auto_generate_terms",
-                use_container_width=True,
-                type="secondary",
-                icon=":material/auto_awesome:",
-            ):
-                if not params.video_script:
-                    # 视频关键词需要基于文案提取，文案为空时提前提示并跳过模型调用。
+            else:
+                generate_keywords = st.button(
+                    tr("Generate Video Keywords"),
+                    key="auto_generate_terms",
+                    use_container_width=True,
+                    type="secondary",
+                    icon=":material/auto_awesome:",
+                )
+            if generate_keywords or regenerate_chinese:
+                if not utils.remove_pause_tags(params.video_script):
+                    # 仅有停顿标签时也没有可供提取关键词的文案。
                     st.toast(tr("Please Enter the Video Subject"))
                     st.warning(tr("Please Enter the Video Subject"))
                 else:
@@ -6017,6 +6192,7 @@ def _render_script_settings(panel, params):
                                 amount=8 if params.match_materials_to_script else 5,
                                 match_script_order=params.match_materials_to_script,
                                 app_config=app_config_snapshot,
+                                keyword_language="zh" if regenerate_chinese else "en",
                             ),
                         )
                         if not terms:
@@ -6025,8 +6201,8 @@ def _render_script_settings(panel, params):
                             st.session_state["video_terms"] = ", ".join(terms)
 
             params.video_terms = st.text_area(
-                tr("Video Keywords"),
-                help=tr("Video Keywords Help"),
+                tr("Aigei Video Keywords" if is_aigei else "Video Keywords"),
+                help=tr("Aigei Video Keywords Help" if is_aigei else "Video Keywords Help"),
                 key="video_terms",
             )
 
@@ -6041,22 +6217,6 @@ def _render_video_settings(panel, params):
                 (tr("Sequential"), "sequential"),
                 (tr("Random"), "random"),
             ]
-            video_source_labels = {
-                "pexels": tr("Pexels"),
-                "pixabay": tr("Pixabay"),
-                "coverr": tr("Coverr"),
-                "wavespeed": tr("WaveSpeed AI Video"),
-                "volcengine_seedance": tr("Volcano Engine Seedance"),
-                "infistar": tr("Infistar AI Video"),
-                "jalapeno": tr("Jalapeno Cloud AI Video"),
-                "ofox": tr("OFox AI Video"),
-                "metaso_minimax": tr("Metaso MiniMax H3"),
-                "muapi": tr("MuAPI AI Video"),
-                "loomloom": tr("Shengsuan Cloud AI Video"),
-                "openai_image": tr("OpenAI Compatible Text-to-Image"),
-                "codex_image": tr("codex.image.label"),
-                "local": tr("Local file"),
-            }
             saved_video_source_name = str(
                 config.snapshot_config_with_pending(config.app).get("video_source", "pexels")
                 or "pexels"
@@ -6071,11 +6231,41 @@ def _render_video_settings(panel, params):
                 ),
                 default_value=saved_video_source_name,
                 key="video_source_select",
-                format_func=video_source_labels.get,
+                format_func=_material_provider_labels().get,
                 settings_label=tr("Configure Material Sources"),
                 on_settings=_open_material_settings_dialog,
             )
             _set_runtime_config("app", "video_source", params.video_source)
+
+            if params.video_source == "aigei":
+                if utils.has_only_latin_letters(params.video_terms):
+                    has_narration = bool(utils.remove_pause_tags(params.video_script))
+                    with st.container(
+                        horizontal=True, vertical_alignment="center", gap="small"
+                    ):
+                        st.caption(
+                            tr("Aigei Current Keywords Are English"), width="content"
+                        )
+                        # 下一轮在文案区渲染输入框前更新关键词，避免修改已创建的控件。
+                        st.button(
+                            tr("Aigei Regenerate Chinese Keywords"),
+                            key="aigei_regenerate_chinese_keywords",
+                            type="secondary",
+                            disabled=not has_narration,
+                            help=None if has_narration else tr("Please Enter the Video Subject"),
+                            on_click=st.session_state.update,
+                            kwargs={"aigei_keywords_pending": True},
+                        )
+                key = aigei.api_key(config.snapshot_config_with_pending(config.app))
+                signature = aigei.key_fingerprint(key)
+                if st.session_state.get("aigei_charge_signature") != signature:
+                    st.session_state["aigei_confirm_charge"] = False
+                    st.session_state["aigei_charge_signature"] = signature
+                if key:
+                    st.caption(tr("Aigei Billing Notice"))
+                    st.checkbox(tr("Confirm Aigei Charge"), key="aigei_confirm_charge")
+                else:
+                    st.caption(tr("aigei.key_required"))
 
             loomloom_video_capability = None
             if params.video_source == "loomloom":
@@ -6105,6 +6295,10 @@ def _render_video_settings(panel, params):
                 st.caption(tr("Metaso MiniMax H3 Help"))
             if params.video_source == "muapi":
                 st.caption(tr("MuAPI AI Video Help"))
+            if params.video_source == "useapi":
+                st.caption(tr("useapi.net AI Video Help"))
+            if params.video_source == "useapi_image":
+                st.caption(tr("useapi.net Nano Banana Images Help"))
             if params.video_source == "local":
                 # Streamlit 的文件类型校验对扩展名大小写敏感，这里同时放行大小写两种形式。
                 local_file_types = sorted(
@@ -6248,7 +6442,9 @@ def _render_video_settings(panel, params):
                 "ui", "video_fit_mode", params.video_fit_mode.value
             )
 
-            if params.video_source in {"local", "openai_image", "codex_image"}:
+            if params.video_source in {
+                "local", "openai_image", "codex_image", "useapi_image"
+            }:
                 image_motion_labels = {
                     ImageMotion.static.value: tr("Static Image"),
                     ImageMotion.zoom.value: tr("Slow Zoom"),
@@ -6289,6 +6485,12 @@ def _render_video_settings(panel, params):
                         muapi.DEFAULT_MAX_DURATION_SECONDS + 1,
                     )
                 )
+            elif params.video_source == "useapi":
+                # Each model has its own lengths; Veo is generated at 8 seconds
+                # and trimmed, so shorter clips are offered for it as well.
+                video_clip_durations = useapi.clip_duration_options(
+                    _useapi_selected_model()
+                )
             else:
                 video_clip_durations = [2, 3, 4, 5, 6, 7, 8, 9, 10]
             params.video_clip_duration = stable_selectbox(
@@ -6298,7 +6500,7 @@ def _render_video_settings(panel, params):
                     "video_clip_duration",
                     video_clip_durations,
                     5
-                    if params.video_source in {"metaso_minimax", "muapi"}
+                    if params.video_source in {"metaso_minimax", "muapi", "useapi"}
                     else 3,
                 ),
                 key="video_clip_duration_select",
@@ -6372,7 +6574,12 @@ def _render_video_settings(panel, params):
                 _set_runtime_config("app", "video_codec", selected_video_codec)
 
             concurrency_options = [1, 2, 4, 6, 8]
-            if params.video_source in {"pexels", "pixabay", "coverr"}:
+            if params.video_source in VIDEO_SOURCE_GROUPS["stock_video"]:
+                help_key = (
+                    "Aigei Material Concurrency Help"
+                    if params.video_source == "aigei"
+                    else "Material Concurrency Help"
+                )
                 selected_material_concurrency = stable_selectbox(
                     tr("Material Concurrency"),
                     options=concurrency_options,
@@ -6380,7 +6587,7 @@ def _render_video_settings(panel, params):
                         "material_concurrency", concurrency_options, 1, config.app
                     ),
                     key="material_concurrency_select",
-                    help=tr("Material Concurrency Help"),
+                    help=tr(help_key),
                 )
                 _set_runtime_config(
                     "app", "material_concurrency", selected_material_concurrency
@@ -6419,6 +6626,17 @@ def _render_video_settings(panel, params):
                 _render_metaso_minimax_video_settings(params)
             if params.video_source == "muapi":
                 _render_muapi_video_settings(params)
+            if params.video_source == "useapi":
+                _render_useapi_video_settings(
+                    params, _useapi_model_label(_useapi_selected_model())
+                )
+            if params.video_source == "useapi_image" and useapi.image_spends_credits(
+                _useapi_selected_image_model()
+            ):
+                # Kling images spend Kling credits; Nano Banana images do not.
+                _render_useapi_video_settings(
+                    params, useapi.image_model_label(_useapi_selected_image_model())
+                )
     return uploaded_files
 
 
@@ -6701,6 +6919,113 @@ def _render_muapi_video_settings(params):
         tr("Confirm MuAPI Charge"),
         key="muapi_confirm_charge",
         help=tr("Confirm MuAPI Charge Help"),
+    )
+
+
+def _render_useapi_token_input(widget_key, app_settings):
+    """
+    The video and image sections edit one shared token and can be on screen
+    together, so each shows the saved value and writes only when edited;
+    otherwise the section rendered last would overwrite the other's edit.
+    """
+    st.session_state[widget_key] = str(app_settings.get("useapi_api_token", "") or "")
+    st.text_input(
+        tr("useapi.net API Token"),
+        type="password",
+        help=tr("useapi.net API Token Help"),
+        key=widget_key,
+        on_change=_save_settings_change,
+        args=("app", "useapi_api_token", widget_key, lambda value: value.strip()),
+    )
+
+
+def _render_useapi_quality_settings(model):
+    """Resolution (Kling: quality mode) and Google Flow upscale for ``model``.
+
+    Only the values the selected model accepts are offered, and each model
+    keeps its own widget, so switching models never carries a value over to a
+    model that would reject it.
+    """
+    settings = dict(config.snapshot_config_with_pending(config.app))
+    settings["useapi_video_model"] = model
+    resolutions = useapi.resolution_options(model)
+    if resolutions:
+        resolution = stable_selectbox(
+            tr("useapi.net Resolution"),
+            options=list(resolutions),
+            default_value=useapi.resolution_for(model, settings),
+            key=f"useapi_resolution_select_{model}",
+            format_func={
+                value: useapi.resolution_label(model, value) for value in resolutions
+            }.get,
+            help=tr("useapi.net Resolution Help"),
+        )
+        _set_runtime_config("app", "useapi_resolution", resolution)
+        settings["useapi_resolution"] = resolution
+    upscales = useapi.upscale_options(model, settings)
+    if upscales:
+        upscale_labels = {
+            "": tr("useapi.net Upscale None"),
+            "720p": "720p",
+            "1080p": "1080p",
+            "4K": "4K",
+        }
+        upscale = stable_selectbox(
+            tr("useapi.net Upscale"),
+            options=list(upscales),
+            default_value=useapi.upscale_for(model, settings),
+            key=f"useapi_upscale_select_{model}",
+            format_func=upscale_labels.get,
+            help=tr("useapi.net Upscale Help"),
+        )
+        _set_runtime_config("app", "useapi_upscale", upscale)
+
+
+def _useapi_selected_image_model():
+    """The configured Nano Banana model, or the default when it is not offered."""
+    try:
+        return useapi.image_model_id(config.snapshot_config_with_pending(config.app))
+    except useapi.UseAPIError:
+        return useapi.DEFAULT_IMAGE_MODEL
+
+
+def _useapi_model_label(model):
+    """Model label for the UI; a few labels are translated, the rest are names."""
+    key = f"useapi_model_label.{model}"
+    translated = tr(key)
+    return useapi.model_label(model) if translated == key else translated
+
+
+def _useapi_selected_model():
+    """The configured useapi.net model, or the default when it is not offered."""
+    try:
+        return useapi.model_id(config.snapshot_config_with_pending(config.app))
+    except useapi.UseAPIError:
+        return useapi.DEFAULT_MODEL
+
+
+def _render_useapi_video_settings(params, model):
+    """Show an estimated clip count and require consent to spend account credits."""
+    clip_duration = max(int(params.video_clip_duration or 1), 1)
+    video_count = max(int(params.video_count or 1), 1)
+    if estimated_range := _estimate_voiceover_duration_range(
+        str(params.video_script or ""), params.voice_rate
+    ):
+        min_clips = max(math.ceil(estimated_range[0] * video_count / clip_duration), 1)
+        max_clips = max(
+            math.ceil(estimated_range[1] * video_count / clip_duration), min_clips
+        )
+        st.warning(
+            tr("useapi.net Billing Notice").format(
+                min=min_clips, max=max_clips, model=model
+            )
+        )
+    else:
+        st.warning(tr("useapi.net Billing Notice Without Script").format(model=model))
+    st.checkbox(
+        tr("Confirm useapi.net Charge"),
+        key="useapi_confirm_charge",
+        help=tr("Confirm useapi.net Charge Help"),
     )
 
 
@@ -9071,22 +9396,7 @@ def _render_generation_controls(
             voxcpm_prompt_audio = _get_voxcpm_effective_prompt_audio()
             voxcpm_prompt_text = _get_voxcpm_prompt_text()
 
-        if params.video_source not in [
-            "infistar",
-            "jalapeno",
-            "pexels",
-            "pixabay",
-            "coverr",
-            "wavespeed",
-            "volcengine_seedance",
-            "ofox",
-            "metaso_minimax",
-            "muapi",
-            "loomloom",
-            "openai_image",
-            "codex_image",
-            "local",
-        ]:
+        if not any(params.video_source in sources for sources in VIDEO_SOURCE_GROUPS.values()):
             _remove_active_generation_task(task_id)
             st.error(tr("Please Select a Valid Video Source"))
             st.stop()
@@ -9111,6 +9421,22 @@ def _render_generation_controls(
             _remove_active_generation_task(task_id)
             st.error(tr("Please Enter the Coverr API Key"))
             st.stop()
+
+        aigei_charge_signature = None
+        if params.video_source == "aigei":
+            key = aigei.api_key(config.snapshot_config_with_pending(config.app))
+            if not key:
+                _remove_active_generation_task(task_id)
+                st.error(tr("aigei.key_required"))
+                st.stop()
+            aigei_charge_signature = aigei.key_fingerprint(key)
+            if (
+                not st.session_state.get("aigei_confirm_charge", False)
+                or st.session_state.get("aigei_charge_signature") != aigei_charge_signature
+            ):
+                _remove_active_generation_task(task_id)
+                st.error(tr("Confirm Aigei Charge Required"))
+                st.stop()
 
         if params.video_source == "wavespeed" and not config.app.get(
             "wavespeed_api_keys", ""
@@ -9210,6 +9536,26 @@ def _render_generation_controls(
         ):
             _remove_active_generation_task(task_id)
             st.error(tr("Confirm MuAPI Charge Required"))
+            st.stop()
+
+        if params.video_source in {"useapi", "useapi_image"} and not (
+            useapi.is_enabled(config.snapshot_config_with_pending(config.app))
+        ):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Please Enter the useapi.net API Token"))
+            st.stop()
+
+        if (
+            params.video_source == "useapi"
+            or (
+                params.video_source == "useapi_image"
+                and useapi.image_requires_confirmation(
+                    config.snapshot_config_with_pending(config.app)
+                )
+            )
+        ) and not st.session_state.get("useapi_confirm_charge", False):
+            _remove_active_generation_task(task_id)
+            st.error(tr("Confirm useapi.net Charge Required"))
             st.stop()
 
         if params.video_source == "codex_image":
@@ -9442,6 +9788,8 @@ def _render_generation_controls(
                 voxcpm_prompt_text=voxcpm_prompt_text,
                 **({"jalapeno_video_endpoint": jalapeno_video_endpoint}
                    if params.video_source == "jalapeno" else {}),
+                **({"aigei_charge_signature": aigei_charge_signature}
+                   if aigei_charge_signature is not None else {}),
             )
             if loomloom_video_request is not None:
                 # 一个报价只允许提交一次。后台请求自带稳定幂等 ID；提交成功后
@@ -9522,3 +9870,6 @@ def _render_application():
 
 
 _render_application()
+if is_desktop:
+    # 纯样式通过 Streamlit 的事件容器发送，不额外占用页面空间。
+    st.html('<style id="mpt-desktop-ready"></style>')

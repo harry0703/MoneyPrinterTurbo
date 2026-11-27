@@ -178,6 +178,28 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://link.bach.art/4iW1qZL"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/video-rebirth-logo-dark.svg"><img src="docs/sponsors/video-rebirth-logo-light.svg" alt="Video Rebirth" height="56"></picture></a><br>
+      <a href="https://link.bach.art/4iW1qZL"><strong>Video Rebirth</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://link.bach.art/4iW1qZL">Video Rebirth</a> for sponsoring this project! Video Rebirth builds <strong>BACH</strong>, an industrial-grade video model for production. <strong>BACH1.0 Pro ranked No. 2 on Artificial Analysis's Image-to-Video leaderboard in October 2026</strong>.<br>
+      The company also open-sources the HyperFlow series; <strong>HyperFlow H3 Flash surpassed 500K downloads within six days of release</strong>. Video generation starts from <strong>&#36;0.03 per second</strong>.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_logo"><img src="docs/sponsors/aigei-logo.png" alt="Aigei" width="112"></a><br>
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_brand"><strong>Aigei</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_thanks">Aigei</a> for supporting and sponsoring this project! Aigei brings together <strong>sound effects, music, video footage, images, 3D models, and game assets</strong> for short-form video, post-production, game development, and design. Find everything from footage and background music to sound effects for a scene.<br>
+      The Aigei Open Platform supports <strong>REST API and MCP integrations</strong>. Search for, filter, and retrieve audio, music, video, and image assets in automated video production, programmatic editing, and AI workflows, with less manual searching and sorting.<br>
+      🎁 <strong>Search and asset details are free to access.</strong> Guests and signed-in users can download assets, with a <strong>free download allowance</strong> available. See the platform for current allowances, fees, and licensing terms.<br>
+      👉 <a href="https://www.aigei.com/open?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_open_platform">Try the Aigei Open Platform</a> · <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_asset_library">Browse the Aigei asset library</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>
@@ -198,23 +220,23 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 
 ## Another Open-Source Project from the Creator: MangoDisk ⭐
 
-<p align="center">
-  <a href="https://mangodisk.app">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/en/dark-01-deep-cleanup.jpg?ver=1.1.0">
-      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=1.1.0">
-      <img src="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=1.1.0" width="900" alt="MangoDisk Deep Cleanup interface">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <strong>An open-source disk cleaner, storage analyzer, and system optimizer for macOS and Windows</strong><br>
+<p align="left">
+  <strong>An open-source disk cleaner, storage analyzer, and system optimizer for macOS, Windows, and Linux</strong><br>
   Clean caches, large files, duplicates, and app leftovers; analyze disk usage; manage apps and startup items; and maintain your system.
 </p>
 
-<p align="center">
+<p align="left">
   <a href="https://mangodisk.app">Visit the MangoDisk Website</a> · <a href="https://github.com/harry0703/MangoDisk">View on GitHub</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/harry0703/MangoDisk">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.mangodisk.app/images/screenshots/en/dark-01-deep-cleanup.jpg?ver=2.0.0">
+      <source media="(prefers-color-scheme: light)" srcset="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=2.0.0">
+      <img src="https://assets.mangodisk.app/images/screenshots/en/light-01-deep-cleanup.jpg?ver=2.0.0" width="900" alt="MangoDisk Deep Cleanup interface">
+    </picture>
+  </a>
 </p>
 
 ---
@@ -246,6 +268,7 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Turn script keywords into original video footage with [WaveSpeed AI](https://wavespeed.ai)
 - [x] Access Seedance, Wan, and other text-to-video models through [OFox](https://ofox.ai) with a single API key
 - [x] Generate 3–12 second AI video materials through the asynchronous [MuAPI](https://muapi.ai) text-to-video API, with configurable endpoint, aspect ratio, resolution, and polling
+- [x] Supports [useapi.net](https://useapi.net/docs/api-google-flow-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) AI video (Veo 3.1 and Gemini Omni Flash on your own Google AI plan through Google Flow or [Google Vids](https://useapi.net/docs/api-google-vids-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration), with free 1080p upscaling of clips up to 10 seconds on paid plans; [Kling](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) on your own Kling AI account; Seedance on your own [Dreamina](https://useapi.net/docs/api-dreamina-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) account), plus Nano Banana images on your own Google AI plan and Kling images on your own Kling AI account
 - [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services, custom image gateways, or the included [local SDXL image server](docs/local-image-server/README.md); choose static or slow-zoom motion for local and generated images
 - [x] Use [OpenAI - Codex image generation](docs/codex-provider.md) with the shared ChatGPT sign-in and a separate image model selector; the account and selected model must have image-generation access
 - [x] Adjust clip duration, playback speed, and transitions; choose crop-to-fill or letterbox fitting and random or sequential footage order
@@ -323,11 +346,19 @@ All examples below were generated with MoneyPrinterTurbo.
 
 ### Recommended Paths
 
+- To use the desktop app, [download it for your system](#download-the-desktop-app)
 - If you do not want to install or configure the project manually: generate videos with an AI Agent
 - If you already have Python and want a direct installation: [install the official package with pip](#install-the-official-package-with-pip)
-- Windows users: use the one-click package first for the fastest local trial
 - For source deployment or development: use `uv` to manage the environment and dependencies
 - If you want a more isolated runtime: use Docker deployment
+
+### Download the Desktop App
+
+| System | Download | Launch |
+| --- | --- | --- |
+| macOS 14 or later (Apple Silicon) | [ARM64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-macos-arm64.zip) | Extract the ZIP and open `MoneyPrinterTurbo.app` |
+| Windows (x64) | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-windows-x64.zip) | Extract the entire ZIP and double-click `MoneyPrinterTurbo.exe` |
+| Ubuntu 22.04 (x64) | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-ubuntu-x64.zip) | Extract with `unzip` and run `MoneyPrinterTurbo/bin/mpt-desktop` |
 
 ### Generate Videos with an AI Agent
 
@@ -343,25 +374,6 @@ Create a video with the topic "How AI is changing everyday life."
 Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
-### Windows
-
-Download the latest Windows one-click package from GitHub Releases, then extract it directly.
-
-- [Download the latest Windows one-click package](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
-
-> Download the `.7z` archive from the **Assets** section of that page. The
-> auto-generated `Source code (zip)` / `Source code (tar.gz)` archives contain
-> source code only: after extracting them you get `webui.bat` but no `start.bat`
-> or `update.bat`.
-
-After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
-
-After launching, the browser will open automatically (if it opens blank, it is recommended to use **Chrome** or **Edge**)
-
-### macOS / Linux
-
-Use the local setup or Docker instructions below.
 
 ## Installation & Deployment 📥
 
@@ -439,6 +451,8 @@ If you are using a Windows system, please refer to Microsoft's documentation:
 1. [Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
 2. [Use Docker containers with WSL](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
 
+Before the first start, copy `config.example.toml` to `config.toml` in the `MoneyPrinterTurbo` directory for the container mount. Keep your existing `config.toml` if you already have one.
+
 ```shell
 cd MoneyPrinterTurbo
 docker compose -f docker-compose.release.yml up
@@ -446,7 +460,6 @@ docker compose -f docker-compose.release.yml up
 
 > The recommended default is `docker-compose.release.yml`, which pulls the prebuilt image from GitHub Container Registry: `ghcr.io/harry0703/moneyprinterturbo:latest`.
 > If you need to build the image locally, you can still run `docker compose up`.
-> Before the first start, copy `config.example.toml` to `config.toml` so it can be mounted into the containers.
 
 #### ② Access the WebUI
 
@@ -496,7 +509,7 @@ Note that you need to execute the following commands in the `root directory` of 
 ```
 
 You can also run `webui.bat` in CMD.
-`webui.bat` prefers the project `.venv` or bundled Python from the portable package. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`.
+`webui.bat` uses Python from the project's `.venv` when available. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`.
 To allow other devices on your LAN to access the WebUI, run `set MPT_WEBUI_HOST=0.0.0.0` before running `webui.bat`.
 
 ###### macOS or Linux

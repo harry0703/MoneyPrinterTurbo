@@ -1,9 +1,16 @@
 import warnings
 from enum import Enum
-from typing import Any, List, Literal, Optional, Union
+from typing import Annotated, Any, List, Literal, Optional, Union
 
 import pydantic
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StrictBool,
+)
 
 from app.config import config
 
@@ -169,10 +176,39 @@ class VideoParams(BaseModel):
     custom_system_prompt: str = Field(default="", max_length=8000)
 
 
+# The voice of /videos, /audio and /subtitle requests that leave voice_name out
+# or send it as null. Optional[str] accepts null, and a null voice_name failed
+# the task with "'NoneType' object has no attribute 'strip'" when it reached
+# TTS, for /videos after the script and terms LLM calls.
+DEFAULT_REQUEST_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
+
+
+def _default_null_request_voice(value: Any) -> Any:
+    return DEFAULT_REQUEST_VOICE_NAME if value is None else value
+
+
+RequestVoiceName = Annotated[
+    Optional[str], BeforeValidator(_default_null_request_voice)
+]
+
+
+def _reject_blank_request_script(value: str) -> str:
+    if not value.strip():
+        raise ValueError("cannot be blank")
+    return value
+
+
+# The script of /audio and /subtitle requests. These endpoints narrate a script
+# the client sends and have no video_subject to write one from, so an empty or
+# whitespace-only script was queued and then failed the task with
+# "'AudioRequest' object has no attribute 'video_subject'".
+RequestScript = Annotated[str, AfterValidator(_reject_blank_request_script)]
+
+
 class SubtitleRequest(BaseModel):
-    video_script: str
+    video_script: RequestScript
     video_language: Optional[str] = ""
-    voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
+    voice_name: RequestVoiceName = DEFAULT_REQUEST_VOICE_NAME
     voice_volume: Optional[float] = Field(default=1.0, allow_inf_nan=False)
     voice_rate: Optional[float] = Field(default=1.2, allow_inf_nan=False)
     bgm_type: Optional[str] = "random"
@@ -197,9 +233,9 @@ class SubtitleRequest(BaseModel):
 
 
 class AudioRequest(BaseModel):
-    video_script: str
+    video_script: RequestScript
     video_language: Optional[str] = ""
-    voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
+    voice_name: RequestVoiceName = DEFAULT_REQUEST_VOICE_NAME
     voice_volume: Optional[float] = Field(default=1.0, allow_inf_nan=False)
     voice_rate: Optional[float] = Field(default=1.2, allow_inf_nan=False)
     bgm_type: Optional[str] = "random"
@@ -266,11 +302,23 @@ class TaskVideoRequest(VideoParams, BaseModel):
     video_count: int = Field(default=1, ge=1, le=5)
     video_clip_duration: int = Field(default=5, ge=1, le=15)
     n_threads: Optional[int] = Field(default=2, ge=1, le=16)
+    confirm_aigei_charge: StrictBool = Field(
+        default=False,
+        exclude=True,
+        description="Allow Aigei to charge copper coins for this task's video downloads.",
+    )
 
     # A request without voice_name uses the same Edge voice as /audio and
     # /subtitle. Edge TTS accepts no empty voice, so with the empty default
     # of VideoParams the task failed at the audio stage, after the LLM calls.
-    voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
+    voice_name: RequestVoiceName = DEFAULT_REQUEST_VOICE_NAME
+
+    # Every /videos task renders, and the render reads the frame size from the
+    # aspect ratio. A null one was accepted here and failed the task with
+    # "None is not a valid VideoAspect" after the script and narration steps.
+    # VideoParams keeps the field optional for the CLI, which rejects a null
+    # in its own preflight, and for stored tasks.
+    video_aspect: VideoAspect = VideoAspect.portrait
 
 
 class TaskQueryRequest(BaseModel):

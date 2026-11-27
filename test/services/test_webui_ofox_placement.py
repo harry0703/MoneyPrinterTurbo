@@ -25,9 +25,10 @@ def test_ai_video_source_order_keeps_ofox_below_metaso():
     )
     groups = ast.literal_eval(assignment.value)
     assert groups["ai_video"] == (
-        "metaso_minimax", "ofox", "loomloom", "volcengine_seedance", "infistar", "jalapeno", "wavespeed", "muapi"
+        "metaso_minimax", "ofox", "loomloom", "volcengine_seedance", "infistar", "jalapeno", "wavespeed", "muapi",
+        "useapi",
     )
-    assert groups["stock_video"] == ("pexels", "pixabay", "coverr")
+    assert groups["stock_video"] == ("pexels", "pixabay", "coverr", "aigei")
 
 
 @pytest.mark.parametrize("language", sorted(file.stem for file in (WEBUI.parent / "i18n").glob("*.json")))
@@ -59,7 +60,7 @@ def test_ofox_settings_order_and_saved_values(language):
         assert providers.options == [messages.get(key, english.get(key, key)) for key in (
             "Metaso MiniMax H3", "OFox AI Video", "Shengsuan Cloud AI Video",
             "Volcano Engine Seedance", "Infistar AI Video", "Jalapeno Cloud AI Video",
-            "WaveSpeed AI Video", "MuAPI AI Video",
+            "WaveSpeed AI Video", "MuAPI AI Video", "useapi.net AI Video",
         )]
         assert providers.value == "ofox"
         assert not any(item.key in {
