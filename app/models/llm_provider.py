@@ -636,6 +636,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.trustedrouter.com/v1",
         model_docs_url="https://trustedrouter.com/models",
     ),
+    LLMProviderSpec(
+        "straitly",
+        "Straitly",
+        api_key_url="https://straitly.ai/console/keys",
+        default_model="deepseek/deepseek-v4-1-flash-1017",
+        default_base_url="https://api.straitly.ai/v1",
+        model_docs_url="https://straitly.ai/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

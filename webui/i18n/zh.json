@@ -308,6 +308,8 @@
     "llm_provider_tips.teamorouter": "##### TeamoRouter 配置说明\n- **API Key**: 登录后在 [TeamoRouter 控制台]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nTeamoRouter 是预付费、兼容 OpenAI 接口的模型网关，一个 API Key 可调用 Claude、GPT、Gemini、DeepSeek、GLM、Kimi、Qwen 等模型，按 token 计费，无订阅。接口说明见 [TeamoRouter 文档](https://teamorouter.com/docs)。",
     "llm_provider_label.trustedrouter": "TrustedRouter",
     "llm_provider_tips.trustedrouter": "##### TrustedRouter 配置说明\n- **API Key**: 登录后在 [TrustedRouter API Keys 页面]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它 `provider/model` 格式的模型 ID\n\nTrustedRouter 是兼容 OpenAI 接口的模型网关，一个 API Key 可调用多家厂商的模型，按 token 计费。其网关运行在可远程证明的机密计算环境中。接口说明见 [TrustedRouter 文档](https://trustedrouter.com/docs)。",
+    "llm_provider_label.straitly": "Straitly",
+    "llm_provider_tips.straitly": "##### Straitly 配置说明\n- **API Key**: 注册后在 [Straitly API Keys 页面]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nStraitly 是 AI 网关，一个兼容 OpenAI 接口的 API Key 可调用 100 多个模型，包括 Claude、GPT、Gemini、Grok 和 DeepSeek。按 token 从预充值额度中计费，无订阅、无最低消费。接口说明见 [Straitly 文档](https://straitly.ai/docs/quickstart)。",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
