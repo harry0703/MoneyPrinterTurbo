@@ -306,6 +306,8 @@
     "llm_provider_tips.atmorouter": "##### AtmoRouter 配置说明\n- **API Key**: 登录后在 [AtmoRouter API Keys 页面]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它 `family/model` 格式的模型 ID\n\nAtmoRouter 是预付费、兼容 OpenAI 接口的模型网关。可通过 Solana 上的 USDC 或 QRIS 充值，按 token 计费。接口说明见 [AtmoRouter 文档](https://atmorouter.dev/docs)。",
     "llm_provider_label.teamorouter": "TeamoRouter",
     "llm_provider_tips.teamorouter": "##### TeamoRouter 配置说明\n- **API Key**: 登录后在 [TeamoRouter 控制台]({api_key_url}) 创建 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；可在 [模型列表]({model_docs_url}) 查看其它模型 ID\n\nTeamoRouter 是预付费、兼容 OpenAI 接口的模型网关，一个 API Key 可调用 Claude、GPT、Gemini、DeepSeek、GLM、Kimi、Qwen 等模型，按 token 计费，无订阅。接口说明见 [TeamoRouter 文档](https://teamorouter.com/docs)。",
+    "llm_provider_label.opendesign_go": "OpenDesign Go",
+    "llm_provider_tips.opendesign_go": "##### OpenDesign Go 配置说明\n- **API Key**: 订阅 [OpenDesign Go](https://go.open-design.ai/) 并在 [OpenDesign Cloud 控制台]({api_key_url}) 创建工作区 API Key\n- **Base Url**: 默认 `{default_base_url}`\n- **Model Name**: 默认 `{default_model}`；接入与可用模型说明见 [OpenDesign Cloud API 文档]({model_docs_url})\n\nOpenDesign Go 提供兼容 OpenAI 接口的模型端点，可使用工作区权限下的模型。",
     "API Key": "API Key",
     "Base Url": "Base Url",
     "Account ID": "Account ID",
