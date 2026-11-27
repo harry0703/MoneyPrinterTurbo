@@ -122,6 +122,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.atmorouter",
         "llm_provider_label.teamorouter",
         "llm_provider_label.trustedrouter",
+        "llm_provider_label.llmtr",
         "llm_provider_label.shengsuanyun",
         "llm_provider_label.infistar",
         "llm_provider_label.apinebula",

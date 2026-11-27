@@ -716,6 +716,13 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             trustedrouter.model_docs_url, "https://trustedrouter.com/models"
         )
+        llmtr = get_llm_provider("llmtr")
+        self.assertEqual(llmtr.default_model, "qwen/qwen3.8-27b-free")
+        self.assertEqual(llmtr.default_base_url, "https://llmtr.com/v1")
+        self.assertEqual(llmtr.adapter, "openai_compatible")
+        self.assertTrue(llmtr.requires_api_key)
+        self.assertEqual(llmtr.api_key_url, "https://llmtr.com/dashboard/keys")
+        self.assertEqual(llmtr.model_docs_url, "https://llmtr.com/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -807,6 +814,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "atmorouter",
                 "teamorouter",
                 "trustedrouter",
+                "llmtr",
                 "ollama",
                 "claude_code",
                 "oneapi",

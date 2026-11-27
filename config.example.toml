@@ -516,6 +516,14 @@ trustedrouter_api_key = ""
 trustedrouter_base_url = ""
 trustedrouter_model_name = ""
 
+# LLMTR, a prepaid OpenAI-compatible API gateway (one key for models from many providers).
+# API key: https://llmtr.com/dashboard/keys
+# Model list: https://llmtr.com/models
+# Docs: https://llmtr.com/docs
+llmtr_api_key = ""
+llmtr_base_url = ""
+llmtr_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""
