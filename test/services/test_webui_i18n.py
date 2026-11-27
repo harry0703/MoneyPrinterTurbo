@@ -121,6 +121,7 @@ ENGLISH_FALLBACK_KEYS = frozenset(
         "llm_provider_label.uberllm",
         "llm_provider_label.atmorouter",
         "llm_provider_label.teamorouter",
+        "llm_provider_label.opendesign_go",
         "llm_provider_label.shengsuanyun",
         "llm_provider_label.infistar",
         "llm_provider_label.apinebula",

@@ -508,6 +508,13 @@ teamorouter_api_key = ""
 teamorouter_base_url = ""
 teamorouter_model_name = ""
 
+# OpenDesign Go, an OpenAI-compatible model endpoint from OpenDesign (https://go.open-design.ai/).
+# API key: https://open-design.ai/cloud/dashboard
+# Docs: https://open-design.ai/help/cloud-api/
+opendesign_go_api_key = ""
+opendesign_go_base_url = ""
+opendesign_go_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""

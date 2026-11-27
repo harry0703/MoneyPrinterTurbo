@@ -628,6 +628,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.teamorouter.com/v1",
         model_docs_url="https://teamorouter.com/models",
     ),
+    LLMProviderSpec(
+        "opendesign_go",
+        "OpenDesign Go",
+        api_key_url="https://open-design.ai/cloud/dashboard",
+        default_model="deepseek-v4.1-flash",
+        default_base_url="https://amr-link.open-design.ai/v1",
+        model_docs_url="https://open-design.ai/help/cloud-api/",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",

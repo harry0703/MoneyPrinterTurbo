@@ -703,6 +703,19 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertTrue(teamorouter.requires_api_key)
         self.assertEqual(teamorouter.api_key_url, "https://teamorouter.com/dashboard")
         self.assertEqual(teamorouter.model_docs_url, "https://teamorouter.com/models")
+        opendesign_go = get_llm_provider("opendesign_go")
+        self.assertEqual(opendesign_go.default_model, "deepseek-v4.1-flash")
+        self.assertEqual(
+            opendesign_go.default_base_url, "https://amr-link.open-design.ai/v1"
+        )
+        self.assertEqual(opendesign_go.adapter, "openai_compatible")
+        self.assertTrue(opendesign_go.requires_api_key)
+        self.assertEqual(
+            opendesign_go.api_key_url, "https://open-design.ai/cloud/dashboard"
+        )
+        self.assertEqual(
+            opendesign_go.model_docs_url, "https://open-design.ai/help/cloud-api/"
+        )
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -793,6 +806,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "uberllm",
                 "atmorouter",
                 "teamorouter",
+                "opendesign_go",
                 "ollama",
                 "claude_code",
                 "oneapi",
