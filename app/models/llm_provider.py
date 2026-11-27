@@ -636,6 +636,14 @@ LLM_PROVIDER_REGISTRY = (
         default_base_url="https://api.trustedrouter.com/v1",
         model_docs_url="https://trustedrouter.com/models",
     ),
+    LLMProviderSpec(
+        "llmtr",
+        "LLMTR",
+        api_key_url="https://llmtr.com/dashboard/keys",
+        default_model="qwen/qwen3.8-27b-free",
+        default_base_url="https://llmtr.com/v1",
+        model_docs_url="https://llmtr.com/models",
+    ),
     # 本地部署与通用网关
     LLMProviderSpec(
         "ollama",
