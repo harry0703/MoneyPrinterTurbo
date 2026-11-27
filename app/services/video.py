@@ -1067,7 +1067,12 @@ def combine_videos(
             clip = _open_video_clip_quietly(video_path)
             clip_duration = float(clip.duration)
             clip_w, clip_h = clip.size
-            clip_w = round(clip_w * _sample_aspect_ratio(video_path))
+            # MoviePy has already swapped the size of a 90/270 degree display
+            # rotation, so the stored width that SAR stretches is the height.
+            if getattr(clip, "rotation", 0) in (90, 270):
+                clip_h = round(clip_h * _sample_aspect_ratio(video_path))
+            else:
+                clip_w = round(clip_w * _sample_aspect_ratio(video_path))
             if (
                 not math.isfinite(clip_duration)
                 or clip_duration <= 0
@@ -1147,7 +1152,7 @@ def combine_videos(
             clip = source_clip.subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
-            if clip.w != subclipped_item.width:
+            if tuple(clip.size) != (subclipped_item.width, subclipped_item.height):
                 clip = clip.resized((subclipped_item.width, subclipped_item.height))
             # 播放速度属于素材本身属性，应在转场前应用。这样 Fade/Slide 等一秒转场
             # 不会跟随素材速度变成 0.5 秒或 2 秒；后续最大时长裁剪继续作为

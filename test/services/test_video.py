@@ -1472,6 +1472,71 @@ class TestVideoService(unittest.TestCase):
         self.assertGreater(int(top[1]), 200)
         self.assertLess(int(top[2]), 100)
 
+    def test_combine_videos_applies_sample_aspect_to_rotated_height(self):
+        """A 160x180 source with 2:1 pixels rotated 90 degrees displays as 9:16."""
+        class FakeAudioClip:
+            duration = 1.0
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stored = os.path.join(temp_dir, "stored.mp4")
+            source = os.path.join(temp_dir, "rotated.mp4")
+            ffmpeg = utils.get_ffmpeg_binary()
+            subprocess.run(
+                [
+                    ffmpeg,
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=blue:s=160x180:r=10:d=2,setsar=2",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    stored,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    ffmpeg,
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-display_rotation",
+                    "90",
+                    "-i",
+                    stored,
+                    "-c",
+                    "copy",
+                    source,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            combined = os.path.join(temp_dir, "combined.mp4")
+            with patch.object(vd, "AudioFileClip", return_value=FakeAudioClip()):
+                vd.combine_videos(
+                    combined_video_path=combined,
+                    video_paths=[source],
+                    audio_file="audio.mp3",
+                    video_aspect=vd.VideoAspect.portrait,
+                    max_clip_duration=1,
+                    video_fit_mode=vd.VideoFitMode.contain,
+                )
+            with VideoFileClip(combined) as clip:
+                top = clip.get_frame(0.2)[10, clip.w // 2]
+
+        # The display frame is 9:16, so contain fills the portrait canvas.
+        # Stretching the rotated width instead letterboxes it in black.
+        self.assertGreater(int(top[2]), 100)
+
     def test_concat_video_clips_limits_output_to_audio_duration(self):
         """最终拼接时应裁到音频时长，避免安全余量带来明显静音尾巴。"""
 
