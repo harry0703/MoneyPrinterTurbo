@@ -305,46 +305,75 @@ _THAI_OR_LAO_SENTENCE_SPACE = re.compile(
 # "Jr." are left out: they can end a sentence, as in "Our shop is on Main St. We open at 9."
 _TITLE_BEFORE_NAME = re.compile(r"(?<!\w)(?:Mr|Mrs|Ms|Dr|Prof|Mt)$")
 # Brackets that close text before them wherever they stand.
-_CLOSING_BRACKETS = ")]}）］｝」』】》〉»"
-# A closing quote mark and the mark that opens its quotation. A straight quote mark opens and
-# closes with the same character, so it closes only when the line has an unclosed one.
-_QUOTE_OPENERS = {'"': '"', "'": "'", "”": "“", "’": "‘"}
+_CLOSING_BRACKETS = ")]}）］｝」』】》〉"
+# The mark that opens the quotation a closing quote mark closes. A straight quote mark opens
+# and closes with the same character. « and », “ and „ and ‘ and ‚ can each close the other:
+# French opens with « and German with », and English opens with “ and German with „.
+_QUOTE_OPENERS = {
+    '"': '"', "'": "'", "”": "“", "’": "‘", "»": "«", "«": "»", "“": "„", "‘": "‚",
+}
+_BOTH_WAYS_QUOTE_MARKS = "«»“‘"
+_TRACKED_QUOTE_MARKS = frozenset(_QUOTE_OPENERS) | frozenset(_QUOTE_OPENERS.values())
+_SPACES_BEFORE_GUILLEMET = " \u00a0\u202f"
 _SINGLE_CHARACTER_PUNCTUATIONS = frozenset(p for p in const.PUNCTUATIONS if len(p) == 1)
-# A single quote that is not an apostrophe inside a word, as in "don't".
-_SINGLE_QUOTE = re.compile(r"(?<!\w)'|'(?!\w)")
 
 
-def _unclosed_quotes(line, closing):
-    opening = _QUOTE_OPENERS[closing]
-    if closing == "'":
-        return len(_SINGLE_QUOTE.findall(line)) % 2
-    if opening == closing:
-        return line.count(closing) % 2
-    return max(line.count(opening) - line.count(closing), 0)
+def _is_word_character(char):
+    return char.isalnum() or char == "_"
 
 
-def _end_of_closing_marks(s, start, line):
+def _track_quote(open_quotes, s, index):
+    """
+    Note the quote mark at ``s[index]``: ``open_quotes`` counts the quotations still open.
+
+    An apostrophe inside a word, as in "don't" and "it’s", is no quote mark, and neither is
+    one after a word when no quotation is open, as in "the dogs' toys". A curly closing mark
+    with no quotation open for it opens nothing and closes nothing.
+    """
+    char = s[index]
+    after_word = index > 0 and _is_word_character(s[index - 1])
+    if char in ("'", "’") and after_word:
+        if index < len(s) - 1 and _is_word_character(s[index + 1]):
+            return
+        if char == "'" and not open_quotes.get("'", 0):
+            return
+    opener = _QUOTE_OPENERS.get(char)
+    if opener is None:
+        open_quotes[char] = open_quotes.get(char, 0) + 1
+    elif opener == char:
+        open_quotes[char] = 1 - open_quotes.get(char, 0)
+    elif open_quotes.get(opener, 0):
+        open_quotes[opener] -= 1
+    elif char in _BOTH_WAYS_QUOTE_MARKS:
+        open_quotes[char] = open_quotes.get(char, 0) + 1
+
+
+def _end_of_closing_marks(s, start, open_quotes):
     """
     Return the index after the closing brackets and quote marks that start at ``start``.
 
-    ``line`` is the text of the line they would close. A quote mark closes a quotation only
-    when that line holds the mark that opens it: in ``He said:" Go now!" Then left.`` the
-    first quote mark opens the quotation, and the second closes it.
+    A quote mark closes a quotation only when one is open for it, wherever the quotation
+    began: in ``He said:" Go now!" Then left.`` the first quote mark opens the quotation, and
+    the second closes it. The quotations that these marks close are closed in ``open_quotes``.
     """
     end = start
-    unclosed = {}
     while end < len(s):
         char = s[end]
         if char in _CLOSING_BRACKETS:
             end += 1
             continue
-        if char not in _QUOTE_OPENERS:
+        if (
+            char in _SPACES_BEFORE_GUILLEMET
+            and s[end + 1 : end + 2] == "»"
+            and open_quotes.get("«", 0)
+        ):
+            # French sets a space before the closing guillemet: « Pas de panique. »
+            end += 1
+            continue
+        opener = _QUOTE_OPENERS.get(char)
+        if opener is None or not open_quotes.get(opener, 0):
             break
-        if char not in unclosed:
-            unclosed[char] = _unclosed_quotes(line, char)
-        if not unclosed[char]:
-            break
-        unclosed[char] -= 1
+        open_quotes[opener] -= 1
         end += 1
     return end
 
@@ -359,6 +388,9 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
     previous_char = ""
     next_char = ""
     skip_until = 0
+    # The quotations still open, so that a quote mark closes the quotation that a comma or a
+    # stop split into several lines. A line break ends them.
+    open_quotes = {}
     for i in range(len(s)):
         if i < skip_until:
             continue
@@ -366,6 +398,7 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
         if char == "\n":
             result.append(txt.strip())
             txt = ""
+            open_quotes.clear()
             continue
 
         if i > 0:
@@ -422,6 +455,8 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
 
         if char not in const.PUNCTUATIONS:
             txt += char
+            if char in _TRACKED_QUOTE_MARKS:
+                _track_quote(open_quotes, s, i)
         else:
             # A quotation or bracket that closes right after the full stop, as in
             # `"Hello." She left` and `(He left.) Then`, stays on the line it closes. The
@@ -430,7 +465,7 @@ def split_string_by_punctuations(s, *, split_thai_and_lao_sentences=True):
             run_end = i + 1
             while run_end < len(s) and s[run_end] in _SINGLE_CHARACTER_PUNCTUATIONS:
                 run_end += 1
-            closing_end = _end_of_closing_marks(s, run_end, txt + s[i:run_end])
+            closing_end = _end_of_closing_marks(s, run_end, open_quotes)
             if closing_end > run_end:
                 txt += s[i:closing_end]
             result.append(txt.strip())
