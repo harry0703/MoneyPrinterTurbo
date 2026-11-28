@@ -149,6 +149,14 @@ The `useapi_image` source uses the same `MPT_USEAPI_TOKEN`. Nano Banana images
 need no confirmation flag; a Kling image model (`useapi_image_model` starting
 with `kling-`) spends Kling credits and needs `--confirm-useapi-charge`, asked
 for the same way.
+When `USEAPI_TOKEN_URL` is present without a charge confirmation, the run uses
+a useapi.net voice-over (`--voice-name useapi-kling:<speakerId>` for Kling TTS,
+`useapi-vids:<Name>` for Google Vids voices) or `--bgm-type flowmusic`
+(Google Flow Music background music). Ask for the useapi.net API token once and
+pass it as `MPT_USEAPI_TOKEN`. Kling text-to-speech uses no Kling credits; a
+Google Vids voice uses the Google plan's monthly Google Vids speech uses, and
+Google Flow Music uses the Google Flow Music credits included in the Google AI
+plan, so mention that before choosing them for the user.
 
 When `INFISTAR_CHARGE_CONFIRMATION_REQUIRED` is present, explain that every
 generated Infistar clip creates a paid task. Only after the user explicitly

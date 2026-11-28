@@ -898,7 +898,7 @@ class TestCli(unittest.TestCase):
                     )
             self.assertEqual(cm.exception.code, 2)
             self.assertIn(
-                "--video-music-prompt requires --bgm-type sonilo or elevenlabs",
+                "--video-music-prompt requires --bgm-type sonilo, elevenlabs or flowmusic",
                 error_output.getvalue(),
             )
 
