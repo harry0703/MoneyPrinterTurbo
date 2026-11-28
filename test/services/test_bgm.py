@@ -4,7 +4,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import UUID
 
@@ -15,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from app.services import bgm
 from app.controllers.v1 import video as video_controller
 from app.models.exception import HttpException
+from test.services.fake_ffmpeg_process import FakeFfmpegProcess
 
 
 class _FakeRequest:
@@ -265,18 +265,18 @@ class TestBackgroundMusicService(unittest.TestCase):
             )
 
     def test_audio_validation_uses_only_configured_ffmpeg(self):
-        completed = SimpleNamespace(returncode=0, stdout=b"out_time_us=100000\nprogress=end\n")
+        process = FakeFfmpegProcess(stdout=b"0, 0, 0, 1600, 3200, 0x00000000\n")
         with (
             patch.object(
                 bgm.utils,
                 "get_ffmpeg_binary",
                 return_value="/portable/imageio/ffmpeg",
             ),
-            patch.object(bgm.subprocess, "run", return_value=completed) as run,
+            patch.object(bgm.subprocess, "Popen", return_value=process) as popen,
         ):
             bgm._validate_audio("/tmp/background.m4a")
 
-        command = run.call_args.args[0]
+        command = popen.call_args.args[0]
         self.assertEqual(command[0], "/portable/imageio/ffmpeg")
         self.assertNotIn("ffprobe", " ".join(command).lower())
         self.assertIn("0:a:0", command)
@@ -284,7 +284,7 @@ class TestBackgroundMusicService(unittest.TestCase):
     def test_audio_validation_distinguishes_service_failure_from_invalid_audio(self):
         with patch.object(
             bgm.subprocess,
-            "run",
+            "Popen",
             side_effect=OSError("ffmpeg missing"),
         ):
             with self.assertRaises(bgm.BgmServiceError):
@@ -292,15 +292,15 @@ class TestBackgroundMusicService(unittest.TestCase):
 
         with patch.object(
             bgm.subprocess,
-            "run",
-            return_value=SimpleNamespace(returncode=1),
+            "Popen",
+            return_value=FakeFfmpegProcess(returncode=1),
         ):
             with self.assertRaises(bgm.BgmUploadError):
                 bgm._validate_audio("/tmp/background.mp3")
 
         with patch.object(
-            bgm.subprocess,
-            "run",
+            bgm,
+            "_decode_first_audio_stream",
             side_effect=bgm.subprocess.TimeoutExpired("ffmpeg", 30),
         ):
             with self.assertRaises(bgm.BgmServiceError):

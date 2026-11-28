@@ -10,6 +10,7 @@ import shutil
 from app.config import config
 from app.models.llm_provider import LLM_PROVIDER_REGISTRY
 from app.services import (
+    aigei,
     infistar_video,
     jalapeno_video,
     loomloom,
@@ -17,6 +18,7 @@ from app.services import (
     metaso_minimax,
     muapi,
     ofox,
+    useapi,
     volcengine_seedance,
 )
 
@@ -95,12 +97,15 @@ def configured_material_providers(settings, groups, codex_connected=False):
     }
     enabled.update(
         {
+            "aigei": bool(aigei.api_key(settings)),
             "metaso_minimax": metaso_minimax.is_enabled(settings),
             "ofox": ofox.is_enabled(settings),
             "volcengine_seedance": volcengine_seedance.is_enabled(settings),
             "infistar": infistar_video.is_enabled(settings),
             "jalapeno": jalapeno_video.is_enabled(settings),
             "muapi": muapi.is_enabled(settings),
+            "useapi": useapi.is_enabled(settings),
+            "useapi_image": useapi.is_enabled(settings),
             "openai_image": material.is_openai_image_enabled(settings),
             "codex_image": bool(
                 codex_connected and _text(settings.get("codex_image_model_name"))

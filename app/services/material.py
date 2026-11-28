@@ -1,8 +1,10 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
+from functools import partial
 import io
 import math
+import operator
 import os
 import random
 import tempfile
@@ -15,6 +17,7 @@ from typing import Any, Callable, List
 from urllib.parse import quote_plus, urlencode, urlsplit, urlunsplit
 
 import requests
+from filelock import FileLock
 from loguru import logger
 
 from app.utils.request_logging import trace_http_call
@@ -24,6 +27,7 @@ from PIL import Image, UnidentifiedImageError
 from app.config import config
 from app.models.schema import ImageMotion, MaterialInfo, VideoAspect, VideoConcatMode
 from app.services import (
+    aigei,
     codex_image,
     generation_progress,
     infistar_video,
@@ -34,7 +38,9 @@ from app.services import (
     muapi,
     ofox,
     task_artifacts,
+    useapi,
     video,
+    video_orientation,
     volcengine_seedance,
 )
 from app.utils import logging_utils, utils
@@ -49,6 +55,7 @@ MAX_VIDEO_DOWNLOAD_BYTES = 512 * 1024 * 1024
 
 # 默认保持串行，与旧版行为一致；有需要时可在配置中提高库存素材并发数。
 _DEFAULT_MATERIAL_CONCURRENCY = 1
+_AIGEI_DOWNLOAD_LOCK_COUNT = 32
 
 
 def _get_material_concurrency() -> int:
@@ -69,6 +76,14 @@ class OpenAIImagePaidResultError(RuntimeError):
 
 class OpenAIImageUnconfirmedError(OpenAIImagePaidResultError):
     """A paid image request may have succeeded without returning a response."""
+
+
+class UseAPIImageMaterialError(OpenAIImagePaidResultError):
+    """Stop the useapi.net image loop; keeps the job ID when one is known."""
+
+    def __init__(self, message: str, task_id: str = ""):
+        super().__init__(message)
+        self.task_id = task_id
 
 
 class CodexImageMaterialError(OpenAIImagePaidResultError):
@@ -775,14 +790,19 @@ def search_videos_coverr(
 # WaveSpeed AI (https://wavespeed.ai) 通过文生视频模型按脚本关键词直接生成素材，
 # 与三个库存素材源共用 MaterialInfo 结果结构和后续下载、剪辑流程。
 WAVESPEED_API_BASE_URL = "https://api.wavespeed.ai/api/v3"
-WAVESPEED_DEFAULT_T2V_MODEL = "bytedance/seedance-2.0-fast/text-to-video"
+WAVESPEED_DEFAULT_T2V_MODEL = "alibaba/wan-3.0/text-to-video"
 WAVESPEED_POLL_INTERVAL_SECONDS = 2.0
 WAVESPEED_RUN_TIMEOUT_SECONDS = 600.0
-# 默认模型 bytedance/seedance-2.0-fast/text-to-video 只接受 4-15 秒；超出
-# 范围的请求会被 API 直接拒绝。WebUI 默认片段时长是 3 秒，因此必须在提交
-# 前收敛到模型支持区间，多出的时长由现有剪辑流程按片段时长裁掉。
-WAVESPEED_MIN_DURATION_SECONDS = 4
-WAVESPEED_MAX_DURATION_SECONDS = 15
+# 文生视频模型只接受各自的时长区间，超出范围的请求会被 API 直接拒绝，因此
+# 必须在提交前收敛到模型支持区间，多出的时长由现有剪辑流程按片段时长裁掉。
+# 未配置 wavespeed_min_duration / wavespeed_max_duration 时按所选模型取默认
+# 区间（取自各模型的请求 schema）：默认 Wan 3.0 接受 2-30 秒，此前的默认
+# Seedance 2.0 Fast 接受 4-15 秒。其它模型沿用此前的 4-15 秒，保持升级前行为。
+WAVESPEED_MODEL_DURATION_BOUNDS = {
+    "alibaba/wan-3.0/text-to-video": (2, 30),
+    "bytedance/seedance-2.0-fast/text-to-video": (4, 15),
+}
+WAVESPEED_FALLBACK_DURATION_BOUNDS = (4, 15)
 # 三个失败态语义不同（模型报错 / 用户取消 / 平台超时），但对素材流程都意味着
 # 本关键词没有产物，统一按空结果处理，交给上层跳过该片段继续生成。
 WAVESPEED_FAILURE_STATUSES = frozenset({"failed", "cancelled", "timeout"})
@@ -850,14 +870,17 @@ def _is_wavespeed_retryable_error(error: Exception) -> bool:
     return False
 
 
-def _wavespeed_duration_bounds() -> tuple[int, int]:
+def _wavespeed_duration_bounds(model_id: str) -> tuple[int, int]:
     """
     返回当前模型支持的生成时长区间（秒）。
 
-    默认区间对应默认 Seedance 模型；用户切换到其它文生视频模型时，可以在
-    配置中同步调整区间。任何异常配置都退回默认值，并保证 min <= max，
-    避免把用户输入变成必然失败的远端请求。
+    默认区间按所选模型确定；用户切换到其它文生视频模型时，可以在配置中
+    同步调整区间。任何异常配置都退回默认值，并保证 min <= max，避免把
+    用户输入变成必然失败的远端请求。
     """
+    default_min, default_max = WAVESPEED_MODEL_DURATION_BOUNDS.get(
+        model_id, WAVESPEED_FALLBACK_DURATION_BOUNDS
+    )
 
     def read_bound(key: str, fallback: int) -> int:
         try:
@@ -866,8 +889,8 @@ def _wavespeed_duration_bounds() -> tuple[int, int]:
             return fallback
         return value if value >= 1 else fallback
 
-    min_duration = read_bound("wavespeed_min_duration", WAVESPEED_MIN_DURATION_SECONDS)
-    max_duration = read_bound("wavespeed_max_duration", WAVESPEED_MAX_DURATION_SECONDS)
+    min_duration = read_bound("wavespeed_min_duration", default_min)
+    max_duration = read_bound("wavespeed_max_duration", default_max)
     return min_duration, max(max_duration, min_duration)
 
 
@@ -896,7 +919,7 @@ def generate_videos_wavespeed(
     )
     headers = {"Authorization": f"Bearer {api_key}"}
     requested_duration = max(int(minimum_duration), 1)
-    min_duration, max_duration = _wavespeed_duration_bounds()
+    min_duration, max_duration = _wavespeed_duration_bounds(model_id)
     duration = min(max(requested_duration, min_duration), max_duration)
     if duration != requested_duration:
         # 生成比请求更长不会影响成片：剪辑流程仍按片段时长裁剪；生成比请求
@@ -1141,7 +1164,10 @@ def _wait_for_wavespeed_prediction(
 
 
 def _save_generated_video_with_retry(
-    video_url: str, save_dir: str, provider: str
+    video_url: str,
+    save_dir: str,
+    provider: str,
+    request_headers: dict[str, str] | None = None,
 ) -> str:
     """
     下载已经付费生成的产物，失败时优先重试同一个地址。
@@ -1151,15 +1177,25 @@ def _save_generated_video_with_retry(
     """
     for attempt in range(WAVESPEED_MAX_DOWNLOAD_RETRIES + 1):
         try:
-            saved_video_path = save_video(video_url=video_url, save_dir=save_dir)
+            # request_headers is only set for links that need credentials,
+            # such as a Google Vids file served through useapi.net.
+            extra = {"request_headers": request_headers} if request_headers else {}
+            saved_video_path = save_video(video_url=video_url, save_dir=save_dir, **extra)
             if saved_video_path:
                 return saved_video_path
             failure_detail = "empty result"
         except Exception as e:
-            failure_detail = (
-                f"error={type(e).__name__}, "
-                f"detail={_redact_request_error(e, video_url)}"
-            )
+            if request_headers or str(video_url).startswith(useapi.DEFAULT_BASE_URL):
+                # A useapi.net media link carries the account email in its
+                # path, and the exception text can repeat that path; log only
+                # the error type.
+                failure_detail = f"error={type(e).__name__}"
+            else:
+                failure_detail = (
+                    f"error={type(e).__name__}, "
+                    f"detail={_redact_request_error(e, video_url)}"
+                )
+            failure_detail = useapi.mask_emails(failure_detail)
         if attempt >= WAVESPEED_MAX_DOWNLOAD_RETRIES:
             break
         delay = WAVESPEED_RETRY_BASE_SECONDS * (attempt + 1)
@@ -1268,7 +1304,13 @@ def _is_valid_video_file(video_path: str) -> bool:
                 )
 
 
-def save_video(video_url: str, save_dir: str = "") -> str:
+def save_video(
+    video_url: str,
+    save_dir: str = "",
+    request_headers: dict[str, str] | None = None,
+    *,
+    resolve_url: Callable[[], str] | None = None,
+) -> str:
     generation_progress.downloading()
     if not save_dir:
         save_dir = utils.storage_dir("cache_videos")
@@ -1330,9 +1372,19 @@ def save_video(video_url: str, save_dir: str = "") -> str:
         except FileNotFoundError:
             pass
 
+    # 付费素材使用稳定标识查本地缓存，只有缓存缺失才调用会扣费的取链接口。
+    download = requests.get
+    if resolve_url is not None:
+        video_url = resolve_url()
+    else:
+        # 爱给网的临时地址完整保留用于下载，跳过诊断日志里的 URL 字段。
+        download = partial(trace_http_call, "GET", download)
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     }
+    if request_headers:
+        headers.update(request_headers)
 
     # A nonempty file is treated as a cache hit above. Keep the final path
     # unpublished until the complete download has passed media validation, so a
@@ -1347,8 +1399,7 @@ def save_video(video_url: str, save_dir: str = "") -> str:
             delete=False,
         ) as temp_file:
             temp_path = temp_file.name
-            with trace_http_call(
-                "GET", requests.get,
+            with download(
                 video_url,
                 headers=headers,
                 proxies=config.proxy,
@@ -1920,6 +1971,46 @@ def generate_images_codex(
     return [item]
 
 
+def generate_images_useapi(
+    search_term: str,
+    minimum_duration: int,
+    video_aspect: VideoAspect = VideoAspect.portrait,
+    save_dir: str = "",
+) -> List[MaterialInfo]:
+    """Generate one Nano Banana image through useapi.net for a script segment.
+
+    A refused prompt returns an empty list so the next segment is tried, as
+    for the OpenAI-compatible source. Errors that would repeat for every
+    segment, or leave the request state unknown, stop the loop.
+    """
+    aspect = VideoAspect(video_aspect)
+    try:
+        image_bytes, job_id = useapi.generate_image(search_term, aspect)
+    except useapi.UseAPIError as exc:
+        raise UseAPIImageMaterialError(str(exc), task_id=exc.task_id) from exc
+    if image_bytes is None:
+        return []
+    try:
+        image_path, width, height = _save_openai_image_file(image_bytes, save_dir)
+    except _OpenAIImageDecodeError as e:
+        logger.error(
+            "useapi.net image is not a decodable image, skipping term: "
+            f"term={search_term!r}, error={type(e).__name__}, detail={e}"
+        )
+        return []
+    item = MaterialInfo()
+    item.provider = "useapi_image"
+    item.url = image_path
+    item.duration = max(int(minimum_duration), 1)
+    item.source_info = {
+        "provider": "useapi_image",
+        "search_term": search_term,
+        "asset_id": job_id,
+        "rendition": {"id": job_id or None, "width": width, "height": height},
+    }
+    return [item]
+
+
 def _render_openai_image_video(
     image_path: str, clip_duration: int, image_motion: ImageMotion = ImageMotion.zoom
 ) -> str:
@@ -2175,6 +2266,8 @@ def _search_terms_in_parallel(
                     minimum_duration=minimum_duration,
                     video_aspect=video_aspect,
                 )
+            except aigei.AigeiError:
+                raise
             except Exception as exc:
                 logger.error(
                     "failed to search material videos: "
@@ -2205,6 +2298,8 @@ def _search_terms_in_parallel(
             search_term = futures[future]
             try:
                 items = future.result()
+            except aigei.AigeiError:
+                raise
             except Exception as exc:
                 logger.error(
                     "failed to search material videos: "
@@ -2296,6 +2391,8 @@ def _download_materials_in_parallel(
     materials: List[tuple[str, MaterialInfo]],
     material_directory: str,
     on_downloaded: Callable[[MaterialInfo], None] | None = None,
+    save_paid_material: Callable[[MaterialInfo, str], str] | None = None,
+    on_paid_failure: Callable[[list[tuple[str, MaterialInfo, str]]], None] | None = None,
 ) -> list[tuple[str, MaterialInfo, str]]:
     """
     并行下载一轮素材，保留调用方传入的候选顺序。
@@ -2307,6 +2404,21 @@ def _download_materials_in_parallel(
         return []
 
     total = len(materials)
+    if save_paid_material is not None:
+        # 正式取链可能已扣费；一旦状态不明或文件保存失败，立即结束本轮。
+        downloaded = []
+        try:
+            for position, (search_term, item) in enumerate(materials, start=1):
+                saved_path = save_paid_material(item, material_directory)
+                if saved_path:
+                    downloaded.append((search_term, item, saved_path))
+                    _report_material_downloaded(position, total, item, saved_path, on_downloaded)
+        except aigei.AigeiError:
+            if on_paid_failure is not None:
+                on_paid_failure(downloaded)
+            raise
+        return downloaded
+
     workers = min(_get_material_concurrency(), total)
     if workers == 1:
         downloaded = []
@@ -2371,6 +2483,7 @@ def _select_materials_until_duration(
     audio_duration: float,
     current_duration: float = 0.0,
     clip_speed: float = 1.0,
+    duration_reached: Callable[[float, float], bool] = operator.gt,
 ) -> List[tuple[str, MaterialInfo]]:
     """
     按候选顺序选取一轮素材，避免并发时下载已经超过配音时长的候选。
@@ -2386,9 +2499,89 @@ def _select_materials_until_duration(
         total_duration += _first_clip_duration(
             material[1], max_clip_duration, clip_speed
         )
-        if total_duration > audio_duration:
+        if duration_reached(total_duration, audio_duration):
             break
     return selected
+
+
+def _aigei_duration_reached(duration: float, required: float) -> bool:
+    # 未提供目标时长时仍下载一条，用于单独获取素材。
+    return duration > 0 and duration >= required
+
+
+def _persist_interrupted_material_batch(task_id, previous_sources, downloaded):
+    # 感知扣费结果不确定时仍要结束任务，但已发布的文件需要保留可追溯的来源。
+    sources = list(previous_sources)
+    for _, item, path in downloaded:
+        try:
+            sources.append(_material_source_record(item, path))
+        except Exception as exc:
+            logger.warning(f"failed to record downloaded Aigei material: {type(exc).__name__}")
+    if sources:
+        _persist_material_sources(task_id, sources)
+
+
+class _SidewaysAigeiPreview(Exception):
+    """选中的免费预览确认横倒，应跳过正式取链。"""
+
+
+def _save_aigei_material(
+    item: MaterialInfo, directory: str, key: str, video_aspect: VideoAspect | None = None,
+    orientation: video_orientation.SidewaysDetector | None = None,
+) -> str:
+    cache_identity = "aigei:" + utils.md5(key) + ":" + item.url
+    directory = directory or utils.storage_dir("cache_videos")
+    cache_hash = utils.md5(cache_identity.split("#", 1)[0])
+    lock_index = int(cache_hash[:2], 16) % _AIGEI_DOWNLOAD_LOCK_COUNT
+    lock_path = Path(directory) / f".aigei-{lock_index}.lock"
+    request_id = ""
+    requested_download = False
+
+    def resolve_url():
+        nonlocal request_id, requested_download
+        if orientation is not None and orientation.is_sideways(aigei.preview_frames(item)):
+            raise _SidewaysAigeiPreview
+        url, request_id = aigei.download_url(item.url, key)
+        requested_download = True
+        return url
+
+    try:
+        # CLI、API 工作进程和 WebUI 共享目录。锁覆盖查缓存、付费取链和文件发布。
+        with FileLock(lock_path, timeout=300):
+            path = save_video(cache_identity, directory, resolve_url=resolve_url)
+    except _SidewaysAigeiPreview:
+        logger.info(f"skipping sideways Aigei preview: asset_id={(item.source_info or {}).get('asset_id')}")
+        return ""
+    except (OSError, ValueError, requests.RequestException, material_upload.MaterialServiceError):
+        raise aigei.AigeiError("file_failed", request_id) from None
+    if not path:
+        raise aigei.AigeiError("file_failed", request_id)
+    if video_aspect is not None:
+        clip = None
+        try:
+            # 与合成使用同一个解码器，按应用旋转标记后的显示尺寸验证，旧缓存也要检查。
+            clip = video._open_video_clip_quietly(path)
+            width, height = clip.size
+            aspect_matches = _matches_video_aspect(width, height, video_aspect)
+            sideways = aspect_matches and orientation is not None and orientation.is_sideways_video(clip)
+        except Exception:
+            raise aigei.AigeiError("file_failed", request_id) from None
+        finally:
+            video.close_clip(clip)
+        if not aspect_matches:
+            logger.warning(
+                f"skipping Aigei video with mismatched display aspect: "
+                f"file={os.path.basename(path)}, size={width}x{height}, target={video_aspect}"
+            )
+            if requested_download:
+                raise aigei.AigeiError("aspect_mismatch", request_id)
+            return ""
+        if sideways:
+            logger.warning(f"skipping Aigei video with sideways content: file={os.path.basename(path)}")
+            if requested_download:
+                raise aigei.AigeiError("sideways_content", request_id)
+            return ""
+    return path
 
 
 def download_videos(
@@ -2409,7 +2602,7 @@ def download_videos(
     """
     搜索并下载覆盖配音时长所需的素材，返回本地文件路径。
 
-    ``progress_callback`` 可选：库存素材（Pexels、Pixabay、Coverr）每下完一个
+    ``progress_callback`` 可选：库存素材每下完一个
     文件就以 0~1 的完成比例调用一次，供任务层推进进度条。按需生成的付费
     素材源不报告下载进度。
 
@@ -2419,18 +2612,33 @@ def download_videos(
     """
     provider = "pexels"
     remote_search_videos = search_videos_pexels
+    save_paid_material = None
+    duration_reached = operator.gt
     if source == "pixabay":
         provider = "pixabay"
         remote_search_videos = search_videos_pixabay
     elif source == "coverr":
         provider = "coverr"
         remote_search_videos = search_videos_coverr
+    elif source == "aigei":
+        key = aigei.api_key()
+        if not key:
+            raise aigei.AigeiError("key_required")
+        remote_search_videos = partial(aigei.search_videos, key=key)
+        orientation = video_orientation.load_detector() if video_aspect == VideoAspect.portrait else None
+        save_paid_material = partial(
+            _save_aigei_material, key=key, video_aspect=video_aspect, orientation=orientation,
+        )
+        duration_reached = _aigei_duration_reached
 
     def search_videos(
         search_term: str,
         minimum_duration: int,
         video_aspect: VideoAspect,
     ) -> List[MaterialInfo]:
+        if source == "aigei":
+            # 文件 ID 和报价依赖当前账号，跳过以公开直链为键的库存搜索缓存。
+            return remote_search_videos(search_term, minimum_duration, video_aspect)
         return _search_videos_with_cache(
             provider=provider,
             search_videos=remote_search_videos,
@@ -2499,6 +2707,17 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
+    if source == "useapi":
+        # useapi.net 在用户自己的 Google AI 订阅、Kling AI 或 Dreamina 账号上生成，每段都会
+        # 消耗该账号的积分。与 MuAPI 相同，逐段提交并在覆盖配音时长后停止。
+        return _download_videos_useapi_on_demand(
+            task_id=task_id,
+            search_terms=search_terms,
+            video_aspect=video_aspect,
+            audio_duration=audio_duration,
+            max_clip_duration=max_clip_duration,
+            material_directory=material_directory,
+        )
     if source == "metaso_minimax":
         # 秘塔 MiniMax 同样按远端异步任务计费。它与火山方舟的请求体相似，
         # 但任务查询路径和响应结构不同，因此只共享本地按需生成语义，不复用
@@ -2511,7 +2730,7 @@ def download_videos(
             max_clip_duration=max_clip_duration,
             material_directory=material_directory,
         )
-    if source in {"openai_image", "codex_image"}:
+    if source in {"openai_image", "codex_image", "useapi_image"}:
         # 与 WaveSpeed 相同的按需付费语义：文生图按张计费，逐段生成、凑够
         # 所需时长立即停止。生成结果是一次性的本地图片文件，也不参与 24
         # 小时搜索缓存——缓存会让不同任务反复拿到同一张图。
@@ -2521,6 +2740,11 @@ def download_videos(
                 "image_generator": generate_images_codex,
                 "provider": source,
                 "codex_image_context": codex_image_context,
+            }
+        elif source == "useapi_image":
+            image_options = {
+                "image_generator": generate_images_useapi,
+                "provider": source,
             }
         return _download_videos_openai_image_on_demand(
             task_id=task_id,
@@ -2546,6 +2770,7 @@ def download_videos(
             clip_speed=clip_speed,
             material_directory=material_directory,
             progress_callback=progress_callback,
+            save_paid_material=save_paid_material,
         )
 
     valid_video_items = []
@@ -2568,6 +2793,7 @@ def download_videos(
     )
     video_paths = []
     material_sources: list[dict[str, Any]] = []
+    on_paid_failure = partial(_persist_interrupted_material_batch, task_id, material_sources)
 
     concat_mode_value = getattr(video_concat_mode, "value", video_concat_mode)
     if concat_mode_value == VideoConcatMode.random.value:
@@ -2581,7 +2807,7 @@ def download_videos(
     # 默认/随机路径同样受素材并发配置控制：按串行逻辑的停止条件预选每轮
     # 候选（顺序累加、首次超过配音时长即停）。全部下载成功时，每轮下载集合
     # 与串行逻辑完全一致；下载失败的候选在下一轮用后续候选补足。
-    while pending_items and total_duration <= audio_duration:
+    while pending_items and not duration_reached(total_duration, audio_duration):
         batch = []
         projected_duration = total_duration
         for item in pending_items:
@@ -2589,7 +2815,7 @@ def download_videos(
             projected_duration += _first_clip_duration(
                 item, max_clip_duration, clip_speed
             )
-            if projected_duration > audio_duration:
+            if duration_reached(projected_duration, audio_duration):
                 break
         for item in batch:
             source_info = item.source_info if isinstance(item.source_info, dict) else {}
@@ -2601,6 +2827,8 @@ def download_videos(
             materials=[("", item) for item in batch],
             material_directory=material_directory,
             on_downloaded=on_downloaded,
+            save_paid_material=save_paid_material,
+            on_paid_failure=on_paid_failure,
         )
         pending_items = pending_items[len(batch):]
         for _, item, saved_video_path in downloaded_materials:
@@ -2622,7 +2850,7 @@ def download_videos(
                         )
                     seconds = _first_clip_duration(item, max_clip_duration, clip_speed)
                     total_duration += seconds
-                    if total_duration > audio_duration:
+                    if duration_reached(total_duration, audio_duration):
                         logger.info(
                             f"total duration of downloaded videos: {round(total_duration, 2)} seconds, skip downloading more"
                         )
@@ -2635,6 +2863,8 @@ def download_videos(
                 )
     logger.success(f"downloaded {len(video_paths)} videos")
     _persist_material_sources(task_id, material_sources)
+    if save_paid_material is not None and not video_paths:
+        raise aigei.AigeiError("no_matches")
     return video_paths
 
 
@@ -3111,6 +3341,128 @@ def _download_videos_muapi_on_demand(
     return video_paths
 
 
+def _download_videos_useapi_on_demand(
+    *,
+    task_id: str,
+    search_terms: List[str],
+    video_aspect: VideoAspect,
+    audio_duration: float,
+    max_clip_duration: int,
+    material_directory: str,
+) -> List[str]:
+    """Generate useapi.net materials until the narration duration is covered."""
+    video_paths: List[str] = []
+    material_sources: list[dict[str, Any]] = []
+
+    try:
+        required_duration = float(audio_duration)
+    except (TypeError, ValueError) as exc:
+        raise useapi.UseAPIError(
+            "useapi.net audio duration must be a finite number"
+        ) from exc
+    if not math.isfinite(required_duration):
+        raise useapi.UseAPIError("useapi.net audio duration must be a finite number")
+    if required_duration <= 0:
+        logger.warning(
+            "skip useapi.net generation because required audio duration is "
+            f"not positive: duration={required_duration}"
+        )
+        _persist_material_sources(task_id, material_sources)
+        return video_paths
+
+    try:
+        clip_duration = int(max_clip_duration)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise useapi.UseAPIError(
+            "useapi.net clip duration must be a positive integer"
+        ) from exc
+    if clip_duration <= 0:
+        raise useapi.UseAPIError("useapi.net clip duration must be a positive integer")
+
+    total_duration = 0.0
+    for search_term in search_terms:
+        try:
+            video_items = useapi.generate_videos(
+                search_term=search_term,
+                minimum_duration=clip_duration,
+                video_aspect=video_aspect,
+            )
+        except useapi.UseAPIUnconfirmedTaskError as exc:
+            # The generation may already be running on the user's account.
+            # Submitting the next keyword could spend credits twice, so stop and
+            # keep the job ID for recovery when useapi.net returned one.
+            logger.error(
+                "stop submitting new useapi.net jobs because the last job is "
+                f"unconfirmed: job_id={exc.task_id or 'unknown'}, detail={exc}"
+            )
+            _persist_material_sources(task_id, material_sources)
+            raise
+        except useapi.UseAPIError as exc:
+            logger.error(f"useapi.net generation failed before completion: {exc}")
+            _persist_material_sources(task_id, material_sources)
+            raise
+
+        for item in video_items:
+            source_info = item.source_info if isinstance(item.source_info, dict) else {}
+            remote_task_id = str(source_info.get("asset_id") or "").strip()
+            fallback_urls = source_info.get("fallback_urls")
+            saved_video_path = ""
+            # Dreamina serves the same file from more than one CDN host; try the
+            # alternates before giving up on a generation that already ran.
+            for video_url in [item.url, *(
+                fallback_urls if isinstance(fallback_urls, list) else []
+            )]:
+                headers = useapi.download_headers(video_url)
+                extra = {"request_headers": headers} if headers else {}
+                saved_video_path = _save_generated_video_with_retry(
+                    video_url, material_directory, "useapi", **extra
+                )
+                if saved_video_path:
+                    break
+            if not saved_video_path:
+                # The job completed on the user's account. Do not submit a
+                # replacement after a download failure; report the job ID.
+                _persist_material_sources(task_id, material_sources)
+                raise useapi.UseAPIDownloadError(
+                    "useapi.net generated a video but the result could not be "
+                    f"downloaded: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                )
+            logger.info(f"video saved: {saved_video_path}")
+            video_paths.append(saved_video_path)
+            try:
+                material_sources.append(_material_source_record(item, saved_video_path))
+            except Exception as source_error:
+                logger.warning(
+                    "failed to prepare generated material source record: "
+                    f"provider=useapi, error={type(source_error).__name__}, "
+                    f"detail={source_error}"
+                )
+            try:
+                downloaded_duration = _get_downloaded_video_duration(saved_video_path)
+            except Exception as duration_error:
+                _persist_material_sources(task_id, material_sources)
+                raise useapi.UseAPIDownloadError(
+                    "useapi.net generated a video but its downloaded duration "
+                    f"could not be measured: id={remote_task_id or 'unknown'}",
+                    task_id=remote_task_id,
+                ) from duration_error
+            total_duration += min(clip_duration, downloaded_duration)
+            if total_duration >= required_duration:
+                break
+        if total_duration >= required_duration:
+            logger.info(
+                "generated useapi.net materials cover the required duration; stop "
+                f"submitting jobs: generated={total_duration:.1f}s, "
+                f"required={required_duration:.1f}s"
+            )
+            break
+
+    logger.success(f"generated and downloaded {len(video_paths)} useapi.net videos")
+    _persist_material_sources(task_id, material_sources)
+    return video_paths
+
+
 def _download_videos_metaso_minimax_on_demand(
     *,
     task_id: str,
@@ -3235,6 +3587,7 @@ def _download_videos_by_script_order(
     material_directory: str,
     progress_callback: Callable[[float], None] | None = None,
     clip_speed: float = 1.0,
+    save_paid_material: Callable[[MaterialInfo, str], str] | None = None,
 ) -> List[str]:
     """
     按脚本文案顺序下载素材。
@@ -3280,6 +3633,7 @@ def _download_videos_by_script_order(
 
     video_paths = []
     material_sources: list[dict[str, Any]] = []
+    on_paid_failure = partial(_persist_interrupted_material_batch, task_id, material_sources)
     total_duration = 0.0
     on_downloaded = _covered_duration_reporter(
         progress_callback, audio_duration, max_clip_duration, clip_speed
@@ -3288,7 +3642,8 @@ def _download_videos_by_script_order(
     # 未被选中的候选保留到下一轮，避免被整轮统一的下标跳过。
     next_candidate_indices = [0] * len(candidate_groups)
     picked_urls = set()
-    while candidate_groups and total_duration <= audio_duration:
+    duration_reached = _aigei_duration_reached if save_paid_material else operator.gt
+    while candidate_groups and not duration_reached(total_duration, audio_duration):
         round_materials = []
         round_urls = set()
         for group_position, (search_term, term_items) in enumerate(candidate_groups):
@@ -3314,6 +3669,7 @@ def _download_videos_by_script_order(
             audio_duration=audio_duration,
             current_duration=total_duration,
             clip_speed=clip_speed,
+            duration_reached=duration_reached,
         )
         # _select_materials_until_duration 返回候选列表的前缀子集，
         # 因此前 len(selected_materials) 个即本轮实际尝试下载的候选，
@@ -3326,6 +3682,8 @@ def _download_videos_by_script_order(
             materials=selected_materials,
             material_directory=material_directory,
             on_downloaded=on_downloaded,
+            save_paid_material=save_paid_material,
+            on_paid_failure=on_paid_failure,
         )
         for search_term, item, saved_video_path in downloaded_materials:
             try:
@@ -3353,7 +3711,7 @@ def _download_videos_by_script_order(
                     total_duration += _first_clip_duration(
                         item, max_clip_duration, clip_speed
                     )
-                    if total_duration > audio_duration:
+                    if duration_reached(total_duration, audio_duration):
                         logger.info(
                             f"total duration of downloaded videos: {round(total_duration, 2)} seconds, skip downloading more"
                         )
@@ -3367,6 +3725,8 @@ def _download_videos_by_script_order(
 
     logger.success(f"downloaded {len(video_paths)} ordered videos")
     _persist_material_sources(task_id, material_sources)
+    if save_paid_material is not None and not video_paths:
+        raise aigei.AigeiError("no_matches")
     return video_paths
 
 

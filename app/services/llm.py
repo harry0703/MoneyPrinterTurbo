@@ -7,8 +7,10 @@ import shutil
 import subprocess
 import tempfile
 import unicodedata
+from contextlib import contextmanager
+from contextvars import ContextVar
 from time import perf_counter
-from typing import List
+from typing import List, Literal
 
 from loguru import logger
 from openai import AzureOpenAI, OpenAI
@@ -45,6 +47,10 @@ _CONNECTION_FAILURE_MARKERS = (
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _UNCLOSED_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*$", re.IGNORECASE | re.DOTALL)
 _UNOPENED_THINK_BLOCK_RE = re.compile(r"^.*</think\s*>", re.IGNORECASE | re.DOTALL)
+# Chat Completions and DashScope report "length", Gemini reports MAX_TOKENS.
+_TRUNCATED_FINISH_REASONS = frozenset({"length", "max_tokens"})
+# Set while a caller reads its answer as JSON; see _json_answer().
+_cut_off_answer_is_parsed = ContextVar("llm_cut_off_answer_is_parsed", default=False)
 _URL_USERINFO_RE = re.compile(
     r"((?:https?|wss?)://)([^/\s?#@]+@)", re.IGNORECASE
 )
@@ -224,6 +230,39 @@ def _sanitize_error_message(error: object) -> str:
     return message
 
 
+def _reject_truncated_response(finish_reason, llm_provider: str) -> None:
+    """Fail an answer that the provider stopped at its output token limit.
+
+    Such an answer still carries the text written so far. The Responses adapter
+    already refuses an incomplete response; without the same check here the
+    cut-off script is narrated, subtitled and rendered as if it were whole.
+    """
+    if _cut_off_answer_is_parsed.get():
+        return
+    reason = getattr(finish_reason, "value", finish_reason)
+    if isinstance(reason, str) and reason.lower() in _TRUNCATED_FINISH_REASONS:
+        raise ValueError(
+            f"[{llm_provider}] response was cut off at the output token limit "
+            f"(finish_reason={reason})"
+        )
+
+
+@contextmanager
+def _json_answer():
+    """Hand a cut-off answer to a caller that parses it as JSON.
+
+    A script is prose, so a cut-off one cannot be told from a whole one and is
+    refused. Search terms and social metadata are JSON: their parsers already
+    refuse a value that is not complete, and a provider can report the limit on
+    an answer whose array or object is all there.
+    """
+    token = _cut_off_answer_is_parsed.set(True)
+    try:
+        yield
+    finally:
+        _cut_off_answer_is_parsed.reset(token)
+
+
 def _extract_chat_completion_text(response, llm_provider: str) -> str:
     # OpenAI 兼容接口在异常场景下，可能返回没有 choices、
     # 或者 choices/message/content 为空的响应对象。
@@ -234,6 +273,9 @@ def _extract_chat_completion_text(response, llm_provider: str) -> str:
         raise ValueError(f"[{llm_provider}] returned empty choices")
 
     first_choice = choices[0]
+    _reject_truncated_response(
+        getattr(first_choice, "finish_reason", None), llm_provider
+    )
     message = getattr(first_choice, "message", None)
     if message is None:
         raise ValueError(f"[{llm_provider}] returned empty message")
@@ -303,11 +345,16 @@ def _extract_qwen_generation_text(response) -> str:
             raise ValueError("[qwen] returned empty choices")
 
         first_choice = choices[0]
+        _reject_truncated_response(
+            _get_response_field(first_choice, "finish_reason"), "qwen"
+        )
         message = _get_response_field(first_choice, "message")
         content = _get_response_field(message, "content") if message else None
         if content is not None:
             return _normalize_text_response(content, "qwen")
 
+    if output:
+        _reject_truncated_response(_get_response_field(output, "finish_reason"), "qwen")
     text = _get_response_field(output, "text") if output else None
     return _normalize_text_response(text, "qwen")
 
@@ -469,6 +516,12 @@ def _generate_response(
                 logger.warning(f"gemini returned invalid response content: {str(e)}")
                 raise ValueError(f"[{llm_provider}] returned invalid response content")
 
+            # response.text is whatever was written before max_output_tokens.
+            candidates = getattr(response, "candidates", None)
+            _reject_truncated_response(
+                getattr(candidates[0], "finish_reason", None) if candidates else None,
+                llm_provider,
+            )
             return _normalize_text_response(generated_text, llm_provider)
 
         if adapter == "cloudflare_ai_gateway":
@@ -757,6 +810,9 @@ def _generate_response(
                 for chunk in response:
                     if not chunk.choices:
                         continue
+                    _reject_truncated_response(
+                        getattr(chunk.choices[0], "finish_reason", None), llm_provider
+                    )
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
                         content += delta.content
@@ -1059,6 +1115,8 @@ def generate_terms(
     amount: int = 5,
     match_script_order: bool = False,
     app_config=None,
+    *,
+    keyword_language: Literal["en", "zh"] = "en",
 ) -> List[str]:
     video_script = utils.remove_pause_tags(video_script or "").strip()
     if match_script_order:
@@ -1089,6 +1147,37 @@ def generate_terms(
             '"search term 4", "search term 5"]'
         )
 
+    term_rule = (
+        "each search term should consist of 1-3 words, "
+        "always add the main subject of the video."
+    )
+    language_rule = "reply with english search terms only."
+    language_reminder = (
+        "Please note that you must use English for generating video search terms; "
+        "Chinese is not accepted."
+    )
+    if keyword_language == "zh":
+        term_rule = (
+            "每个关键词用简短的中文短语描述一个素材库里可检索的画面，"
+            "提取人物、物体、动作或场景。避开抽象概念和重复画面，"
+            "在数量限制内覆盖文案开头、中段和结尾的代表场景。"
+        )
+        language_rule = "每个关键词都必须包含简体中文，可保留 AI 等常用缩写。"
+        language_reminder = ""
+        output_example = json.dumps(
+            [
+                "海边日出",
+                "渔船出港",
+                "渔船撒网",
+                "渔网收鱼",
+                "海鲜市场",
+                "厨师切鱼",
+                "烤鱼特写",
+                "港口夜景",
+            ][:amount],
+            ensure_ascii=False,
+        )
+
     prompt = f"""
 # Role: Video Search Terms Generator
 
@@ -1097,10 +1186,10 @@ def generate_terms(
 
 ## Constrains:
 1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
+2. {term_rule}
 3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
 4. the search terms must be related to the subject of the video.
-5. reply with english search terms only.
+5. {language_rule}
 {ordering_rule}
 
 ## Output Example:
@@ -1113,7 +1202,7 @@ def generate_terms(
 ### Video Script
 {video_script}
 
-Please note that you must use English for generating video search terms; Chinese is not accepted.
+{language_reminder}
 """.strip()
 
     logger.info(f"subject: {video_subject}, match_script_order: {match_script_order}")
@@ -1123,10 +1212,11 @@ Please note that you must use English for generating video search terms; Chinese
     for i in range(_max_retries):
         search_terms = []
         try:
-            if app_config is None:
-                response = _generate_response(prompt)
-            else:
-                response = _generate_response(prompt, app_config=app_config)
+            with _json_answer():
+                if app_config is None:
+                    response = _generate_response(prompt)
+                else:
+                    response = _generate_response(prompt, app_config=app_config)
             if response.startswith("Error: "):
                 # generate_terms 的公开返回类型是 List[str]。如果把 Provider 的
                 # 错误文案原样返回，下游只做空值判断时会把非空字符串误认为成功，
@@ -1154,7 +1244,16 @@ Please note that you must use English for generating video search terms; Chinese
         # The model may ignore the requested count or return blank strings.
         # Enforce the prompt contract before material providers are contacted;
         # repeated topics remain meaningful in chronological mode.
-        search_terms = [term.strip() for term in search_terms if term.strip()][:amount]
+        if keyword_language == "zh":
+            # 和任务实际发送的搜索词使用相同分隔规则，再限制条数并校验语言。
+            search_terms = utils.split_comma_separated_terms(
+                ", ".join(search_terms)
+            )[:amount]
+            if not all(map(utils.contains_han, search_terms)):
+                logger.warning("some video search terms did not contain Chinese characters")
+                search_terms = []
+        else:
+            search_terms = [term.strip() for term in search_terms if term.strip()][:amount]
         if search_terms:
             break
         if i < _max_retries - 1:
@@ -1458,7 +1557,8 @@ def generate_social_metadata(
     response = ""
     for i in range(_max_retries):
         try:
-            response = _generate_response(prompt)
+            with _json_answer():
+                response = _generate_response(prompt)
             if isinstance(response, str) and response.startswith("Error: "):
                 logger.error(f"failed to generate social metadata: {response}")
                 break

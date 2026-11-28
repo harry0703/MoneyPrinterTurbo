@@ -506,6 +506,15 @@
     "Configure Providers": "Настроить",
     "Active Provider": "Используется: {provider}",
     "No Configured Providers": "Пока нет настроенных провайдеров.",
-    "Provider Configuration Changed": "Конфигурация изменилась. Проверьте настройки этого провайдера."
+    "Provider Configuration Changed": "Конфигурация изменилась. Проверьте настройки этого провайдера.",
+    "Open Storage Folder": "Открыть папку хранения",
+    "Storage Folder": "Папка хранения",
+    "Storage Folder Busy": "Дождитесь завершения создания видео, прежде чем менять папку.",
+    "Save Storage Folder": "Сохранить",
+    "Choose Storage Folder": "Выбрать…",
+    "Open Storage Folder Short": "Открыть",
+    "Storage Folder Invalid": "Введите абсолютный путь к папке с правом записи.",
+    "Storage Folder Open Failed": "Не удалось открыть папку.",
+    "Storage Folder Restart": "Перезапустите приложение, чтобы использовать новую папку. Существующие файлы останутся в исходной папке."
   }
 }

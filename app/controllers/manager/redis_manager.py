@@ -11,7 +11,12 @@ from pydantic import ValidationError
 
 from app.controllers.manager.base_manager import TaskManager, TaskQueueFullError
 from app.models import const
-from app.models.schema import AudioRequest, SubtitleRequest, VideoParams
+from app.models.schema import (
+    DEFAULT_REQUEST_VOICE_NAME,
+    AudioRequest,
+    SubtitleRequest,
+    VideoParams,
+)
 from app.services import state as sm
 from app.services import task as tm
 
@@ -423,7 +428,22 @@ class RedisTaskManager(TaskManager):
                         params_model = AudioRequest
                     elif task_kwargs.get("stop_at") == "subtitle":
                         params_model = SubtitleRequest
-                task_kwargs["params"] = params_model(**task_kwargs["params"])
+                queued_params = task_kwargs["params"]
+                if (
+                    "voice_name" in queued_params
+                    and queued_params["voice_name"] is None
+                ):
+                    # A /videos task queued with "voice_name": null before the
+                    # API gave such a request the default voice still holds the
+                    # null, and VideoParams keeps it, since the WebUI reads a
+                    # null voice as no voice when it restores a task. The task
+                    # failed at the audio stage with "'NoneType' object has no
+                    # attribute 'strip'".
+                    queued_params = {
+                        **queued_params,
+                        "voice_name": DEFAULT_REQUEST_VOICE_NAME,
+                    }
+                task_kwargs["params"] = params_model(**queued_params)
             except ValidationError as e:
                 logger.error(
                     "dropping queued task with params that fail current "

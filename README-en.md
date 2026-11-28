@@ -131,18 +131,6 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><img src="docs/sponsors/jalapeno-logo.png" alt="Jalapeno Cloud" width="56"></a><br>
-      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><strong>Jalapeno Cloud</strong></a>
-    </td>
-    <td align="left">
-      Thanks to <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Jalapeno Cloud</a> for sponsoring this project!<br>
-      Access multiple AI models through OpenAI- and Anthropic-compatible APIs for application development and content creation.<br>
-      New users receive free credits, with <strong>up to 20% bonus credits on top-ups</strong>. Get <strong>up to 50% off</strong> models including DeepSeek-V4.1-flash and GLM-5.3-flash, plus an <strong>ongoing 10% discount on Doubao-Seedance-2.5</strong>. Official model sources with quality assurance.<br>
-      👉 <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Sign up and claim exclusive trial credits</a>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
       <a href="https://apinebula.ai/ref/luDuqJIb"><img src="docs/sponsors/apinebula-logo.png" alt="APINEBULA" width="56" height="56"></a><br>
       <a href="https://apinebula.ai/ref/luDuqJIb"><strong>APINEBULA</strong></a>
     </td>
@@ -174,6 +162,28 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
       Thank you to <a href="https://www.openlux.ai/register?channel=c_rejpjkhg">OpenLux</a> for sponsoring this project!<br>OpenLux is an <strong>all-in-one AI platform</strong> for businesses, bringing together leading AI models from major providers worldwide. With fast, reliable service and responsive technical support, OpenLux offers base pricing for Claude, OpenAI, and Gemini models <strong>as low as 8.82%, 4%, and 8% of official rates</strong>, respectively.<br>
       Exclusive offer for MoneyPrinterTurbo users: Sign up through our referral link and enjoy <strong>up to 7.5% off credit top-ups</strong>!<br>
       <a href="https://www.openlux.ai/register?channel=c_rejpjkhg">Get started with OpenLux →</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://link.bach.art/4iW1qZL"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/video-rebirth-logo-dark.svg"><img src="docs/sponsors/video-rebirth-logo-light.svg" alt="Video Rebirth" height="56"></picture></a><br>
+      <a href="https://link.bach.art/4iW1qZL"><strong>Video Rebirth</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://link.bach.art/4iW1qZL">Video Rebirth</a> for sponsoring this project! Video Rebirth builds <strong>BACH</strong>, an industrial-grade video model for production. <strong>BACH1.0 Pro ranked No. 2 on Artificial Analysis's Image-to-Video leaderboard in October 2026</strong>.<br>
+      The company also open-sources the HyperFlow series; <strong>HyperFlow H3 Flash surpassed 500K downloads within six days of release</strong>. Video generation starts from <strong>&#36;0.03 per second</strong>.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_logo"><img src="docs/sponsors/aigei-logo.png" alt="Aigei" width="112"></a><br>
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_brand"><strong>Aigei</strong></a>
+    </td>
+    <td align="left">
+      Thanks to <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_thanks">Aigei</a> for supporting and sponsoring this project! Aigei brings together <strong>sound effects, music, video footage, images, 3D models, and game assets</strong> for short-form video, post-production, game development, and design. Find everything from footage and background music to sound effects for a scene.<br>
+      The Aigei Open Platform supports <strong>REST API and MCP integrations</strong>. Search for, filter, and retrieve audio, music, video, and image assets in automated video production, programmatic editing, and AI workflows, with less manual searching and sorting.<br>
+      🎁 <strong>Search and asset details are free to access.</strong> Guests and signed-in users can download assets, with a <strong>free download allowance</strong> available. See the platform for current allowances, fees, and licensing terms.<br>
+      👉 <a href="https://www.aigei.com/open?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_open_platform">Try the Aigei Open Platform</a> · <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_en_asset_library">Browse the Aigei asset library</a>
     </td>
   </tr>
   <tr>
@@ -234,18 +244,19 @@ Thanks to [Kimi](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b
 - [x] Explicitly choose [ChatGPT Native OAuth](docs/chatgpt-provider.md) for official app authorization and account-specific models; account/workspace eligibility and a local browser/runtime are required
 - [x] Generate or rewrite **multilingual video scripts** with AI, or supply a complete custom script
 - [x] Use leading providers including [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo), [OpenAI](https://platform.openai.com/api-keys), [Anthropic Claude](https://platform.claude.com/settings/keys), [Google Gemini](https://aistudio.google.com/app/apikey), [DeepSeek](https://platform.deepseek.com/api_keys), [Alibaba Cloud Qwen](https://qwen.ai/apiplatform), [Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI), [ByteDance VolcEngine Ark](https://console.volcengine.com/ark), [xAI Grok](https://console.x.ai/), [MiniMax](https://platform.minimax.io/), [Muse Spark](https://dev.meta.ai/docs/authentication), [iFlytek Spark](https://maas.xfyun.cn/), and [Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call)
-- [x] Connect through [APIXO AI](https://apixo.ai/dashboard/api-keys), [APINEBULA](https://apinebula.ai/ref/luDuqJIb), [Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo), [Infistar](https://infistar.cc/keys), [Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO), [Cheaper Inference](https://cheaperinference.com/signup), [Requesty](https://app.requesty.ai/api-keys), [FutureInfra](https://futureinfra.ai/console/?screen=ai-router), [Y-API](https://y-api.bestvirtualgoods.com/app/keys), [Opper](https://platform.opper.ai), [onomeo](https://onomeo.com/dashboard), [EmpirioLabs AI](https://platform.empiriolabs.ai/dashboard/api-keys), [Runcrate](https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing), [CloudGPU](https://cloudgpu.app), [cheapaimodel](https://console.cheapaimodel.ai/keys), [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Kimi Code](https://www.kimi.ai/code?aff=moneyprinterturbo), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
+- [x] Connect through [APIXO AI](https://apixo.ai/dashboard/api-keys), [APINEBULA](https://apinebula.ai/ref/luDuqJIb), Jalapeno Cloud, [Infistar](https://infistar.cc/keys), [Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO), [Cheaper Inference](https://cheaperinference.com/signup), [Requesty](https://app.requesty.ai/api-keys), [FutureInfra](https://futureinfra.ai/console/?screen=ai-router), [Y-API](https://y-api.bestvirtualgoods.com/app/keys), [Opper](https://platform.opper.ai), [onomeo](https://onomeo.com/dashboard), [EmpirioLabs AI](https://platform.empiriolabs.ai/dashboard/api-keys), [Runcrate](https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing), [CloudGPU](https://cloudgpu.app), [cheapaimodel](https://console.cheapaimodel.ai/keys), [Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), [APIMart](https://go.apimart.ai/gh-moneyprinterturbo), [Cloudflare AI Gateway](https://dash.cloudflare.com/), [Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro), [AIHubMix](https://aihubmix.com/), [AIML API](https://aimlapi.com/app/keys), [EvoLink](https://evolink.ai/dashboard/keys), [OpenRouter](https://openrouter.ai/settings/keys), [API Route](https://www.api-route.com/), [Kimi Code](https://www.kimi.ai/code?aff=moneyprinterturbo), [Ollama](https://ollama.com/), [Claude Code subscription](https://code.claude.com/docs), [OneAPI](https://github.com/songquanpeng/one-api), [LiteLLM](https://docs.litellm.ai/docs/providers), [Groq](https://console.groq.com/keys), [Pollinations AI](https://enter.pollinations.ai/), and other compatible gateways or local runtimes
 
 ### Video and Image Footage
 
 - [x] Upload your own **local images and videos**, or get HD stock footage from [Pexels (free)](https://www.pexels.com/api/), [Pixabay (free)](https://pixabay.com/api/docs/), and [Coverr](https://coverr.co/developers?ctx=header_navigation)
 - [x] Generate `768P` or `2K` source footage with [Metaso MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT), with 4–15 second clips in `9:16`, `16:9`, or `1:1`
 - [x] Review a quote and confirm the charge to generate multiple clips with [Shengsuan Cloud LoomLoom AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK), then combine them with the project's voiceover, subtitle, and editing workflow
-- [x] Generate AI video footage through [Infistar](https://infistar.cc/keys) and [Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo)
+- [x] Generate AI video footage through [Infistar](https://infistar.cc/keys) and Jalapeno Cloud
 - [x] Use the native [Volcano Engine Ark Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey) integration to generate cohesive visuals from individual script segments
 - [x] Turn script keywords into original video footage with [WaveSpeed AI](https://wavespeed.ai)
 - [x] Access Seedance, Wan, and other text-to-video models through [OFox](https://ofox.ai) with a single API key
 - [x] Generate 3–12 second AI video materials through the asynchronous [MuAPI](https://muapi.ai) text-to-video API, with configurable endpoint, aspect ratio, resolution, and polling
+- [x] Supports [useapi.net](https://useapi.net/docs/api-google-flow-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) AI video (Veo 3.1 and Gemini Omni Flash on your own Google AI plan through Google Flow or [Google Vids](https://useapi.net/docs/api-google-vids-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration), with free 1080p upscaling of clips up to 10 seconds on paid plans; [Kling](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) on your own Kling AI account; Seedance on your own [Dreamina](https://useapi.net/docs/api-dreamina-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) account), plus Nano Banana images on your own Google AI plan and Kling images on your own Kling AI account
 - [x] Connect [OpenAI-compatible text-to-image](https://platform.openai.com/docs/guides/image-generation) services, custom image gateways, or the included [local SDXL image server](docs/local-image-server/README.md); choose static or slow-zoom motion for local and generated images
 - [x] Use [OpenAI - Codex image generation](docs/codex-provider.md) with the shared ChatGPT sign-in and a separate image model selector; the account and selected model must have image-generation access
 - [x] Adjust clip duration, playback speed, and transitions; choose crop-to-fill or letterbox fitting and random or sequential footage order
@@ -323,11 +334,19 @@ All examples below were generated with MoneyPrinterTurbo.
 
 ### Recommended Paths
 
+- To use the desktop app, [download it for your system](#download-the-desktop-app)
 - If you do not want to install or configure the project manually: generate videos with an AI Agent
 - If you already have Python and want a direct installation: [install the official package with pip](#install-the-official-package-with-pip)
-- Windows users: use the one-click package first for the fastest local trial
 - For source deployment or development: use `uv` to manage the environment and dependencies
 - If you want a more isolated runtime: use Docker deployment
+
+### Download the Desktop App
+
+| System | Download | Launch |
+| --- | --- | --- |
+| macOS 14 or later (Apple Silicon) | [ARM64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-macos-arm64.zip) | Extract the ZIP and open `MoneyPrinterTurbo.app` |
+| Windows (x64) | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-windows-x64.zip) | Extract the entire ZIP and double-click `MoneyPrinterTurbo.exe` |
+| Ubuntu 22.04 (x64) | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-ubuntu-x64.zip) | Extract with `unzip` and run `MoneyPrinterTurbo/bin/mpt-desktop` |
 
 ### Generate Videos with an AI Agent
 
@@ -343,25 +362,6 @@ Create a video with the topic "How AI is changing everyday life."
 Want to try MoneyPrinterTurbo without setting up a local environment? Run it directly in Google Colab!
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
-### Windows
-
-Download the latest Windows one-click package from GitHub Releases, then extract it directly.
-
-- [Download the latest Windows one-click package](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
-
-> Download the `.7z` archive from the **Assets** section of that page. The
-> auto-generated `Source code (zip)` / `Source code (tar.gz)` archives contain
-> source code only: after extracting them you get `webui.bat` but no `start.bat`
-> or `update.bat`.
-
-After downloading, it is recommended to **double-click** `update.bat` first to update to the **latest code**, then double-click `start.bat` to launch
-
-After launching, the browser will open automatically (if it opens blank, it is recommended to use **Chrome** or **Edge**)
-
-### macOS / Linux
-
-Use the local setup or Docker instructions below.
 
 ## Installation & Deployment 📥
 
@@ -497,7 +497,7 @@ Note that you need to execute the following commands in the `root directory` of 
 ```
 
 You can also run `webui.bat` in CMD.
-`webui.bat` prefers the project `.venv` or bundled Python from the portable package. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`.
+`webui.bat` uses Python from the project's `.venv` when available. If no project Python is found but `uv` is installed, it automatically falls back to `uv run streamlit`.
 To allow other devices on your LAN to access the WebUI, run `set MPT_WEBUI_HOST=0.0.0.0` before running `webui.bat`.
 
 ###### macOS or Linux

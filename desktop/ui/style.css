@@ -1,0 +1,90 @@
+:root,
+:host {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f3f7f6;
+  color: #112a26;
+}
+
+body,
+:host {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+}
+
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+}
+
+main {
+  max-width: min(34rem, 82vw);
+  text-align: center;
+}
+
+h1 {
+  margin: 0.9rem 0 0;
+  font-size: 1.7rem;
+  letter-spacing: -0.045em;
+}
+
+.loading-spinner {
+  box-sizing: border-box;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 1rem auto 0.7rem;
+  border: 2px solid currentColor;
+  border-color: #bbaccd;
+  border-top-color: #8a52ce;
+  border-radius: 50%;
+  animation: startup-spin 0.85s linear infinite;
+}
+
+@keyframes startup-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner {
+    animation: none;
+  }
+}
+
+main[data-startup-error] .loading-spinner {
+  visibility: hidden;
+}
+
+p {
+  margin: 0;
+  color: #526964;
+  overflow-wrap: anywhere;
+}
+
+#status-en {
+  margin-top: 0.3rem;
+  font-size: 0.875rem;
+}
+
+button {
+  margin-top: 1rem;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  :host {
+    background: #111b19;
+    color: #e9f6f3;
+  }
+
+  p {
+    color: #a8c2bc;
+  }
+}

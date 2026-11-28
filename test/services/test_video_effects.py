@@ -6,7 +6,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from moviepy import ImageClip
+from moviepy import CompositeVideoClip, ImageClip
 
 from app.models.schema import VideoTransitionMode
 from app.services.utils import video_effects
@@ -79,7 +79,7 @@ class TestFadeAndSlideTransitions(unittest.TestCase):
                 self.addCleanup(transitioned.close)
                 # The black background is opaque, so no per-frame mask.
                 self.assertIsNone(transitioned.mask)
-                moving_clip = transitioned.clips[1]
+                moving_clip = transitioned.clips[0]
                 self.assertEqual(moving_clip.pos(0), expected_start)
                 self.assertEqual(moving_clip.pos(1), (0, 0))
 
@@ -103,14 +103,67 @@ class TestFadeAndSlideTransitions(unittest.TestCase):
                 transitioned = video_effects.slideout_transition(clip, 1, side)
                 self.addCleanup(transitioned.close)
                 self.assertIsNone(transitioned.mask)
-                moving_clip = transitioned.clips[1]
+                moving_clip = transitioned.clips[0]
                 self.assertEqual(moving_clip.pos(0.5), (0, 0))
                 self.assertEqual(moving_clip.pos(2.5), expected_end)
 
         zero_duration = video_effects.slideout_transition(clip, 0, "right")
         self.addCleanup(zero_duration.close)
-        self.assertEqual(zero_duration.clips[1].pos(2), (0, 0))
-        self.assertEqual(zero_duration.clips[1].pos(2.1), (60, 0))
+        self.assertEqual(zero_duration.clips[0].pos(2), (0, 0))
+        self.assertEqual(zero_duration.clips[0].pos(2.1), (60, 0))
+
+
+class TestOpaqueCompositeVideoClip(unittest.TestCase):
+    def test_frames_match_moviepy_composite(self):
+        """
+        Blending each layer only inside its box must give MoviePy's frames:
+        layers cut off at every edge, a layer outside the canvas, overlapping
+        layers, masks larger and smaller than their layer, opaque layers,
+        partial alpha and times when the base clip or a layer is not playing.
+        """
+        rng = np.random.default_rng(7)
+        width, height = 48, 36
+
+        def random_layer(layer_width, layer_height, start, end, position, alpha=True):
+            color = rng.integers(0, 256, (layer_height, layer_width, 3), dtype=np.uint8)
+            clip = ImageClip(color).with_start(start).with_end(end).with_position(position)
+            if alpha:
+                mask = rng.integers(0, 256, (layer_height, layer_width)) / 255
+                clip = clip.with_mask(ImageClip(mask, is_mask=True))
+            return clip
+
+        base = random_layer(width, height, 0, 2.5, (0, 0), alpha=False)
+        oversized_mask = ImageClip(rng.integers(0, 256, (12, 30)) / 255, is_mask=True)
+        undersized_mask = ImageClip(rng.integers(0, 256, (5, 7)) / 255, is_mask=True)
+        layers = [
+            base,
+            random_layer(20, 10, 0, 3, ("center", 30)),
+            random_layer(20, 10, 0.5, 3, (-6, -4)),
+            random_layer(18, 14, 0, 1.5, (36, 28)),
+            random_layer(10, 10, 0, 3, (60, 5)),
+            random_layer(12, 8, 1, 3, ("left", "top"), alpha=False),
+            random_layer(16, 12, 0, 3, (-5, -3), alpha=False),
+            random_layer(16, 12, 0, 3, (40, 30), alpha=False),
+            random_layer(24, 9, 0, 3, (0.25, 0.5)).with_position(
+                (0.25, 0.5), relative=True
+            ),
+            random_layer(26, 10, 0, 3, (10, 2), alpha=False).with_mask(oversized_mask),
+            random_layer(14, 9, 0, 3, (30, 12), alpha=False).with_mask(undersized_mask),
+        ]
+        # The base clip ends at 2.5 s, so the background shows at 2.75 s.
+        for bg_color in ((0, 0, 0), (12, 34, 56)):
+            expected = CompositeVideoClip(layers, bg_color=bg_color)
+            actual = video_effects.OpaqueCompositeVideoClip(layers, bg_color=bg_color)
+
+            self.assertIsNone(actual.mask)
+            self.assertEqual(actual.size, expected.size)
+            self.assertEqual(actual.duration, expected.duration)
+            for t in (0, 0.75, 1.25, 2, 2.75):
+                frame = actual.get_frame(t)
+                self.assertEqual(frame.dtype, np.uint8)
+                np.testing.assert_array_equal(
+                    frame, expected.get_frame(t), err_msg=f"bg_color={bg_color}, t={t}"
+                )
 
 
 class TestZoomTransitions(unittest.TestCase):

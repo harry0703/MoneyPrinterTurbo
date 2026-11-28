@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app import paths
 from app.utils import utils
 
 
@@ -30,24 +31,26 @@ def test_directory_helpers_allow_concurrent_first_use(helper):
             return getattr(utils, f'{helper}_dir')('first-use')
 
         with (
-            patch.object(utils, 'root_dir', return_value=temp_dir),
+            patch.object(paths, 'runtime_root', return_value=root),
             patch.object(utils.os, 'makedirs', side_effect=concurrent_makedirs),
             ThreadPoolExecutor(max_workers=2) as executor,
         ):
             futures = [executor.submit(create) for _ in range(2)]
-            paths = [future.result(timeout=10) for future in futures]
-        assert paths[0] == paths[1]
-        assert Path(paths[0]).is_dir()
+            results = [future.result(timeout=10) for future in futures]
+        assert results[0] == results[1]
+        assert Path(results[0]).is_relative_to(root)
+        assert Path(results[0]).is_dir()
 
 
 def test_storage_lookup_does_not_create_directory():
-    with TemporaryDirectory() as root, patch.object(utils, 'root_dir', return_value=root):
+    with TemporaryDirectory() as root, patch.object(paths, 'runtime_root', return_value=Path(root)):
         result = utils.storage_dir('lookup-only')
+        assert Path(result) == Path(root) / 'storage' / 'lookup-only'
         assert not Path(result).exists()
 
 
 def test_directory_creation_does_not_hide_file_collision():
-    with TemporaryDirectory() as root, patch.object(utils, 'root_dir', return_value=root):
+    with TemporaryDirectory() as root, patch.object(paths, 'runtime_root', return_value=Path(root)):
         storage = Path(root, 'storage')
         storage.mkdir()
         (storage / 'collision').write_text('keep', encoding='utf-8')

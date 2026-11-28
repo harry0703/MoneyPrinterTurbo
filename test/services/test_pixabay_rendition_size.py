@@ -23,8 +23,8 @@ LANDSCAPE_HD = {
 }
 
 
-def _search_pixabay(renditions, aspect):
-    videos = {
+def _rendition_files(renditions):
+    return {
         name: {
             "width": width,
             "height": height,
@@ -32,6 +32,13 @@ def _search_pixabay(renditions, aspect):
         }
         for name, (width, height) in renditions.items()
     }
+
+
+def _search_pixabay(renditions, aspect):
+    return _search_pixabay_files(_rendition_files(renditions), aspect)
+
+
+def _search_pixabay_files(videos, aspect):
     response = SimpleNamespace(
         status_code=200,
         headers={},
@@ -66,3 +73,25 @@ def test_pixabay_downloads_the_smallest_file_that_fills_the_video(
         "width": width,
         "height": height,
     }
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        None,
+        "https://cdn.example/1_text.mp4",
+        {"height": 2160, "url": "https://cdn.example/1_no_width.mp4"},
+        {"width": "wide", "height": 2160, "url": "https://cdn.example/1_text.mp4"},
+        {"width": float("inf"), "height": 2160, "url": "https://cdn.example/1_inf.mp4"},
+        {"width": None, "height": None, "url": "https://cdn.example/1_none.mp4"},
+    ],
+    ids=["none", "string", "no-width", "text-width", "infinite-width", "null-size"],
+)
+def test_pixabay_sorts_a_malformed_file_last_without_losing_the_hit(malformed):
+    # The malformed file is listed first; sorting the files by size must not
+    # raise, or the whole search would return no video.
+    videos = {"broken": malformed, **_rendition_files(LANDSCAPE_4K)}
+
+    results = _search_pixabay_files(videos, material.VideoAspect.landscape)
+
+    assert [item.url for item in results] == ["https://cdn.example/1_medium.mp4"]

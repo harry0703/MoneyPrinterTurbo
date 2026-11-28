@@ -506,6 +506,15 @@
     "Configure Providers": "Yapılandır",
     "Active Provider": "Kullanımda: {provider}",
     "No Configured Providers": "Henüz yapılandırılmış sağlayıcı yok.",
-    "Provider Configuration Changed": "Yapılandırma değişti. Bu sağlayıcının ayarlarını gözden geçirin."
+    "Provider Configuration Changed": "Yapılandırma değişti. Bu sağlayıcının ayarlarını gözden geçirin.",
+    "Open Storage Folder": "Depolama klasörünü aç",
+    "Storage Folder": "Depolama klasörü",
+    "Storage Folder Busy": "Klasörü değiştirmeden önce videonun oluşturulmasını bekleyin.",
+    "Save Storage Folder": "Kaydet",
+    "Choose Storage Folder": "Gözat…",
+    "Open Storage Folder Short": "Aç",
+    "Storage Folder Invalid": "Yazılabilir bir klasörün mutlak yolunu girin.",
+    "Storage Folder Open Failed": "Klasör açılamadı.",
+    "Storage Folder Restart": "Yeni klasörü kullanmak için uygulamayı yeniden başlatın. Mevcut dosyalar eski klasörde kalır."
   }
 }

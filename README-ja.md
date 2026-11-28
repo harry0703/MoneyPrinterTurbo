@@ -107,6 +107,28 @@
   </tr>
   <tr>
     <td align="center" width="120">
+      <a href="https://link.bach.art/4iW1qZL"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/video-rebirth-logo-dark.svg"><img src="docs/sponsors/video-rebirth-logo-light.svg" alt="Video Rebirth" height="56"></picture></a><br>
+      <a href="https://link.bach.art/4iW1qZL"><strong>Video Rebirth</strong></a>
+    </td>
+    <td align="left">
+      本プロジェクトをスポンサードしてくださっている <a href="https://link.bach.art/4iW1qZL">Video Rebirth</a> に感謝します！Video Rebirth は、本番制作向けの産業グレードの動画モデル <strong>BACH</strong> を開発しています。<strong>BACH1.0 Pro は 2026 年 10 月に Artificial Analysis の画像から動画生成ランキングで第 2 位を獲得しました</strong>。<br>
+      HyperFlow シリーズもオープンソースで公開しており、<strong>HyperFlow H3 Flash はリリースから 6 日間で 50 万ダウンロードを突破</strong>。動画生成は <strong>1 秒あたり 0.03 米ドルから</strong>利用できます。
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_logo"><img src="docs/sponsors/aigei-logo.png" alt="Aigei（爱给网）" width="112"></a><br>
+      <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_brand"><strong>Aigei（爱给网）</strong></a>
+    </td>
+    <td align="left">
+      本プロジェクトを支援・スポンサードしてくださっている <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_thanks">Aigei（爱给网）</a> に感謝します！ Aigei は、<strong>効果音、BGM、動画、画像、3D モデル、ゲーム素材</strong>をまとめて探せるデジタル素材プラットフォームです。ショート動画の制作、映像のポストプロダクション、ゲーム開発、デザインに使える素材が揃っています。<br>
+      Aigei オープンプラットフォームは <strong>REST API と MCP</strong> に対応しています。効果音、BGM、動画、画像の検索、絞り込み、ファイル取得を動画制作の自動化、プログラムによる編集、AI を使った制作フローに組み込めるため、手作業で素材を探して整理する手間を減らせます。<br>
+      🎁 <strong>素材の検索と詳細情報の閲覧は無料</strong>です。ゲストとログインユーザーのどちらもダウンロードでき、<strong>無料ダウンロード枠</strong>も用意されています。利用枠、料金、素材のライセンス条件はプラットフォーム上の案内をご確認ください。<br>
+      👉 <a href="https://www.aigei.com/open?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_open_platform">Aigei オープンプラットフォームを試す</a> · <a href="https://www.aigei.com/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=moneyprinterturbo&amp;utm_content=readme_ja_asset_library">Aigei の素材ライブラリを見る</a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="120">
       <a href="https://reccloud.com"><img src="docs/sponsors/reccloud-logo.svg" alt="RecCloud" height="36"></a><br>
       <a href="https://reccloud.com">RecCloud</a>
     </td>
@@ -161,18 +183,19 @@
 
 - [x] AI による**多言語動画台本**の生成・リライトに加え、独自台本の利用にも対応
 - [x] [Kimi / Moonshot AI](https://platform.kimi.ai?track_id=track-9e3b711aa2594e378f6fe5b8de718a76&aff=moneyprinterturbo)、[OpenAI](https://platform.openai.com/api-keys)、[Anthropic Claude](https://platform.claude.com/settings/keys)、[Google Gemini](https://aistudio.google.com/app/apikey)、[DeepSeek](https://platform.deepseek.com/api_keys)、[Alibaba Cloud Qwen](https://qwen.ai/apiplatform)、[Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)、[ByteDance VolcEngine Ark](https://console.volcengine.com/ark)、[xAI Grok](https://console.x.ai/)、[MiniMax](https://platform.minimax.io/)、[Muse Spark](https://dev.meta.ai/docs/authentication)、[iFlytek Spark](https://maas.xfyun.cn/)、[Xiaomi MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call) などの主要なモデルサービスに対応
-- [x] [APIXO AI](https://apixo.ai/dashboard/api-keys)、[APINEBULA](https://apinebula.ai/ref/luDuqJIb)、[Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo)、[Infistar](https://infistar.cc/keys)、[Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO)、[Cheaper Inference](https://cheaperinference.com/signup)、[Requesty](https://app.requesty.ai/api-keys)、[FutureInfra](https://futureinfra.ai/console/?screen=ai-router)、[Y-API](https://y-api.bestvirtualgoods.com/app/keys)、[Opper](https://platform.opper.ai)、[onomeo](https://onomeo.com/dashboard)、[EmpirioLabs AI](https://platform.empiriolabs.ai/dashboard/api-keys)、[Runcrate](https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing)、[CloudGPU](https://cloudgpu.app)、[cheapaimodel](https://console.cheapaimodel.ai/keys)、[Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[API Route](https://www.api-route.com/)、[Kimi Code](https://www.kimi.ai/code?aff=moneyprinterturbo)、[OpenAI - Codex](docs/codex-provider.md)、[ChatGPT Native OAuth](docs/chatgpt-provider.md)、[Ollama](https://ollama.com/)、[Claude Code サブスクリプション](https://code.claude.com/docs)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys)、[Pollinations AI](https://enter.pollinations.ai/) などの統合ゲートウェイ、集約サービス、ローカルランタイムに対応
+- [x] [APIXO AI](https://apixo.ai/dashboard/api-keys)、[APINEBULA](https://apinebula.ai/ref/luDuqJIb)、Jalapeno Cloud、[Infistar](https://infistar.cc/keys)、[Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO)、[Cheaper Inference](https://cheaperinference.com/signup)、[Requesty](https://app.requesty.ai/api-keys)、[FutureInfra](https://futureinfra.ai/console/?screen=ai-router)、[Y-API](https://y-api.bestvirtualgoods.com/app/keys)、[Opper](https://platform.opper.ai)、[onomeo](https://onomeo.com/dashboard)、[EmpirioLabs AI](https://platform.empiriolabs.ai/dashboard/api-keys)、[Runcrate](https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing)、[CloudGPU](https://cloudgpu.app)、[cheapaimodel](https://console.cheapaimodel.ai/keys)、[Shengsuan Cloud](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[Alibaba ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[API Route](https://www.api-route.com/)、[Kimi Code](https://www.kimi.ai/code?aff=moneyprinterturbo)、[OpenAI - Codex](docs/codex-provider.md)、[ChatGPT Native OAuth](docs/chatgpt-provider.md)、[Ollama](https://ollama.com/)、[Claude Code サブスクリプション](https://code.claude.com/docs)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys)、[Pollinations AI](https://enter.pollinations.ai/) などの統合ゲートウェイ、集約サービス、ローカルランタイムに対応
 
 ### 動画・画像素材
 
 - [x] 手持ちの**ローカル画像・動画**をアップロードできるほか、[Pexels（無料）](https://www.pexels.com/api/)、[Pixabay（無料）](https://pixabay.com/api/docs/)、[Coverr](https://coverr.co/developers?ctx=header_navigation) の高画質ストック素材を利用可能
 - [x] [Metaso MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT) によるテキスト動画生成に対応し、`768P`／`2K`、4～15 秒の素材を `9:16`、`16:9`、`1:1` の 3 種類のアスペクト比で生成可能
 - [x] [Shengsuan Cloud LoomLoom AI Video](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK) の見積もりと料金を確認して複数の AI 動画素材を生成し、ナレーション、字幕、編集フローで 1 本の動画に合成可能
-- [x] [Infistar](https://infistar.cc/keys) と [Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo) による AI 動画素材の生成に対応
+- [x] [Infistar](https://infistar.cc/keys) と Jalapeno Cloud による AI 動画素材の生成に対応
 - [x] [Volcano Engine Ark Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey) をネイティブに統合し、台本の各セグメントから一貫した動画素材を生成可能
 - [x] [WaveSpeed AI](https://wavespeed.ai) によるテキスト動画生成で、台本のキーワードからオリジナル素材を作成可能
 - [x] [OFox](https://ofox.ai) のマルチモデルテキスト動画生成に対応し、1 つの API キーで Seedance、Wan などのモデルを利用可能
 - [x] 非同期の [MuAPI](https://muapi.ai) テキスト動画 API で 3～12 秒の AI 素材を生成し、Endpoint、アスペクト比、解像度、ポーリングを設定可能
+- [x] [useapi.net](https://useapi.net/docs/api-google-flow-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) の AI 動画と画像に対応し、ご自身の Google AI プランで Google Flow または [Google Vids](https://useapi.net/docs/api-google-vids-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) から Veo 3.1 と Gemini Omni Flash の動画を（有料プランでは 10 秒以内のクリップを 1080p に無料でアップスケール可能）、Google Flow から Nano Banana の画像を、ご自身の [Kling](https://useapi.net/docs/api-kling-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) アカウントで Kling の動画と画像を、ご自身の [Dreamina](https://useapi.net/docs/api-dreamina-v1?utm_source=moneyprinterturbo&utm_medium=referral&utm_campaign=mpt-integration) アカウントで Seedance の動画を生成可能
 - [x] [OpenAI 互換の画像生成](https://platform.openai.com/docs/guides/image-generation)サービス、独自の画像ゲートウェイ、同梱の[ローカル SDXL 画像サーバー](docs/local-image-server/README.md) を接続可能。ローカル画像と生成画像は静止または緩やかなズームを選択可能
 - [x] [OpenAI - Codex の画像生成](docs/codex-provider.md) に対応し、ChatGPT ログインを共有しながら画像用モデルを個別に選択可能。アカウントと選択したモデルに画像生成の利用権限が必要
 - [x] クリップの長さ、再生速度、トランジションを調整し、クロップまたは黒帯付き表示、ランダムまたは順番どおりの素材配置を選択可能
@@ -250,11 +273,19 @@
 
 ### おすすめの手順
 
+- デスクトップで使いたい場合は、[デスクトップ版をダウンロード](#デスクトップ版のダウンロード)
 - 手動でのインストールや設定をしたくない場合: AI エージェントで動画を生成する
 - Python がインストール済みで、すぐに使いたい場合: [pip で公式パッケージをインストール](#pip-で公式パッケージをインストール)
-- Windows ユーザー: まずはワンクリックパッケージを使うのが最短で試せます
 - ソースコードからのデプロイや開発: `uv` で環境と依存関係を管理します
 - より独立した実行環境が欲しい場合: Docker でデプロイします
+
+### デスクトップ版のダウンロード
+
+| システム | ダウンロード | 起動方法 |
+| --- | --- | --- |
+| macOS 14 以降（Apple Silicon） | [ARM64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-macos-arm64.zip) | ZIP を展開し、`MoneyPrinterTurbo.app` を開く |
+| Windows（x64） | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-windows-x64.zip) | ZIP 全体を展開し、`MoneyPrinterTurbo.exe` をダブルクリック |
+| Ubuntu 22.04（x64） | [x64 ZIP](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest/download/MoneyPrinterTurbo-Desktop-ubuntu-x64.zip) | `unzip` で展開し、`MoneyPrinterTurbo/bin/mpt-desktop` を実行 |
 
 ### AI エージェントで動画を生成する
 
@@ -270,24 +301,6 @@ Create a video with the topic "How AI is changing everyday life."
 ローカル環境を用意せずに MoneyPrinterTurbo を試したいですか？ Google Colab で直接実行できます！
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/harry0703/MoneyPrinterTurbo/blob/main/docs/MoneyPrinterTurbo.ipynb)
-
-### Windows
-
-GitHub Releases から最新の Windows 用ワンクリックパッケージをダウンロードし、そのまま展開してください。
-
-- [最新の Windows 用ワンクリックパッケージをダウンロード](https://github.com/harry0703/MoneyPrinterTurbo/releases/latest)
-
-> 同ページの **Assets** から `.7z` ファイルをダウンロードしてください。GitHub が
-> 自動生成する `Source code (zip)` / `Source code (tar.gz)` はソースコードのみで、
-> 展開しても `webui.bat` だけが現れ、`start.bat` と `update.bat` は含まれません。
-
-ダウンロード後は、まず `update.bat` を**ダブルクリック**して**最新のコード**に更新し、その後 `start.bat` をダブルクリックして起動することを推奨します
-
-起動するとブラウザーが自動的に開きます（真っ白な画面になる場合は **Chrome** または **Edge** の利用を推奨します）
-
-### macOS / Linux
-
-以下のローカルセットアップまたは Docker の手順を参照してください。
 
 ## インストールとデプロイ 📥
 
@@ -424,7 +437,7 @@ pip install -r requirements.txt
 ```
 
 `webui.bat` は CMD から実行することもできます。
-`webui.bat` は、プロジェクトの `.venv` またはポータブルパッケージに同梱された Python を優先して使用します。プロジェクトの Python が見つからず、`uv` がインストールされている場合は、自動的に `uv run streamlit` にフォールバックします。
+`webui.bat` は、プロジェクトの `.venv` にある Python を優先して使用します。プロジェクトの Python が見つからず、`uv` がインストールされている場合は、自動的に `uv run streamlit` にフォールバックします。
 同じ LAN 内の別の端末から WebUI にアクセスできるようにするには、`webui.bat` を実行する前に `set MPT_WEBUI_HOST=0.0.0.0` を実行してください。
 
 ###### macOS または Linux

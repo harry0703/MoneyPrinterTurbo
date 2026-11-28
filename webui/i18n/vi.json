@@ -506,6 +506,15 @@
     "Configure Providers": "Cấu hình",
     "Active Provider": "Đang sử dụng: {provider}",
     "No Configured Providers": "Chưa có nhà cung cấp nào được cấu hình.",
-    "Provider Configuration Changed": "Cấu hình đã thay đổi. Hãy kiểm tra cài đặt của nhà cung cấp này."
+    "Provider Configuration Changed": "Cấu hình đã thay đổi. Hãy kiểm tra cài đặt của nhà cung cấp này.",
+    "Open Storage Folder": "Mở thư mục lưu trữ",
+    "Storage Folder": "Thư mục lưu trữ",
+    "Storage Folder Busy": "Chờ video tạo xong trước khi đổi thư mục.",
+    "Save Storage Folder": "Lưu",
+    "Choose Storage Folder": "Chọn…",
+    "Open Storage Folder Short": "Mở",
+    "Storage Folder Invalid": "Nhập đường dẫn tuyệt đối đến thư mục có quyền ghi.",
+    "Storage Folder Open Failed": "Không thể mở thư mục.",
+    "Storage Folder Restart": "Khởi động lại ứng dụng để dùng thư mục mới. Các tệp hiện có vẫn nằm trong thư mục ban đầu."
   }
 }

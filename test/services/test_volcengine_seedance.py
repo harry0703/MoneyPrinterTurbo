@@ -593,6 +593,32 @@ class TestVolcEngineSeedanceService(unittest.TestCase):
 
         self.assertEqual(raised.exception.task_id, "cgt-unknown")
 
+    def test_pending_status_from_ark_compatible_gateway_is_polled_like_queued(self):
+        polls = [
+            self._response({"id": "cgt-pending", "status": "pending"}),
+            self._response({"id": "cgt-pending", "status": "running"}),
+            self._response(
+                {
+                    "id": "cgt-pending",
+                    "status": "succeeded",
+                    "content": {"video_url": "https://cdn.example.com/video.mp4"},
+                }
+            ),
+        ]
+        with (
+            patch.object(seedance.requests, "get", side_effect=polls) as get,
+            patch.object(seedance.time, "sleep"),
+        ):
+            body = seedance._wait_for_task(
+                task_id="cgt-pending",
+                tasks_url="https://ark.example.test/tasks",
+                headers={},
+                api_key="ark-test-key",
+            )
+
+        self.assertEqual(body["status"], "succeeded")
+        self.assertEqual(get.call_count, 3)
+
     def test_terminal_failure_preserves_remote_task_id(self):
         submit = self._response({"id": "cgt-failed"})
         failed = self._response(

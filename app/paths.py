@@ -50,6 +50,14 @@ def config_template() -> Path:
     return base / "config.example.toml"
 
 
+def storage_root() -> Path:
+    if os.environ.get("MPT_DESKTOP") == "1":
+        override = os.environ.get("MPT_DESKTOP_STORAGE_DIR")
+        if override:
+            return Path(override)
+    return runtime_root() / "storage"
+
+
 def _hold_reservation(fd: int) -> None:
     """独占锁定占位文件，标记写入者存活；进程崩溃后锁由内核释放。"""
     if fcntl is None:

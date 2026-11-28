@@ -31,17 +31,20 @@ SUPPORTED_SOURCES = {
     "pexels",
     "pixabay",
     "coverr",
+    "aigei",
     "wavespeed",
     "volcengine_seedance",
     "ofox",
     "metaso_minimax",
     "muapi",
+    "useapi",
     "infistar",
     "jalapeno",
     # Keep this list aligned with ``_CLI_VIDEO_SOURCES`` in cli.py. A source that
     # the CLI accepts must not be rejected here as unsupported.
     "openai_image",
     "codex_image",
+    "useapi_image",
     "local",
 }
 VOLCENGINE_ARK_API_KEY_URL = (
@@ -49,6 +52,11 @@ VOLCENGINE_ARK_API_KEY_URL = (
 )
 OFOX_API_KEY_URL = "https://ofox.ai"
 MUAPI_API_KEY_URL = "https://muapi.ai"
+USEAPI_TOKEN_URL = (
+    "https://useapi.net/docs/start-here/setup-useapi"
+    "?utm_source=moneyprinterturbo&utm_medium=referral"
+    "&utm_campaign=mpt-integration"
+)
 INFISTAR_VIDEO_API_KEY_URL = "https://infistar.cc/keys"
 JALAPENO_API_KEY_URL = "https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"
 PEXELS_API_KEY_URL = "https://www.pexels.com/api/"
@@ -180,10 +188,20 @@ def ensure_project(root: Path) -> None:
     log("project download completed")
 
 
+def runtime_root(root: Path) -> Path:
+    """Match the CLI's MPT_HOME resolution from its project working directory."""
+    override = os.environ.get("MPT_HOME", "").strip()
+    if not override:
+        return root
+    target = Path(override).expanduser()
+    return (target if target.is_absolute() else root / target).resolve()
+
+
 def ensure_config(root: Path) -> Path:
     """Create the initial configuration without overwriting an existing file."""
-    config_path = root / "config.toml"
+    config_path = runtime_root(root) / "config.toml"
     if not config_path.exists():
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(root / "config.example.toml", config_path)
         log(f"created configuration file: {config_path}")
     return config_path
@@ -266,6 +284,7 @@ def apply_environment_config(config_path: Path) -> None:
         "MPT_METASO_MINIMAX_API_KEY", ""
     ).strip()
     muapi_key = os.environ.get("MPT_MUAPI_API_KEY", "").strip()
+    useapi_token = os.environ.get("MPT_USEAPI_TOKEN", "").strip()
     infistar_video_key = os.environ.get("MPT_INFISTAR_VIDEO_API_KEY", "").strip()
     jalapeno_video_key = os.environ.get("MPT_JALAPENO_VIDEO_API_KEY", "").strip()
     if not any(
@@ -279,6 +298,7 @@ def apply_environment_config(config_path: Path) -> None:
             ofox_key,
             metaso_minimax_key,
             muapi_key,
+            useapi_token,
             infistar_video_key,
             jalapeno_video_key,
         )
@@ -320,6 +340,9 @@ def apply_environment_config(config_path: Path) -> None:
     if muapi_key:
         text = _replace_config_value(text, "muapi_api_key", muapi_key)
         changes.append("muapi_api_key")
+    if useapi_token:
+        text = _replace_config_value(text, "useapi_api_token", useapi_token)
+        changes.append("useapi_api_token")
     if infistar_video_key:
         text = _replace_config_value(text, "infistar_video_api_key", infistar_video_key)
         changes.append("infistar_video_api_key")
@@ -452,6 +475,11 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("volcengine_seedance_api_key")
         if not has_cli_option(cli_args, "--confirm-seedance-charge"):
             missing.append("confirm_seedance_charge")
+    elif source == "aigei":
+        if not _has_configured_value(_plain_config_value(text, "aigei_api_key")):
+            missing.append("aigei_api_key")
+        if not has_cli_option(cli_args, "--confirm-aigei-charge"):
+            missing.append("confirm_aigei_charge")
     elif source == "wavespeed":
         # WaveSpeed 的运行时凭据只来自 wavespeed_api_keys，没有环境变量回退，
         # 这里保持同一口径。按次计费的生成源还必须显式确认收费。
@@ -492,6 +520,24 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("muapi_api_key")
         if not has_cli_option(cli_args, "--confirm-muapi-charge"):
             missing.append("confirm_muapi_charge")
+    elif source in {"useapi", "useapi_image"}:
+        # Same order as useapi.get_api_key: the config key, then USEAPI_TOKEN.
+        # Video and image sources share one token.
+        value = (
+            _plain_config_value(text, "useapi_api_token").strip()
+            or os.environ.get("USEAPI_TOKEN", "").strip()
+        )
+        if not _has_configured_value(value):
+            missing.append("useapi_api_token")
+        # Videos and Kling images spend credits on the user's own account;
+        # Nano Banana images do not, so they need no charge confirmation.
+        spends_credits = source == "useapi" or _plain_config_value(
+            text, "useapi_image_model"
+        ).strip().startswith("kling-")
+        if spends_credits and not has_cli_option(
+            cli_args, "--confirm-useapi-charge"
+        ):
+            missing.append("confirm_useapi_charge")
     elif source == "infistar":
         # 视频凭据独立于同品牌 LLM，预检必须与 infistar_video.get_api_key 一致。
         value = (
@@ -518,8 +564,7 @@ def missing_config(config_path: Path, cli_args: list[str]) -> tuple[str, list[st
             missing.append("codex_image_model_name")
         # This bootstrap helper runs without application dependencies. Presence
         # is only a hint; the runtime validates/decrypts the shared session.
-        runtime_root = Path(os.environ.get("MPT_HOME") or config_path.parent)
-        connected = (runtime_root / "storage" / "auth" / "openai_codex.bin").is_file()
+        connected = (config_path.parent / "storage" / "auth" / "openai_codex.bin").is_file()
         if not connected:
             missing.append("codex_sign_in")
     elif source == "openai_image":
@@ -545,6 +590,7 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
     if any(
         field.endswith("_api_key")
         and field not in {
+            "aigei_api_key",
             "volcengine_seedance_api_key",
             "ofox_api_key",
             "metaso_minimax_api_key",
@@ -590,6 +636,10 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print("SEEDANCE_CHARGE_CONFIRMATION_REQUIRED=--confirm-seedance-charge")
     if "confirm_wavespeed_charge" in missing:
         print("WAVESPEED_CHARGE_CONFIRMATION_REQUIRED=--confirm-wavespeed-charge")
+    if "aigei_api_key" in missing:
+        print("AIGEI_API_KEY_URL=https://www.aigei.com/open/console/apikey")
+    if "confirm_aigei_charge" in missing:
+        print("AIGEI_CHARGE_CONFIRMATION_REQUIRED=--confirm-aigei-charge")
     if "ofox_api_key" in missing:
         print(f"OFOX_API_KEY_URL={OFOX_API_KEY_URL}")
         print("OFOX_API_KEY_ENV=MPT_OFOX_API_KEY")
@@ -607,6 +657,11 @@ def report_missing_config(provider: str, missing: list[str]) -> int:
         print("MUAPI_API_KEY_ENV=MPT_MUAPI_API_KEY")
     if "confirm_muapi_charge" in missing:
         print("MUAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-muapi-charge")
+    if "useapi_api_token" in missing:
+        print(f"USEAPI_TOKEN_URL={USEAPI_TOKEN_URL}")
+        print("USEAPI_TOKEN_ENV=MPT_USEAPI_TOKEN")
+    if "confirm_useapi_charge" in missing:
+        print("USEAPI_CHARGE_CONFIRMATION_REQUIRED=--confirm-useapi-charge")
     if "infistar_video_api_key" in missing:
         print(f"INFISTAR_VIDEO_API_KEY_URL={INFISTAR_VIDEO_API_KEY_URL}")
         print("INFISTAR_VIDEO_API_KEY_ENV=MPT_INFISTAR_VIDEO_API_KEY")
@@ -783,7 +838,7 @@ def generate_video(
     run_checked([uv, "sync", "--frozen"], cwd=root)
 
     task_id = str(uuid.uuid4())
-    task_dir = root / "storage" / "tasks" / task_id
+    task_dir = runtime_root(root) / "storage" / "tasks" / task_id
     log_dir = root / ".agent-logs" / "moneyprinterturbo-video"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"run-{task_id}.log"

@@ -2,6 +2,7 @@
 /config.toml
 /config.toml.bak
 /storage/
+/.local/
 /.idea/
 /app/services/__pycache__
 /app/__pycache__/

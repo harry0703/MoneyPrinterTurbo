@@ -41,6 +41,7 @@ _CLI_VIDEO_SOURCES = (
     "pexels",
     "pixabay",
     "coverr",
+    "aigei",
     "wavespeed",
     "volcengine_seedance",
     "ofox",
@@ -48,8 +49,10 @@ _CLI_VIDEO_SOURCES = (
     "jalapeno",
     "metaso_minimax",
     "muapi",
+    "useapi",
     "openai_image",
     "codex_image",
+    "useapi_image",
     "local",
 )
 
@@ -250,6 +253,13 @@ def _bgm_type(value: str) -> str:
     )
 
 
+def _useapi_image_needs_confirmation() -> bool:
+    """Kling image models spend Kling credits; Nano Banana models do not."""
+    from app.services import useapi
+
+    return useapi.image_requires_confirmation()
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     command = "mpt cli" if __name__ == "app.cli" else "uv run python cli.py"
     parser = argparse.ArgumentParser(
@@ -375,6 +385,11 @@ Batch manifests:
         help="stop after this pipeline stage; see the stage order below",
     )
     material_group.add_argument(
+        "--confirm-aigei-charge",
+        action="store_true",
+        help="allow Aigei to charge copper coins for stock video downloads",
+    )
+    material_group.add_argument(
         "--confirm-wavespeed-charge",
         action="store_true",
         help=(
@@ -420,6 +435,16 @@ Batch manifests:
         help=(
             "confirm that MuAPI video generation creates paid tasks; required "
             "with --video-source muapi for materials or video output"
+        ),
+    )
+    material_group.add_argument(
+        "--confirm-useapi-charge",
+        action="store_true",
+        help=(
+            "confirm that useapi.net videos and Kling images spend credits on "
+            "your own Google AI plan, Kling AI account or Dreamina account; "
+            "required with --video-source useapi, and with useapi_image when "
+            "useapi_image_model is a Kling model, for materials or video output"
         ),
     )
 
@@ -755,6 +780,11 @@ Batch manifests:
     if not args.batch_file and args.video_source != "local" and has_video_materials:
         parser.error("--video-materials can only be used with --video-source local")
     if (
+        not args.batch_file and args.video_source == "aigei"
+        and stage_requires_materials and not args.confirm_aigei_charge
+    ):
+        parser.error("--confirm-aigei-charge is required with --video-source aigei")
+    if (
         not args.batch_file
         and args.video_source == "wavespeed"
         and stage_requires_materials
@@ -801,6 +831,26 @@ Batch manifests:
     ):
         parser.error(
             "--confirm-muapi-charge is required with --video-source muapi"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "useapi"
+        and stage_requires_materials
+        and not args.confirm_useapi_charge
+    ):
+        parser.error(
+            "--confirm-useapi-charge is required with --video-source useapi"
+        )
+    if (
+        not args.batch_file
+        and args.video_source == "useapi_image"
+        and stage_requires_materials
+        and not args.confirm_useapi_charge
+        and _useapi_image_needs_confirmation()
+    ):
+        parser.error(
+            "--confirm-useapi-charge is required with --video-source "
+            "useapi_image when useapi_image_model is a Kling model"
         )
 
     if (not args.batch_file and args.video_source == "infistar"
@@ -1120,7 +1170,8 @@ def _load_batch_manifest(raw_path: str) -> tuple[str, list[dict[str, Any]]]:
         entries = parsed
     else:
         entries = []
-        for line_number, line in enumerate(text.splitlines(), start=1):
+        # Unicode separators inside JSON strings are data, not record boundaries.
+        for line_number, line in enumerate(re.split(r"\r\n|\r|\n", text), start=1):
             if not line.strip():
                 continue
             try:
@@ -1215,6 +1266,8 @@ def _validate_batch_task_params(
     muapi_charge_confirmed: bool,
     infistar_charge_confirmed: bool = False,
     jalapeno_charge_confirmed: bool = False,
+    useapi_charge_confirmed: bool = False,
+    aigei_charge_confirmed: bool = False,
 ) -> None:
     if not params.video_subject.strip() and not params.video_script.strip():
         raise ValueError("one of video_subject or video_script is required")
@@ -1247,6 +1300,11 @@ def _validate_batch_task_params(
         )
     if params.video_source != "local" and params.video_materials:
         raise ValueError("video_materials can only be used with video_source=local")
+    if (
+        params.video_source == "aigei" and stop_at in {"materials", "video"}
+        and not aigei_charge_confirmed
+    ):
+        raise ValueError("--confirm-aigei-charge is required with video_source=aigei")
     if (
         params.video_source == "wavespeed"
         and stop_at in {"materials", "video"}
@@ -1283,6 +1341,23 @@ def _validate_batch_task_params(
         and not muapi_charge_confirmed
     ):
         raise ValueError("--confirm-muapi-charge is required for MuAPI video generation")
+    if (
+        params.video_source == "useapi"
+        and stop_at in {"materials", "video"}
+        and not useapi_charge_confirmed
+    ):
+        raise ValueError(
+            "--confirm-useapi-charge is required for useapi.net video generation"
+        )
+    if (
+        params.video_source == "useapi_image"
+        and stop_at in {"materials", "video"}
+        and not useapi_charge_confirmed
+        and _useapi_image_needs_confirmation()
+    ):
+        raise ValueError(
+            "--confirm-useapi-charge is required for useapi.net Kling images"
+        )
 
     if (params.video_source == "infistar" and stop_at in {"materials", "video"}
             and not infistar_charge_confirmed):
@@ -1380,11 +1455,18 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
             index=index,
             allowed_fields=allowed_fields,
         )
+        # A null voice_name is an omitted override: the task keeps the voice
+        # that the CLI resolved for the batch (--voice-name, the voice or
+        # no-voice mode saved by the WebUI, or the built-in default). TTS failed
+        # on the null with "'NoneType' object has no attribute 'strip'".
+        overrides = dict(entry)
+        if "voice_name" in overrides and overrides["voice_name"] is None:
+            del overrides["voice_name"]
         try:
             params = VideoParams.model_validate(
-                {**copy.deepcopy(base_values), **entry}
+                {**copy.deepcopy(base_values), **overrides}
             )
-            override_fields = set(entry)
+            override_fields = set(overrides)
             _resolve_batch_entry_paths(
                 params,
                 override_fields=override_fields,
@@ -1406,6 +1488,8 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
                 muapi_charge_confirmed=args.confirm_muapi_charge,
                 infistar_charge_confirmed=args.confirm_infistar_charge,
                 jalapeno_charge_confirmed=args.confirm_jalapeno_charge,
+                useapi_charge_confirmed=args.confirm_useapi_charge,
+                aigei_charge_confirmed=args.confirm_aigei_charge,
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid batch task {index}: {exc}") from exc

@@ -17,6 +17,7 @@ import cli
 from app.config import config as app_config
 from app.models import schema as app_schema
 from app.models.schema import VideoTransitionMode
+from app.services.state import MemoryState
 from app.utils.logging_utils import force_utf8_console
 
 
@@ -510,6 +511,114 @@ class TestCli(unittest.TestCase):
                         "--stop-at",
                         "materials",
                         "--confirm-muapi-charge",
+                    ]
+                )
+
+            self.assertEqual(accepted, 0)
+            start.assert_called_once()
+
+    def test_useapi_video_source_requires_explicit_charge_confirmation(self):
+        with self.assertRaises(SystemExit) as raised:
+            cli.parse_args(
+                ["--video-subject", "test", "--video-source", "useapi"]
+            )
+        self.assertEqual(raised.exception.code, 2)
+
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "useapi",
+                "--confirm-useapi-charge",
+            ]
+        )
+        self.assertEqual(cli.build_video_params(args).video_source, "useapi")
+
+    def test_useapi_confirmation_is_not_required_before_material_stage(self):
+        args = cli.parse_args(
+            [
+                "--video-subject",
+                "test",
+                "--video-source",
+                "useapi",
+                "--stop-at",
+                "script",
+            ]
+        )
+        self.assertEqual(args.video_source, "useapi")
+
+    def test_useapi_image_source_needs_no_charge_confirmation(self):
+        # Nano Banana images on Google Flow spend no plan credits.
+        with patch.dict(app_config.app, {"useapi_image_model": "nano-banana-pro"}):
+            args = cli.parse_args(
+                ["--video-subject", "test", "--video-source", "useapi_image"]
+            )
+        params = cli.build_video_params(args)
+        self.assertEqual(params.video_source, "useapi_image")
+
+    def test_useapi_kling_image_model_requires_charge_confirmation(self):
+        # Kling images spend the user's Kling credits.
+        with patch.dict(app_config.app, {"useapi_image_model": "kling-kolors-v3-0"}):
+            with self.assertRaises(SystemExit) as raised, redirect_stderr(io.StringIO()):
+                cli.parse_args(
+                    ["--video-subject", "test", "--video-source", "useapi_image"]
+                )
+            self.assertEqual(raised.exception.code, 2)
+            args = cli.parse_args(
+                [
+                    "--video-subject",
+                    "test",
+                    "--video-source",
+                    "useapi_image",
+                    "--confirm-useapi-charge",
+                ]
+            )
+            self.assertEqual(args.video_source, "useapi_image")
+            with self.assertRaises(ValueError):
+                cli._validate_batch_task_params(
+                    cli.build_video_params(args),
+                    stop_at="materials",
+                    custom_position_is_explicit=False,
+                    wavespeed_charge_confirmed=False,
+                    seedance_charge_confirmed=False,
+                    ofox_charge_confirmed=False,
+                    metaso_minimax_charge_confirmed=False,
+                    muapi_charge_confirmed=False,
+                    useapi_charge_confirmed=False,
+                )
+
+    def test_batch_useapi_source_uses_global_charge_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [{"video_subject": "useapi batch task", "video_source": "useapi"}]
+                ),
+                encoding="utf-8",
+            )
+            with patch("app.services.task.start") as start:
+                rejected = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "materials"]
+                )
+            self.assertEqual(rejected, 2)
+            start.assert_not_called()
+
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "materials": ["ok"]},
+                ) as start,
+                patch("app.utils.utils.get_uuid", return_value="task-useapi"),
+                redirect_stdout(io.StringIO()),
+            ):
+                accepted = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "materials",
+                        "--confirm-useapi-charge",
                     ]
                 )
 
@@ -1574,6 +1683,117 @@ class TestCli(unittest.TestCase):
                 self.assertEqual(code, 2)
                 start.assert_not_called()
 
+    def test_null_voice_name_does_not_stop_a_batch_that_never_narrates(self):
+        # A null voice_name in a manifest entry leaves the batch voice in place,
+        # so a task that stops before TTS runs as an entry without it does.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {"video_subject": "first subject"},
+                        {"video_subject": "second subject", "voice_name": None},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch(
+                    "app.services.task.start",
+                    return_value={"state": 1, "script": "ok"},
+                ) as start,
+                redirect_stdout(io.StringIO()),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "script"]
+                )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(start.call_count, 2)
+
+    def test_null_voice_name_narrates_with_the_batch_voice(self):
+        # The task gets the voice that the CLI resolved for the batch, here
+        # --voice-name, as the entry without voice_name does. With the null it
+        # failed at the audio stage with "'NoneType' object has no attribute
+        # 'strip'", after the tasks before it in the batch had run.
+        tts_voices = []
+
+        def record_tts(**kwargs):
+            tts_voices.append(kwargs["voice_name"])
+            return object()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {"video_script": "City night."},
+                        {"video_script": "City night.", "voice_name": None},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                patch("app.utils.utils.storage_dir", return_value=temp_dir),
+                patch("app.services.state.state", MemoryState()),
+                patch("app.utils.utils.check_ffmpeg_ready", return_value=True),
+                patch("app.services.voice.tts", side_effect=record_tts),
+                patch("app.services.voice.get_audio_duration", return_value=2.0),
+                redirect_stdout(io.StringIO()),
+            ):
+                code = cli.run_cli(
+                    [
+                        "--batch-file",
+                        str(manifest),
+                        "--stop-at",
+                        "audio",
+                        "--voice-name",
+                        "en-US-JennyNeural-Female",
+                    ]
+                )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(tts_voices, ["en-US-JennyNeural", "en-US-JennyNeural"])
+
+    def test_null_voice_name_keeps_the_task_narration_audio(self):
+        # A task that brings its own narration never calls TTS, with or
+        # without a voice.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            narration = Path(temp_dir) / "narration.mp3"
+            narration.write_bytes(b"audio")
+            manifest = Path(temp_dir) / "tasks.json"
+            manifest.write_text(
+                json.dumps(
+                    [
+                        {
+                            "video_script": "City night.",
+                            "voice_name": None,
+                            "custom_audio_file": "narration.mp3",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with (
+                patch("app.utils.utils.storage_dir", return_value=temp_dir),
+                patch("app.services.state.state", MemoryState()),
+                patch("app.utils.utils.check_ffmpeg_ready", return_value=True),
+                patch("app.services.voice.tts") as tts,
+                patch("app.services.voice.get_audio_duration", return_value=2.0),
+                redirect_stdout(output),
+            ):
+                code = cli.run_cli(
+                    ["--batch-file", str(manifest), "--stop-at", "audio"]
+                )
+
+        self.assertEqual(code, 0)
+        tts.assert_not_called()
+        self.assertEqual(
+            json.loads(output.getvalue())["tasks"][0]["result"]["audio_file"],
+            str(narration.resolve()),
+        )
+
     def test_batch_manifest_limits_size_and_task_count(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             oversized = Path(temp_dir) / "oversized.jsonl"
@@ -1593,6 +1813,21 @@ class TestCli(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "the limit is"):
                 cli._load_batch_manifest(str(too_many))
+
+    def test_batch_jsonl_preserves_unicode_line_separators_in_scripts(self):
+        entries = [
+            {"video_script": "First\u0085second\u2028third\u2029fourth"},
+            {"video_script": "Next task"},
+        ]
+        records = [json.dumps(entry, ensure_ascii=False) for entry in entries]
+        for newline in ("\n", "\r\n", "\r"):
+            with self.subTest(newline=newline), tempfile.TemporaryDirectory() as temp_dir:
+                manifest = Path(temp_dir) / "tasks.jsonl"
+                manifest.write_bytes(newline.join(records).encode("utf-8"))
+
+                _, parsed = cli._load_batch_manifest(str(manifest))
+
+                self.assertEqual(parsed, entries)
 
     def test_batch_jsonl_error_reports_source_line(self):
         with tempfile.TemporaryDirectory() as temp_dir:

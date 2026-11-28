@@ -2050,6 +2050,9 @@ class TestTaskService(unittest.TestCase):
         with (
             patch.object(tm.sm, "state", state),
             patch.object(
+                tm.llm, "generate_social_metadata", return_value={"caption": "Coffee story"}
+            ),
+            patch.object(
                 tm.upload_post,
                 "cross_post_video",
                 return_value={"success": True, "request_id": "upload-1"},

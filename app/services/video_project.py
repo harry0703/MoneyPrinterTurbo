@@ -24,7 +24,7 @@ from uuid import uuid4
 
 PREPARED_FORMATS = "mov,matroska,avi,mpegts,mpegvideo,ogg,flv,wav,mp3,flac,aac"
 SCHEMA_VERSION = 1
-RENDERER_VERSION = "local-ffmpeg-v1"
+RENDERER_VERSION = "local-ffmpeg-v2"
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
@@ -437,14 +437,17 @@ class VideoProject:
             pass
         return None
 
-    def plan(self, revision: str | None = None) -> list[dict]:
-        spec = self.revision(revision)
+    def _verify_source_snapshots(self, spec: dict) -> None:
         for scene in spec["scenes"]:
             self._asset_path(scene["footage"])
             if scene["audio"]:
                 self._asset_path(scene["audio"])
         if spec["bgm"]:
             self._asset_path(spec["bgm"])
+
+    def plan(self, revision: str | None = None) -> list[dict]:
+        spec = self.revision(revision)
+        self._verify_source_snapshots(spec)
         parent = (
             {
                 stage.key: stage.fingerprint
@@ -566,6 +569,7 @@ class VideoProject:
                 cancel.unlink(missing_ok=True)
             status["state"] = "running"
             status.pop("error", None)
+            status.pop("failed_stage", None)
             _atomic_json(folder / "status.json", status)
             results = {}
             current_stage = None
@@ -578,7 +582,7 @@ class VideoProject:
                     raise ProjectError(
                         "FFmpeg toolchain changed; create a revision to rebuild with its new fingerprint"
                     )
-                self.plan(revision)  # Verify source snapshots before starting.
+                self._verify_source_snapshots(spec)
                 for stage in stage_graph(spec):
                     current_stage = stage.key
                     if cancel.exists():
@@ -611,8 +615,22 @@ class VideoProject:
                             **results["export"],
                         }
                         _atomic_json(self.directory / "project.json", metadata)
+                    scene_clips = []
+                    for scene in spec["scenes"]:
+                        scene_id = scene["id"]
+                        clip = results[f"{scene_id}:scene"]
+                        scene_clips.append(
+                            {
+                                "scene_id": scene_id,
+                                "path": clip["path"],
+                                "sha256": clip["sha256"],
+                            }
+                        )
                     status.update(
-                        state="succeeded", promoted=promoted, export=results["export"]
+                        state="succeeded",
+                        promoted=promoted,
+                        export=results["export"],
+                        scene_clips=scene_clips,
                     )
                     _atomic_json(folder / "status.json", status)
                 return status
@@ -725,7 +743,14 @@ class VideoProject:
                 duration = self._read(Path(results[f"{scene['id']}:timing"]["path"]))[
                     "duration"
                 ]
-                vf = f"scale={settings.width}:{settings.height}:force_original_aspect_ratio=increase,crop={settings.width}:{settings.height},setsar=1,fps={settings.fps}"
+                # Cover the target in display coordinates before setting square pixels.
+                width, height = settings.width, settings.height
+                display_aspect = "if(gt(sar,0),dar,a)"
+                vf = (
+                    f"scale=w='max({width},2*ceil({height}*{display_aspect}/2))':"
+                    f"h='max({height},2*ceil({width}/{display_aspect}/2))',"
+                    f"crop={width}:{height},setsar=1,fps={settings.fps}"
+                )
                 self._run(
                     base
                     + [
