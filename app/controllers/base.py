@@ -83,12 +83,22 @@ def verify_token(
         )
 
     # compare_digest 对 str 只支持 ASCII。请求 Header 属于不可信输入，攻击者
-    # 可以发送 Latin-1 字符触发 TypeError。统一编码为 UTF-8 bytes 后既保留
-    # 恒定时间比较，也支持 TOML 中合法的 Unicode Key。
+    # 可以发送 Latin-1 字符触发 TypeError。统一比较 bytes 后既保留恒定时间
+    # 比较，也支持 TOML 中合法的 Unicode Key。
     token = token_values[0]
-    if not secrets.compare_digest(
-        token.encode("utf-8"), configured_key.encode("utf-8")
-    ):
+    try:
+        # Starlette 按 Latin-1 解码原始 Header 字节，客户端发送的 UTF-8 Key
+        # 必须先还原为原始字节，才能与配置 Key 的 UTF-8 编码一致。
+        token_bytes = token.encode("latin-1")
+    except UnicodeEncodeError:
+        # 直接调用方可能传入已经解码的 Unicode 字符串。
+        token_bytes = token.encode("utf-8")
+    configured_bytes = configured_key.encode("utf-8")
+    # 同时保留原先 Latin-1 Header 解码后的 Unicode 比较语义，避免已有
+    # 非 ASCII 客户端在加入 UTF-8 原始 Header 支持后失去访问权限。
+    raw_matches = secrets.compare_digest(token_bytes, configured_bytes)
+    decoded_matches = secrets.compare_digest(token.encode("utf-8"), configured_bytes)
+    if not (raw_matches or decoded_matches):
         raise HttpException(
             task_id=get_task_id(request),
             status_code=401,
