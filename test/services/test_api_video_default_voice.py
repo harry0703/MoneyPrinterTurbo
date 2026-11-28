@@ -1,6 +1,7 @@
 """A /videos request without voice_name narrates with the voice that /audio and /subtitle use.
 
-A request to any of the three that sends "voice_name": null gets that voice too.
+A request to any of the three that sends "voice_name": null, an empty string or
+only whitespace gets that voice too.
 """
 
 from unittest.mock import patch
@@ -50,6 +51,11 @@ def test_video_request_without_voice_uses_the_audio_and_subtitle_voice(client):
 
 
 @pytest.mark.parametrize(
+    "voice_name",
+    [None, "", "   ", "\t\n"],
+    ids=["null", "empty", "spaces", "tab-newline"],
+)
+@pytest.mark.parametrize(
     "endpoint, body",
     [
         ("/api/v1/videos", {"video_subject": "Coffee"}),
@@ -58,12 +64,50 @@ def test_video_request_without_voice_uses_the_audio_and_subtitle_voice(client):
     ],
     ids=["videos", "audio", "subtitle"],
 )
-def test_null_voice_name_uses_the_default_voice(client, endpoint, body):
+def test_null_voice_name_uses_the_default_voice(client, endpoint, body, voice_name):
     # Optional[str] accepts null, and the task failed when it reached TTS with
     # "'NoneType' object has no attribute 'strip'", for /videos after the LLM calls.
+    # An empty or whitespace-only voice failed there with "Invalid voice ''.".
     assert (
-        queued_voice(client, endpoint, {**body, "voice_name": None})
+        queued_voice(client, endpoint, {**body, "voice_name": voice_name})
         == DEFAULT_VOICE_NAME
+    )
+
+
+@pytest.mark.parametrize(
+    "endpoint, body",
+    [
+        ("/api/v1/videos", {"video_subject": "Coffee"}),
+        ("/api/v1/audio", {"video_script": "Coffee"}),
+        ("/api/v1/subtitle", {"video_script": "Coffee"}),
+    ],
+    ids=["videos", "audio", "subtitle"],
+)
+@pytest.mark.parametrize("voice_name", [0, False, {"nested": {"value": 1}}])
+def test_non_string_voice_name_is_rejected(client, endpoint, body, voice_name):
+    with (
+        patch.object(video_controller.sm.state, "update_task"),
+        patch.object(video_controller.task_manager, "add_task") as add_task,
+    ):
+        response = client.post(endpoint, json={**body, "voice_name": voice_name})
+
+    assert response.status_code == 400
+    add_task.assert_not_called()
+
+
+@pytest.mark.parametrize("voice_name", ["no-voice", " en-GB-SoniaNeural-Female "])
+@pytest.mark.parametrize(
+    "endpoint, body",
+    [
+        ("/api/v1/videos", {"video_subject": "Coffee"}),
+        ("/api/v1/audio", {"video_script": "Coffee"}),
+        ("/api/v1/subtitle", {"video_script": "Coffee"}),
+    ],
+    ids=["videos", "audio", "subtitle"],
+)
+def test_non_blank_voice_name_is_preserved(client, endpoint, body, voice_name):
+    assert (
+        queued_voice(client, endpoint, {**body, "voice_name": voice_name}) == voice_name
     )
 
 

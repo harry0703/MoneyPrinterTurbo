@@ -340,42 +340,73 @@ class TestRedisTaskManager(unittest.TestCase):
 
     def test_video_task_queued_with_null_voice_narrates_with_the_default_voice(self):
         """
-        A /videos task queued with "voice_name": null before the API gave such a
-        request the default voice is still in Redis with the null. It restores
-        as VideoParams, and failed at the audio stage with "'NoneType' object
-        has no attribute 'strip'".
+        A /videos task queued with a null or blank voice before the API gave
+        such a request the default voice is still in Redis. It restores as
+        VideoParams, then failed at the audio stage.
         """
-        params = {
-            **VideoParams(
-                video_subject="Coffee", video_script="Coffee at night."
-            ).model_dump(warnings=False),
-            "voice_name": None,
-        }
-        self.redis_client.eval.return_value = _queued_payload(
-            "start", task_id="task-1", params=params, stop_at="video"
-        )
-        with patch.object(self.manager, "execute_task") as execute_task:
-            self.manager.check_queue()
-        func, *args = execute_task.call_args.args
-
-        tts_voices = []
-
-        def record_tts(**kwargs):
-            # No audio ends the task at the audio stage, before any download.
-            tts_voices.append(kwargs["voice_name"])
-            return None
-
-        with (
-            tempfile.TemporaryDirectory() as storage_dir,
-            patch("app.utils.utils.storage_dir", return_value=storage_dir),
-            patch.object(task_service.sm, "state", MemoryState()),
-            patch.object(task_service.utils, "check_ffmpeg_ready", return_value=True),
-            patch.object(task_service, "generate_terms", return_value=["coffee"]),
-            patch.object(task_service.voice, "tts", side_effect=record_tts),
+        for voice_name, expected_voice in (
+            (None, "zh-CN-XiaoxiaoNeural"),
+            ("", "zh-CN-XiaoxiaoNeural"),
+            ("   ", "zh-CN-XiaoxiaoNeural"),
+            ("\t\n", "zh-CN-XiaoxiaoNeural"),
+            (" en-GB-SoniaNeural-Female ", "en-GB-SoniaNeural"),
         ):
-            func(*args, **execute_task.call_args.kwargs)
+            with self.subTest(voice_name=voice_name, expected_voice=expected_voice):
+                params = {
+                    **VideoParams(
+                        video_subject="Coffee", video_script="Coffee at night."
+                    ).model_dump(warnings=False),
+                    "voice_name": voice_name,
+                }
+                self.redis_client.eval.return_value = _queued_payload(
+                    "start", task_id="task-1", params=params, stop_at="video"
+                )
+                with patch.object(self.manager, "execute_task") as execute_task:
+                    self.manager.check_queue()
+                execute_task.assert_called_once()
+                func, *args = execute_task.call_args.args
 
-        self.assertEqual(tts_voices, ["zh-CN-XiaoxiaoNeural"])
+                tts_voices = []
+
+                def record_tts(**kwargs):
+                    # No audio ends the task at the audio stage, before any download.
+                    tts_voices.append(kwargs["voice_name"])
+                    return None
+
+                with (
+                    tempfile.TemporaryDirectory() as storage_dir,
+                    patch("app.utils.utils.storage_dir", return_value=storage_dir),
+                    patch.object(task_service.sm, "state", MemoryState()),
+                    patch.object(
+                        task_service.utils, "check_ffmpeg_ready", return_value=True
+                    ),
+                    patch.object(
+                        task_service, "generate_terms", return_value=["coffee"]
+                    ),
+                    patch.object(task_service.voice, "tts", side_effect=record_tts),
+                ):
+                    func(*args, **execute_task.call_args.kwargs)
+
+                self.assertEqual(tts_voices, [expected_voice])
+
+    def test_queued_video_with_non_string_voice_is_not_dispatched(self):
+        for voice_name in (0, False, {"nested": {"value": 1}}):
+            with self.subTest(voice_name=voice_name):
+                params = {
+                    **VideoParams(video_subject="Coffee").model_dump(warnings=False),
+                    "voice_name": voice_name,
+                }
+                self.redis_client.eval.side_effect = [
+                    _queued_payload(
+                        "start", task_id="task-1", params=params, stop_at="video"
+                    ),
+                    None,
+                ]
+
+                with patch.object(self.manager, "execute_task") as execute_task:
+                    self.manager.check_queue()
+
+                execute_task.assert_not_called()
 
     def test_empty_queue_and_size_use_redis_length(self):
         """队列判空和长度必须直接反映 Redis 当前列表长度。"""
