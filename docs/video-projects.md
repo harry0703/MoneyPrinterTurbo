@@ -37,7 +37,10 @@ Save `episode.json` beside your prepared assets:
     "height": 1920,
     "fps": 30,
     "narration_volume": 1.0,
-    "bgm_volume": 0.15
+    "bgm_volume": 0.15,
+    "subtitles": true,
+    "subtitle_font": "Arial",
+    "subtitle_font_size": 56
   },
   "scenes": [
     {
@@ -85,9 +88,11 @@ narration away. Zero BGM volume produces an unmixed export.
 
 `narration` is provenance text, not a TTS request. When changing narration, provide
 its newly prepared audio too; the CLI cannot verify that the recording speaks the
-text. Word-aligned subtitles, transitions, overlays and provider generation are
-not implemented by this first local renderer. The timing stage records duration,
-not generated word alignments.
+text. `subtitles` burns one subtitle line per scene into the export, timed to that
+scene's duration and drawn after scaling, so it stays inside the frame. Subtitle
+text is narration, never a transcription with word timings. Transitions, overlays
+and provider generation are not implemented by this first local renderer. The
+timing stage records duration, not generated word alignments.
 
 ## Replace, compare and reuse
 
