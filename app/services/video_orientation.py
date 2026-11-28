@@ -16,6 +16,7 @@ from PIL import Image, ImageOps
 
 from app.config import config
 from app.utils import utils
+from app.utils.request_logging import trace_http_call
 
 
 # 固定官方 RightWayUp Fast INT8 的版本和权重校验值，避免更新后方向判断悄然变化。
@@ -83,7 +84,14 @@ def _fetch_model(path: Path) -> None:
     temporary = None
     try:
         with (
-            requests.get(_MODEL_URL, stream=True, timeout=(5, 25), proxies=config.proxy) as response,
+            trace_http_call(
+                "GET",
+                requests.get,
+                _MODEL_URL,
+                stream=True,
+                timeout=(5, 25),
+                proxies=config.proxy,
+            ) as response,
             tempfile.NamedTemporaryFile(dir=path.parent, prefix=".orientation-", delete=False) as output,
         ):
             temporary = Path(output.name)

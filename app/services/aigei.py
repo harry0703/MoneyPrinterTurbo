@@ -257,7 +257,15 @@ def preview_frames(item: MaterialInfo) -> Iterator[Image.Image]:
         return
     try:
         for url in urls:
-            with requests.get(url, stream=True, timeout=(2, 4), proxies=config.proxy, allow_redirects=False) as response:
+            with trace_http_call(
+                "GET",
+                requests.get,
+                url,
+                stream=True,
+                timeout=(2, 4),
+                proxies=config.proxy,
+                allow_redirects=False,
+            ) as response:
                 if response.status_code != 200:
                     return
                 data = response.raw.read(_MAX_PREVIEW_BYTES + 1, decode_content=True)
