@@ -1,4 +1,5 @@
 import asyncio
+import errno
 import os
 import shutil
 import tempfile
@@ -545,6 +546,89 @@ class TestVideoControllerTasks(unittest.TestCase):
         self.assertEqual(response["status"], 200)
         delete_task.assert_called_once_with("completed-task")
 
+    def test_delete_refuses_task_whose_directory_a_worker_still_holds(self):
+        """A failed task whose worker process is only paused stays undeletable."""
+        failed_task = {
+            "task_id": "paused-worker-task",
+            "state": const.TASK_STATE_FAILED,
+            "progress": 30,
+            "failed_stage": "worker",
+        }
+
+        with (
+            patch.object(
+                video_controller.sm.state, "get_task", return_value=failed_task
+            ),
+            patch.object(
+                video_controller.tm, "is_task_directory_held", return_value=True
+            ),
+            patch.object(video_controller.shutil, "rmtree") as rmtree,
+            patch.object(video_controller.sm.state, "delete_task") as delete_task,
+        ):
+            with self.assertRaises(HttpException) as raised:
+                video_controller.delete_video(
+                    self._request(), task_id="paused-worker-task"
+                )
+
+        self.assertEqual(raised.exception.status_code, 409)
+        rmtree.assert_not_called()
+        delete_task.assert_not_called()
+
+    def test_delete_with_an_unusable_lock_depends_on_the_lock_file(self):
+        """A lock this process cannot open blocks deletion only if its file exists."""
+        failed_task = {
+            "task_id": "unlockable-task",
+            "state": const.TASK_STATE_FAILED,
+            "progress": 0,
+            "failed_stage": "worker",
+        }
+
+        for lock_file_exists, expected_status in ((False, 200), (True, 409)):
+            with (
+                self.subTest(lock_file_exists=lock_file_exists),
+                tempfile.TemporaryDirectory() as storage,
+            ):
+
+                def refused_lock(lock_file):
+                    # No worker runs a task without holding this file, so a
+                    # missing file means no worker; an existing one may be held.
+                    if lock_file_exists:
+                        Path(lock_file).parent.mkdir(exist_ok=True)
+                        Path(lock_file).touch()
+                    lock = MagicMock()
+                    lock.acquire.side_effect = PermissionError(
+                        errno.EACCES, "Permission denied", lock_file
+                    )
+                    return lock
+
+                with (
+                    patch.object(
+                        video_controller.utils,
+                        "storage_dir",
+                        side_effect=lambda sub_dir="", create=False: os.path.join(
+                            storage, sub_dir
+                        ),
+                    ),
+                    patch.object(
+                        video_controller.tm, "FileLock", side_effect=refused_lock
+                    ),
+                    patch.object(
+                        video_controller.sm.state, "get_task", return_value=failed_task
+                    ),
+                    patch.object(
+                        video_controller.sm.state, "delete_task"
+                    ) as delete_task,
+                ):
+                    try:
+                        status = video_controller.delete_video(
+                            self._request(), task_id="unlockable-task"
+                        )["status"]
+                    except HttpException as exc:
+                        status = exc.status_code
+
+                self.assertEqual(status, expected_status)
+                self.assertEqual(delete_task.call_count, int(expected_status == 200))
+
     def test_get_and_delete_missing_task_return_404(self):
         """查询或删除未知任务都应返回一致的 404，而不是空成功响应。"""
         with patch.object(video_controller.sm.state, "get_task", return_value=None):
@@ -675,6 +759,42 @@ class TestVideoControllerDeleteHTTP(unittest.TestCase):
             shutil.rmtree(task_dir, ignore_errors=True)
 
         self.assertEqual(lookup_response.status_code, 404)
+
+    def test_delete_failed_task_when_the_lock_directory_cannot_be_created(self):
+        """A storage root that is not writable must not turn deletion into a 500."""
+
+        task_id = "http-delete-unlockable-task"
+        task_dir = utils.task_dir(task_id)
+        Path(task_dir, "script.json").write_text("{}", encoding="utf-8")
+        # What a queue worker leaves behind when it could not lock the task.
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_FAILED,
+            failed_stage="worker",
+            error="cannot lock the task directory",
+        )
+        lock_directory = utils.storage_dir("task_locks")
+        makedirs = os.makedirs
+
+        def refusing_makedirs(name, *args, **kwargs):
+            # Root ignores chmod, so raise what a read-only storage root does.
+            if os.fspath(name) == lock_directory:
+                raise PermissionError(errno.EACCES, "Permission denied", lock_directory)
+            return makedirs(name, *args, **kwargs)
+
+        client = TestClient(asgi.app, raise_server_exceptions=False)
+        try:
+            with patch.object(os, "makedirs", refusing_makedirs):
+                response = client.delete(f"/api/v1/tasks/{task_id}")
+                lookup_response = client.get(f"/api/v1/tasks/{task_id}")
+            directory_left = os.path.exists(task_dir)
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
+            sm.state.delete_task(task_id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(lookup_response.status_code, 404)
+        self.assertFalse(directory_left)
 
 
 class TestVideoControllerFiles(unittest.TestCase):

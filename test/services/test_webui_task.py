@@ -1,6 +1,8 @@
 import ast
+import errno
 import os
 import re
+import shutil
 import threading
 import time
 from collections.abc import Mapping
@@ -14,6 +16,7 @@ from loguru import logger
 
 from app.models import const
 from app.models.schema import VideoParams
+from app.services import task as task_service
 from app.services import webui_task
 from app.utils import logging_utils
 
@@ -160,7 +163,10 @@ def test_webui_delete_keeps_task_state_when_file_removal_fails(tmp_path):
     namespace = {
         "_active_generation_tasks": lambda: {},
         "sm": SimpleNamespace(state=state),
-        "tm": SimpleNamespace(is_task_busy=lambda _task: False),
+        "tm": SimpleNamespace(
+            is_task_busy=lambda _task: False,
+            is_task_directory_held=lambda _task_id: False,
+        ),
         "utils": SimpleNamespace(task_dir=lambda: str(tmp_path / "tasks")),
         "shutil": SimpleNamespace(rmtree=remove_directory),
         "logger": MagicMock(),
@@ -175,6 +181,69 @@ def test_webui_delete_keeps_task_state_when_file_removal_fails(tmp_path):
     ) is False
     remove_directory.assert_called_once_with(str(task_path))
     state.delete_task.assert_not_called()
+
+    # A worker process that was declared gone but is only paused still holds
+    # the directory: nothing is removed until it lets go.
+    remove_directory.reset_mock()
+    namespace["tm"].is_task_directory_held = lambda _task_id: True
+    assert namespace["_delete_task"](
+        "completed-task", str(task_path), const.TASK_STATE_COMPLETE
+    ) is False
+    remove_directory.assert_not_called()
+    state.delete_task.assert_not_called()
+
+
+def test_webui_delete_succeeds_when_the_lock_directory_cannot_be_created(tmp_path):
+    """A storage root that is not writable must not make a task undeletable."""
+    tree = ast.parse(WEBUI_MAIN.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_delete_task"
+    )
+    task_path = tmp_path / "tasks" / "unlockable-task"
+    task_path.mkdir(parents=True)
+    (task_path / "script.json").write_text("{}", encoding="utf-8")
+    state = SimpleNamespace(
+        # What a queue worker leaves behind when it could not lock the task.
+        get_task=MagicMock(
+            return_value={
+                "task_id": "unlockable-task",
+                "state": const.TASK_STATE_FAILED,
+                "failed_stage": "worker",
+            }
+        ),
+        delete_task=MagicMock(),
+    )
+    namespace = {
+        "_active_generation_tasks": lambda: {},
+        "sm": SimpleNamespace(state=state),
+        "tm": task_service,
+        "utils": SimpleNamespace(task_dir=lambda: str(tmp_path / "tasks")),
+        "shutil": shutil,
+        "logger": MagicMock(),
+        "os": os,
+        "const": const,
+    }
+    module = ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[]))
+    exec(compile(module, str(WEBUI_MAIN), "exec"), namespace)
+    lock_directory = task_service.utils.storage_dir("task_locks")
+    makedirs = os.makedirs
+
+    def refusing_makedirs(name, *args, **kwargs):
+        # Root ignores chmod, so raise what a read-only storage root does.
+        if os.fspath(name) == lock_directory:
+            raise PermissionError(errno.EACCES, "Permission denied", lock_directory)
+        return makedirs(name, *args, **kwargs)
+
+    with patch.object(os, "makedirs", refusing_makedirs):
+        deleted = namespace["_delete_task"](
+            "unlockable-task", str(task_path), const.TASK_STATE_FAILED
+        )
+
+    assert deleted is True
+    assert not task_path.exists()
+    state.delete_task.assert_called_once_with("unlockable-task")
 
 
 def test_active_task_uses_terminal_state_when_outside_runtime_page(tmp_path):

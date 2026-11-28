@@ -2,6 +2,7 @@ import inspect
 import json
 import threading
 import time
+from contextlib import ExitStack
 from typing import Dict
 from uuid import uuid4
 
@@ -36,12 +37,20 @@ return 1
 # Running slots are stored separately from the persisted queue. A sorted set
 # gives every slot a lease deadline, so a crashed worker cannot consume global
 # capacity forever. Active workers renew their own member periodically.
+#
+# The lease only names a random slot token, so each slot also records the task
+# it runs (KEYS[3], token -> task_id). The scripts that create a lease write
+# that record themselves: a process killed right after the script returned has
+# still left behind which task its slot was for.
 _ADMIT_TASK_SCRIPT = """
 redis.call("ZREMRANGEBYSCORE", KEYS[2], "-inf", ARGV[1])
 local running = redis.call("ZCARD", KEYS[2])
 local queued = redis.call("LLEN", KEYS[1])
 if running < tonumber(ARGV[2]) and queued == 0 then
     redis.call("ZADD", KEYS[2], ARGV[3], ARGV[4])
+    if ARGV[7] ~= "" then
+        redis.call("HSET", KEYS[3], ARGV[4], ARGV[7])
+    end
     return 1
 end
 if queued >= tonumber(ARGV[5]) then
@@ -61,6 +70,13 @@ if not task then
     return nil
 end
 redis.call("ZADD", KEYS[2], ARGV[3], ARGV[4])
+local decoded, payload = pcall(cjson.decode, task)
+if decoded and type(payload) == "table" and type(payload.kwargs) == "table" then
+    local task_id = payload.kwargs.task_id
+    if type(task_id) == "string" and task_id ~= "" then
+        redis.call("HSET", KEYS[3], ARGV[4], task_id)
+    end
+end
 return task
 """
 
@@ -72,9 +88,27 @@ end
 return 0
 """
 
+# Lists the slots whose lease ran out, with the task each one was running.
+# Reading both keys in one script keeps a slot that is being released from
+# looking expired. The result is only a list of candidates: the operation that
+# fails a task checks its slot again.
+_EXPIRED_RUNNING_TASKS_SCRIPT = """
+local expired = {}
+local owners = redis.call("HGETALL", KEYS[2])
+for index = 1, #owners, 2 do
+    local deadline = redis.call("ZSCORE", KEYS[1], owners[index])
+    if (not deadline) or tonumber(deadline) <= tonumber(ARGV[1]) then
+        expired[#expired + 1] = owners[index]
+        expired[#expired + 1] = owners[index + 1]
+    end
+end
+return expired
+"""
+
 _RUNNING_SLOT_LEASE_SECONDS = 90.0
 _RUNNING_SLOT_HEARTBEAT_SECONDS = 30.0
 _QUEUE_DISPATCH_RETRY_SECONDS = 5.0
+_WORKER_STOPPED_ERROR = "the worker process stopped before the task finished"
 
 
 class RedisTaskManager(TaskManager):
@@ -101,6 +135,10 @@ class RedisTaskManager(TaskManager):
         # semaphore must follow the selected queue namespace automatically.
         return f"{self.queue}:running"
 
+    @property
+    def running_tasks_key(self) -> str:
+        return f"{self.queue}:running:tasks"
+
     @staticmethod
     def _now_ms() -> int:
         return int(time.time() * 1000)
@@ -118,15 +156,17 @@ class RedisTaskManager(TaskManager):
         token = uuid4().hex
         admitted = self.redis_client.eval(
             _ADMIT_TASK_SCRIPT,
-            2,
+            3,
             self.queue,
             self.running_slots_key,
+            self.running_tasks_key,
             self._now_ms(),
             self.max_concurrent_tasks,
             self._lease_deadline_ms(),
             token,
             self.max_queued_tasks,
             self._serialize_task(task),
+            self._task_id_of(kwargs) or "",
         )
         if admitted == -1:
             raise TaskQueueFullError("task queue is full, please try again later")
@@ -187,6 +227,7 @@ class RedisTaskManager(TaskManager):
     def _dispatch_queued_until_stopped(self):
         while not self._dispatcher_stop.is_set():
             try:
+                self.fail_tasks_of_expired_slots()
                 self.check_queue()
                 delay = self._next_queue_dispatch_delay()
             except redis.RedisError as exc:
@@ -208,14 +249,63 @@ class RedisTaskManager(TaskManager):
         deadline_ms = earliest[0][1]
         return max(0.01, (deadline_ms - self._now_ms()) / 1000)
 
+    def fail_tasks_of_expired_slots(self) -> int:
+        """Fail the tasks whose worker stopped renewing its running slot.
+
+        A killed process never reaches task_done(), so the lease expiry frees
+        the global slot but the task record stays in processing and can never
+        be deleted. The same renewable lease that returns the capacity decides
+        here that the worker is gone.
+        """
+        state = sm.state
+        if not isinstance(state, sm.RedisState):
+            # The slot and the task record have to be checked together, which
+            # needs both in Redis. enable_redis selects them as a pair.
+            return 0
+        expired = self.redis_client.eval(
+            _EXPIRED_RUNNING_TASKS_SCRIPT,
+            2,
+            self.running_slots_key,
+            self.running_tasks_key,
+            self._now_ms(),
+        )
+        failed = 0
+        for index in range(0, len(expired or ()), 2):
+            token, task_id = (
+                value.decode("utf-8") if isinstance(value, bytes) else value
+                for value in expired[index : index + 2]
+            )
+            # One Redis operation re-reads the slot and the task and then
+            # settles both. A task that already reached a final state keeps its
+            # result, and a slot that was renewed meanwhile is left alone. From
+            # here on the token owns nothing, so a worker that was only paused
+            # cannot write this task again.
+            if state.fail_task_of_expired_slot(
+                task_id,
+                self.running_slots_key,
+                self.running_tasks_key,
+                token,
+                self._now_ms(),
+                state=const.TASK_STATE_FAILED,
+                failed_stage="worker",
+                error=_WORKER_STOPPED_ERROR,
+            ):
+                logger.error(
+                    f"running slot lease expired, failed task: {task_id}, "
+                    f"global slot: {token}"
+                )
+                failed += 1
+        return failed
+
     def check_queue(self):
         while True:
             token = uuid4().hex
             payload = self.redis_client.eval(
                 _CLAIM_QUEUED_TASK_SCRIPT,
-                2,
+                3,
                 self.queue,
                 self.running_slots_key,
+                self.running_tasks_key,
                 self._now_ms(),
                 self.max_concurrent_tasks,
                 self._lease_deadline_ms(),
@@ -273,12 +363,50 @@ class RedisTaskManager(TaskManager):
         )
         heartbeat.start()
         self._worker_context.slot_token = token
+        task_id = self._task_id_of(kwargs)
         try:
-            func(*args, **kwargs)
+            if task_id is None:
+                func(*args, **kwargs)
+            else:
+                self._run_owned_task(task_id, token, func, *args, **kwargs)
         finally:
             stop_heartbeat.set()
             self.task_done()
             self._worker_context.slot_token = None
+
+    @staticmethod
+    def _task_id_of(kwargs) -> str | None:
+        task_id = kwargs.get("task_id") if isinstance(kwargs, dict) else None
+        return task_id if isinstance(task_id, str) and task_id else None
+
+    def _run_owned_task(self, task_id: str, token: str, func, /, *args, **kwargs):
+        """Run a task as the worker that holds ``token``.
+
+        State writes go through the token for as long as the task runs, and
+        this process holds the task directory, so a deletion waits for it.
+        """
+        sm.state.bind_task_owner(task_id, self.running_tasks_key, token)
+        try:
+            with ExitStack() as held:
+                try:
+                    held.enter_context(tm.task_directory_lock(task_id))
+                except tm.TaskDirectoryLockError as exc:
+                    # Without the lock a deletion cannot see that this process
+                    # writes the directory, so the task is not run. It is
+                    # failed here, while the token still owns it: the caller
+                    # releases the slot only after this returns, and nothing
+                    # looks at a task whose slot is already gone.
+                    logger.error(f"task {task_id} was not started: {exc}")
+                    sm.state.patch_task(
+                        task_id,
+                        state=const.TASK_STATE_FAILED,
+                        failed_stage="worker",
+                        error=str(exc),
+                    )
+                    return
+                func(*args, **kwargs)
+        finally:
+            sm.state.unbind_task_owner(task_id)
 
     def _renew_slot_until_done(self, token: str, stop: threading.Event):
         while not stop.wait(_RUNNING_SLOT_HEARTBEAT_SECONDS):
@@ -300,6 +428,9 @@ class RedisTaskManager(TaskManager):
 
     def _release_slot(self, token: str):
         try:
+            # Drop the task mapping first: a slot that still names a task but
+            # has no lease is what fail_tasks_of_expired_slots() looks for.
+            self.redis_client.hdel(self.running_tasks_key, token)
             self.redis_client.zrem(self.running_slots_key, token)
         except redis.RedisError as exc:
             # The lease will expire even if Redis is temporarily unavailable.
