@@ -516,6 +516,14 @@ trustedrouter_api_key = ""
 trustedrouter_base_url = ""
 trustedrouter_model_name = ""
 
+# Straitly, an AI gateway: one OpenAI-compatible API key for 100+ models (Claude, GPT, Gemini, Grok, DeepSeek and more).
+# API key: https://straitly.ai/console/keys
+# Model list: https://straitly.ai/models
+# Docs: https://straitly.ai/docs/quickstart
+straitly_api_key = ""
+straitly_base_url = ""
+straitly_model_name = ""
+
 # OpenAI or another OpenAI Chat Completions-compatible provider.
 # API key: https://platform.openai.com/api-keys
 openai_api_key = ""

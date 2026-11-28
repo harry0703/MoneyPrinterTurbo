@@ -716,6 +716,13 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertEqual(
             trustedrouter.model_docs_url, "https://trustedrouter.com/models"
         )
+        straitly = get_llm_provider("straitly")
+        self.assertEqual(straitly.default_model, "deepseek/deepseek-v4-1-flash-1017")
+        self.assertEqual(straitly.default_base_url, "https://api.straitly.ai/v1")
+        self.assertEqual(straitly.adapter, "openai_compatible")
+        self.assertTrue(straitly.requires_api_key)
+        self.assertEqual(straitly.api_key_url, "https://straitly.ai/console/keys")
+        self.assertEqual(straitly.model_docs_url, "https://straitly.ai/models")
         iflytek = get_llm_provider("iflytek")
         self.assertEqual(iflytek.default_model, "spark-x2.5")
         self.assertEqual(
@@ -807,6 +814,7 @@ class TestLiteLLMProvider(unittest.TestCase):
                 "atmorouter",
                 "teamorouter",
                 "trustedrouter",
+                "straitly",
                 "ollama",
                 "claude_code",
                 "oneapi",
