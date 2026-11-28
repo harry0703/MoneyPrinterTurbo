@@ -1458,9 +1458,14 @@ def _build_batch_tasks(args: argparse.Namespace) -> list[VideoParams]:
         # A null voice_name is an omitted override: the task keeps the voice
         # that the CLI resolved for the batch (--voice-name, the voice or
         # no-voice mode saved by the WebUI, or the built-in default). TTS failed
-        # on the null with "'NoneType' object has no attribute 'strip'".
+        # on the null with "'NoneType' object has no attribute 'strip'", and on
+        # an empty or whitespace-only voice_name with "Invalid voice ''.".
         overrides = dict(entry)
-        if "voice_name" in overrides and overrides["voice_name"] is None:
+        voice_override = overrides.get("voice_name", "")
+        if "voice_name" in overrides and (
+            voice_override is None
+            or (isinstance(voice_override, str) and not voice_override.strip())
+        ):
             del overrides["voice_name"]
         try:
             params = VideoParams.model_validate(

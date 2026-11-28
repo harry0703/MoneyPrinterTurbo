@@ -179,12 +179,16 @@ class VideoParams(BaseModel):
 # The voice of /videos, /audio and /subtitle requests that leave voice_name out
 # or send it as null. Optional[str] accepts null, and a null voice_name failed
 # the task with "'NoneType' object has no attribute 'strip'" when it reached
-# TTS, for /videos after the script and terms LLM calls.
+# TTS, for /videos after the script and terms LLM calls. An empty or
+# whitespace-only voice_name also failed at TTS, after the LLM calls for
+# /videos, with Edge TTS's "Invalid voice ''.".
 DEFAULT_REQUEST_VOICE_NAME = "zh-CN-XiaoxiaoNeural-Female"
 
 
 def _default_null_request_voice(value: Any) -> Any:
-    return DEFAULT_REQUEST_VOICE_NAME if value is None else value
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return DEFAULT_REQUEST_VOICE_NAME
+    return value
 
 
 RequestVoiceName = Annotated[

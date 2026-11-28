@@ -1711,11 +1711,37 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(start.call_count, 2)
 
+    def test_non_string_voice_name_is_an_invalid_batch_entry(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "tasks.json"
+            for voice_name in (0, False, {"nested": {"value": 1}}):
+                with self.subTest(voice_name=voice_name):
+                    manifest.write_text(
+                        json.dumps(
+                            [{"video_subject": "Coffee", "voice_name": voice_name}]
+                        ),
+                        encoding="utf-8",
+                    )
+                    with (
+                        patch("app.services.task.start") as start,
+                        patch("app.services.voice.tts") as tts,
+                        patch.object(cli.logger, "error") as log_error,
+                    ):
+                        code = cli.run_cli(
+                            ["--batch-file", str(manifest), "--stop-at", "audio"]
+                        )
+
+                    self.assertEqual(code, 2)
+                    self.assertIn("invalid batch task 1", str(log_error.call_args))
+                    start.assert_not_called()
+                    tts.assert_not_called()
+
     def test_null_voice_name_narrates_with_the_batch_voice(self):
         # The task gets the voice that the CLI resolved for the batch, here
         # --voice-name, as the entry without voice_name does. With the null it
         # failed at the audio stage with "'NoneType' object has no attribute
-        # 'strip'", after the tasks before it in the batch had run.
+        # 'strip'", after the tasks before it in the batch had run, and with an
+        # empty or whitespace-only voice_name with "Invalid voice ''.".
         tts_voices = []
 
         def record_tts(**kwargs):
@@ -1729,6 +1755,12 @@ class TestCli(unittest.TestCase):
                     [
                         {"video_script": "City night."},
                         {"video_script": "City night.", "voice_name": None},
+                        {"video_script": "City night.", "voice_name": ""},
+                        {"video_script": "City night.", "voice_name": "   "},
+                        {
+                            "video_script": "City night.",
+                            "voice_name": " en-GB-SoniaNeural-Female ",
+                        },
                     ]
                 ),
                 encoding="utf-8",
@@ -1753,7 +1785,7 @@ class TestCli(unittest.TestCase):
                 )
 
         self.assertEqual(code, 0)
-        self.assertEqual(tts_voices, ["en-US-JennyNeural", "en-US-JennyNeural"])
+        self.assertEqual(tts_voices, ["en-US-JennyNeural"] * 4 + ["en-GB-SoniaNeural"])
 
     def test_null_voice_name_keeps_the_task_narration_audio(self):
         # A task that brings its own narration never calls TTS, with or

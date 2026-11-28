@@ -429,16 +429,18 @@ class RedisTaskManager(TaskManager):
                     elif task_kwargs.get("stop_at") == "subtitle":
                         params_model = SubtitleRequest
                 queued_params = task_kwargs["params"]
-                if (
-                    "voice_name" in queued_params
-                    and queued_params["voice_name"] is None
+                queued_voice = queued_params.get("voice_name", "")
+                if "voice_name" in queued_params and (
+                    queued_voice is None
+                    or (isinstance(queued_voice, str) and not queued_voice.strip())
                 ):
                     # A /videos task queued with "voice_name": null before the
                     # API gave such a request the default voice still holds the
                     # null, and VideoParams keeps it, since the WebUI reads a
                     # null voice as no voice when it restores a task. The task
                     # failed at the audio stage with "'NoneType' object has no
-                    # attribute 'strip'".
+                    # attribute 'strip'". A blank voice failed there with Edge
+                    # TTS's "Invalid voice ''.".
                     queued_params = {
                         **queued_params,
                         "voice_name": DEFAULT_REQUEST_VOICE_NAME,
