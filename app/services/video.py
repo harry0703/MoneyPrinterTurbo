@@ -5,6 +5,7 @@ import io
 import math
 import os
 import random
+import re
 import gc
 import subprocess
 import sys
@@ -827,6 +828,33 @@ def _open_video_clip_quietly(video_path: str, audio: bool = False) -> VideoFileC
     return clip
 
 
+_SAMPLE_ASPECT_PATTERN = re.compile(r"Video:.*\[SAR (\d+):(\d+) DAR ")
+
+
+def _sample_aspect_ratio(video_path: str) -> float:
+    """Return the first video stream's pixel aspect ratio, or 1.0 when unknown.
+
+    MoviePy reports stored pixels, so footage with non-square pixels has to be
+    widened to its display size before it is fitted to the canvas.
+    """
+    try:
+        probe = subprocess.run(
+            [utils.get_ffmpeg_binary(), "-hide_banner", "-nostdin", "-i", video_path],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 1.0
+    match = _SAMPLE_ASPECT_PATTERN.search(probe.stderr or "")
+    if not match or not int(match[1]) or not int(match[2]):
+        return 1.0
+    return int(match[1]) / int(match[2])
+
+
 def close_clip(clip):
     if clip is None:
         return
@@ -1039,6 +1067,12 @@ def combine_videos(
             clip = _open_video_clip_quietly(video_path)
             clip_duration = float(clip.duration)
             clip_w, clip_h = clip.size
+            # MoviePy has already swapped the size of a 90/270 degree display
+            # rotation, so the stored width that SAR stretches is the height.
+            if getattr(clip, "rotation", 0) in (90, 270):
+                clip_h = round(clip_h * _sample_aspect_ratio(video_path))
+            else:
+                clip_w = round(clip_w * _sample_aspect_ratio(video_path))
             if (
                 not math.isfinite(clip_duration)
                 or clip_duration <= 0
@@ -1118,6 +1152,8 @@ def combine_videos(
             clip = source_clip.subclipped(
                 subclipped_item.start_time, subclipped_item.end_time
             )
+            if tuple(clip.size) != (subclipped_item.width, subclipped_item.height):
+                clip = clip.resized((subclipped_item.width, subclipped_item.height))
             # 播放速度属于素材本身属性，应在转场前应用。这样 Fade/Slide 等一秒转场
             # 不会跟随素材速度变成 0.5 秒或 2 秒；后续最大时长裁剪继续作为
             # 浮点误差或异常素材时长的安全兜底，保证最终片段不突破配置上限。
