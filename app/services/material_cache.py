@@ -22,6 +22,9 @@ from app.utils import utils
 
 
 MATERIAL_SEARCH_CACHE_TTL_SECONDS = 24 * 60 * 60
+# Windows time.time() can tick in ~15 ms steps while NTFS stamps writes with a
+# finer clock, so a file written just now may look a few ms in the future.
+_CLOCK_GRANULARITY_TOLERANCE_SECONDS = 1.0
 _CACHE_FORMAT_VERSION = 2
 _CACHE_CLEANUP_INTERVAL_SECONDS = 60 * 60
 _CACHE_FILE_PATTERN = re.compile(r"^[0-9a-f]{64}\.json$")
@@ -263,7 +266,10 @@ def load_material_search_cache(
     cache_age = current_time - stat_result.st_mtime
     # 系统时间回拨或文件从其它机器复制后，mtime 可能落在未来。此时不能把
     # 缓存长期视为新鲜数据，直接失效并重新请求远端更可靠。
-    if cache_age < 0 or cache_age >= MATERIAL_SEARCH_CACHE_TTL_SECONDS:
+    if (
+        cache_age < -_CLOCK_GRANULARITY_TOLERANCE_SECONDS
+        or cache_age >= MATERIAL_SEARCH_CACHE_TTL_SECONDS
+    ):
         _remove_invalid_cache(cache_path, expected=stat_result)
         return None
 
@@ -461,7 +467,11 @@ def cleanup_expired_material_search_cache(
                     # rollback. Only remove temp files demonstrably old enough.
                     if cache_age < MATERIAL_SEARCH_CACHE_TTL_SECONDS:
                         continue
-                elif 0 <= cache_age < MATERIAL_SEARCH_CACHE_TTL_SECONDS:
+                elif (
+                    -_CLOCK_GRANULARITY_TOLERANCE_SECONDS
+                    <= cache_age
+                    < MATERIAL_SEARCH_CACHE_TTL_SECONDS
+                ):
                     continue
                 if not _is_same_cache_file(Path(entry.path), expected):
                     continue
