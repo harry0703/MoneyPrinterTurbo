@@ -133,18 +133,6 @@
   </tr>
   <tr>
     <td align="center" width="120">
-      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><img src="docs/sponsors/jalapeno-logo.png" alt="Jalapeno Cloud" width="56"></a><br>
-      <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo"><strong>Jalapeno Cloud</strong></a>
-    </td>
-    <td align="left">
-      感谢 <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">Jalapeno Cloud</a> 赞助本项目！<br>
-      一站式接入多种 AI 模型，兼容 OpenAI 与 Anthropic API，满足 AI 应用开发与内容创作需求。<br>
-      新用户注册领免费额度，充值<strong>额外赠送最高 20%</strong>；DeepSeek-V4.1-flash、GLM-5.3-flash 等模型<strong>低至 5 折</strong>，Doubao-Seedance-2.5 <strong>长期 9 折</strong>。官方源头，品质保证。<br>
-      👉 <a href="https://www.jalapeno-cloud.ai/MoneyPrinterTurbo">立即注册，领取专属体验金</a>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="120">
       <a href="https://apinebula.ai/ref/luDuqJIb"><img src="docs/sponsors/apinebula-logo.png" alt="APINEBULA" width="56" height="56"></a><br>
       <a href="https://apinebula.ai/ref/luDuqJIb"><strong>APINEBULA</strong></a>
     </td>
@@ -255,14 +243,14 @@
 
 - [x] 支持 AI 自动生成或改写 **多语言视频脚本**，也可以直接使用自定义脚本
 - [x] 支持 [Kimi / Moonshot AI](https://platform.kimi.com?track_id=track-6eec1e56a4494e52adcaebbcbbefce59&aff=moneyprinterturbo)、[OpenAI](https://platform.openai.com/api-keys)、[Anthropic Claude](https://platform.claude.com/settings/keys)、[Google Gemini](https://aistudio.google.com/app/apikey)、[DeepSeek](https://platform.deepseek.com/api_keys)、[阿里云通义千问](https://dashscope.console.aliyun.com/apiKey)、[Microsoft Azure OpenAI](https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI)、[火山引擎方舟](https://www.volcengine.com/activity/ai618?utm_campaign=hw&utm_content=hw&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=MoneyPrinterTurbo)、[xAI Grok](https://console.x.ai/)、[MiniMax](https://platform.minimaxi.com/)、[Muse Spark](https://dev.meta.ai/docs/authentication)、[讯飞星火](https://maas.xfyun.cn/) 和 [小米 MiMo](https://platform.xiaomimimo.com/docs/zh-CN/quick-start/first-api-call) 等主流模型服务
-- [x] 兼容 [APIXO AI](https://apixo.ai/dashboard/api-keys)、[APINEBULA](https://apinebula.ai/ref/luDuqJIb)、[Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo)、[无限星河 AI（Infistar）](https://infistar.cc/keys)、[Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO)、[Cheaper Inference](https://cheaperinference.com/signup)、[Requesty](https://app.requesty.ai/api-keys)、[FutureInfra](https://futureinfra.ai/console/?screen=ai-router)、[Y-API](https://y-api.bestvirtualgoods.com/app/keys)、[Opper](https://platform.opper.ai)、[onomeo](https://onomeo.com/dashboard)、[EmpirioLabs AI](https://platform.empiriolabs.ai/dashboard/api-keys)、[Runcrate](https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing)、[CloudGPU](https://cloudgpu.app)、[cheapaimodel](https://console.cheapaimodel.ai/keys)、[胜算云](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[魔搭 ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[API Route](https://www.api-route.com/)、[Kimi Code](https://www.kimi.com/code?aff=moneyprinterturbo)、[OpenAI - Codex](docs/codex-provider.md)、[ChatGPT Native OAuth](docs/chatgpt-provider.md)、[Ollama](https://ollama.com/)、[Claude Code 订阅](https://code.claude.com/docs)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys) 和 [Pollinations AI](https://enter.pollinations.ai/) 等统一网关、聚合平台和本地运行环境
+- [x] 兼容 [APIXO AI](https://apixo.ai/dashboard/api-keys)、[APINEBULA](https://apinebula.ai/ref/luDuqJIb)、Jalapeno Cloud、[无限星河 AI（Infistar）](https://infistar.cc/keys)、[Fluxion AI](https://fluxionai.space/register?source=github&campaign=moneyprinterturbo&promo=MONEYPRINTERTURBO)、[Cheaper Inference](https://cheaperinference.com/signup)、[Requesty](https://app.requesty.ai/api-keys)、[FutureInfra](https://futureinfra.ai/console/?screen=ai-router)、[Y-API](https://y-api.bestvirtualgoods.com/app/keys)、[Opper](https://platform.opper.ai)、[onomeo](https://onomeo.com/dashboard)、[EmpirioLabs AI](https://platform.empiriolabs.ai/dashboard/api-keys)、[Runcrate](https://www.runcrate.ai/dashboard/api-keys?utm_source=MoneyPrinterTurbo&utm_medium=directory&utm_campaign=gpu_pricing)、[CloudGPU](https://cloudgpu.app)、[cheapaimodel](https://console.cheapaimodel.ai/keys)、[胜算云](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)、[APIMart](https://go.apimart.ai/gh-moneyprinterturbo)、[Cloudflare AI Gateway](https://dash.cloudflare.com/)、[魔搭 ModelScope](https://modelscope.cn/docs/model-service/API-Inference/intro)、[AIHubMix](https://aihubmix.com/)、[AIML API](https://aimlapi.com/app/keys)、[EvoLink](https://evolink.ai/dashboard/keys)、[OpenRouter](https://openrouter.ai/settings/keys)、[API Route](https://www.api-route.com/)、[Kimi Code](https://www.kimi.com/code?aff=moneyprinterturbo)、[OpenAI - Codex](docs/codex-provider.md)、[ChatGPT Native OAuth](docs/chatgpt-provider.md)、[Ollama](https://ollama.com/)、[Claude Code 订阅](https://code.claude.com/docs)、[OneAPI](https://github.com/songquanpeng/one-api)、[LiteLLM](https://docs.litellm.ai/docs/providers)、[Groq](https://console.groq.com/keys) 和 [Pollinations AI](https://enter.pollinations.ai/) 等统一网关、聚合平台和本地运行环境
 
 ### 视频与图片素材
 
 - [x] 支持上传自己的 **本地图片和视频**，也可从 [Pexels（免费）](https://www.pexels.com/api/)、[Pixabay（免费）](https://pixabay.com/api/docs/) 和 [Coverr](https://coverr.co/developers?ctx=header_navigation) 获取高清库存素材
 - [x] 支持 [秘塔 MiniMax H3](https://metaso.cn/minimax-h3/?s=MPT) 文生视频，可生成 `768P`/`2K`、4～15 秒的原始素材，并适配 `9:16`、`16:9` 和 `1:1` 三种画幅
 - [x] 支持[胜算云 LoomLoom AI 视频](https://www.shengsuanyun.com/?from=CH_XUQ4OTSK)，在获取报价并确认费用后生成多段素材，沿用项目的配音、字幕和剪辑流程合成成片
-- [x] 支持通过[无限星河 AI（Infistar）](https://infistar.cc/keys)和 [Jalapeno Cloud](https://www.jalapeno-cloud.ai/MoneyPrinterTurbo) 生成 AI 视频素材
+- [x] 支持通过[无限星河 AI（Infistar）](https://infistar.cc/keys)和 Jalapeno Cloud 生成 AI 视频素材
 - [x] 原生接入 [火山引擎方舟 Seedance](https://console.volcengine.com/ark/region:ark+cn-beijing/apikey)，可根据脚本片段生成连贯的视频画面
 - [x] 支持 [WaveSpeed AI](https://wavespeed.ai) 文生视频，可根据脚本关键词快速生成原创素材
 - [x] 支持 [OFox](https://ofox.ai) 多模型文生视频，一个 API Key 即可调用 Seedance、Wan 等模型
