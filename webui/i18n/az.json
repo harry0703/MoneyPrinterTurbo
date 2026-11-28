@@ -168,6 +168,7 @@
     "Preset Song": "Hazır mahnı",
     "No Background Music Available": "Fon musiqisi mövcud deyil.",
     "Background Music Preview Failed": "Bu fon musiqisinin önbaxışı açıla bilmir.",
+    "BGM Mix Fallback Warning": "Seçilmiş musiqidən istifadə etmək mümkün olmadığı üçün {index} nömrəli video fon musiqisi olmadan yaradıldı.",
     "Selected Background Music Unavailable": "Seçilmiş fon musiqisi mövcud deyil. İlk mövcud mahnı seçildi.",
     "Custom Background Music": "Fərdi fon musiqisi",
     "Sonilo Background Music": "Videoya avtomatik uyğunlaşdırılan musiqi (Sonilo AI)",

@@ -174,6 +174,7 @@
     "Preset Song": "Canción predefinida",
     "No Background Music Available": "No hay música de fondo disponible.",
     "Background Music Preview Failed": "No se puede reproducir esta música de fondo.",
+    "BGM Mix Fallback Warning": "El vídeo {index} se generó sin música de fondo porque no se pudo usar la música seleccionada.",
     "Selected Background Music Unavailable": "La música de fondo seleccionada no está disponible. Se ha seleccionado la primera canción disponible.",
     "Custom Background Music": "Música de fondo personalizada",
     "Sonilo Background Music": "Música automática adaptada al video (Sonilo AI)",
